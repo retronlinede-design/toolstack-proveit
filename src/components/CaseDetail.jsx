@@ -69,13 +69,30 @@ export default function CaseDetail({
     );
   };
 
+  const sortChronological = (items) => {
+    return [...items].sort((a, b) => {
+    const dateA = a.eventDate || a.date || "";
+    const dateB = b.eventDate || b.date || "";
+    if (dateA !== dateB) return dateA.localeCompare(dateB);
+
+    const createdA = a.createdAt || "";
+    const createdB = b.createdAt || "";
+    if (createdA !== createdB) return createdA.localeCompare(createdB);
+
+    // Tie-breaker for same date/timestamp items
+    const idA = String(a.id || "");
+    const idB = String(b.id || "");
+    return idA.localeCompare(idB);
+  });
+  };
+
   const caseInboxCount = reviewQueue.filter((item) => item.caseId === selectedCase.id).length;
-  const timelineItems = [
+  const timelineItems = sortChronological([
     ...selectedCase.evidence.map((item) => ({ ...item, _kind: "Evidence" })),
     ...selectedCase.incidents.map((item) => ({ ...item, _kind: "Incident" })),
     ...selectedCase.tasks.map((item) => ({ ...item, _kind: "Task" })),
     ...selectedCase.strategy.map((item) => ({ ...item, _kind: "Strategy" })),
-  ].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  ]);
 
   return (
     <div className="space-y-6">
@@ -146,48 +163,88 @@ export default function CaseDetail({
         )}
 
         {activeTab === "evidence" && renderListBlock(selectedCase.evidence, "No evidence yet. Add your first evidence item for this case.", "evidence")}
-        {activeTab === "incidents" && renderListBlock(selectedCase.incidents, "No incidents yet. Add your first incident to start the case timeline.", "incidents")}
+        {activeTab === "incidents" && renderListBlock(sortChronological(selectedCase.incidents), "No incidents yet. Add your first incident to start the case timeline.", "incidents")}
         {activeTab === "tasks" && renderListBlock(selectedCase.tasks, "No tasks yet. Add tasks to track what needs to be done next.", "tasks")}
         {activeTab === "strategy" && renderListBlock(selectedCase.strategy, "No strategy notes yet. Add strategy to track approach and planning.", "strategy")}
 
         {activeTab === "timeline" && (
-          <div className="space-y-3">
-            {timelineItems.length ? timelineItems.map((item) => {
-              const isDoneTask = item._kind === 'Task' && item.status === 'done';
-              return (
-              <div key={`${item._kind}-${item.id}`} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className={isDoneTask ? 'line-through opacity-60' : ''}>
-                    <div className="font-semibold">{item.title}</div>
-                    <div className="mt-1 text-sm text-neutral-600">{item.date}</div>
+          <div className="space-y-8">
+            {timelineItems.length ? (
+              (() => {
+                // TASK 1: Group timeline items by eventDate
+                const groups = [];
+                let lastDate = null;
+                timelineItems.forEach(item => {
+                  const d = item.eventDate || item.date || "Unknown Date";
+                  if (d !== lastDate) {
+                    groups.push({ date: d, items: [item] });
+                    lastDate = d;
+                  } else {
+                    groups[groups.length - 1].items.push(item);
+                  }
+                });
+
+                return groups.map(group => (
+                  <div key={group.date} className="space-y-4">
+                    <div className="relative flex items-center py-2">
+                      <div className="flex-grow border-t border-neutral-200"></div>
+                      <span className="mx-4 flex-shrink text-xs font-bold uppercase tracking-widest text-neutral-400">
+                        {group.date}
+                      </span>
+                      <div className="flex-grow border-t border-neutral-200"></div>
+                    </div>
+                    <div className="space-y-3">
+                      {group.items.map(item => {
+                        const isDoneTask = item._kind === 'Task' && item.status === 'done';
+                        return (
+                          <div key={`${item._kind}-${item.id}`} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className={isDoneTask ? 'line-through opacity-60' : ''}>
+                                <div className="font-semibold text-neutral-900">{item.title}</div>
+                                {/* TASK 2: Show both Incident Date and Logged date */}
+                                <div className="mt-2 space-y-1 text-xs text-neutral-500">
+                                  <div><span className="font-medium text-neutral-700">Incident Date:</span> {item.eventDate || item.date}</div>
+                                  <div>
+                                    <span className="font-medium text-neutral-700">Logged:</span> {item.createdAt 
+                                      ? new Date(item.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) + ' at ' + 
+                                        new Date(item.createdAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+                                      : 'Unknown'}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="rounded-full border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700">{item._kind}</span>
+                                <button
+                                  onClick={() => {
+                                    let recordType = item._kind.toLowerCase();
+                                    if (recordType === 'incident' || recordType === 'task') {
+                                        recordType += 's';
+                                    }
+                                    openEditRecordModal(recordType, item);
+                                  }}
+                                  className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-xs font-medium text-neutral-700 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
+                                >Edit</button>
+                                <button
+                                  onClick={() => {
+                                    let recordType = item._kind.toLowerCase();
+                                    if (recordType === 'incident' || recordType === 'task') {
+                                        recordType += 's';
+                                    }
+                                    deleteRecord(recordType, item.id);
+                                  }} className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-red-600 shadow-[0_2px_4px_rgba(60,60,60,0.1)] hover:bg-red-50 hover:border-red-200 transition-colors">Delete</button>
+                              </div>
+                            </div>
+                            {item.description ? <p className="mt-3 text-sm text-neutral-700">{item.description}</p> : null}
+                            {item.notes ? <p className="mt-2 text-sm text-neutral-500">{item.notes}</p> : null}
+                            <AttachmentPreview attachments={(item.attachments || []).map(att => att.file || imageCache[att.storageRef]).filter(Boolean)} />
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700">{item._kind}</span>
-                    <button
-                      onClick={() => {
-                        let recordType = item._kind.toLowerCase();
-                        if (recordType === 'incident' || recordType === 'task') {
-                            recordType += 's';
-                        }
-                        openEditRecordModal(recordType, item);
-                      }}
-                      className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-xs font-medium text-neutral-700 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
-                    >Edit</button>
-                    <button
-                      onClick={() => {
-                        let recordType = item._kind.toLowerCase();
-                        if (recordType === 'incident' || recordType === 'task') {
-                            recordType += 's';
-                        }
-                        deleteRecord(recordType, item.id);
-                      }} className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-red-600 shadow-[0_2px_4px_rgba(60,60,60,0.1)] hover:bg-red-50 hover:border-red-200 transition-colors">Delete</button>
-                  </div>
-                </div>
-                {item.description ? <p className="mt-3 text-sm text-neutral-700">{item.description}</p> : null}
-                {item.notes ? <p className="mt-2 text-sm text-neutral-500">{item.notes}</p> : null}
-                <AttachmentPreview attachments={(item.attachments || []).map(att => att.file || imageCache[att.storageRef]).filter(Boolean)} />
-              </div>
-            )}) : (
+                ));
+              })()
+            ) : (
               <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
                 No timeline entries yet. Add records to see the chronology of the case.
               </div>

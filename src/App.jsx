@@ -63,25 +63,96 @@ const normalizeQuickCaptureStatus = (value) => {
   return "unreviewed";
 };
 
-function normalizeRecord(item, recordType) {
+/**
+ * Validates and normalizes a date string to YYYY-MM-DD.
+ */
+function getSafeDate(val) {
+  if (!val || typeof val !== 'string') return null;
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString().split('T')[0];
+}
+
+/**
+ * Determines if a record type is timeline-capable (incident, evidence, strategy/note).
+ */
+function isTimelineCapable(recordType) {
+  const type = (recordType || "").toLowerCase();
+  return ["evidence", "incidents", "strategy"].includes(type);
+}
+
+/**
+ * Normalizes timeline-specific fields with priority-based fallback logic.
+ */
+function normalizeTimelineFields(item) {
+  const createdAt = item?.createdAt || new Date().toISOString();
+  const today = new Date().toISOString().split('T')[0];
+
+  // Priority: 1. eventDate, 2. date, 3. incidentDate, 4. createdAt part, 5. today
+  const eventDate = getSafeDate(item?.eventDate) ||
+                    getSafeDate(item?.date) ||
+                    getSafeDate(item?.incidentDate) ||
+                    (item?.createdAt ? item.createdAt.split('T')[0] : today);
+
   return {
+    eventDate,
+    createdAt,
+    updatedAt: item?.updatedAt || createdAt
+  };
+}
+
+/**
+ * TASK 1: Shared sorting helper for timeline-capable items.
+ * Sorts ascending by: eventDate, createdAt, then id.
+ */
+function sortTimelineItems(items) {
+  return [...items].sort((a, b) => {
+    const dateA = a.eventDate || "";
+    const dateB = b.eventDate || "";
+    if (dateA !== dateB) return dateA.localeCompare(dateB);
+
+    const createdA = a.createdAt || "";
+    const createdB = b.createdAt || "";
+    if (createdA !== createdB) return createdA.localeCompare(createdB);
+
+    return (a.id || "").localeCompare(b.id || "");
+  });
+}
+
+function normalizeRecord(item, recordType) {
+  const base = {
     id: item?.id || crypto.randomUUID(),
+    type: recordType || item?.type || "unknown",
     title: item?.title || "",
     date: item?.date || new Date().toISOString().slice(0, 10),
     description: item?.description || "",
     notes: item?.notes || "",
     attachments: Array.isArray(item?.attachments) ? item.attachments : [],
-    createdAt: item?.createdAt || new Date().toISOString(),
     tags: Array.isArray(item?.tags) ? item.tags : [],
     linkedRecordIds: Array.isArray(item?.linkedRecordIds) ? item.linkedRecordIds : [],
     status: normalizeRecordStatus(item?.status, recordType),
     source: item?.source || "manual",
-    updatedAt: item?.updatedAt || item?.createdAt || new Date().toISOString(),
     edited: !!item?.edited,
+  };
+
+  if (isTimelineCapable(recordType)) {
+    const timelineData = normalizeTimelineFields(item);
+    return { ...base, ...timelineData };
+  }
+
+  return {
+    ...base,
+    createdAt: item?.createdAt || new Date().toISOString(),
+    updatedAt: item?.updatedAt || item?.createdAt || new Date().toISOString(),
   };
 }
 
 function normalizeCase(caseItem) {
+  const evidence = Array.isArray(caseItem?.evidence) ? caseItem.evidence.map(r => normalizeRecord(r, "evidence")) : [];
+  const incidents = Array.isArray(caseItem?.incidents) ? caseItem.incidents.map(r => normalizeRecord(r, "incidents")) : [];
+  const tasks = Array.isArray(caseItem?.tasks) ? caseItem.tasks.map(r => normalizeRecord(r, "tasks")) : [];
+  const strategy = Array.isArray(caseItem?.strategy) ? caseItem.strategy.map(r => normalizeRecord(r, "strategy")) : [];
+
   return {
     id: caseItem?.id || crypto.randomUUID(),
     name: caseItem?.name || "Imported Case",
@@ -92,10 +163,10 @@ function normalizeCase(caseItem) {
     tags: Array.isArray(caseItem?.tags) ? caseItem.tags : [],
     createdAt: caseItem?.createdAt || new Date().toISOString(),
     updatedAt: caseItem?.updatedAt || new Date().toISOString(),
-    evidence: Array.isArray(caseItem?.evidence) ? caseItem.evidence.map(r => normalizeRecord(r, "evidence")) : [],
-    incidents: Array.isArray(caseItem?.incidents) ? caseItem.incidents.map(r => normalizeRecord(r, "incidents")) : [],
-    tasks: Array.isArray(caseItem?.tasks) ? caseItem.tasks.map(r => normalizeRecord(r, "tasks")) : [],
-    strategy: Array.isArray(caseItem?.strategy) ? caseItem.strategy.map(r => normalizeRecord(r, "strategy")) : [],
+    evidence: sortTimelineItems(evidence),
+    incidents: sortTimelineItems(incidents),
+    tasks: tasks,
+    strategy: sortTimelineItems(strategy),
   };
 }
 
@@ -109,7 +180,8 @@ function mergeRecords(existingRecords = [], incomingRecords = [], recordType) {
       recordMap.set(incomingRecord.id, normalizeRecord(incomingRecord, recordType));
     }
   }
-  return Array.from(recordMap.values());
+  const merged = Array.from(recordMap.values());
+  return isTimelineCapable(recordType) ? sortTimelineItems(merged) : merged;
 }
 
 function mergeCase(existingCase, incomingCase) {
@@ -159,6 +231,7 @@ export default function ProveItApp() {
       return "overview";
     }
   });
+  const [assignRecordType, setAssignRecordType] = useState(null);
   const [recordType, setRecordType] = useState(null);
   const [recordForm, setRecordForm] = useState(EMPTY_RECORD_FORM);
   const [editingRecord, setEditingRecord] = useState(null);
@@ -702,12 +775,14 @@ export default function ProveItApp() {
         updatedAt: new Date().toISOString(),
         edited: true,
       });
+      
+      const updatedList = selectedCase[recordType].map((rec) =>
+        rec.id === editingRecord.id ? updatedRecord : rec
+      );
 
       updatedCase = {
         ...selectedCase,
-        [recordType]: selectedCase[recordType].map((rec) =>
-          rec.id === editingRecord.id ? updatedRecord : rec
-        ),
+        [recordType]: isTimelineCapable(recordType) ? sortTimelineItems(updatedList) : updatedList,
         updatedAt: new Date().toISOString(),
       };
     } else {
@@ -748,10 +823,12 @@ export default function ProveItApp() {
         attachments: attachmentObjects,
         createdAt: new Date().toISOString(),
       });
+      
+      const updatedList = [newRecord, ...selectedCase[recordType]];
 
       updatedCase = {
         ...selectedCase,
-        [recordType]: [newRecord, ...selectedCase[recordType]],
+        [recordType]: isTimelineCapable(recordType) ? sortTimelineItems(updatedList) : updatedList,
         updatedAt: new Date().toISOString(),
       };
     }
@@ -848,9 +925,11 @@ export default function ProveItApp() {
     const caseToUpdate = cases.find(c => c.id === capture.caseId);
     
     if (caseToUpdate) {
+      const updatedList = [newRecord, ...caseToUpdate[targetType]];
+      
       const updatedCase = {
         ...caseToUpdate,
-        [targetType]: [newRecord, ...caseToUpdate[targetType]],
+        [targetType]: isTimelineCapable(targetType) ? sortTimelineItems(updatedList) : updatedList,
         updatedAt: new Date().toISOString(),
       };
 
@@ -1020,6 +1099,8 @@ export default function ProveItApp() {
               const isQuick = a.label === "Quick Capture";
               const isExport = a.label === "Export";
               const isImport = a.label === "Import";
+              const isTask = a.label === "Add Task";
+              const isStrategy = a.label === "Add Strategy";
 
               if (isImport) {
                 return (
@@ -1033,7 +1114,12 @@ export default function ProveItApp() {
               return (
                 <button
                   key={a.label}
-                  onClick={isQuick ? openQuickCapture : isExport ? exportData : undefined}
+                  onClick={
+                    isQuick ? openQuickCapture : 
+                    isExport ? exportData : 
+                    isTask ? () => setAssignRecordType("tasks") :
+                    isStrategy ? () => setAssignRecordType("strategy") : undefined
+                  }
                   className="rounded-2xl border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
                 >
                   {a.label}
@@ -1127,6 +1213,45 @@ export default function ProveItApp() {
             saveRecord={saveRecord}
             closeRecordModal={closeRecordModal}
           />
+        )}
+
+        {assignRecordType && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl">
+              <h2 className="mb-4 text-xl font-semibold capitalize">Assign {assignRecordType.slice(0, -1)}</h2>
+              <p className="mb-4 text-sm text-neutral-600">Select a case file to add this {assignRecordType.slice(0, -1)} to:</p>
+              
+              <div className="max-h-60 overflow-y-auto space-y-2 mb-4 pr-1">
+                {cases.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => {
+                      setSelectedCaseId(c.id);
+                      openRecordModal(assignRecordType);
+                      setAssignRecordType(null);
+                    }}
+                    className="w-full text-left rounded-xl border border-neutral-200 p-3 hover:bg-neutral-50 hover:border-neutral-300 transition-colors"
+                  >
+                    <div className="font-medium">{c.name}</div>
+                    <div className="text-xs text-neutral-500 truncate">{c.category}</div>
+                  </button>
+                ))}
+                <button
+                  onClick={() => {
+                    setAssignRecordType(null);
+                    openCreateCaseModal();
+                  }}
+                  className="w-full text-left rounded-xl border border-dashed border-lime-500 p-3 hover:bg-lime-50 transition-colors text-lime-700 font-medium"
+                >
+                  + Create New Case
+                </button>
+              </div>
+
+              <button onClick={() => setAssignRecordType(null)} className="w-full rounded-xl bg-neutral-100 py-2 text-sm font-medium text-neutral-600 hover:bg-neutral-200">
+                Cancel
+              </button>
+            </div>
+          </div>
         )}
 
         {showQuickCapture && (
