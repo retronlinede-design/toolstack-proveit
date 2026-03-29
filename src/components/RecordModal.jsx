@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 export default function RecordModal({
   recordType,
   selectedCase,
@@ -7,12 +9,70 @@ export default function RecordModal({
   removeRecordAttachment,
   saveRecord,
   closeRecordModal,
+  onPreviewFile,
+  openEditRecordModal,
+  onCreateEvidenceFromIncident,
+  onUnlinkEvidenceFromIncident,
 }) {
+  const [isLinking, setIsLinking] = useState(false);
+  const [tempSelection, setTempSelection] = useState([]);
+
+  const toggleEvidenceLink = (id) => {
+    setTempSelection(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleConfirmLinks = () => {
+    setRecordForm({
+      ...recordForm,
+      linkedEvidenceIds: Array.from(new Set([...(recordForm.linkedEvidenceIds || []), ...tempSelection]))
+    });
+    setIsLinking(false);
+    setTempSelection([]);
+  };
+
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl">
-        <h2 className="mb-4 text-xl font-semibold capitalize">Add {recordType.slice(0, -1)}</h2>
-        <p className="mb-4 text-sm text-neutral-600">Case: {selectedCase.name}</p>
+      <div className="w-full max-w-lg rounded-3xl bg-white shadow-xl flex flex-col max-h-[90vh]">
+        <div className="p-6 pb-0">
+          <h2 className="text-xl font-semibold capitalize">
+            {isLinking ? "Link Existing Evidence" : `Add ${recordType.slice(0, -1)}`}
+          </h2>
+          <p className="mb-4 text-sm text-neutral-600">Case: {selectedCase.name}</p>
+        </div>
+
+        <div className="p-6 pt-0 overflow-y-auto flex-1">
+        {isLinking ? (
+          <div className="space-y-3">
+            <p className="text-sm text-neutral-600 mb-4">Select evidence items from this case to link to this incident.</p>
+            <div className="space-y-2">
+              {selectedCase.evidence.length === 0 ? (
+                <p className="text-sm text-neutral-500 italic py-4 text-center">No evidence available in this case.</p>
+              ) : (
+                selectedCase.evidence.map(ev => {
+                  const isAlreadyLinked = recordForm.linkedEvidenceIds?.includes(ev.id);
+                  return (
+                    <label key={ev.id} className={`flex items-center justify-between gap-3 p-3 rounded-xl border transition-colors cursor-pointer ${isAlreadyLinked ? 'bg-neutral-50 border-neutral-100 opacity-60' : 'bg-white border-neutral-200 hover:border-lime-300 hover:bg-lime-50/30'}`}>
+                      <div className="flex items-center gap-3 truncate">
+                        <input 
+                          type="checkbox"
+                          checked={isAlreadyLinked || tempSelection.includes(ev.id)}
+                          disabled={isAlreadyLinked}
+                          onChange={() => toggleEvidenceLink(ev.id)}
+                          className="h-5 w-5 rounded border-neutral-300 text-lime-600 focus:ring-lime-500"
+                        />
+                        <span className="truncate text-sm font-medium text-neutral-800">{ev.title || "Untitled Evidence"}</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-neutral-400 uppercase">{ev.date}</span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        ) : (
+          <>
         <input
           placeholder="Title"
           value={recordForm.title}
@@ -39,6 +99,77 @@ export default function RecordModal({
           className="mb-3 w-full rounded-xl border border-neutral-300 p-3"
           rows={3}
         />
+
+        {recordType === "evidence" && (
+          <div className="mb-4 space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Evidence Assessment</h3>
+            
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-neutral-600">Importance</label>
+                <select 
+                  value={recordForm.importance} 
+                  onChange={(e) => setRecordForm({...recordForm, importance: e.target.value})}
+                  className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-xs"
+                >
+                  <option value="unreviewed">Unreviewed</option>
+                  <option value="critical">Critical</option>
+                  <option value="strong">Strong</option>
+                  <option value="supporting">Supporting</option>
+                  <option value="weak">Weak</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-neutral-600">Relevance</label>
+                <select 
+                  value={recordForm.relevance} 
+                  onChange={(e) => setRecordForm({...recordForm, relevance: e.target.value})}
+                  className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-xs"
+                >
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-neutral-600">Status</label>
+                <select 
+                  value={recordForm.status} 
+                  onChange={(e) => setRecordForm({...recordForm, status: e.target.value})}
+                  className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-xs"
+                >
+                  <option value="needs_review">Needs Review</option>
+                  <option value="verified">Verified</option>
+                  <option value="incomplete">Incomplete</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-neutral-600">Used In (Comma separated)</label>
+              <input 
+                placeholder="e.g. Complaint, Hearing, Timeline"
+                value={recordForm.usedIn?.join(", ") || ""}
+                onChange={(e) => setRecordForm({
+                  ...recordForm, 
+                  usedIn: e.target.value.split(",").map(s => s.trim()).filter(Boolean)
+                })}
+                className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-neutral-600">Review Notes</label>
+              <textarea 
+                placeholder="Internal assessment notes..."
+                value={recordForm.reviewNotes}
+                onChange={(e) => setRecordForm({...recordForm, reviewNotes: e.target.value})}
+                className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm"
+                rows={2}
+              />
+            </div>
+          </div>
+        )}
 
         {recordType === "evidence" && (
           <div className="mb-4 space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
@@ -133,40 +264,142 @@ export default function RecordModal({
           </div>
         )}
 
-        <label className="mb-3 block cursor-pointer rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-600">
-          Upload attachments (images, PDFs, documents)
-          <input
-            type="file"
-            multiple
-            className="hidden"
-            onChange={handleRecordFiles}
-            accept="image/*,application/pdf,.pdf,.doc,.docx,.txt"
-          />
-        </label>
-
-        {recordForm.attachments.length > 0 && (
-          <div className="mb-4 space-y-2">
-            {recordForm.attachments.map((file) => (
-              <div key={file.id} className="flex items-center justify-between rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm">
-                <span className="truncate pr-3">{file.name}</span>
-                <button
-                  onClick={() => removeRecordAttachment(file.id)}
-                  className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-xs text-neutral-700 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
-                >
-                  Remove
-                </button>
+        {recordType === "incidents" ? (
+          <div className="space-y-4">
+          <div className="mb-4 space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Linked Evidence</h3>
+            {recordForm.linkedEvidenceIds && recordForm.linkedEvidenceIds.length > 0 ? (
+              <div className="space-y-2">
+                {recordForm.linkedEvidenceIds.map((evidenceId) => {
+                  const evidenceItem = selectedCase.evidence.find(e => e.id === evidenceId);
+                  if (!evidenceItem) return null;
+                  return (
+                    <div key={evidenceId} className="rounded-xl border border-neutral-200 bg-white p-3">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="font-semibold text-neutral-800 truncate">{evidenceItem.title || "Untitled Evidence"}</span>
+                        <div className="flex flex-wrap gap-1">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                            evidenceItem.importance === 'critical' ? 'bg-red-50 border-red-200 text-red-700' :
+                            evidenceItem.importance === 'strong' ? 'bg-amber-50 border-amber-200 text-amber-700' :
+                            'bg-neutral-100 border-neutral-200 text-neutral-500'
+                          }`}>
+                            {evidenceItem.importance?.toUpperCase()}
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                            evidenceItem.status === 'verified' ? 'bg-lime-50 border-lime-200 text-lime-700' :
+                            evidenceItem.status === 'incomplete' ? 'bg-red-50 border-red-200 text-red-700' :
+                            'bg-neutral-100 border-neutral-200 text-neutral-500'
+                          }`}>
+                            {evidenceItem.status?.replace('_', ' ').toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-neutral-500">
+                        <span>
+                          {evidenceItem.attachments?.[0]?.mimeType?.startsWith('image/') && 'Image'}
+                          {evidenceItem.attachments?.[0]?.mimeType === 'application/pdf' && 'PDF'}
+                          {evidenceItem.attachments?.[0] && !evidenceItem.attachments?.[0]?.mimeType?.startsWith('image/') && evidenceItem.attachments?.[0]?.mimeType !== 'application/pdf' && 'File'}
+                          {!evidenceItem.attachments?.[0] && 'No Digital File'}
+                        </span>
+                        <div className="flex gap-2">
+                          {evidenceItem.attachments?.[0] && onPreviewFile && (
+                            <button
+                              onClick={() => onPreviewFile(evidenceItem.attachments[0])}
+                              className="rounded-lg border border-neutral-300 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors"
+                            >
+                              Preview
+                            </button>
+                          )}
+                          {openEditRecordModal && (
+                            <button
+                              onClick={() => openEditRecordModal("evidence", evidenceItem)}
+                              className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                            >
+                              Open
+                            </button>
+                          )}
+                          <button
+                            onClick={() => onUnlinkEvidenceFromIncident(recordForm.id, evidenceItem.id)}
+                            className="rounded-lg border border-red-300 bg-white px-2 py-1 text-[10px] font-bold text-red-700 shadow-sm hover:bg-red-50 transition-colors"
+                          >
+                            Unlink
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
+            ) : (
+              <p className="text-xs text-neutral-500 italic">No evidence linked yet.</p>
+            )}
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setIsLinking(true)} className="rounded-xl border border-lime-500 bg-white py-2 text-xs font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
+                Link Existing
+              </button>
+              <button onClick={() => onCreateEvidenceFromIncident(recordForm)} className="rounded-xl border border-lime-500 bg-white py-2 text-xs font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
+                + Create New
+              </button>
+            </div>
           </div>
-        )}
+          <div className="mb-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-xs text-neutral-500 italic">
+            Files are stored in Evidence items and linked to incidents.
+          </div>
+          </div>
+        ) : (
+          <>
+            <label className="mb-3 block cursor-pointer rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-600">
+              Upload attachments (images, PDFs, documents)
+              <input
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleRecordFiles}
+                accept="image/*,application/pdf,.pdf,.doc,.docx,.txt"
+              />
+            </label>
 
-        <div className="flex gap-2">
-          <button onClick={saveRecord} className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
-            Save
-          </button>
-          <button onClick={closeRecordModal} className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
-            Cancel
-          </button>
+            {recordForm.attachments.length > 0 && (
+              <div className="mb-4 space-y-2">
+                {recordForm.attachments.map((file) => (
+                  <div key={file.id} className="flex items-center justify-between rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm">
+                    <span className="truncate pr-3">{file.name}</span>
+                    <button
+                      onClick={() => removeRecordAttachment(file.id)}
+                      className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-xs text-neutral-700 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+        </>
+        )}
+        </div>
+
+        <div className="p-6 pt-4 border-t border-neutral-100 flex gap-2">
+          {isLinking ? (
+            <>
+              <button onClick={handleConfirmLinks} className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
+                Link Selected ({tempSelection.length})
+              </button>
+              <button onClick={() => setIsLinking(false)} className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
+                Back
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={saveRecord} className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
+                Save
+              </button>
+              <button onClick={closeRecordModal} className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
+                Cancel
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

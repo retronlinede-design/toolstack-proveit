@@ -12,6 +12,13 @@ const EMPTY_RECORD_FORM = {
   description: "",
   notes: "",
   attachments: [],
+  linkedIncidentIds: [], // Added for evidence
+  linkedEvidenceIds: [], // Added for incidents
+  importance: "unreviewed",
+  relevance: "medium",
+  status: "needs_review",
+  usedIn: [],
+  reviewNotes: "",
   sourceType: "other",
   capturedAt: "",
   availability: {
@@ -141,6 +148,8 @@ function normalizeRecord(item, recordType) {
     attachments: Array.isArray(item?.attachments) ? item.attachments : [],
     tags: Array.isArray(item?.tags) ? item.tags : [],
     linkedRecordIds: Array.isArray(item?.linkedRecordIds) ? item.linkedRecordIds : [],
+    linkedIncidentIds: Array.isArray(item?.linkedIncidentIds) ? item.linkedIncidentIds : [], // For evidence
+    linkedEvidenceIds: Array.isArray(item?.linkedEvidenceIds) ? item.linkedEvidenceIds : [], // For incidents
     status: normalizeRecordStatus(item?.status, recordType),
     source: item?.source || "manual",
     edited: !!item?.edited,
@@ -152,7 +161,13 @@ function normalizeRecord(item, recordType) {
       ...base,
       sourceType: item?.sourceType || "other",
       capturedAt: item?.capturedAt || item?.date || base.date,
-      availability: {
+      importance: item?.importance || "unreviewed",
+      relevance: item?.relevance || "medium",
+      status: ["verified", "needs_review", "incomplete"].includes(item?.status) ? item.status : "needs_review",
+      usedIn: Array.isArray(item?.usedIn) ? item.usedIn : [],
+      reviewNotes: item?.reviewNotes || "",
+      // linkedIncidentIds is now handled in base, no need to re-add here
+      availability: { 
         physical: {
           hasOriginal: !!avail.physical?.hasOriginal,
           location: avail.physical?.location || "",
@@ -237,6 +252,41 @@ function mergeCase(existingCase, incomingCase) {
   };
 }
 
+/**
+ * Syncs bi-directional links between Incidents and Evidence items.
+ */
+function syncCaseLinks(caseData, record, type) {
+  const updatedCase = { ...caseData };
+  if (!record.id) return updatedCase;
+
+  if (type === "incidents") {
+    updatedCase.evidence = sortTimelineItems((updatedCase.evidence || []).map(ev => {
+      const shouldBeLinked = (record.linkedEvidenceIds || []).includes(ev.id);
+      const isCurrentlyLinked = (ev.linkedIncidentIds || []).includes(record.id);
+
+      if (shouldBeLinked && !isCurrentlyLinked) {
+        return { ...ev, linkedIncidentIds: [...(ev.linkedIncidentIds || []), record.id], updatedAt: new Date().toISOString() };
+      } else if (!shouldBeLinked && isCurrentlyLinked) {
+        return { ...ev, linkedIncidentIds: (ev.linkedIncidentIds || []).filter(id => id !== record.id), updatedAt: new Date().toISOString() };
+      }
+      return ev;
+    }));
+  } else if (type === "evidence") {
+    updatedCase.incidents = sortTimelineItems((updatedCase.incidents || []).map(inc => {
+      const shouldBeLinked = (record.linkedIncidentIds || []).includes(inc.id);
+      const isCurrentlyLinked = (inc.linkedEvidenceIds || []).includes(record.id);
+
+      if (shouldBeLinked && !isCurrentlyLinked) {
+        return { ...inc, linkedEvidenceIds: [...(inc.linkedEvidenceIds || []), record.id], updatedAt: new Date().toISOString() };
+      } else if (!shouldBeLinked && isCurrentlyLinked) {
+        return { ...inc, linkedEvidenceIds: (inc.linkedEvidenceIds || []).filter(id => id !== record.id), updatedAt: new Date().toISOString() };
+      }
+      return inc;
+    }));
+  }
+  return updatedCase;
+}
+
 export default function ProveItApp() {
   const STORAGE_KEY = "toolstack.proveit.v1";
   
@@ -267,6 +317,7 @@ export default function ProveItApp() {
   const [recordType, setRecordType] = useState(null);
   const [recordForm, setRecordForm] = useState(EMPTY_RECORD_FORM);
   const [editingRecord, setEditingRecord] = useState(null);
+  const [parentRecordForNewChild, setParentRecordForNewChild] = useState(null);
   const [quickCaptures, setQuickCaptures] = useState(() => {
     try {
       const saved = localStorage.getItem("toolstack.proveit.v1.captures");
@@ -662,13 +713,14 @@ export default function ProveItApp() {
     setShowCreate(true);
   };
 
-  const openRecordModal = (type) => {
+  const openRecordModal = (type, initialFormState = {}) => {
     setRecordType(type);
     setEditingRecord(null);
     setRecordForm({ 
       ...EMPTY_RECORD_FORM, 
       date: new Date().toISOString().slice(0, 10),
-      capturedAt: new Date().toISOString().slice(0, 10)
+      capturedAt: new Date().toISOString().slice(0, 10),
+      ...initialFormState
     });
   };
 
@@ -676,6 +728,7 @@ export default function ProveItApp() {
     setRecordType(type);
     setEditingRecord(item);
     setRecordForm({
+      id: item.id,
       title: item.title || "",
       date: item.date || new Date().toISOString().slice(0, 10),
       description: item.description || "",
@@ -684,6 +737,13 @@ export default function ProveItApp() {
       capturedAt: item.capturedAt || item.date || new Date().toISOString().slice(0, 10),
       availability: item.availability || EMPTY_RECORD_FORM.availability,
       attachments: type === "evidence" ? (item.availability?.digital?.files || []) : (item.attachments || []),
+      importance: item.importance || "unreviewed",
+      relevance: item.relevance || "medium",
+      status: item.status || "needs_review",
+      usedIn: Array.isArray(item.usedIn) ? item.usedIn : [],
+      reviewNotes: item.reviewNotes || "",
+      linkedIncidentIds: Array.isArray(item.linkedIncidentIds) ? item.linkedIncidentIds : [],
+      linkedEvidenceIds: Array.isArray(item.linkedEvidenceIds) ? item.linkedEvidenceIds : [],
     });
   };
 
@@ -691,6 +751,7 @@ export default function ProveItApp() {
     setRecordType(null);
     setEditingRecord(null);
     setRecordForm(EMPTY_RECORD_FORM);
+    setParentRecordForNewChild(null);
   };
 
   const openQuickCapture = () => {
@@ -815,6 +876,44 @@ export default function ProveItApp() {
     }
   };
 
+  const handleUnlinkEvidenceFromIncident = async (incidentId, evidenceIdToUnlink) => {
+    if (!selectedCase) return;
+    const incident = selectedCase.incidents.find(i => i.id === incidentId);
+    if (!incident) return;
+
+    const updatedIncident = {
+      ...incident,
+      linkedEvidenceIds: (incident.linkedEvidenceIds || []).filter(id => id !== evidenceIdToUnlink),
+      updatedAt: new Date().toISOString(),
+      edited: true
+    };
+
+    let updatedCase = {
+      ...selectedCase,
+      incidents: selectedCase.incidents.map(i => i.id === incidentId ? updatedIncident : i),
+      updatedAt: new Date().toISOString()
+    };
+
+    updatedCase = syncCaseLinks(updatedCase, updatedIncident, "incidents");
+
+    setCases(prev => prev.map(c => c.id === selectedCase.id ? updatedCase : c));
+    try {
+      await saveCase(updatedCase);
+      openEditRecordModal("incidents", updatedIncident);
+    } catch (error) {
+      console.error("Failed to unlink evidence", error);
+    }
+  };
+
+  const handleCreateEvidenceFromIncident = (incident) => {
+    setParentRecordForNewChild(incident);
+    openRecordModal("evidence", {
+      linkedIncidentIds: [incident.id],
+      date: new Date().toISOString().slice(0, 10),
+      capturedAt: new Date().toISOString().slice(0, 10)
+    });
+  };
+
   const saveRecord = async () => {
     if (!selectedCase || !recordType || !recordForm.title.trim()) return;
     
@@ -861,9 +960,16 @@ export default function ProveItApp() {
         capturedAt: recordForm.capturedAt,
         availability: updatedAvailability,
         attachments: updatedAttachments,
+        importance: recordForm.importance,
+        relevance: recordForm.relevance,
+        status: recordForm.status,
+        usedIn: recordForm.usedIn,
+        reviewNotes: recordForm.reviewNotes,
+        linkedIncidentIds: recordForm.linkedIncidentIds, // Explicitly pass from form
+        linkedEvidenceIds: recordForm.linkedEvidenceIds, // Explicitly pass from form
         updatedAt: new Date().toISOString(),
         edited: true,
-      });
+      }, recordType);
 
       const updatedList = selectedCase[recordType].map((rec) =>
         rec.id === editingRecord.id ? updatedRecord : rec
@@ -874,6 +980,8 @@ export default function ProveItApp() {
         [recordType]: isTimelineCapable(recordType) ? sortTimelineItems(updatedList) : updatedList,
         updatedAt: new Date().toISOString(),
       };
+
+      updatedCase = syncCaseLinks(updatedCase, updatedRecord, recordType);
     } else {
       const newRecordId = crypto.randomUUID();
       let attachmentObjects = recordForm.attachments;
@@ -910,8 +1018,15 @@ export default function ProveItApp() {
         capturedAt: recordForm.capturedAt,
         availability: availability,
         attachments: attachmentObjects,
+        importance: recordForm.importance,
+        relevance: recordForm.relevance,
+        status: recordForm.status,
+        usedIn: recordForm.usedIn,
+        reviewNotes: recordForm.reviewNotes,
+        linkedIncidentIds: recordForm.linkedIncidentIds, // Explicitly pass from form
+        linkedEvidenceIds: recordForm.linkedEvidenceIds, // Explicitly pass from form
         createdAt: new Date().toISOString(),
-      });
+      }, recordType);
 
       const updatedList = [newRecord, ...selectedCase[recordType]];
 
@@ -920,6 +1035,16 @@ export default function ProveItApp() {
         [recordType]: isTimelineCapable(recordType) ? sortTimelineItems(updatedList) : updatedList,
         updatedAt: new Date().toISOString(),
       };
+
+      updatedCase = syncCaseLinks(updatedCase, newRecord, recordType);
+
+      if (recordType === "evidence" && parentRecordForNewChild && newRecord.linkedIncidentIds.includes(parentRecordForNewChild.id)) {
+        const updatedParent = updatedCase.incidents.find(inc => inc.id === parentRecordForNewChild.id);
+        closeRecordModal();
+        await saveCase(updatedCase);
+        if (updatedParent) openEditRecordModal("incidents", updatedParent);
+        return;
+      }
     }
 
     setCases((prev) =>
@@ -982,7 +1107,7 @@ export default function ProveItApp() {
       notes: `Converted from Quick Capture on ${new Date().toLocaleDateString()}`,
       attachments: capture.attachments || [],
       createdAt: new Date().toISOString(),
-    });
+    }, targetType);
 
     const caseToUpdate = cases.find(c => c.id === capture.caseId);
     

@@ -254,6 +254,54 @@ export default function CaseDetail({
                 imageCache={imageCache}
                 onPreview={onPreviewFile}
               />
+              {recordType === 'incidents' && item.linkedEvidenceIds && item.linkedEvidenceIds.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-neutral-100">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">Linked Evidence</h4>
+                  <div className="space-y-2">
+                    {item.linkedEvidenceIds.map(evidenceId => {
+                      const evidenceItem = selectedCase.evidence.find(e => e.id === evidenceId);
+                      if (!evidenceItem) return null;
+                      return (
+                        <div key={evidenceId} className="rounded-xl border border-neutral-200 bg-white p-3">
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="font-semibold text-neutral-800 truncate">{evidenceItem.title || "Untitled Evidence"}</span>
+                            <div className="flex flex-wrap gap-1">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                                evidenceItem.importance === 'critical' ? 'bg-red-50 border-red-200 text-red-700' :
+                                evidenceItem.importance === 'strong' ? 'bg-amber-50 border-amber-200 text-amber-700' :
+                                'bg-neutral-100 border-neutral-200 text-neutral-500'
+                              }`}>
+                                {evidenceItem.importance?.toUpperCase()}
+                              </span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                                evidenceItem.status === 'verified' ? 'bg-lime-50 border-lime-200 text-lime-700' :
+                                evidenceItem.status === 'incomplete' ? 'bg-red-50 border-red-200 text-red-700' :
+                                'bg-neutral-100 border-neutral-200 text-neutral-500'
+                              }`}>
+                                {evidenceItem.status?.replace('_', ' ').toUpperCase()}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-neutral-500">
+                            <span>
+                              {evidenceItem.attachments?.[0]?.mimeType?.startsWith('image/') && 'Image'}
+                              {evidenceItem.attachments?.[0]?.mimeType === 'application/pdf' && 'PDF'}
+                              {evidenceItem.attachments?.[0] && !evidenceItem.attachments?.[0]?.mimeType?.startsWith('image/') && evidenceItem.attachments?.[0]?.mimeType !== 'application/pdf' && 'File'}
+                              {!evidenceItem.attachments?.[0] && 'No Digital File'}
+                            </span>
+                            <div className="flex gap-2">
+                              {evidenceItem.attachments?.[0] && onPreviewFile && (
+                                <button onClick={() => onPreviewFile(evidenceItem.attachments[0])} className="rounded-lg border border-neutral-300 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors">Preview</button>
+                              )}
+                              <button onClick={() => openEditRecordModal("evidence", evidenceItem)} className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors">Open</button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
