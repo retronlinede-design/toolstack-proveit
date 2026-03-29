@@ -3,6 +3,7 @@ import { getAllCases, saveCase, deleteCase, saveImage, getImagesByEvidence } fro
 import AttachmentPreview from "./components/AttachmentPreview";
 import RecordModal from "./components/RecordModal";
 import CaseDetail from "./components/CaseDetail";
+import FilePreviewModal from "./components/FilePreviewModal";
 import { CircleHelp } from "lucide-react";
 
 const EMPTY_RECORD_FORM = {
@@ -11,6 +12,12 @@ const EMPTY_RECORD_FORM = {
   description: "",
   notes: "",
   attachments: [],
+  sourceType: "other",
+  capturedAt: "",
+  availability: {
+    physical: { hasOriginal: false, location: "", notes: "" },
+    digital: { hasDigital: false, files: [] }
+  }
 };
 
 const EMPTY_CAPTURE_FORM = {
@@ -21,20 +28,24 @@ const EMPTY_CAPTURE_FORM = {
   attachments: [],
 };
 
-async function fileToAttachment(file) {
-  return {
-    id: crypto.randomUUID(),
-    name: file.name,
-    type: file.type || "application/octet-stream",
-    size: file.size,
-    kind: (file.type || "").startsWith("image/") ? "image" : "other",
-    source: "upload",
-    url: "",
-    storageRef: "",
-    note: "",
-    createdAt: new Date().toISOString(),
-    file: file,
-  };
+async function fileToSerializable(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve({
+        id: crypto.randomUUID(),
+        name: file.name,
+        type: file.type || "application/octet-stream",
+        mimeType: file.type || "application/octet-stream",
+        size: file.size,
+        kind: (file.type || "").startsWith("image/") ? "image" : "other",
+        createdAt: new Date().toISOString(),
+        dataUrl: reader.result,
+      });
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 const normalizeCategory = (value) => {
@@ -135,6 +146,26 @@ function normalizeRecord(item, recordType) {
     edited: !!item?.edited,
   };
 
+  if (recordType === "evidence") {
+    const avail = item?.availability || {};
+    return {
+      ...base,
+      sourceType: item?.sourceType || "other",
+      capturedAt: item?.capturedAt || item?.date || base.date,
+      availability: {
+        physical: {
+          hasOriginal: !!avail.physical?.hasOriginal,
+          location: avail.physical?.location || "",
+          notes: avail.physical?.notes || "",
+        },
+        digital: {
+          hasDigital: !!avail.digital?.hasDigital || base.attachments.length > 0,
+          files: Array.isArray(avail.digital?.files) ? avail.digital?.files : base.attachments,
+        }
+      }
+    };
+  }
+
   if (isTimelineCapable(recordType)) {
     const timelineData = normalizeTimelineFields(item);
     return { ...base, ...timelineData };
@@ -213,6 +244,7 @@ export default function ProveItApp() {
   const [loadingCases, setLoadingCases] = useState(true);
   const [editingCase, setEditingCase] = useState(null);
   const [imageCache, setImageCache] = useState({});
+  const [previewFile, setPreviewFile] = useState(null);
 
   const [showCreate, setShowCreate] = useState(false);
   const [selectedCaseId, setSelectedCaseId] = useState(() => {
@@ -633,7 +665,11 @@ export default function ProveItApp() {
   const openRecordModal = (type) => {
     setRecordType(type);
     setEditingRecord(null);
-    setRecordForm({ ...EMPTY_RECORD_FORM, date: new Date().toISOString().slice(0, 10) });
+    setRecordForm({ 
+      ...EMPTY_RECORD_FORM, 
+      date: new Date().toISOString().slice(0, 10),
+      capturedAt: new Date().toISOString().slice(0, 10)
+    });
   };
 
   const openEditRecordModal = (type, item) => {
@@ -644,7 +680,10 @@ export default function ProveItApp() {
       date: item.date || new Date().toISOString().slice(0, 10),
       description: item.description || "",
       notes: item.notes || "",
-      attachments: [],
+      sourceType: item.sourceType || "other",
+      capturedAt: item.capturedAt || item.date || new Date().toISOString().slice(0, 10),
+      availability: item.availability || EMPTY_RECORD_FORM.availability,
+      attachments: type === "evidence" ? (item.availability?.digital?.files || []) : (item.attachments || []),
     });
   };
 
@@ -672,23 +711,57 @@ export default function ProveItApp() {
 
   const handleRecordFiles = async (event) => {
     const files = Array.from(event.target.files || []);
-    const attachments = await Promise.all(files.map(fileToAttachment));
-    setRecordForm((prev) => ({ ...prev, attachments: [...prev.attachments, ...attachments] }));
+    const serializable = await Promise.all(files.map(fileToSerializable));
+    setRecordForm((prev) => {
+      const updatedAttachments = [...prev.attachments, ...serializable];
+      const newState = { ...prev, attachments: updatedAttachments };
+
+      if (recordType === "evidence") {
+        newState.availability = {
+          ...(prev.availability || EMPTY_RECORD_FORM.availability),
+          digital: {
+            ...(prev.availability?.digital || EMPTY_RECORD_FORM.availability.digital),
+            hasDigital: true,
+            files: updatedAttachments
+          }
+        };
+      }
+      return newState;
+    });
     event.target.value = "";
   };
 
   const handleCaptureFiles = async (event) => {
     const files = Array.from(event.target.files || []);
-    const attachments = await Promise.all(files.map(fileToAttachment));
-    setCaptureForm((prev) => ({ ...prev, attachments: [...prev.attachments, ...attachments] }));
+    const serializable = await Promise.all(files.map(fileToSerializable));
+    setCaptureForm((prev) => ({ ...prev, attachments: [...prev.attachments, ...serializable] }));
     event.target.value = "";
   };
 
   const removeRecordAttachment = (attachmentId) => {
-    setRecordForm((prev) => ({
-      ...prev,
-      attachments: prev.attachments.filter((file) => file.id !== attachmentId),
-    }));
+    setRecordForm((prev) => {
+      const updatedAttachments = prev.attachments.filter((file) => file.id !== attachmentId);
+      
+      if (recordType === "evidence" && updatedAttachments.length === 0 && prev.availability?.digital?.hasDigital) {
+        if (!window.confirm("Removing the last file. Mark digital copy as unavailable?")) {
+          return prev;
+        }
+      }
+
+      const newState = { ...prev, attachments: updatedAttachments };
+
+      if (recordType === "evidence") {
+        newState.availability = {
+          ...(prev.availability || EMPTY_RECORD_FORM.availability),
+          digital: {
+            ...(prev.availability?.digital || EMPTY_RECORD_FORM.availability.digital),
+            files: updatedAttachments,
+            hasDigital: updatedAttachments.length > 0
+          }
+        };
+      }
+      return newState;
+    });
   };
 
   const removeCaptureAttachment = (attachmentId) => {
@@ -696,6 +769,16 @@ export default function ProveItApp() {
       ...prev,
       attachments: prev.attachments.filter((file) => file.id !== attachmentId),
     }));
+  };
+
+  const removeEvidenceFile = (attachmentId) => {
+    const currentFiles = recordForm.attachments.filter(a => a.id !== attachmentId);
+    const existingFilesCount = (editingRecord?.availability?.digital?.files?.length || 0);
+    if (currentFiles.length === 0 && existingFilesCount === 0 && recordForm.availability.digital.hasDigital) {
+      if (!window.confirm("Removing the last file. Mark digital copy as unavailable?")) return;
+      setRecordForm(prev => ({ ...prev, availability: { ...prev.availability, digital: { ...prev.digital, hasDigital: false } } }));
+    }
+    removeRecordAttachment(attachmentId);
   };
 
   const toggleTaskStatus = async (taskId) => {
@@ -738,31 +821,34 @@ export default function ProveItApp() {
     let updatedCase;
 
     if (editingRecord) {
-      const newAttachmentObjects = [];
+      let updatedAttachments = recordForm.attachments;
+      let updatedAvailability = { ...recordForm.availability };
 
-      for (const att of recordForm.attachments) {
-        const imageId = crypto.randomUUID();
-        await saveImage({
-          id: imageId,
-          evidenceId: editingRecord.id,
-          caseId: selectedCase.id,
-          fileName: att.name,
-          mimeType: att.type,
-          blob: att.file || att,
-          createdAt: new Date().toISOString(),
-        });
-        newAttachmentObjects.push({
-          id: crypto.randomUUID(),
-          name: att.name,
-          type: att.type,
-          size: att.size,
-          kind: (att.type || "").startsWith("image/") ? "image" : "other",
-          source: "upload",
-          url: "",
-          storageRef: imageId,
-          note: "",
-          createdAt: new Date().toISOString()
-        });
+      // If not evidence, we still use external storage logic for now
+      // But for evidence, we embed the serializable files
+      if (recordType !== "evidence") {
+        const newAttachmentObjects = [];
+        for (const att of recordForm.attachments) {
+          if (att.storageRef) {
+            newAttachmentObjects.push(att);
+            continue;
+          }
+          const imageId = crypto.randomUUID();
+          await saveImage({
+            id: imageId,
+            evidenceId: editingRecord.id,
+            caseId: selectedCase.id,
+            fileName: att.name,
+            mimeType: att.type,
+            blob: att.file || att,
+            createdAt: new Date().toISOString(),
+          });
+          newAttachmentObjects.push({ ...att, storageRef: imageId });
+        }
+        updatedAttachments = newAttachmentObjects;
+      } else {
+        updatedAvailability.digital.files = updatedAttachments;
+        updatedAvailability.digital.hasDigital = updatedAttachments.length > 0;
       }
 
       const updatedRecord = normalizeRecord({
@@ -771,11 +857,14 @@ export default function ProveItApp() {
         date: recordForm.date || new Date().toISOString().slice(0, 10),
         description: recordForm.description.trim(),
         notes: recordForm.notes.trim(),
-        attachments: [...(editingRecord.attachments || []), ...newAttachmentObjects],
+        sourceType: recordForm.sourceType,
+        capturedAt: recordForm.capturedAt,
+        availability: updatedAvailability,
+        attachments: updatedAttachments,
         updatedAt: new Date().toISOString(),
         edited: true,
       });
-      
+
       const updatedList = selectedCase[recordType].map((rec) =>
         rec.id === editingRecord.id ? updatedRecord : rec
       );
@@ -787,31 +876,28 @@ export default function ProveItApp() {
       };
     } else {
       const newRecordId = crypto.randomUUID();
-      const attachmentObjects = [];
+      let attachmentObjects = recordForm.attachments;
+      let availability = { ...recordForm.availability };
 
-      for (const att of recordForm.attachments) {
-        const imageId = crypto.randomUUID();
-        await saveImage({
-          id: imageId,
-          evidenceId: newRecordId,
-          caseId: selectedCase.id,
-          fileName: att.name,
-          mimeType: att.type,
-          blob: att.file || att,
-          createdAt: new Date().toISOString(),
-        });
-        attachmentObjects.push({
-          id: crypto.randomUUID(),
-          name: att.name,
-          type: att.type,
-          size: att.size,
-          kind: (att.type || "").startsWith("image/") ? "image" : "other",
-          source: "upload",
-          url: "",
-          storageRef: imageId,
-          note: "",
-          createdAt: new Date().toISOString()
-        });
+      if (recordType !== "evidence") {
+        const savedObjects = [];
+        for (const att of recordForm.attachments) {
+          const imageId = crypto.randomUUID();
+          await saveImage({
+            id: imageId,
+            evidenceId: newRecordId,
+            caseId: selectedCase.id,
+            fileName: att.name,
+            mimeType: att.type,
+            blob: att.file || att,
+            createdAt: new Date().toISOString(),
+          });
+          savedObjects.push({ ...att, storageRef: imageId });
+        }
+        attachmentObjects = savedObjects;
+      } else {
+        availability.digital.files = attachmentObjects;
+        availability.digital.hasDigital = attachmentObjects.length > 0;
       }
 
       const newRecord = normalizeRecord({
@@ -820,10 +906,13 @@ export default function ProveItApp() {
         date: recordForm.date || new Date().toISOString().slice(0, 10),
         description: recordForm.description.trim(),
         notes: recordForm.notes.trim(),
+        sourceType: recordForm.sourceType,
+        capturedAt: recordForm.capturedAt,
+        availability: availability,
         attachments: attachmentObjects,
         createdAt: new Date().toISOString(),
       });
-      
+
       const updatedList = [newRecord, ...selectedCase[recordType]];
 
       updatedCase = {
@@ -860,33 +949,6 @@ export default function ProveItApp() {
     if (!selectedCaptureCase) return;
 
     const newCaptureId = crypto.randomUUID();
-    const attachmentObjects = [];
-
-    for (const file of captureForm.attachments) {
-      const imageId = crypto.randomUUID();
-      await saveImage({
-        id: imageId,
-        evidenceId: newCaptureId,
-        caseId: selectedCaptureCase.id,
-        fileName: file.name,
-        mimeType: file.type,
-        blob: file.file || file,
-        createdAt: new Date().toISOString(),
-      });
-      attachmentObjects.push({
-        id: crypto.randomUUID(),
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        kind: (file.type || "").startsWith("image/") ? "image" : "other",
-        source: "upload",
-        url: "",
-        storageRef: imageId,
-        note: "",
-        createdAt: new Date().toISOString()
-      });
-    }
-
     const newCapture = {
       id: newCaptureId,
       caseId: selectedCaptureCase.id,
@@ -894,7 +956,7 @@ export default function ProveItApp() {
       title: captureForm.title.trim(),
       date: captureForm.date || new Date().toISOString().slice(0, 10),
       note: captureForm.note.trim(),
-      attachments: attachmentObjects,
+      attachments: captureForm.attachments,
       status: "unreviewed",
       convertedTo: null,
       source: "manual",
@@ -1068,7 +1130,10 @@ export default function ProveItApp() {
                 Unreviewed
               </span>
             </div>
-            <AttachmentPreview attachments={(item.attachments || []).map(att => att.file || imageCache[att.storageRef]).filter(Boolean)} />
+            <AttachmentPreview 
+              attachments={(item.attachments || []).map(att => att.file || imageCache[att.storageRef]).filter(Boolean)} 
+              onPreview={setPreviewFile}
+            />
             <div className="mt-4 flex flex-wrap gap-2">
               <button onClick={() => convertCapture(item.id, "evidence")} className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-xs font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">Save as Evidence</button>
               <button onClick={() => convertCapture(item.id, "incidents")} className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-xs font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">Save as Incident</button>
@@ -1151,6 +1216,7 @@ export default function ProveItApp() {
                 openEditCaseModal={openEditCaseModal}
                 deleteRecord={deleteRecord}
                 exportSelectedCase={exportSelectedCase}
+                onPreviewFile={setPreviewFile}
               />
             </div>
             <aside className="lg:col-span-4 space-y-6">
@@ -1294,6 +1360,10 @@ export default function ProveItApp() {
         <button onClick={openQuickCapture} className="fixed bottom-6 right-6 rounded-full border border-lime-500 bg-white px-5 py-3 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
           + Quick Capture
         </button>
+
+        {previewFile && (
+          <FilePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />
+        )}
       </div>
     </div>
   );

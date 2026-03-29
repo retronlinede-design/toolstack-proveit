@@ -40,6 +40,99 @@ export default function RecordModal({
           rows={3}
         />
 
+        {recordType === "evidence" && (
+          <div className="mb-4 space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Evidence Availability</h3>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-neutral-600">Source Type</label>
+                <select 
+                  value={recordForm.sourceType} 
+                  onChange={(e) => setRecordForm({...recordForm, sourceType: e.target.value})}
+                  className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm"
+                >
+                  <option value="physical">Physical</option>
+                  <option value="digital">Digital</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-neutral-600">Captured At</label>
+                <input 
+                  type="date" 
+                  value={recordForm.capturedAt} 
+                  onChange={(e) => setRecordForm({...recordForm, capturedAt: e.target.value})}
+                  className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3 border-t border-neutral-200 pt-3">
+              <div className="flex items-center gap-2">
+                <input 
+                  type="checkbox" 
+                  id="hasOriginal"
+                  checked={recordForm.availability?.physical?.hasOriginal}
+                  onChange={(e) => setRecordForm({
+                    ...recordForm, 
+                    availability: {
+                      ...(recordForm.availability || {}), 
+                      physical: { ...(recordForm.availability?.physical || {}), hasOriginal: e.target.checked }
+                    }
+                  })}
+                />
+                <label htmlFor="hasOriginal" className="text-sm font-medium">Physical original available</label>
+              </div>
+              {recordForm.availability?.physical?.hasOriginal && (
+                <div className="ml-6 space-y-2">
+                  <input 
+                    placeholder="Physical Location (Cabinet A, Box 2...)" 
+                    value={recordForm.availability.physical.location}
+                    onChange={(e) => setRecordForm({
+                      ...recordForm,
+                      availability: { 
+                        ...(recordForm.availability || {}), 
+                        physical: { ...(recordForm.availability?.physical || {}), location: e.target.value }
+                      }
+                    })}
+                    className="w-full rounded-lg border border-neutral-300 p-2 text-sm"
+                  />
+                  <textarea 
+                    placeholder="Physical notes..." 
+                    value={recordForm.availability.physical.notes}
+                    onChange={(e) => setRecordForm({
+                      ...recordForm,
+                      availability: { 
+                        ...(recordForm.availability || {}), 
+                        physical: { ...(recordForm.availability?.physical || {}), notes: e.target.value }
+                      }
+                    })}
+                    className="w-full rounded-lg border border-neutral-300 p-2 text-sm"
+                    rows={1}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 border-t border-neutral-200 pt-3">
+              <input 
+                type="checkbox" 
+                id="hasDigital"
+                checked={recordForm.availability?.digital?.hasDigital}
+                onChange={(e) => setRecordForm({
+                  ...recordForm,
+                  availability: {
+                    ...(recordForm.availability || {}),
+                    digital: { ...(recordForm.availability?.digital || {}), hasDigital: e.target.checked }
+                  }
+                })}
+              />
+              <label htmlFor="hasDigital" className="text-sm font-medium">Digital copy available</label>
+            </div>
+          </div>
+        )}
+
         <label className="mb-3 block cursor-pointer rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-600">
           Upload attachments (images, PDFs, documents)
           <input

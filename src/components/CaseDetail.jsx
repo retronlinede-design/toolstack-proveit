@@ -1,4 +1,159 @@
+import { useState } from "react";
 import AttachmentPreview from "./AttachmentPreview";
+import { AlertCircle, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
+
+/**
+ * Pure helper function to scan case health without mutating data.
+ */
+const getCaseHealthReport = (selectedCase) => {
+  const issues = [];
+  const incidents = selectedCase.incidents || [];
+  const evidence = selectedCase.evidence || [];
+  const tasks = selectedCase.tasks || [];
+  const strategy = selectedCase.strategy || [];
+  const incidentIds = new Set(incidents.map((i) => i.id));
+
+  // 1. Incidents
+  const incidentIssues = [];
+  const incidentTitles = {};
+  incidents.forEach((item) => {
+    const missing = [];
+    if (!(item.eventDate || item.date)) missing.push("date");
+    if (!item.title?.trim()) missing.push("title");
+    if (!item.description?.trim()) missing.push("summary");
+    if (missing.length) {
+      incidentIssues.push({
+        id: item.id,
+        title: item.title || "Untitled Incident",
+        detail: `Missing: ${missing.join(", ")}`,
+        date: item.eventDate || item.date,
+        record: item,
+        type: "incidents",
+        tab: "incidents",
+      });
+    }
+    const norm = (item.title || "").trim().toLowerCase();
+    if (norm) {
+      if (!incidentTitles[norm]) incidentTitles[norm] = [];
+      incidentTitles[norm].push(item);
+    }
+  });
+  Object.entries(incidentTitles).forEach(([title, items]) => {
+    if (items.length > 1) {
+      items.forEach((item) => {
+        incidentIssues.push({ id: item.id, title: item.title || "Untitled Incident", detail: `Duplicate title: "${title}"`, date: item.eventDate || item.date, record: item, type: "incidents", tab: "incidents" });
+      });
+    }
+  });
+  if (incidentIssues.length) issues.push({ category: "Incidents", items: incidentIssues });
+
+  // 2. Evidence
+  const evidenceIssues = [];
+  const evidenceTitles = {};
+  evidence.forEach((item) => {
+    const missing = [];
+    if (!item.title?.trim()) missing.push("title");
+    const links = item.linkedIncidentIds || [];
+    if (links.length === 0) missing.push("linkedIncidentIds");
+    const broken = links.filter((id) => !incidentIds.has(id));
+    
+    const hasPhys = !!item.availability?.physical?.hasOriginal;
+    const hasDigi = !!item.availability?.digital?.hasDigital || (item.attachments?.length > 0);
+
+    if (!hasPhys && !hasDigi) {
+      missing.push("availability (no physical OR digital)");
+    } else if (!hasPhys || !hasDigi) {
+      // Partial warning - added as specific flag
+    }
+
+    if (missing.length || broken.length) {
+      evidenceIssues.push({
+        id: item.id,
+        title: item.title || "Untitled Evidence",
+        detail: [
+          missing.length ? `Missing: ${missing.join(", ")}` : null,
+          broken.length ? `${broken.length} broken link(s)` : null
+        ].filter(Boolean).join("; "),
+        date: item.eventDate || item.date,
+        record: item,
+        type: "evidence",
+        tab: "evidence",
+      });
+    }
+    if ((hasPhys || hasDigi) && (!hasPhys || !hasDigi)) {
+      evidenceIssues.push({ id: item.id, title: item.title, detail: `Partial availability: ${hasPhys ? 'Physical only' : 'Digital only'}`, record: item, type: "evidence", tab: "evidence" });
+    }
+
+    const norm = (item.title || "").trim().toLowerCase();
+    if (norm) {
+      if (!evidenceTitles[norm]) evidenceTitles[norm] = [];
+      evidenceTitles[norm].push(item);
+    }
+  });
+  Object.entries(evidenceTitles).forEach(([title, items]) => {
+    if (items.length > 1) {
+      items.forEach((item) => {
+        evidenceIssues.push({ id: item.id, title: item.title || "Untitled Evidence", detail: `Duplicate title: "${title}"`, date: item.eventDate || item.date, record: item, type: "evidence", tab: "evidence" });
+      });
+    }
+  });
+  if (evidenceIssues.length) issues.push({ category: "Evidence", items: evidenceIssues });
+
+  // 3. Tasks
+  const taskIssues = tasks.filter((t) => !t.title?.trim()).map((t) => ({ id: t.id, title: "Untitled Task", detail: "Missing title", record: t, type: "tasks", tab: "tasks" }));
+  if (taskIssues.length) issues.push({ category: "Tasks", items: taskIssues });
+
+  // 4. Strategy
+  const strategyIssues = strategy.filter((s) => !s.title?.trim()).map((s) => ({ id: s.id, title: "Untitled Strategy", detail: "Missing title", record: s, type: "strategy", tab: "strategy" }));
+  if (strategyIssues.length) issues.push({ category: "Strategy", items: strategyIssues });
+
+  // 5. Timeline
+  const timelineItems = [
+    ...evidence.map((item) => ({ ...item, _kind: "Evidence" })),
+    ...incidents.map((item) => ({ ...item, _kind: "Incident" })),
+    ...tasks.map((item) => ({ ...item, _kind: "Task" })),
+    ...strategy.map((item) => ({ ...item, _kind: "Strategy" })),
+  ];
+  const timelineIssues = [];
+  timelineItems.forEach((item, idx) => {
+    const type = item._kind === "Incident" ? "incidents" : item._kind === "Task" ? "tasks" : item._kind.toLowerCase();
+
+    if (!(item.eventDate || item.date)) timelineIssues.push({ id: item.id, title: item.title || "Untitled", detail: "Missing date", record: item, type, tab: "timeline" });
+    if (item._kind !== "Incident") {
+      if (!item.linkedIncidentId) {
+        timelineIssues.push({ id: item.id, title: item.title || "Untitled", detail: "Missing linkedIncidentId", record: item, type, tab: "timeline" });
+      } else if (!incidentIds.has(item.linkedIncidentId)) {
+        timelineIssues.push({ id: item.id, title: item.title || "Untitled", detail: "Broken linkedIncidentId", record: item, type, tab: "timeline" });
+      }
+    }
+    // Order check: "later array item has an earlier date than the previous item"
+    if (idx > 0) {
+      const d1 = timelineItems[idx - 1].eventDate || timelineItems[idx - 1].date || "";
+      const d2 = item.eventDate || item.date || "";
+      if (d1 && d2 && d2 < d1) {
+        timelineIssues.push({ id: item.id, title: "Order Warning", detail: `"${item.title}" is dated earlier than previous item in storage array`, isGlobal: true, record: item, type, tab: "timeline" });
+      }
+    }
+  });
+  if (timelineIssues.length) issues.push({ category: "Timeline", items: timelineIssues });
+
+  const totalIssues = issues.reduce((acc, cat) => acc + cat.items.length, 0);
+  let status = "Healthy";
+  if (totalIssues > 0) status = totalIssues <= 5 ? "Needs review" : "High risk";
+
+  return {
+    totals: {
+      incidents: incidents.length,
+      evidence: evidence.length,
+      tasks: tasks.length,
+      strategy: strategy.length,
+      timeline: timelineItems.length,
+    },
+    issues,
+    totalIssues,
+    status,
+  };
+};
 
 export default function CaseDetail({
   selectedCase,
@@ -15,7 +170,30 @@ export default function CaseDetail({
   openEditCaseModal,
   deleteRecord,
   exportSelectedCase,
+  onPreviewFile,
 }) {
+  const [expandedGroups, setExpandedGroups] = useState({});
+  const toggleGroup = (cat) => setExpandedGroups((prev) => ({ ...prev, [cat]: !prev[cat] }));
+
+  const health = selectedCase ? getCaseHealthReport(selectedCase) : null;
+
+  const handleOpenIssue = (issue) => {
+    if (issue.tab) setActiveTab(issue.tab);
+    if (issue.record && issue.type) {
+      openEditRecordModal(issue.type, issue.record);
+      setTimeout(() => {
+        const el = document.getElementById(`record-${issue.id}`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+    }
+  };
+
+  const statusConfig = {
+    Healthy: { color: "text-lime-600 bg-lime-50 border-lime-200", icon: CheckCircle2 },
+    "Needs review": { color: "text-amber-600 bg-amber-50 border-amber-200", icon: AlertTriangle },
+    "High risk": { color: "text-red-600 bg-red-50 border-red-200", icon: AlertCircle },
+  };
+
   if (!selectedCase) return renderCaseList();
 
   const renderListBlock = (items, emptyText, recordType) => {
@@ -33,7 +211,7 @@ export default function CaseDetail({
           const isTask = recordType === 'tasks';
           const isDone = isTask && item.status === 'done';
           return (
-            <div key={item.id} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+            <div key={item.id} id={`record-${item.id}`} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
                   {isTask && (
@@ -49,6 +227,16 @@ export default function CaseDetail({
                     <div className="mt-1 text-sm text-neutral-600">{item.date}</div>
                   </div>
                 </div>
+                {recordType === 'evidence' && (
+                  <div className="mt-2 flex gap-2">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${item.availability?.physical?.hasOriginal ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-neutral-100 border-neutral-200 text-neutral-400'}`}>
+                      PHYSICAL
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${item.availability?.digital?.hasDigital ? 'bg-purple-50 border-purple-200 text-purple-700' : 'bg-neutral-100 border-neutral-200 text-neutral-400'}`}>
+                      DIGITAL {item.attachments?.length > 0 && `(${item.attachments.length})`}
+                    </span>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <button
                     onClick={() => openEditRecordModal(recordType, item)}
@@ -61,7 +249,11 @@ export default function CaseDetail({
               </div>
               {item.description ? <p className="mt-3 text-sm text-neutral-700">{item.description}</p> : null}
               {item.notes ? <p className="mt-2 text-sm text-neutral-500">{item.notes}</p> : null}
-              <AttachmentPreview attachments={(item.attachments || []).map(att => att.file || imageCache[att.storageRef]).filter(Boolean)} />
+              <AttachmentPreview 
+                attachments={item.attachments || []}
+                imageCache={imageCache}
+                onPreview={onPreviewFile}
+              />
             </div>
           );
         })}
@@ -138,6 +330,76 @@ export default function CaseDetail({
       <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
         {activeTab === "overview" && (
           <div className="space-y-5">
+            {/* Case Health Card */}
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-semibold">Case Health</h3>
+                  {health && (
+                    <div className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-bold ${statusConfig[health.status].color}`}>
+                      {(() => {
+                        const Icon = statusConfig[health.status].icon;
+                        return <Icon className="h-3 w-3" />;
+                      })()}
+                      {health.status}
+                    </div>
+                  )}
+                </div>
+                <div className="text-sm font-medium text-neutral-500">
+                  {health?.totalIssues} issue{health?.totalIssues !== 1 ? "s" : ""} found
+                </div>
+              </div>
+
+              <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+                {health &&
+                  Object.entries(health.totals).map(([label, count]) => (
+                    <div key={label} className="rounded-xl border border-neutral-200 bg-white p-2 text-center">
+                      <div className="text-xl font-bold text-neutral-800">{count}</div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{label}</div>
+                    </div>
+                  ))}
+              </div>
+
+              {health?.issues.length > 0 && (
+                <div className="space-y-2">
+                  {health.issues.map((group) => (
+                    <div key={group.category} className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                      <button onClick={() => toggleGroup(group.category)} className="flex w-full items-center justify-between p-3 transition-colors hover:bg-neutral-50">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-neutral-700">{group.category}</span>
+                          <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-[10px] font-bold text-neutral-600">{group.items.length}</span>
+                        </div>
+                        {expandedGroups[group.category] ? <ChevronDown className="h-4 w-4 text-neutral-400" /> : <ChevronRight className="h-4 w-4 text-neutral-400" />}
+                      </button>
+                      {expandedGroups[group.category] && (
+                        <div className="space-y-2 border-t border-neutral-100 px-3 pb-3 pt-2">
+                          {group.items.map((item, idx) => (
+                            <div key={idx} className="border-b border-neutral-50 pb-2 text-xs last:border-0 last:pb-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex-1">
+                                  <div className="flex items-start justify-between">
+                                    <span className="font-semibold text-neutral-800">{item.title}</span>
+                                    {item.date && <span className="font-medium text-neutral-400">{item.date}</span>}
+                                  </div>
+                                  <div className="mt-0.5 text-neutral-500">{item.detail}</div>
+                                </div>
+                                <button
+                                  onClick={() => handleOpenIssue(item)}
+                                  className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                                >
+                                  Open
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div>
               <h3 className="text-lg font-semibold">Case Overview</h3>
               <p className="mt-1 text-sm text-neutral-600">Use this case view to organize evidence, incidents, tasks, and strategy in one place.</p>
@@ -197,7 +459,7 @@ export default function CaseDetail({
                       {group.items.map(item => {
                         const isDoneTask = item._kind === 'Task' && item.status === 'done';
                         return (
-                          <div key={`${item._kind}-${item.id}`} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                          <div key={`${item._kind}-${item.id}`} id={`record-${item.id}`} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                             <div className="flex items-start justify-between gap-3">
                               <div className={isDoneTask ? 'line-through opacity-60' : ''}>
                                 <div className="font-semibold text-neutral-900">{item.title}</div>
@@ -236,7 +498,11 @@ export default function CaseDetail({
                             </div>
                             {item.description ? <p className="mt-3 text-sm text-neutral-700">{item.description}</p> : null}
                             {item.notes ? <p className="mt-2 text-sm text-neutral-500">{item.notes}</p> : null}
-                            <AttachmentPreview attachments={(item.attachments || []).map(att => att.file || imageCache[att.storageRef]).filter(Boolean)} />
+                            <AttachmentPreview 
+                              attachments={item.attachments || []}
+                              imageCache={imageCache}
+                              onPreview={onPreviewFile}
+                            />
                           </div>
                         );
                       })}
