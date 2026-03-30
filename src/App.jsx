@@ -4,7 +4,15 @@ import AttachmentPreview from "./components/AttachmentPreview";
 import RecordModal from "./components/RecordModal";
 import CaseDetail from "./components/CaseDetail";
 import FilePreviewModal from "./components/FilePreviewModal";
-import { CircleHelp } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
+
+/**
+ * Safe UUID fallback for insecure contexts or older browsers.
+ */
+function generateId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
 
 const EMPTY_RECORD_FORM = {
   title: "",
@@ -12,6 +20,7 @@ const EMPTY_RECORD_FORM = {
   description: "",
   notes: "",
   attachments: [],
+  linkedRecordIds: [],
   linkedIncidentIds: [], // Added for evidence
   linkedEvidenceIds: [], // Added for incidents
   importance: "unreviewed",
@@ -24,7 +33,9 @@ const EMPTY_RECORD_FORM = {
   availability: {
     physical: { hasOriginal: false, location: "", notes: "" },
     digital: { hasDigital: false, files: [] }
-  }
+  },
+  createFollowUpTask: false,
+  followUpTaskTitle: "",
 };
 
 const EMPTY_CAPTURE_FORM = {
@@ -36,18 +47,36 @@ const EMPTY_CAPTURE_FORM = {
 };
 
 async function fileToSerializable(file) {
+  const isEml = file.type === "message/rfc822" || file.name.toLowerCase().endsWith(".eml");
+  let emailMeta = null;
+
+  if (isEml) {
+    try {
+      const text = await file.text();
+      emailMeta = {
+        subject: (text.match(/^Subject:\s*(.*)$/im)?.[1] || "").trim(),
+        from: (text.match(/^From:\s*(.*)$/im)?.[1] || "").trim(),
+        to: (text.match(/^To:\s*(.*)$/im)?.[1] || "").trim(),
+        date: (text.match(/^Date:\s*(.*)$/im)?.[1] || "").trim(),
+      };
+    } catch (e) {
+      console.error("Failed to extract EML metadata", e);
+    }
+  }
+
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       resolve({
-        id: crypto.randomUUID(),
+        id: generateId(),
         name: file.name,
         type: file.type || "application/octet-stream",
         mimeType: file.type || "application/octet-stream",
         size: file.size,
-        kind: (file.type || "").startsWith("image/") ? "image" : "other",
+        kind: (file.type || "").startsWith("image/") ? "image" : isEml ? "document" : "other",
         createdAt: new Date().toISOString(),
         dataUrl: reader.result,
+        emailMeta,
       });
     };
     reader.onerror = reject;
@@ -139,7 +168,7 @@ function sortTimelineItems(items) {
 
 function normalizeRecord(item, recordType) {
   const base = {
-    id: item?.id || crypto.randomUUID(),
+    id: item?.id || generateId(),
     type: recordType || item?.type || "unknown",
     title: item?.title || "",
     date: item?.date || new Date().toISOString().slice(0, 10),
@@ -200,7 +229,7 @@ function normalizeCase(caseItem) {
   const strategy = Array.isArray(caseItem?.strategy) ? caseItem.strategy.map(r => normalizeRecord(r, "strategy")) : [];
 
   return {
-    id: caseItem?.id || crypto.randomUUID(),
+    id: caseItem?.id || generateId(),
     name: caseItem?.name || "Imported Case",
     category: normalizeCategory(caseItem?.category),
     status: normalizeCaseStatus(caseItem?.status),
@@ -578,7 +607,7 @@ export default function ProveItApp() {
 
   const createDefaultCase = async () => {
     const newCase = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       name: `New Case ${cases.length + 1}`,
       category: "general",
       status: "open",
@@ -625,7 +654,7 @@ export default function ProveItApp() {
       }
     } else {
       const newCase = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         name: form.name || `New Case ${cases.length + 1}`,
         category: normalizeCategory(form.category === "custom" ? form.customCategory : form.category),
         status: "open",
@@ -845,7 +874,7 @@ export default function ProveItApp() {
   const toggleTaskStatus = async (taskId) => {
     if (!selectedCase) return;
 
-    const updatedTasks = selectedCase.tasks.map((task) => {
+    const updatedTasks = (selectedCase.tasks || []).map((task) => {
       if (task.id === taskId) {
         return {
           ...task,
@@ -932,7 +961,7 @@ export default function ProveItApp() {
             newAttachmentObjects.push(att);
             continue;
           }
-          const imageId = crypto.randomUUID();
+          const imageId = generateId();
           await saveImage({
             id: imageId,
             evidenceId: editingRecord.id,
@@ -982,15 +1011,34 @@ export default function ProveItApp() {
       };
 
       updatedCase = syncCaseLinks(updatedCase, updatedRecord, recordType);
+
+      // Prompt to close linked tasks when evidence is saved (Edit mode)
+      if (recordType === "evidence") {
+        const linkedIds = updatedRecord.linkedRecordIds || [];
+        const openTasks = (updatedCase.tasks || []).filter(t => linkedIds.includes(t.id) && t.status === "open");
+        if (openTasks.length > 0) {
+          if (window.confirm("Mark linked follow-up task as done?")) {
+            updatedCase.tasks = updatedCase.tasks.map(t => 
+              linkedIds.includes(t.id) && t.status === "open"
+                ? { ...t, status: "done", updatedAt: new Date().toISOString(), edited: true }
+                : t
+            );
+          }
+        }
+      }
     } else {
-      const newRecordId = crypto.randomUUID();
+      const newRecordId = generateId();
       let attachmentObjects = recordForm.attachments;
       let availability = { ...recordForm.availability };
+
+      // Follow-up task logic for new records
+      const followUpTaskId = generateId();
+      const needsFollowUp = (recordType === "incidents" || recordType === "evidence") && recordForm.createFollowUpTask;
 
       if (recordType !== "evidence") {
         const savedObjects = [];
         for (const att of recordForm.attachments) {
-          const imageId = crypto.randomUUID();
+          const imageId = generateId();
           await saveImage({
             id: imageId,
             evidenceId: newRecordId,
@@ -1023,10 +1071,30 @@ export default function ProveItApp() {
         status: recordForm.status,
         usedIn: recordForm.usedIn,
         reviewNotes: recordForm.reviewNotes,
-        linkedIncidentIds: recordForm.linkedIncidentIds, // Explicitly pass from form
-        linkedEvidenceIds: recordForm.linkedEvidenceIds, // Explicitly pass from form
+        linkedIncidentIds: recordForm.linkedIncidentIds,
+        linkedEvidenceIds: recordForm.linkedEvidenceIds,
+        linkedRecordIds: Array.from(new Set([
+          ...(recordForm.linkedRecordIds || []),
+          ...(needsFollowUp ? [followUpTaskId] : [])
+        ])),
         createdAt: new Date().toISOString(),
       }, recordType);
+
+      let updatedTasks = selectedCase.tasks || [];
+      if (needsFollowUp) {
+        const followUpTask = normalizeRecord({
+          id: followUpTaskId,
+          type: "tasks",
+          title: recordForm.followUpTaskTitle?.trim() || `Follow up: ${recordForm.title.trim()}`,
+          date: recordForm.date || new Date().toISOString().slice(0, 10),
+          description: `Follow-up task created from ${recordType === "incidents" ? "incident" : "evidence"} record.`,
+          status: "open",
+          linkedRecordIds: Array.from(new Set([...(recordForm.linkedRecordIds?.filter(id => id.startsWith('task')) || []), newRecordId])),
+          source: "manual",
+          createdAt: new Date().toISOString(),
+        }, "tasks");
+        updatedTasks = [followUpTask, ...updatedTasks];
+      }
 
       const updatedList = [newRecord, ...selectedCase[recordType]];
 
@@ -1036,14 +1104,30 @@ export default function ProveItApp() {
         updatedAt: new Date().toISOString(),
       };
 
+      // Only update the tasks list if a follow-up task was requested and we aren't 
+      // already saving a task (to avoid overwriting the new task list).
+      if (needsFollowUp && recordType !== "tasks") {
+        updatedCase.tasks = updatedTasks;
+      }
+
       updatedCase = syncCaseLinks(updatedCase, newRecord, recordType);
 
-      if (recordType === "evidence" && parentRecordForNewChild && newRecord.linkedIncidentIds.includes(parentRecordForNewChild.id)) {
-        const updatedParent = updatedCase.incidents.find(inc => inc.id === parentRecordForNewChild.id);
-        closeRecordModal();
-        await saveCase(updatedCase);
-        if (updatedParent) openEditRecordModal("incidents", updatedParent);
-        return;
+      // Prompt to close linked tasks when evidence is added (New record mode)
+      if (recordType === "evidence") {
+        const linkedIds = newRecord.linkedRecordIds || [];
+        // Exclude the follow-up task created in this same step if any
+        const openTasks = (updatedCase.tasks || []).filter(t => 
+          linkedIds.includes(t.id) && t.status === "open" && t.id !== (needsFollowUp ? followUpTaskId : null)
+        );
+        if (openTasks.length > 0) {
+          if (window.confirm("Mark linked follow-up task as done?")) {
+            updatedCase.tasks = updatedCase.tasks.map(t => 
+              linkedIds.includes(t.id) && t.status === "open" && t.id !== (needsFollowUp ? followUpTaskId : null)
+                ? { ...t, status: "done", updatedAt: new Date().toISOString(), edited: true }
+                : t
+            );
+          }
+        }
       }
     }
 
@@ -1059,12 +1143,21 @@ export default function ProveItApp() {
       console.error("Failed to save updated case", error);
     }
 
+    // If we were creating evidence from an incident, prepare to return to the incident view
+    const isEvidenceFromIncident = recordType === "evidence" && parentRecordForNewChild;
+    const parentToReopen = isEvidenceFromIncident ? updatedCase.incidents.find(inc => inc.id === parentRecordForNewChild.id) : null;
+
     if (recordType === "evidence") setActiveTab("evidence");
     if (recordType === "incidents") setActiveTab("incidents");
     if (recordType === "tasks") setActiveTab("tasks");
     if (recordType === "strategy") setActiveTab("strategy");
 
     closeRecordModal();
+
+    // Re-open parent incident modal if applicable
+    if (parentToReopen) {
+      setTimeout(() => openEditRecordModal("incidents", parentToReopen), 50);
+    }
   };
 
   const saveQuickCapture = async () => {
@@ -1200,7 +1293,7 @@ export default function ProveItApp() {
       <div className="grid gap-4">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-xl font-semibold">Your Cases</h2>
-          <button onClick={openCreateCaseModal} className="rounded-2xl border border-lime-500 bg-white px-4 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
+          <button onClick={openCreateCaseModal} className="inline-flex items-center px-3 py-1.5 text-sm rounded-md whitespace-nowrap border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95">
             + Create Case
           </button>
         </div>
@@ -1275,16 +1368,34 @@ export default function ProveItApp() {
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-800">
       <div className="mx-auto max-w-7xl px-4 py-6">
-        <header className="relative mb-6 flex flex-col gap-4 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-          <button className="absolute right-6 top-6 text-neutral-400 hover:text-neutral-600 transition-colors" aria-label="Help">
-            <CircleHelp className="h-6 w-6" />
-          </button>
-          <div>
-            <p className="text-sm text-neutral-500">ToolStack • Case Engine</p>
-            <h1 className="text-3xl font-semibold">ProveIt</h1>
-            <p className="mt-1 text-xs text-neutral-500">Autosaved locally in this browser (no account, no cloud). Use Export regularly for backup.</p>
+        <header className="relative mb-6 flex flex-col gap-6 rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-lime-500 text-white shadow-lg shadow-lime-100">
+                <ShieldCheck className="h-8 w-8" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-4xl font-bold tracking-tight text-neutral-900">ProveIt</h1>
+                  <span className="rounded-lg bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500">v1.0</span>
+                </div>
+                <p className="text-sm font-medium text-neutral-500">Advanced Evidence Management & Case Engine</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:items-end">
+              <div className="inline-flex items-center gap-2 rounded-full bg-lime-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-lime-700 border border-lime-100">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-lime-400 opacity-75"></span>
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-lime-500"></span>
+                </span>
+                Local Storage Active
+              </div>
+              <p className="mt-1 text-[10px] text-neutral-400">Secure • Browser Only • Offline First</p>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+
+          <div className="flex gap-2 flex-wrap border-t border-neutral-100 pt-6">
             {quickActions.map((a) => {
               const isQuick = a.label === "Quick Capture";
               const isExport = a.label === "Export";
@@ -1294,8 +1405,8 @@ export default function ProveItApp() {
 
               if (isImport) {
                 return (
-                  <label key={a.label} className="rounded-2xl border border-lime-500 bg-white px-3 py-2 text-center text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors cursor-pointer">
-                    {a.label}
+                  <label key={a.label} className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95 cursor-pointer">
+                    {a.label} 
                     <input type="file" accept="application/json,.json" className="hidden" onChange={importData} />
                   </label>
                 );
@@ -1310,7 +1421,7 @@ export default function ProveItApp() {
                     isTask ? () => setAssignRecordType("tasks") :
                     isStrategy ? () => setAssignRecordType("strategy") : undefined
                   }
-                  className="rounded-2xl border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
+                  className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
                 >
                   {a.label}
                 </button>
@@ -1460,7 +1571,7 @@ export default function ProveItApp() {
 
               <label className="mb-3 block cursor-pointer rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-600">
                 Add phone photos, screenshots, PDFs, or documents
-                <input type="file" multiple className="hidden" onChange={handleCaptureFiles} accept="image/*,application/pdf,.pdf,.doc,.docx,.txt" />
+                <input type="file" multiple className="hidden" onChange={handleCaptureFiles} accept="image/*,application/pdf,.pdf,.doc,.docx,.txt,.eml,message/rfc822" />
               </label>
 
               {captureForm.attachments.length > 0 && (

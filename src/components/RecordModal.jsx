@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export default function RecordModal({
   recordType,
@@ -16,6 +16,57 @@ export default function RecordModal({
 }) {
   const [isLinking, setIsLinking] = useState(false);
   const [tempSelection, setTempSelection] = useState([]);
+
+  // Follow-up task helper logic for new records
+  const lastAutoTitle = useRef("");
+  const prevAttachmentsLength = useRef(recordForm.attachments?.length || 0);
+  const isInitialMount = useRef(true);
+
+  useEffect(() => {
+    // Only apply automation for NEW incidents and evidence
+    if (recordForm.id || (recordType !== "incidents" && recordType !== "evidence")) return;
+
+    const currentLen = recordForm.attachments?.length || 0;
+    const prevLen = prevAttachmentsLength.current;
+    prevAttachmentsLength.current = currentLen;
+
+    const getTargetDefault = (type, title) => {
+      const t = title?.trim();
+      if (type === "incidents") {
+        return t ? `Digitise / upload supporting evidence for: ${t}` : "Digitise / upload supporting evidence";
+      }
+      return t ? `Upload or confirm existing evidence for: ${t}` : "Upload or confirm existing evidence";
+    };
+
+    const currentDefault = getTargetDefault(recordType, recordForm.title);
+    const updates = {};
+
+    // Auto-toggle checkbox based on attachment transitions (Req 2, 4, 5)
+    if (currentLen === 0) {
+      if (prevLen > 0 || isInitialMount.current) {
+        updates.createFollowUpTask = true;
+      }
+    } else if (currentLen > 0 && prevLen === 0) {
+      updates.createFollowUpTask = false;
+    }
+
+    // Auto-prefill / Update title (Req 3, 5)
+    // Only update if field is empty or still matches the last auto-generated string
+    const isTitleEmpty = !recordForm.followUpTaskTitle;
+    const matchesLastAuto = recordForm.followUpTaskTitle === lastAutoTitle.current;
+
+    if (isTitleEmpty || matchesLastAuto) {
+      if (recordForm.followUpTaskTitle !== currentDefault) {
+        updates.followUpTaskTitle = currentDefault;
+        lastAutoTitle.current = currentDefault;
+      }
+    }
+
+    if (Object.keys(updates).length > 0) {
+      setRecordForm(prev => ({ ...prev, ...updates }));
+    }
+    isInitialMount.current = false;
+  }, [recordForm.attachments?.length, recordForm.title, recordForm.followUpTaskTitle, recordType, recordForm.id, setRecordForm]);
 
   const toggleEvidenceLink = (id) => {
     setTempSelection(prev => 
@@ -99,6 +150,32 @@ export default function RecordModal({
           className="mb-3 w-full rounded-xl border border-neutral-300 p-3"
           rows={3}
         />
+
+        {/* Follow-up task helper for new incidents and evidence */}
+        {(recordType === "incidents" || recordType === "evidence") && !recordForm.id && (
+          <div className="mb-4 space-y-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="createFollowUpTask"
+                checked={recordForm.createFollowUpTask || false}
+                onChange={(e) => setRecordForm({ ...recordForm, createFollowUpTask: e.target.checked })}
+                className="h-4 w-4 rounded border-neutral-300 text-lime-600 focus:ring-lime-500"
+              />
+              <label htmlFor="createFollowUpTask" className="text-sm font-medium text-neutral-700">
+                Create follow-up task
+              </label>
+            </div>
+            {recordForm.createFollowUpTask && (
+              <input
+                placeholder="Task title (optional, defaults to record title)"
+                value={recordForm.followUpTaskTitle || ""}
+                onChange={(e) => setRecordForm({ ...recordForm, followUpTaskTitle: e.target.value })}
+                className="w-full rounded-xl border border-neutral-300 p-3 text-sm shadow-sm"
+              />
+            )}
+          </div>
+        )}
 
         {recordType === "evidence" && (
           <div className="mb-4 space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
@@ -355,7 +432,7 @@ export default function RecordModal({
                 multiple
                 className="hidden"
                 onChange={handleRecordFiles}
-                accept="image/*,application/pdf,.pdf,.doc,.docx,.txt"
+                accept="image/*,application/pdf,.pdf,.doc,.docx,.txt,.eml,message/rfc822"
               />
             </label>
 

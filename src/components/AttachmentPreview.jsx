@@ -45,6 +45,8 @@ export default function AttachmentPreview({ attachments = [], onPreview, imageCa
         {attachments.map((file, idx) => {
           const type = file.type || file.mimeType;
           const name = file.name || file.fileName;
+          const isEml = type === "message/rfc822" || name?.toLowerCase().endsWith(".eml");
+          const meta = file.emailMeta;
 
           return (
             <div key={file.id || idx} className="rounded-2xl border border-neutral-200 bg-white p-3 flex flex-col">
@@ -53,9 +55,18 @@ export default function AttachmentPreview({ attachments = [], onPreview, imageCa
               ) : (
                 <div 
                   onClick={() => onPreview?.(file)}
-                  className="mb-3 flex h-32 cursor-pointer items-center justify-center rounded-xl border border-dashed border-neutral-300 bg-neutral-50 text-sm text-neutral-500 hover:bg-neutral-100 transition-colors"
+                  className="mb-3 flex h-32 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-neutral-300 bg-neutral-50 px-2 text-center text-sm text-neutral-500 hover:bg-neutral-100 transition-colors"
                 >
-                  PDF / Document
+                  <div className="text-[10px] font-bold uppercase text-neutral-400 mb-1">
+                    {isEml ? "EML / Email file" : "PDF / Document"}
+                  </div>
+                  {isEml && meta && (
+                    <div className="w-full space-y-0.5 overflow-hidden">
+                      {meta.subject && <div className="truncate text-xs font-semibold text-neutral-700">{meta.subject}</div>}
+                      {meta.from && <div className="truncate text-[10px] text-neutral-500">{meta.from}</div>}
+                      {meta.date && <div className="truncate text-[10px] text-neutral-400">{meta.date}</div>}
+                    </div>
+                  )}
                 </div>
               )}
               <div className="truncate text-sm font-medium text-neutral-800">{name}</div>
