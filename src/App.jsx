@@ -5,6 +5,8 @@ import RecordModal from "./components/RecordModal";
 import CaseDetail from "./components/CaseDetail";
 import FilePreviewModal from "./components/FilePreviewModal";
 import { ShieldCheck } from "lucide-react";
+const SUPABASE_SYNC_URL = "https://aftbtklrlkccngjiaacv.supabase.co/functions/v1/proveit-upsert-case";
+const SUPABASE_SYNC_API_KEY = "proveit-live-read-123456";
 
 /**
  * Safe UUID fallback for insecure contexts or older browsers.
@@ -316,6 +318,94 @@ function syncCaseLinks(caseData, record, type) {
   return updatedCase;
 }
 
+async function syncCaseToSupabase(caseItem) {
+  const payload = {
+    id: caseItem.id,
+    name: caseItem.name || "",
+    type: caseItem.category || "general",
+    status: caseItem.status || "open",
+    priority: caseItem.priority || "medium",
+    snapshot: {
+      case: {
+        id: caseItem.id,
+        name: caseItem.name || "",
+        type: caseItem.category || "general",
+        status: caseItem.status || "open",
+        priority: caseItem.priority || "medium",
+      },
+      summary: {
+        oneParagraph: caseItem.description || caseItem.notes || "Snapshot",
+      },
+      keyFacts: (caseItem.incidents || [])
+        .slice(0, 6)
+        .map((item) => item.title)
+        .filter(Boolean),
+      recentIncidents: (caseItem.incidents || [])
+        .slice()
+        .sort((a, b) => new Date(b.date || b.eventDate || 0) - new Date(a.date || a.eventDate || 0))
+        .slice(0, 8)
+        .map((item) => ({
+          id: item.id,
+          title: item.title || "",
+          date: item.date || item.eventDate || "",
+          description: item.description || "",
+          status: item.status || "open",
+        })),
+      openTasks: (caseItem.tasks || [])
+        .filter((task) => task.status !== "done")
+        .slice(0, 10)
+        .map((task) => ({
+          id: task.id,
+          title: task.title || "",
+          description: task.description || "",
+          status: task.status || "open",
+          priority: task.priority || "medium",
+        })),
+      strategy: (caseItem.strategy || [])
+        .slice(0, 10)
+        .map((item) => ({
+          id: item.id,
+          title: item.title || "",
+          description: item.description || "",
+          status: item.status || "open",
+        })),
+      evidenceSummary: (caseItem.evidence || [])
+        .slice(0, 12)
+        .map((item) => ({
+          id: item.id,
+          title: item.title || "",
+          description: item.description || "",
+          notes: item.notes || "",
+          status: item.status || "",
+          sourceType: item.sourceType || "",
+          importance: item.importance || "",
+          relevance: item.relevance || "",
+          attachmentCount: Array.isArray(item.attachments) ? item.attachments.length : 0,
+          digitalFileCount: Array.isArray(item?.availability?.digital?.files)
+            ? item.availability.digital.files.length
+            : 0,
+        })),
+    },
+  };
+
+  const response = await fetch(SUPABASE_SYNC_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": SUPABASE_SYNC_API_KEY,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const returnedData = await response.json();
+  if (!response.ok) {
+    throw new Error(`Sync to Supabase failed: ${response.status} ${response.statusText}`);
+  }
+
+  console.log("sync success", returnedData);
+  return returnedData;
+}
+
 export default function ProveItApp() {
   const STORAGE_KEY = "toolstack.proveit.v1";
   
@@ -324,6 +414,7 @@ export default function ProveItApp() {
   const [editingCase, setEditingCase] = useState(null);
   const [imageCache, setImageCache] = useState({});
   const [previewFile, setPreviewFile] = useState(null);
+  const [viewingRecord, setViewingRecord] = useState(null);
 
   const [showCreate, setShowCreate] = useState(false);
   const [selectedCaseId, setSelectedCaseId] = useState(() => {
@@ -551,6 +642,92 @@ export default function ProveItApp() {
     }
   };
 
+  const exportCaseSnapshot = (caseId, mode = "compact") => {
+    const c = cases.find((item) => item.id === caseId);
+    if (!c) return;
+
+    const limits = mode === "compact" ? { timeline: 5, facts: 8, tasks: 8 } : { timeline: 12, facts: 12, tasks: 12 };
+
+    const mapImportance = (val) => {
+      const v = String(val || "").toLowerCase();
+      if (v === "critical") return "high";
+      if (v === "strong") return "medium";
+      return "low";
+    };
+
+    const timeline = sortTimelineItems([...c.incidents, ...c.evidence])
+      .reverse()
+      .slice(0, limits.timeline)
+      .map(t => ({
+        date: t.eventDate || t.date,
+        title: t.title,
+        description: t.description ? t.description.substring(0, 300) : ""
+      }));
+
+    const openTasks = (c.tasks || [])
+      .filter(t => t.status !== "done")
+      .slice(0, limits.tasks)
+      .map(t => ({
+        title: t.title,
+        status: t.status,
+        priority: "medium"
+      }));
+
+    const activeIssues = [...c.incidents, ...c.evidence]
+      .filter(i => (i.status !== "verified" && i.status !== "archived") || i.importance === "critical")
+      .slice(0, limits.facts)
+      .map(i => ({
+        id: i.id,
+        title: i.title,
+        status: i.status,
+        importance: mapImportance(i.importance),
+        summary: (i.description || i.notes || "").substring(0, 200)
+      }));
+
+    const snapshot = {
+      format: "proveit-chatgpt-case-snapshot",
+      version: "1.0",
+      exportedAt: new Date().toISOString(),
+      case: {
+        id: c.id,
+        name: c.name,
+        type: c.category,
+        status: c.status,
+        priority: "medium",
+        lastUpdated: c.updatedAt || c.createdAt
+      },
+      summary: {
+        oneParagraph: (c.description || c.notes || "Active case file management.").substring(0, 500),
+        currentPosition: [
+          `Case involves ${c.incidents.length} documented incidents.`,
+          `Current collection includes ${c.evidence.length} evidence items.`,
+          `${openTasks.length} tasks currently pending action.`
+        ]
+      },
+      keyFacts: c.strategy.length > 0 ? c.strategy.slice(0, limits.facts).map(s => s.title) : c.incidents.slice(0, limits.facts).map(i => i.title),
+      activeIssues,
+      recentTimeline: timeline,
+      openTasks,
+      strategy: {
+        current: c.strategy.map(s => s.title).slice(0, 5),
+        nextMoves: openTasks.map(t => t.title).slice(0, 3)
+      },
+      evidenceSummary: c.evidence.map(e => e.title),
+      importantPeople: [],
+      openQuestions: []
+    };
+
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${c.name}-chatgpt-snapshot-${mode}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const importData = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -734,8 +911,8 @@ export default function ProveItApp() {
     setEditingCase(caseItem);
     setForm({
       name: caseItem.name,
-      category: ["general", "personal", "work", "housing", "legal"].includes(caseItem.category.toLowerCase()) ? caseItem.category.toLowerCase() : "custom",
-      customCategory: ["general", "personal", "work", "housing", "legal"].includes(caseItem.category.toLowerCase()) ? "" : caseItem.category,
+      category: ["general", "personal", "work", "housing", "legal"].includes((caseItem.category || "").toLowerCase()) ? (caseItem.category || "").toLowerCase() : "custom",
+      customCategory: ["general", "personal", "work", "housing", "legal"].includes((caseItem.category || "").toLowerCase()) ? "" : caseItem.category,
       notes: caseItem.notes,
       description: caseItem.description || "",
     });
@@ -754,26 +931,14 @@ export default function ProveItApp() {
   };
 
   const openEditRecordModal = (type, item) => {
-    setRecordType(type);
-    setEditingRecord(item);
-    setRecordForm({
-      id: item.id,
-      title: item.title || "",
-      date: item.date || new Date().toISOString().slice(0, 10),
-      description: item.description || "",
-      notes: item.notes || "",
-      sourceType: item.sourceType || "other",
-      capturedAt: item.capturedAt || item.date || new Date().toISOString().slice(0, 10),
-      availability: item.availability || EMPTY_RECORD_FORM.availability,
-      attachments: type === "evidence" ? (item.availability?.digital?.files || []) : (item.attachments || []),
-      importance: item.importance || "unreviewed",
-      relevance: item.relevance || "medium",
-      status: item.status || "needs_review",
-      usedIn: Array.isArray(item.usedIn) ? item.usedIn : [],
-      reviewNotes: item.reviewNotes || "",
-      linkedIncidentIds: Array.isArray(item.linkedIncidentIds) ? item.linkedIncidentIds : [],
-      linkedEvidenceIds: Array.isArray(item.linkedEvidenceIds) ? item.linkedEvidenceIds : [],
-    });
+  setRecordForm({
+    ...EMPTY_RECORD_FORM,
+    ...item,
+    attachments: (item.attachments?.length ? item.attachments : null) || (item.files?.length ? item.files : null) || (type === "evidence" ? item.availability?.digital?.files : []) || [],
+    files: (item.files?.length ? item.files : null) || (type === "evidence" ? item.availability?.digital?.files : []) || [],
+  });
+  setRecordType(type);
+  setEditingRecord(item);
   };
 
   const closeRecordModal = () => {
@@ -1452,6 +1617,12 @@ export default function ProveItApp() {
                 openEditCaseModal={openEditCaseModal}
                 deleteRecord={deleteRecord}
                 exportSelectedCase={exportSelectedCase}
+                onExportSnapshot={exportCaseSnapshot}
+                onSyncToSupabase={async () => {
+                  console.log("sync clicked", selectedCase.id, selectedCase.name);
+                  await syncCaseToSupabase(selectedCase);
+                }}
+                onViewRecord={setViewingRecord}
                 onPreviewFile={setPreviewFile}
               />
             </div>
@@ -1593,6 +1764,89 @@ export default function ProveItApp() {
           </div>
         )}
 
+        {viewingRecord && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setViewingRecord(null)}>
+            <div className="w-full max-w-lg rounded-3xl bg-white shadow-xl flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+              <div className="p-6 border-b border-neutral-100 flex justify-between items-start">
+                <div>
+                  <h2 className="text-xl font-semibold">Evidence Details</h2>
+                  <div className="mt-1 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    <span>ID: {viewingRecord.id?.substring(0, 8)}</span>
+                    <span className="px-2 py-0.5 rounded border border-neutral-200 bg-neutral-50 text-neutral-600">
+                      {viewingRecord.status?.replace('_', ' ')}
+                    </span>
+                  </div>
+                </div>
+                <button onClick={() => setViewingRecord(null)} className="p-2 hover:bg-neutral-100 rounded-full transition-colors">✕</button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto flex-1 space-y-6">
+                <div className="space-y-1">
+                  <h3 className="text-lg font-bold text-neutral-900">{viewingRecord.title}</h3>
+                  <p className="text-sm text-neutral-500">{viewingRecord.date}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Importance</span>
+                    <div className="text-sm font-semibold capitalize">{viewingRecord.importance}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Relevance</span>
+                    <div className="text-sm font-semibold capitalize">{viewingRecord.relevance}</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Source Type</span>
+                    <div className="text-sm capitalize">{viewingRecord.sourceType}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Captured At</span>
+                    <div className="text-sm">{viewingRecord.capturedAt || viewingRecord.date}</div>
+                  </div>
+                </div>
+
+                {viewingRecord.description && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Description</span>
+                    <p className="text-sm text-neutral-700 whitespace-pre-wrap">{viewingRecord.description}</p>
+                  </div>
+                )}
+
+                {viewingRecord.notes && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Internal Notes</span>
+                    <p className="text-sm text-neutral-500 bg-neutral-50 p-3 rounded-xl border border-neutral-100 italic">{viewingRecord.notes}</p>
+                  </div>
+                )}
+
+                {viewingRecord.tags?.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Tags</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {viewingRecord.tags.map(tag => (
+                        <span key={tag} className="px-2 py-0.5 rounded-full bg-neutral-100 text-[10px] font-medium text-neutral-600 border border-neutral-200">{tag}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <AttachmentPreview 
+                  attachments={viewingRecord.attachments || []}
+                  imageCache={imageCache}
+                  onPreview={setPreviewFile}
+                />
+              </div>
+
+              <div className="p-6 border-t border-neutral-100">
+                <button onClick={() => setViewingRecord(null)} className="w-full rounded-xl bg-neutral-900 py-2 font-medium text-white shadow-sm hover:bg-neutral-800 transition-colors">Close</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <button onClick={openQuickCapture} className="fixed bottom-6 right-6 rounded-full border border-lime-500 bg-white px-5 py-3 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
           + Quick Capture
         </button>
@@ -1602,5 +1856,5 @@ export default function ProveItApp() {
         )}
       </div>
     </div>
-  );
+    );
 }
