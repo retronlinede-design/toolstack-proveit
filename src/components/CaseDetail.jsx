@@ -402,10 +402,13 @@ export default function CaseDetail({
                     </div>
                     <div className="space-y-3">
                       {group.items.map((item) => {
-                        let recordType = item._kind.toLowerCase();
-                        if (recordType === "incident" || recordType === "task") {
-                          recordType += "s";
-                        }
+                        const kindToTypeMap = {
+                          Evidence: "evidence",
+                          Incident: "incidents",
+                          Task: "tasks",
+                          Strategy: "strategy",
+                        };
+                        const recordType = kindToTypeMap[item._kind] || "evidence";
 
                         return (
                           <RecordCard
