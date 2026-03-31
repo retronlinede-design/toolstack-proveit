@@ -438,6 +438,29 @@ export default function ProveItApp() {
   const [recordForm, setRecordForm] = useState(EMPTY_RECORD_FORM);
   const [editingRecord, setEditingRecord] = useState(null);
   const [parentRecordForNewChild, setParentRecordForNewChild] = useState(null);
+  const [syncStatus, setSyncStatus] = useState("idle"); // idle, syncing, success, error
+  const [syncMessage, setSyncMessage] = useState("");
+
+  const handleSyncToSupabase = async () => {
+    if (!selectedCase) return;
+    setSyncStatus("syncing");
+    setSyncMessage("Connecting to Supabase...");
+    try {
+      await syncCaseToSupabase(selectedCase);
+      setSyncStatus("success");
+      setSyncMessage("Case synced successfully");
+    } catch (error) {
+      console.error("Sync failed", error);
+      setSyncStatus("error");
+      setSyncMessage(error.message || "Sync failed");
+    }
+  };
+
+  useEffect(() => {
+    setSyncStatus("idle");
+    setSyncMessage("");
+  }, [selectedCaseId]);
+
   const [quickCaptures, setQuickCaptures] = useState(() => {
     try {
       const saved = localStorage.getItem("toolstack.proveit.v1.captures");
@@ -1618,10 +1641,9 @@ export default function ProveItApp() {
                 deleteRecord={deleteRecord}
                 exportSelectedCase={exportSelectedCase}
                 onExportSnapshot={exportCaseSnapshot}
-                onSyncToSupabase={async () => {
-                  console.log("sync clicked", selectedCase.id, selectedCase.name);
-                  await syncCaseToSupabase(selectedCase);
-                }}
+                onSyncToSupabase={handleSyncToSupabase}
+                syncStatus={syncStatus}
+                syncMessage={syncMessage}
                 onViewRecord={setViewingRecord}
                 onPreviewFile={setPreviewFile}
               />

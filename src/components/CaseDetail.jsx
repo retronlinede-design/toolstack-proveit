@@ -23,6 +23,8 @@ export default function CaseDetail({
   onSyncToSupabase,
   onViewRecord,
   onPreviewFile,
+  syncStatus = "idle",
+  syncMessage = "",
 }) {
   const [expandedGroups, setExpandedGroups] = useState({});
   const [showCompletedTasks, setShowCompletedTasks] = useState(false);
@@ -192,7 +194,7 @@ export default function CaseDetail({
           <p className="mt-1 text-sm text-neutral-600">Category: {selectedCase.category}</p>
           {selectedCase.notes ? <p className="mt-3 max-w-2xl text-sm text-neutral-700">{selectedCase.notes}</p> : null}
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-start">
           <button onClick={() => openRecordModal("evidence")} className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95">+ Evidence</button>
           <button onClick={() => openRecordModal("incidents")} className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95">+ Incident</button>
           <button onClick={() => openRecordModal("tasks")} className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95">+ Task</button>
@@ -200,7 +202,23 @@ export default function CaseDetail({
           <button onClick={exportSelectedCase} className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95">Export Case</button>
           <button onClick={() => onExportSnapshot(selectedCase.id, "compact")} className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95">Export Snapshot (Compact)</button>
           <button onClick={() => onExportSnapshot(selectedCase.id, "detailed")} className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95">Export Snapshot (Detailed)</button>
-          <button onClick={onSyncToSupabase} className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95">Sync to Supabase</button>
+          <div className="flex flex-col gap-1">
+            <button 
+              onClick={onSyncToSupabase} 
+              disabled={syncStatus === "syncing"}
+              className={`flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md transition-all ${syncStatus === 'syncing' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-lime-400/30 active:scale-95'}`}
+            >
+              {syncStatus === "idle" && "Sync to Supabase"}
+              {syncStatus === "syncing" && "Syncing..."}
+              {syncStatus === "success" && "Synced"}
+              {syncStatus === "error" && "Sync failed"}
+            </button>
+            {syncMessage && (
+              <span className={`text-[10px] font-bold uppercase tracking-tight text-center ${syncStatus === 'error' ? 'text-red-500' : 'text-lime-600'}`}>
+                {syncMessage}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

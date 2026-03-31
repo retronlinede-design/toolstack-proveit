@@ -60,7 +60,7 @@ export default function RecordCard({
                       <button
                         key={linkedId}
                         onClick={() => openLinkedRecord?.(linkedId)}
-                        className="px-1.5 py-0.5 rounded border border-neutral-300 bg-neutral-100 font-mono text-neutral-700 shadow-sm hover:bg-neutral-200 transition-colors cursor-pointer"
+                        className="px-1.5 py-0.5 rounded border border-neutral-300 bg-neutral-50 font-mono text-neutral-600 shadow-sm hover:bg-white hover:border-lime-500 hover:text-lime-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-95 transition-all cursor-pointer"
                       >
                         {linkedId.substring(0, 8)}
                       </button>
