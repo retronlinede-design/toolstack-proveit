@@ -65,6 +65,15 @@ export default function CaseDetail({
     return null;
   };
 
+  const openLinkedRecord = (recordId) => {
+    const found = findRecordById(recordId);
+    if (!found) return;
+
+    const { record, type } = found;
+    setActiveTab(type);
+    openEditRecordModal(type, record);
+  };
+
   const statusConfig = {
     Healthy: { color: "text-lime-600 bg-lime-50 border-lime-200", icon: CheckCircle2 },
     "Needs review": { color: "text-amber-600 bg-amber-50 border-amber-200", icon: AlertTriangle },
@@ -102,6 +111,7 @@ export default function CaseDetail({
       openEditRecordModal={openEditRecordModal}
       deleteRecord={deleteRecord}
       toggleTaskStatus={toggleTaskStatus}
+      openLinkedRecord={openLinkedRecord}
     />
   );
 };
@@ -409,6 +419,7 @@ export default function CaseDetail({
                             openEditRecordModal={openEditRecordModal}
                             deleteRecord={deleteRecord}
                             toggleTaskStatus={toggleTaskStatus}
+                            openLinkedRecord={openLinkedRecord}
                           />
                         );
                       })}

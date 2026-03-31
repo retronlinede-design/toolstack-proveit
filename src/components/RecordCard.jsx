@@ -10,6 +10,7 @@ export default function RecordCard({
   openEditRecordModal,
   deleteRecord,
   toggleTaskStatus,
+  openLinkedRecord,
 }) {
   const isTask = recordType === "tasks";
   const isDone = isTask && item.status?.toLowerCase() === "done";
@@ -56,12 +57,13 @@ export default function RecordCard({
                   <span className="font-bold uppercase tracking-tight text-neutral-500">Linked:</span>
                   <div className="flex flex-wrap gap-1">
                     {item.linkedRecordIds.map((linkedId) => (
-                      <span
+                      <button
                         key={linkedId}
-                        className="px-1.5 py-0.5 rounded border border-neutral-300 bg-neutral-100 font-mono text-neutral-700 shadow-sm"
+                        onClick={() => openLinkedRecord?.(linkedId)}
+                        className="px-1.5 py-0.5 rounded border border-neutral-300 bg-neutral-100 font-mono text-neutral-700 shadow-sm hover:bg-neutral-200 transition-colors cursor-pointer"
                       >
                         {linkedId.substring(0, 8)}
-                      </span>
+                      </button>
                     ))}
                   </div>
                 </div>
