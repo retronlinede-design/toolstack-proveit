@@ -83,12 +83,21 @@ export default function RecordModal({
     setTempSelection([]);
   };
 
+  const isEdit = !!recordForm.id;
+  const typeLabelMap = {
+    tasks: "Task",
+    evidence: "Evidence",
+    incidents: "Incident",
+    strategy: "Strategy",
+  };
+  const typeLabel = typeLabelMap[recordType] || recordType;
+
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-lg rounded-3xl bg-white shadow-xl flex flex-col max-h-[90vh]">
         <div className="p-6 pb-0">
-          <h2 className="text-xl font-semibold capitalize">
-            {isLinking ? "Link Existing Evidence" : `Add ${recordType.slice(0, -1)}`}
+          <h2 className="text-xl font-semibold">
+            {isLinking ? "Link Existing Evidence" : `${isEdit ? "Edit" : "Add"} ${typeLabel}`}
           </h2>
           <p className="mb-4 text-sm text-neutral-600">Case: {selectedCase.name}</p>
         </div>
@@ -470,7 +479,7 @@ export default function RecordModal({
           ) : (
             <>
               <button onClick={saveRecord} className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
-                Save
+                {isEdit ? "Save Changes" : "Create"}
               </button>
               <button onClick={closeRecordModal} className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
                 Cancel
