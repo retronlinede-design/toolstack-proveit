@@ -406,6 +406,41 @@ async function syncCaseToSupabase(caseItem) {
   return returnedData;
 }
 
+async function exportFullCaseToSupabase(caseItem) {
+  try {
+    const response = await fetch(
+      "https://aftbtklrlkccngjiaacv.supabase.co/functions/v1/export-full-case",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer sb_publishable_jVKAQYEpeh1G5MY1yRvPJA_iYUUCPFy",
+          "apikey": "sb_publishable_jVKAQYEpeh1G5MY1yRvPJA_iYUUCPFy",
+          "x-api-key": SUPABASE_SYNC_API_KEY,
+        },
+        body: JSON.stringify({
+          case_id: caseItem.id,
+          exported_at: new Date().toISOString(),
+          case_json: caseItem,
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(`Full case export failed: ${response.status}`);
+    }
+
+    console.log("full case export success", data);
+    return data;
+
+  } catch (err) {
+    console.error("Full case export failed", err);
+    throw err;
+  }
+}
+
 export default function ProveItApp() {
   const STORAGE_KEY = "toolstack.proveit.v1";
   
@@ -441,6 +476,24 @@ export default function ProveItApp() {
   const [syncStatus, setSyncStatus] = useState("idle"); // idle, syncing, success, error
   const [syncMessage, setSyncMessage] = useState("");
 
+  const [fullCaseExportStatus, setFullCaseExportStatus] = useState("idle"); // idle, exporting, success, error
+  const [fullCaseExportMessage, setFullCaseExportMessage] = useState("");
+
+  const handleExportFullCase = async () => {
+    if (!selectedCase) return;
+    setFullCaseExportStatus("exporting");
+    setFullCaseExportMessage("Preparing full case export...");
+    try {
+      await exportFullCaseToSupabase(selectedCase);
+      setFullCaseExportStatus("success");
+      setFullCaseExportMessage("Full case exported successfully");
+    } catch (error) {
+      console.error("Full case export failed", error);
+      setFullCaseExportStatus("error");
+      setFullCaseExportMessage(error.message || "Export failed");
+    }
+  };
+
   const handleSyncToSupabase = async () => {
     if (!selectedCase) return;
     setSyncStatus("syncing");
@@ -459,6 +512,8 @@ export default function ProveItApp() {
   useEffect(() => {
     setSyncStatus("idle");
     setSyncMessage("");
+    setFullCaseExportStatus("idle");
+    setFullCaseExportMessage("");
   }, [selectedCaseId]);
 
   const [quickCaptures, setQuickCaptures] = useState(() => {
@@ -1642,8 +1697,11 @@ export default function ProveItApp() {
                 exportSelectedCase={exportSelectedCase}
                 onExportSnapshot={exportCaseSnapshot}
                 onSyncToSupabase={handleSyncToSupabase}
+                onExportFullCase={handleExportFullCase}
                 syncStatus={syncStatus}
                 syncMessage={syncMessage}
+                fullCaseExportStatus={fullCaseExportStatus}
+                fullCaseExportMessage={fullCaseExportMessage}
                 onViewRecord={setViewingRecord}
                 onPreviewFile={setPreviewFile}
               />

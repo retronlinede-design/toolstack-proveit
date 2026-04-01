@@ -21,13 +21,17 @@ export default function CaseDetail({
   exportSelectedCase,
   onExportSnapshot,
   onSyncToSupabase,
-  onViewRecord,
-  onPreviewFile,
+  onExportFullCase,
   syncStatus = "idle",
   syncMessage = "",
+  fullCaseExportStatus = "idle",
+  fullCaseExportMessage = "",
+  onViewRecord,
+  onPreviewFile,
 }) {
   const [expandedGroups, setExpandedGroups] = useState({});
   const [showCompletedTasks, setShowCompletedTasks] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const toggleGroup = (cat) => setExpandedGroups((prev) => ({ ...prev, [cat]: !prev[cat] }));
 
   const health = selectedCase ? getCaseHealthReport(selectedCase) : null;
@@ -199,25 +203,63 @@ export default function CaseDetail({
           <button onClick={() => openRecordModal("incidents")} className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95">+ Incident</button>
           <button onClick={() => openRecordModal("tasks")} className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95">+ Task</button>
           <button onClick={() => openRecordModal("strategy")} className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95">+ Strategy</button>
-          <button onClick={exportSelectedCase} className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95">Export Case</button>
-          <button onClick={() => onExportSnapshot(selectedCase.id, "compact")} className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95">Export Snapshot (Compact)</button>
-          <button onClick={() => onExportSnapshot(selectedCase.id, "detailed")} className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95">Export Snapshot (Detailed)</button>
-          <div className="flex flex-col gap-1">
+
+          <div className="relative flex-1 min-w-max">
             <button 
-              onClick={onSyncToSupabase} 
-              disabled={syncStatus === "syncing"}
-              className={`flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md transition-all ${syncStatus === 'syncing' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-lime-400/30 active:scale-95'}`}
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="w-full px-3 py-1.5 text-sm rounded-md whitespace-nowrap border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95 flex items-center justify-center gap-1"
             >
-              {syncStatus === "idle" && "Sync to Supabase"}
-              {syncStatus === "syncing" && "Syncing..."}
-              {syncStatus === "success" && "Synced"}
-              {syncStatus === "error" && "Sync failed"}
+              Export <ChevronDown className={`h-4 w-4 transition-transform ${showExportMenu ? 'rotate-180' : ''}`} />
             </button>
-            {syncMessage && (
-              <span className={`text-[10px] font-bold uppercase tracking-tight text-center ${syncStatus === 'error' ? 'text-red-500' : 'text-lime-600'}`}>
-                {syncMessage}
-              </span>
+            
+            {showExportMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
+                <div className="absolute right-0 mt-2 w-56 rounded-xl border border-neutral-200 bg-white shadow-xl z-50 py-1 overflow-hidden animate-in fade-in zoom-in duration-100">
+                  <button 
+                    onClick={() => { exportSelectedCase(); setShowExportMenu(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-neutral-50 text-neutral-700 font-medium transition-colors"
+                  >
+                    Export Case (JSON)
+                  </button>
+                  <button 
+                    onClick={() => { onExportSnapshot(selectedCase.id, "compact"); setShowExportMenu(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-neutral-50 text-neutral-700 font-medium border-t border-neutral-50 transition-colors"
+                  >
+                    Export Snapshot (Compact)
+                  </button>
+                  <button 
+                    onClick={() => { onExportSnapshot(selectedCase.id, "detailed"); setShowExportMenu(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-neutral-50 text-neutral-700 font-medium transition-colors"
+                  >
+                    Export Snapshot (Detailed)
+                  </button>
+                  <button 
+                    onClick={() => { onExportFullCase(); setShowExportMenu(false); }}
+                    disabled={fullCaseExportStatus === "exporting"}
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-neutral-50 text-neutral-700 font-medium border-t border-neutral-50 transition-colors disabled:opacity-50"
+                  >
+                    {fullCaseExportStatus === 'exporting' ? 'Exporting...' : 'Export Full Case'}
+                  </button>
+                  <button 
+                    onClick={() => { onSyncToSupabase(); setShowExportMenu(false); }}
+                    disabled={syncStatus === "syncing"}
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-neutral-50 text-neutral-700 font-medium transition-colors disabled:opacity-50"
+                  >
+                    {syncStatus === 'syncing' ? 'Syncing...' : 'Sync to Supabase'}
+                  </button>
+                </div>
+              </>
             )}
+            
+            <div className="mt-1 flex flex-col items-center">
+              {syncMessage && (
+                <span className={`text-[10px] font-bold uppercase tracking-tight text-center ${syncStatus === 'error' ? 'text-red-500' : 'text-lime-600'}`}>{syncMessage}</span>
+              )}
+              {fullCaseExportMessage && (
+                <span className={`text-[10px] font-bold uppercase tracking-tight text-center ${fullCaseExportStatus === 'error' ? 'text-red-500' : 'text-lime-600'}`}>{fullCaseExportMessage}</span>
+              )}
+            </div>
           </div>
         </div>
       </div>
