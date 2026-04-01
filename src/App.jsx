@@ -408,6 +408,24 @@ async function syncCaseToSupabase(caseItem) {
 
 async function exportFullCaseToSupabase(caseItem) {
   try {
+    const lightCaseItem = {
+  ...caseItem,
+  attachments: [],
+  files: [],
+  emails: [],
+  evidence: Array.isArray(caseItem.evidence)
+    ? caseItem.evidence.map((e) => ({
+        ...e,
+        attachments: [], // 🔴 THIS is the key fix
+      }))
+    : [],
+};
+
+    console.log("Full export sizes", {
+      original: JSON.stringify(caseItem).length,
+      light: JSON.stringify(lightCaseItem).length,
+    });
+
     const response = await fetch(
       "https://aftbtklrlkccngjiaacv.supabase.co/functions/v1/export-full-case",
       {
@@ -421,7 +439,7 @@ async function exportFullCaseToSupabase(caseItem) {
         body: JSON.stringify({
           case_id: caseItem.id,
           exported_at: new Date().toISOString(),
-          case_json: caseItem,
+          case_json: lightCaseItem,
         }),
       }
     );
