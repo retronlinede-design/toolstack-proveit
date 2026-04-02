@@ -12,10 +12,20 @@ export default function RecordCard({
   toggleTaskStatus,
   openLinkedRecord,
   openRecordModal,
+  showTypeBadge = false,
+  isTimeline = false,
 }) {
   const isTask = recordType === "tasks";
   const isDone = isTask && item.status?.toLowerCase() === "done";
   const canCreateTask = ["evidence", "incidents", "strategy"].includes(recordType);
+
+  const badgeColors = {
+    evidence: "bg-purple-50 text-purple-700 border-purple-200",
+    incidents: "bg-amber-50 text-amber-700 border-amber-200",
+    strategy: "bg-blue-50 text-blue-700 border-blue-200",
+    tasks: "bg-lime-50 text-lime-700 border-lime-200",
+  };
+
   const relatedTasks = (selectedCase?.tasks || []).filter(t => 
     t.linkedRecordIds?.includes(item.id)
   );
@@ -33,10 +43,17 @@ export default function RecordCard({
             />
           )}
           <div className={isDone ? "line-through opacity-60" : ""}>
-            <div className="font-semibold text-neutral-900">{item.title}</div>
+            <div className="flex items-center gap-2">
+              {showTypeBadge && (
+                <span className={`px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wider ${badgeColors[recordType]}`}>
+                  {recordType === "evidence" ? "Evidence" : recordType.slice(0, -1)}
+                </span>
+              )}
+              <div className="font-semibold text-neutral-900">{item.title}</div>
+            </div>
             <div className="mt-2 space-y-1 text-xs text-neutral-500">
               <div>
-                <span className="font-medium text-neutral-700">Incident Date:</span> {item.eventDate || item.date}
+                <span className="font-medium text-neutral-700">Date:</span> {item.eventDate || item.date}
               </div>
               <div>
                 <span className="font-medium text-neutral-700">Logged:</span>{" "}
@@ -127,7 +144,7 @@ export default function RecordCard({
             onClick={() => openEditRecordModal(recordType, item)}
             className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-xs font-medium text-neutral-700 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
           >
-            Edit
+            Open
           </button>
           <button
             onClick={() => deleteRecord(recordType, item.id)}
@@ -138,8 +155,20 @@ export default function RecordCard({
         </div>
       </div>
 
-      {item.description ? <p className="mt-3 text-sm text-neutral-700">{item.description}</p> : null}
-      {item.notes ? <p className="mt-2 text-sm text-neutral-500">{item.notes}</p> : null}
+      {item.description ? (
+        <p className={`mt-3 text-sm text-neutral-700 ${isTimeline ? "line-clamp-2" : ""}`}>
+          {isTimeline && item.description.length > 160 
+            ? item.description.substring(0, 160) + "..." 
+            : item.description}
+        </p>
+      ) : null}
+      {item.notes ? (
+        <p className={`mt-2 text-sm text-neutral-500 italic ${isTimeline ? "line-clamp-1" : ""}`}>
+          {isTimeline && item.notes.length > 100 
+            ? item.notes.substring(0, 100) + "..." 
+            : item.notes}
+        </p>
+      ) : null}
 
       <AttachmentPreview
         attachments={item.attachments || []}

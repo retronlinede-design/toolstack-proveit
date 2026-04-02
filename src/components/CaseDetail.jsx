@@ -35,6 +35,7 @@ export default function CaseDetail({
   const [ideas, setIdeas] = useState([]);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [timelineFilter, setTimelineFilter] = useState("all");
   const toggleGroup = (cat) => setExpandedGroups((prev) => ({ ...prev, [cat]: !prev[cat] }));
 
   const health = selectedCase ? getCaseHealthReport(selectedCase) : null;
@@ -185,6 +186,8 @@ export default function CaseDetail({
     ...selectedCase.tasks.map((item) => ({ ...item, _kind: "Task" })),
     ...selectedCase.strategy.map((item) => ({ ...item, _kind: "Strategy" })),
   ]);
+
+  const milestones = timelineItems.filter(item => item.importance === "critical");
 
   return (
     <div className="space-y-6">
@@ -559,13 +562,69 @@ export default function CaseDetail({
         )}
 
         {activeTab === "timeline" && (
-          <div className="space-y-8">
-            {timelineItems.length ? (
+          <div className="space-y-6">
+            {/* Milestones Layer */}
+            {milestones.length > 0 && (
+              <div className="mb-8 space-y-3">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-lime-500 animate-pulse"></span>
+                  Key Milestones
+                </h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {milestones.map((m) => (
+                    <div key={`milestone-${m.id}`} className="group relative p-4 rounded-2xl border-2 border-lime-500 bg-white shadow-[0_4px_12px_rgba(132,204,22,0.1)] transition-all hover:shadow-[0_4px_20px_rgba(132,204,22,0.2)]">
+                      <div className="text-[10px] font-bold text-lime-600 uppercase tracking-widest mb-1">{m.eventDate || m.date}</div>
+                      <div className="font-bold text-neutral-900 leading-tight mb-2 text-lg">{m.title}</div>
+                      {m.description && <p className="text-xs text-neutral-600 line-clamp-2 italic mb-3">"{m.description}"</p>}
+                      <button 
+                        onClick={() => openLinkedRecord(m.id)}
+                        className="text-[10px] font-extrabold uppercase tracking-tighter text-neutral-400 group-hover:text-lime-600 transition-colors flex items-center gap-1"
+                      >
+                        View Origin Record <span>→</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Timeline Filter Controls */}
+            <div className="flex flex-wrap gap-2 pb-2 overflow-x-auto">
+              {["all", "incidents", "evidence", "strategy", "tasks"].map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setTimelineFilter(f)}
+                  className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-xl border transition-all ${
+                    timelineFilter === f
+                      ? "bg-lime-500 border-lime-600 text-white shadow-md"
+                      : "bg-white border-neutral-200 text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300"
+                  }`}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+
+            {timelineItems.filter(item => {
+              if (timelineFilter === "all") return true;
+              const filterMap = {
+                incidents: "Incident",
+                evidence: "Evidence",
+                tasks: "Task",
+                strategy: "Strategy"
+              };
+              return item._kind === filterMap[timelineFilter];
+            }).length ? (
               (() => {
-                // TASK 1: Group timeline items by eventDate
+                const filtered = timelineItems.filter(item => {
+                  if (timelineFilter === "all") return true;
+                  const filterMap = { incidents: "Incident", evidence: "Evidence", tasks: "Task", strategy: "Strategy" };
+                  return item._kind === filterMap[timelineFilter];
+                });
+
                 const groups = [];
                 let lastDate = null;
-                timelineItems.forEach(item => {
+                filtered.forEach(item => {
                   const d = item.eventDate || item.date || "Unknown Date";
                   if (d !== lastDate) {
                     groups.push({ date: d, items: [item] });
@@ -608,6 +667,8 @@ export default function CaseDetail({
                             toggleTaskStatus={toggleTaskStatus}
                             openLinkedRecord={openLinkedRecord}
                             openRecordModal={openRecordModal}
+                            showTypeBadge={true}
+                            isTimeline={true}
                           />
                         );
                       })}
@@ -634,5 +695,4 @@ export default function CaseDetail({
         )}
       </div>
     </div>
-  );
-}
+  );}
