@@ -48,7 +48,7 @@ const EMPTY_CAPTURE_FORM = {
   attachments: [],
 };
 
-async function fileToSerializable(file) {
+async function fileToSerializable(file, recordId) {
   const isEml = file.type === "message/rfc822" || file.name.toLowerCase().endsWith(".eml");
   let emailMeta = null;
 
@@ -67,19 +67,33 @@ async function fileToSerializable(file) {
   }
 
   return new Promise((resolve, reject) => {
+    const imageId = generateId();
     const reader = new FileReader();
-    reader.onload = () => {
-      resolve({
-        id: generateId(),
-        name: file.name,
-        type: file.type || "application/octet-stream",
-        mimeType: file.type || "application/octet-stream",
-        size: file.size,
-        kind: (file.type || "").startsWith("image/") ? "image" : isEml ? "document" : "other",
-        createdAt: new Date().toISOString(),
-        dataUrl: reader.result,
-        emailMeta,
-      });
+    reader.onload = async () => {
+      try {
+        await saveImage({
+          id: imageId,
+          evidenceId: recordId,
+          dataUrl: reader.result,
+          createdAt: new Date().toISOString(),
+        });
+        resolve({
+          id: generateId(),
+          name: file.name,
+          type: file.type || "application/octet-stream",
+          mimeType: file.type || "application/octet-stream",
+          size: file.size,
+          kind: (file.type || "").startsWith("image/") ? "image" : isEml ? "document" : "other",
+          createdAt: new Date().toISOString(),
+          emailMeta,
+          storage: {
+            type: "indexeddb",
+            imageId
+          }
+        });
+      } catch (err) {
+        reject(err);
+      }
     };
     reader.onerror = reject;
     reader.readAsDataURL(file);
@@ -128,6 +142,51 @@ function getSafeDate(val) {
 function isTimelineCapable(recordType) {
   const type = (recordType || "").toLowerCase();
   return ["evidence", "incidents", "strategy"].includes(type);
+}
+
+/**
+ * Sanitizes an attachment object for export, removing binary data.
+ */
+function sanitizeAttachmentForExport(att) {
+  if (!att) return att;
+  return {
+    id: att.id,
+    name: att.name,
+    type: att.type,
+    mimeType: att.mimeType,
+    size: att.size,
+    kind: att.kind,
+    createdAt: att.createdAt,
+    emailMeta: att.emailMeta ?? null,
+    storage: att.storage
+  };
+}
+
+/**
+ * Sanitizes a record object for export, removing binary data from attachments.
+ */
+function sanitizeRecordForExport(record) {
+  if (!record) return record;
+  const attachments = Array.isArray(record.attachments)
+    ? record.attachments.map(sanitizeAttachmentForExport)
+    : [];
+  return {
+    ...record,
+    attachments,
+    availability: record.availability
+      ? {
+          ...record.availability,
+          digital: record.availability.digital
+            ? {
+                ...record.availability.digital,
+                files: Array.isArray(record.availability.digital.files)
+                  ? record.availability.digital.files.map(sanitizeAttachmentForExport)
+                  : []
+              }
+            : record.availability.digital
+        }
+      : record.availability
+  };
 }
 
 /**
@@ -244,6 +303,20 @@ function normalizeCase(caseItem) {
     incidents: sortTimelineItems(incidents),
     tasks: tasks,
     strategy: sortTimelineItems(strategy),
+  };
+}
+
+/**
+ * Sanitizes a case object for export, removing binary data from all nested attachments.
+ */
+function sanitizeCaseForExport(caseItem) {
+  if (!caseItem) return caseItem;
+  return {
+    ...caseItem,
+    evidence: Array.isArray(caseItem.evidence) ? caseItem.evidence.map(sanitizeRecordForExport) : [],
+    incidents: Array.isArray(caseItem.incidents) ? caseItem.incidents.map(sanitizeRecordForExport) : [],
+    tasks: Array.isArray(caseItem.tasks) ? caseItem.tasks.map(sanitizeRecordForExport) : [],
+    strategy: Array.isArray(caseItem.strategy) ? caseItem.strategy.map(sanitizeRecordForExport) : []
   };
 }
 
@@ -406,24 +479,46 @@ async function syncCaseToSupabase(caseItem) {
   return returnedData;
 }
 
-async function exportFullCaseToSupabase(caseItem) {
+async function exportReasoningCaseToSupabase(caseItem) {
   try {
     const lightCaseItem = {
   ...caseItem,
-  attachments: [],
+  attachments: Array.isArray(caseItem.attachments)
+    ? caseItem.attachments.map(att => ({
+        id: att.id,
+        name: att.name,
+        mimeType: att.mimeType,
+        size: att.size,
+        kind: att.kind,
+        createdAt: att.createdAt,
+        storage: att.storage
+      }))
+    : [],
   files: [],
   emails: [],
   evidence: Array.isArray(caseItem.evidence)
     ? caseItem.evidence.map((e) => ({
         ...e,
-        attachments: [], // 🔴 THIS is the key fix
+        attachments: Array.isArray(e.attachments)
+          ? e.attachments.map(att => ({
+              id: att.id,
+              name: att.name,
+              mimeType: att.mimeType,
+              size: att.size,
+              kind: att.kind,
+              createdAt: att.createdAt,
+              storage: att.storage
+            }))
+          : []
       }))
     : [],
 };
+    const sanitizedCase = sanitizeCaseForExport(caseItem);
 
     console.log("Full export sizes", {
       original: JSON.stringify(caseItem).length,
       light: JSON.stringify(lightCaseItem).length,
+      light: JSON.stringify(sanitizedCase).length,
     });
 
     const response = await fetch(
@@ -439,7 +534,28 @@ async function exportFullCaseToSupabase(caseItem) {
         body: JSON.stringify({
           case_id: caseItem.id,
           exported_at: new Date().toISOString(),
-          case_json: lightCaseItem,
+          case_json: {
+  id: caseItem.id,
+  name: caseItem.name,
+  summary: caseItem.summary,
+  incidents: caseItem.incidents || [],
+  tasks: caseItem.tasks || [],
+  evidence: (caseItem.evidence || []).map(e => ({
+    ...e,
+    attachments: Array.isArray(e.attachments)
+      ? e.attachments.map(att => ({
+          id: att.id,
+          name: att.name,
+          mimeType: att.mimeType,
+          size: att.size,
+          kind: att.kind,
+          createdAt: att.createdAt,
+          storage: att.storage
+        }))
+      : []
+  }))
+},
+          case_json: sanitizedCase,
         }),
       }
     );
@@ -500,30 +616,30 @@ export default function ProveItApp() {
   const handleExportFullCase = async () => {
     if (!selectedCase) return;
     setFullCaseExportStatus("exporting");
-    setFullCaseExportMessage("Preparing full case export...");
+    setFullCaseExportMessage("Preparing reasoning case export...");
     try {
-      await exportFullCaseToSupabase(selectedCase);
+      await exportReasoningCaseToSupabase(selectedCase);
       setFullCaseExportStatus("success");
-      setFullCaseExportMessage("Full case exported successfully");
+      setFullCaseExportMessage("Reasoning case exported successfully");
     } catch (error) {
       console.error("Full case export failed", error);
       setFullCaseExportStatus("error");
-      setFullCaseExportMessage(error.message || "Export failed");
+      setFullCaseExportMessage(error.message || "Reasoning case export failed");
     }
   };
 
   const handleSyncToSupabase = async () => {
     if (!selectedCase) return;
     setSyncStatus("syncing");
-    setSyncMessage("Connecting to Supabase...");
+    setSyncMessage("Syncing snapshot...");
     try {
       await syncCaseToSupabase(selectedCase);
       setSyncStatus("success");
-      setSyncMessage("Case synced successfully");
+      setSyncMessage("Snapshot synced successfully");
     } catch (error) {
       console.error("Sync failed", error);
       setSyncStatus("error");
-      setSyncMessage(error.message || "Sync failed");
+      setSyncMessage(error.message || "Snapshot sync failed");
     }
   };
 
@@ -686,7 +802,7 @@ export default function ProveItApp() {
         app: "proveit",
         storageKey: "toolstack.proveit.v1",
         data: {
-          cases,
+          cases: cases.map(sanitizeCaseForExport),
           quickCaptures,
           selectedCaseId,
           activeTab,
@@ -716,7 +832,7 @@ export default function ProveItApp() {
         app: "proveit",
         storageKey: "toolstack.proveit.v1",
         data: {
-          cases: [selectedCase],
+          cases: [sanitizeCaseForExport(selectedCase)],
           quickCaptures: [],
           selectedCaseId: selectedCase.id,
           activeTab: "overview",
@@ -1060,32 +1176,51 @@ export default function ProveItApp() {
     setCaptureForm(EMPTY_CAPTURE_FORM);
   };
 
-  const handleRecordFiles = async (event) => {
-    const files = Array.from(event.target.files || []);
-    const serializable = await Promise.all(files.map(fileToSerializable));
-    setRecordForm((prev) => {
-      const updatedAttachments = [...prev.attachments, ...serializable];
-      const newState = { ...prev, attachments: updatedAttachments };
+const handleRecordFiles = async (event) => {
+  const files = Array.from(event.target.files || []);
+  if (!files.length) return;
 
-      if (recordType === "evidence") {
-        newState.availability = {
-          ...(prev.availability || EMPTY_RECORD_FORM.availability),
-          digital: {
-            ...(prev.availability?.digital || EMPTY_RECORD_FORM.availability.digital),
-            hasDigital: true,
-            files: updatedAttachments
-          }
-        };
-      }
-      return newState;
-    });
-    event.target.value = "";
-  };
+  const targetRecordId = editingRecord?.id || recordForm.id || generateId();
+
+  const serializable = await Promise.all(
+    files.map((file) => fileToSerializable(file, targetRecordId))
+  );
+
+  setRecordForm((prev) => {
+    const updatedAttachments = [...(prev.attachments || []), ...serializable];
+
+    const newState = {
+      ...prev,
+      id: prev.id || targetRecordId,
+      attachments: updatedAttachments,
+    };
+
+    if (recordType === "evidence") {
+      newState.availability = {
+        ...(prev.availability || EMPTY_RECORD_FORM.availability),
+        digital: {
+          ...(prev.availability?.digital || EMPTY_RECORD_FORM.availability.digital),
+          hasDigital: updatedAttachments.length > 0,
+          files: updatedAttachments,
+        },
+      };
+    }
+
+    return newState;
+  });
+
+  event.target.value = "";
+};
 
   const handleCaptureFiles = async (event) => {
     const files = Array.from(event.target.files || []);
-    const serializable = await Promise.all(files.map(fileToSerializable));
-    setCaptureForm((prev) => ({ ...prev, attachments: [...prev.attachments, ...serializable] }));
+    const targetCaptureId = captureForm.id || generateId();
+    const serializable = await Promise.all(files.map(file => fileToSerializable(file, targetCaptureId)));
+    setCaptureForm(prev => ({ 
+      ...prev, 
+      id: prev.id || targetCaptureId, 
+      attachments: [...prev.attachments, ...serializable] 
+    }));
     event.target.value = "";
   };
 
@@ -1210,32 +1345,11 @@ export default function ProveItApp() {
     let updatedCase;
 
     if (editingRecord) {
+      // Attachments are already serialized via fileToSerializable
       let updatedAttachments = recordForm.attachments;
       let updatedAvailability = { ...recordForm.availability };
 
-      // If not evidence, we still use external storage logic for now
-      // But for evidence, we embed the serializable files
-      if (recordType !== "evidence") {
-        const newAttachmentObjects = [];
-        for (const att of recordForm.attachments) {
-          if (att.storageRef) {
-            newAttachmentObjects.push(att);
-            continue;
-          }
-          const imageId = generateId();
-          await saveImage({
-            id: imageId,
-            evidenceId: editingRecord.id,
-            caseId: selectedCase.id,
-            fileName: att.name,
-            mimeType: att.type,
-            blob: att.file || att,
-            createdAt: new Date().toISOString(),
-          });
-          newAttachmentObjects.push({ ...att, storageRef: imageId });
-        }
-        updatedAttachments = newAttachmentObjects;
-      } else {
+      if (recordType === "evidence") {
         updatedAvailability.digital.files = updatedAttachments;
         updatedAvailability.digital.hasDigital = updatedAttachments.length > 0;
       }
@@ -1288,7 +1402,8 @@ export default function ProveItApp() {
         }
       }
     } else {
-      const newRecordId = generateId();
+      const newRecordId = recordForm.id || generateId();
+      // Attachments are already serialized via fileToSerializable
       let attachmentObjects = recordForm.attachments;
       let availability = { ...recordForm.availability };
 
@@ -1296,23 +1411,7 @@ export default function ProveItApp() {
       const followUpTaskId = generateId();
       const needsFollowUp = (recordType === "incidents" || recordType === "evidence") && recordForm.createFollowUpTask;
 
-      if (recordType !== "evidence") {
-        const savedObjects = [];
-        for (const att of recordForm.attachments) {
-          const imageId = generateId();
-          await saveImage({
-            id: imageId,
-            evidenceId: newRecordId,
-            caseId: selectedCase.id,
-            fileName: att.name,
-            mimeType: att.type,
-            blob: att.file || att,
-            createdAt: new Date().toISOString(),
-          });
-          savedObjects.push({ ...att, storageRef: imageId });
-        }
-        attachmentObjects = savedObjects;
-      } else {
+      if (recordType === "evidence") {
         availability.digital.files = attachmentObjects;
         availability.digital.hasDigital = attachmentObjects.length > 0;
       }
@@ -1950,7 +2049,11 @@ export default function ProveItApp() {
         </button>
 
         {previewFile && (
-          <FilePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />
+          <FilePreviewModal
+            file={previewFile}
+            imageCache={imageCache}
+            onClose={() => setPreviewFile(null)}
+          />
         )}
       </div>
     </div>

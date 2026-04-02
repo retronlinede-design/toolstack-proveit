@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AttachmentPreview from "./AttachmentPreview";
 import { AlertCircle, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 import { isTimelineCapable, getCaseHealthReport } from "../lib/caseHealth";
@@ -19,18 +19,21 @@ export default function CaseDetail({
   openEditCaseModal,
   deleteRecord,
   exportSelectedCase,
+  onUpdateCase,
   onExportSnapshot,
   onSyncToSupabase,
   onExportFullCase,
+  onViewRecord,
+  onPreviewFile,
   syncStatus = "idle",
   syncMessage = "",
   fullCaseExportStatus = "idle",
   fullCaseExportMessage = "",
-  onViewRecord,
-  onPreviewFile,
 }) {
   const [expandedGroups, setExpandedGroups] = useState({});
-  const [showCompletedTasks, setShowCompletedTasks] = useState(false);
+  const [taskFilter, setTaskFilter] = useState("open"); // "open", "done", "all"
+  const [ideas, setIdeas] = useState([]);
+  const [showAddMenu, setShowAddMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const toggleGroup = (cat) => setExpandedGroups((prev) => ({ ...prev, [cat]: !prev[cat] }));
 
@@ -199,10 +202,58 @@ export default function CaseDetail({
           {selectedCase.notes ? <p className="mt-3 max-w-2xl text-sm text-neutral-700">{selectedCase.notes}</p> : null}
         </div>
         <div className="flex gap-2 flex-wrap items-start">
-          <button onClick={() => openRecordModal("evidence")} className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95">+ Evidence</button>
-          <button onClick={() => openRecordModal("incidents")} className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95">+ Incident</button>
-          <button onClick={() => openRecordModal("tasks")} className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95">+ Task</button>
-          <button onClick={() => openRecordModal("strategy")} className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95">+ Strategy</button>
+          <div className="relative flex-1 min-w-max">
+            <button 
+              onClick={() => setShowAddMenu(!showAddMenu)}
+              className="w-full px-3 py-1.5 text-sm rounded-md whitespace-nowrap border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95 flex items-center justify-center gap-1"
+            >
+              + Add <ChevronDown className={`h-4 w-4 transition-transform ${showAddMenu ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {showAddMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowAddMenu(false)} />
+                <div className="absolute left-0 mt-2 w-48 rounded-xl border border-neutral-200 bg-white shadow-xl z-50 py-1 overflow-hidden animate-in fade-in zoom-in duration-100">
+                  <button 
+                    onClick={() => { openRecordModal("incidents"); setShowAddMenu(false); }}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-neutral-50 text-neutral-700 font-medium transition-colors"
+                  >
+                    Incident
+                  </button>
+                  <button 
+                    onClick={() => { openRecordModal("evidence"); setShowAddMenu(false); }}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-neutral-50 text-neutral-700 font-medium transition-colors"
+                  >
+                    Evidence
+                  </button>
+                  <button 
+                    onClick={() => { openRecordModal("tasks"); setShowAddMenu(false); }}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-neutral-50 text-neutral-700 font-medium transition-colors"
+                  >
+                    Task
+                  </button>
+                  <button 
+                    onClick={() => { openRecordModal("strategy"); setShowAddMenu(false); }}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-neutral-50 text-neutral-700 font-medium transition-colors"
+                  >
+                    Strategy
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const newIdea = { id: Date.now().toString(), title: "New idea", description: "", status: "raw" };
+                      const updatedIdeas = [...(selectedCase.ideas || []), newIdea];
+                      setIdeas(updatedIdeas);
+                      onUpdateCase({ ...selectedCase, ideas: updatedIdeas });
+                      setShowAddMenu(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-neutral-50 text-neutral-700 font-medium border-t border-neutral-50 transition-colors"
+                  >
+                    Idea
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
 
           <div className="relative flex-1 min-w-max">
             <button 
@@ -220,7 +271,7 @@ export default function CaseDetail({
                     onClick={() => { exportSelectedCase(); setShowExportMenu(false); }}
                     className="w-full text-left px-4 py-2.5 text-sm hover:bg-neutral-50 text-neutral-700 font-medium transition-colors"
                   >
-                    Export Case (JSON)
+                    Backup Case (JSON)
                   </button>
                   <button 
                     onClick={() => { onExportSnapshot(selectedCase.id, "compact"); setShowExportMenu(false); }}
@@ -239,14 +290,14 @@ export default function CaseDetail({
                     disabled={fullCaseExportStatus === "exporting"}
                     className="w-full text-left px-4 py-2.5 text-sm hover:bg-neutral-50 text-neutral-700 font-medium border-t border-neutral-50 transition-colors disabled:opacity-50"
                   >
-                    {fullCaseExportStatus === 'exporting' ? 'Exporting...' : 'Export Full Case'}
+                    Export Reasoning Case
                   </button>
                   <button 
                     onClick={() => { onSyncToSupabase(); setShowExportMenu(false); }}
                     disabled={syncStatus === "syncing"}
                     className="w-full text-left px-4 py-2.5 text-sm hover:bg-neutral-50 text-neutral-700 font-medium transition-colors disabled:opacity-50"
                   >
-                    {syncStatus === 'syncing' ? 'Syncing...' : 'Sync to Supabase'}
+                    Sync Snapshot
                   </button>
                 </div>
               </>
@@ -404,35 +455,107 @@ export default function CaseDetail({
         {activeTab === "incidents" && renderListBlock(selectedCase.incidents, "No incidents yet. Add your first incident to start the case timeline.", "incidents")}
         {activeTab === "tasks" && (
           <div className="space-y-4">
-            <div className="flex justify-end">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={showCompletedTasks}
-                  onChange={(e) => setShowCompletedTasks(e.target.checked)}
-                  className="h-4 w-4 rounded border-neutral-300 text-lime-600 focus:ring-lime-500"
-                />
-                <span className="text-sm font-medium text-neutral-600">Show completed tasks</span>
-              </label>
+            <div className="flex gap-2 mb-2">
+              {["open", "done", "all"].map((filter) => (
+                <button
+                  key={filter}
+                  onClick={() => setTaskFilter(filter)}
+                  className={`px-3 py-1 text-sm rounded-md border ${
+                    taskFilter === filter
+                      ? "bg-lime-400/30 border-lime-500"
+                      : "bg-white border-neutral-300"
+                  }`}
+                >
+                  {filter === "open" ? "Open" : filter === "done" ? "Done" : "All"}
+                </button>
+              ))}
             </div>
+
             {renderListBlock(
               (() => {
                 const tasks = selectedCase.tasks || [];
-                const filtered = showCompletedTasks 
-                  ? tasks 
-                  : tasks.filter(t => t.status?.toLowerCase() !== "done");
-                // Sort so completed tasks are always at the bottom when visible
-                return [...filtered].sort((a, b) => {
-                  if (a.status === b.status) return 0;
-                  return a.status?.toLowerCase() === 'done' ? 1 : -1;
-                });
+                if (taskFilter === "open") return tasks.filter((t) => t.status?.toLowerCase() !== "done");
+                if (taskFilter === "done") return tasks.filter((t) => t.status?.toLowerCase() === "done");
+                return tasks;
               })(),
-              "No open tasks. Use '+ Task' to add a new one or check 'Show completed' to see past work.",
+              "No tasks found.",
               "tasks"
             )}
           </div>
         )}
         {activeTab === "strategy" && renderListBlock(selectedCase.strategy, "No strategy notes yet. Add strategy to track approach and planning.", "strategy")}
+
+        {activeTab === "ideas" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Ideas</h3>
+              <button
+                onClick={() =>
+                onUpdateCase({
+                  ...selectedCase,
+                  ideas: [
+                    ...(selectedCase.ideas || []),
+                    { id: Date.now().toString(), title: "New idea", description: "", status: "raw" }
+                  ]
+                })
+                }
+                className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-sm font-medium text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+              >
+                + Idea
+              </button>
+            </div>
+
+            {ideas.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                No ideas yet.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {ideas.map((idea) => (
+                  <div key={idea.id} className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+                    <input
+                      value={idea.title}
+                      onChange={(e) => {
+                        const updatedIdeas = ideas.map((item) =>
+                          item.id === idea.id ? { ...item, title: e.target.value } : item
+                        );
+                        setIdeas(updatedIdeas);
+                        onUpdateCase({ ...selectedCase, ideas: updatedIdeas });
+                      }}
+                      className="w-full font-bold text-neutral-900 bg-transparent border-none focus:ring-0 p-0"
+                    />
+                    <textarea
+                      value={idea.description}
+                      onChange={(e) => {
+                        const updatedIdeas = ideas.map((item) =>
+                          item.id === idea.id ? { ...item, description: e.target.value } : item
+                        );
+                        setIdeas(updatedIdeas);
+                        onUpdateCase({ ...selectedCase, ideas: updatedIdeas });
+                      }}
+                      className="w-full text-sm text-neutral-600 bg-transparent border-none focus:ring-0 p-0 resize-none"
+                      placeholder="Add a description..."
+                      rows={2}
+                    />
+                    <div className="flex items-center justify-between mt-2">
+                      <div className="text-[10px] font-bold uppercase text-neutral-400">Status: {idea.status}</div>
+                      <button
+                        onClick={() => {
+                          const updatedIdeas = ideas.filter((item) => item.id !== idea.id);
+                          setIdeas(updatedIdeas);
+                          onUpdateCase({ ...selectedCase, ideas: updatedIdeas });
+                        }}
+                        className="text-[10px] font-bold uppercase text-red-500 hover:text-red-700 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {activeTab === "timeline" && (
           <div className="space-y-8">

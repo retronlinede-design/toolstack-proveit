@@ -9,17 +9,20 @@ function AttachmentImage({ attachment, alt, onClick, imageCache = {} }) {
   const [imageUrl, setImageUrl] = useState(null);
 
   useEffect(() => {
+    if (!attachment) return;
+
+    const imageId = attachment.storage?.imageId;
+    const cached = imageId ? imageCache[imageId] : null;
+
+    if (cached?.dataUrl) {
+      setImageUrl(cached.dataUrl);
+      return;
+    }
+
+    // fallback for legacy attachments
     if (attachment.dataUrl) {
       setImageUrl(attachment.dataUrl);
       return;
-    }
-    const blob = attachment.file || attachment.blob || (attachment.storageRef ? imageCache[attachment.storageRef]?.blob : null);
-    if (blob) {
-      const url = URL.createObjectURL(blob);
-      setImageUrl(url);
-      return () => {
-        URL.revokeObjectURL(url);
-      };
     }
   }, [attachment, imageCache]);
 

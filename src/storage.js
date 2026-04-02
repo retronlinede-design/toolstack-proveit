@@ -1,3 +1,10 @@
+// ProveIt storage architecture
+// - cases store is the single source of truth for all case records
+// - images store is used only for attachment/file binary storage
+// - evidence store is legacy/transitional and is not the canonical source
+// - all live case updates must end in saveCase(updatedCase)
+
+
 import { dbPromise } from "./db";
 
 export async function getAllCases() {
@@ -24,6 +31,10 @@ export async function deleteCase(caseId) {
 
   await db.delete("cases", caseId);
 }
+
+// Legacy/transitional helpers.
+// These are not the canonical case record path.
+// Embedded case records in the cases store are the source of truth.
 
 export async function getEvidenceByCase(caseId) {
   const db = await dbPromise;

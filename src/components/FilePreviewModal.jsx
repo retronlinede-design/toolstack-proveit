@@ -1,7 +1,7 @@
 import { X, Download, FileText } from "lucide-react";
 import { useEffect, useState } from "react";
 
-export default function FilePreviewModal({ file, onClose }) {
+export default function FilePreviewModal({ file, onClose, imageCache = {} }) {
   const [url, setUrl] = useState(null);
   if (!file) return null;
 
@@ -11,16 +11,20 @@ export default function FilePreviewModal({ file, onClose }) {
   const isPDF = type === "application/pdf";
 
   useEffect(() => {
+    if (!file) return;
+
+    const imageId = file.storage?.imageId;
+    const cached = imageId ? imageCache[imageId] : null;
+
+    if (cached?.dataUrl) {
+      setUrl(cached.dataUrl);
+      return;
+    }
+
+    // fallback for legacy
     if (file.dataUrl) {
       setUrl(file.dataUrl);
       return;
-    }
-    // Handle both raw File objects and storage objects with .blob
-    const blob = file.file || file.blob || file;
-    if (blob instanceof Blob || blob instanceof File) {
-      const blobUrl = URL.createObjectURL(blob);
-      setUrl(blobUrl);
-      return () => URL.revokeObjectURL(blobUrl);
     }
   }, [file]);
 
