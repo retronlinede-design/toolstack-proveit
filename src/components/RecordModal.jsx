@@ -75,9 +75,10 @@ export default function RecordModal({
   };
 
   const handleConfirmLinks = () => {
+    const targetField = recordType === "tasks" ? "linkedRecordIds" : "linkedEvidenceIds";
     setRecordForm({
       ...recordForm,
-      linkedEvidenceIds: Array.from(new Set([...(recordForm.linkedEvidenceIds || []), ...tempSelection]))
+      [targetField]: Array.from(new Set([...(recordForm[targetField] || []), ...tempSelection]))
     });
     setIsLinking(false);
     setTempSelection([]);
@@ -90,14 +91,36 @@ export default function RecordModal({
     incidents: "Incident",
     strategy: "Strategy",
   };
+
+  const getRecordDetails = (id) => {
+    const all = [
+      ...selectedCase.evidence,
+      ...selectedCase.incidents,
+      ...selectedCase.strategy,
+      ...(selectedCase.tasks || []),
+    ];
+    const found = all.find((r) => r.id === id);
+    if (!found) return null;
+    return { 
+      title: found.title || "Untitled", 
+      type: found.type, 
+      typeLabel: typeLabelMap[found.type] || "Record", 
+      raw: found 
+    };
+  };
+
   const typeLabel = typeLabelMap[recordType] || recordType;
+
+  const relatedTasks = (selectedCase?.tasks || []).filter(t => 
+    t.linkedRecordIds?.includes(recordForm.id)
+  );
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-lg rounded-3xl bg-white shadow-xl flex flex-col max-h-[90vh]">
         <div className="p-6 pb-0">
           <h2 className="text-xl font-semibold">
-            {isLinking ? "Link Existing Evidence" : `${isEdit ? "Edit" : "Add"} ${typeLabel}`}
+            {isLinking ? (recordType === "tasks" ? "Link Related Records" : "Link Existing Evidence") : `${isEdit ? "Edit" : "Add"} ${typeLabel}`}
           </h2>
           <p className="mb-4 text-sm text-neutral-600">Case: {selectedCase.name}</p>
         </div>
@@ -105,34 +128,135 @@ export default function RecordModal({
         <div className="p-6 pt-0 overflow-y-auto flex-1">
         {isLinking ? (
           <div className="space-y-3">
-            <p className="text-sm text-neutral-600 mb-4">Select evidence items from this case to link to this incident.</p>
+            <p className="text-sm text-neutral-600 mb-4">
+              {recordType === "tasks" ? "Select records from this case to link to this task." : "Select evidence items from this case to link to this incident."}
+            </p>
             <div className="space-y-2">
-              {selectedCase.evidence.length === 0 ? (
-                <p className="text-sm text-neutral-500 italic py-4 text-center">No evidence available in this case.</p>
-              ) : (
-                selectedCase.evidence.map(ev => {
-                  const isAlreadyLinked = recordForm.linkedEvidenceIds?.includes(ev.id);
+              {(() => {
+                const candidates = recordType === "tasks" 
+                  ? [
+                      ...selectedCase.incidents.map(i => ({...i, _type: 'Incident'})), 
+                      ...selectedCase.evidence.map(e => ({...e, _type: 'Evidence'})), 
+                      ...selectedCase.strategy.map(s => ({...s, _type: 'Strategy'}))
+                    ]
+                  : selectedCase.evidence;
+
+                if (candidates.length === 0) return <p className="text-sm text-neutral-500 italic py-4 text-center">No records available to link.</p>;
+
+                return candidates.map(rec => {
+                  if (rec.id === recordForm.id) return null;
+                  const isAlreadyLinked = recordType === "tasks" 
+                    ? recordForm.linkedRecordIds?.includes(rec.id)
+                    : recordForm.linkedEvidenceIds?.includes(rec.id);
+                  
                   return (
-                    <label key={ev.id} className={`flex items-center justify-between gap-3 p-3 rounded-xl border transition-colors cursor-pointer ${isAlreadyLinked ? 'bg-neutral-50 border-neutral-100 opacity-60' : 'bg-white border-neutral-200 hover:border-lime-300 hover:bg-lime-50/30'}`}>
+                    <label key={rec.id} className={`flex items-center justify-between gap-3 p-3 rounded-xl border transition-colors cursor-pointer ${isAlreadyLinked ? 'bg-neutral-50 border-neutral-100 opacity-60' : 'bg-white border-neutral-200 hover:border-lime-300 hover:bg-lime-50/30'}`}>
                       <div className="flex items-center gap-3 truncate">
                         <input 
                           type="checkbox"
-                          checked={isAlreadyLinked || tempSelection.includes(ev.id)}
+                          checked={isAlreadyLinked || tempSelection.includes(rec.id)}
                           disabled={isAlreadyLinked}
-                          onChange={() => toggleEvidenceLink(ev.id)}
+                          onChange={() => toggleEvidenceLink(rec.id)}
                           className="h-5 w-5 rounded border-neutral-300 text-lime-600 focus:ring-lime-500"
                         />
-                        <span className="truncate text-sm font-medium text-neutral-800">{ev.title || "Untitled Evidence"}</span>
+                        <div className="truncate">
+                          <span className="truncate text-sm font-medium text-neutral-800">{rec.title || "Untitled"}</span>
+                          {rec._type && <span className="ml-2 text-[9px] px-1 rounded bg-neutral-100 text-neutral-400 font-bold uppercase">{rec._type}</span>}
+                        </div>
                       </div>
-                      <span className="text-[10px] font-bold text-neutral-400 uppercase">{ev.date}</span>
+                      <span className="text-[10px] font-bold text-neutral-400 uppercase">{rec.date || rec.eventDate}</span>
                     </label>
                   );
-                })
-              )}
+                });
+              })()}
             </div>
           </div>
         ) : (
           <>
+        {recordType === "tasks" && recordForm.linkedRecordIds?.length > 0 && (
+          <div className="mb-4 p-3 rounded-2xl bg-neutral-50 border border-neutral-200">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">
+              {recordForm.linkedRecordIds.length === 1 
+                ? `Origin: ${getRecordDetails(recordForm.linkedRecordIds[0])?.typeLabel}` 
+                : `Related: ${recordForm.linkedRecordIds.length} records`}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {recordForm.linkedRecordIds.map((rid) => {
+                const details = getRecordDetails(rid);
+                if (!details) return null;
+                return (
+                  <button
+                    key={rid}
+                    onClick={() => openEditRecordModal(details.type, details.raw)}
+                    className="flex items-center gap-2 px-2 py-1 rounded-lg border border-neutral-300 bg-white text-xs font-medium text-neutral-700 hover:border-lime-500 hover:text-lime-600 transition-all text-left"
+                  >
+                    <span className="opacity-50 text-[9px] font-bold uppercase">[{details.typeLabel}]</span>
+                    <span className="truncate max-w-[180px]">{details.title}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {recordType === "tasks" && (
+          <div className="mb-4 space-y-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Manage Related Records</h3>
+              <button 
+                onClick={() => setIsLinking(true)}
+                className="text-[10px] font-bold uppercase text-lime-600 hover:text-lime-700"
+              >
+                Bulk Link
+              </button>
+            </div>
+            
+            <div className="flex flex-wrap gap-2">
+              {(recordForm.linkedRecordIds || []).map((rid) => {
+                const details = getRecordDetails(rid);
+                if (!details) return null;
+                return (
+                  <div key={rid} className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-neutral-200 bg-white text-[11px] font-medium text-neutral-700 shadow-sm">
+                    <span className="opacity-50 text-[9px] font-bold uppercase">{details.typeLabel}</span>
+                    <span className="truncate max-w-[120px]">{details.title}</span>
+                    <button 
+                      onClick={() => setRecordForm({ ...recordForm, linkedRecordIds: recordForm.linkedRecordIds.filter(id => id !== rid) })}
+                      className="ml-1 text-neutral-400 hover:text-red-500 transition-colors"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <select 
+              className="w-full rounded-xl border border-neutral-300 p-2 text-xs bg-white focus:border-lime-500 focus:ring-1 focus:ring-lime-500 outline-none cursor-pointer"
+              value=""
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val && !recordForm.linkedRecordIds?.includes(val)) {
+                  setRecordForm(prev => ({
+                    ...prev,
+                    linkedRecordIds: [...(prev.linkedRecordIds || []), val]
+                  }));
+                }
+              }}
+            >
+              <option value="" disabled>+ Link record by title...</option>
+              {[
+                ...selectedCase.incidents.map(i => ({...i, _type: 'Incident'})), 
+                ...selectedCase.evidence.map(e => ({...e, _type: 'Evidence'})), 
+                ...selectedCase.strategy.map(s => ({...s, _type: 'Strategy'}))
+              ].filter(r => r.id !== recordForm.id).map(r => (
+                <option key={r.id} value={r.id} disabled={recordForm.linkedRecordIds?.includes(r.id)}>
+                  {r.title || "Untitled"} ({r._type})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <input
           placeholder="Title"
           value={recordForm.title}
@@ -159,6 +283,31 @@ export default function RecordModal({
           className="mb-3 w-full rounded-xl border border-neutral-300 p-3"
           rows={3}
         />
+
+        {recordType !== "tasks" && isEdit && relatedTasks.length > 0 && (
+          <div className="mb-4 space-y-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+            <h3 className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Related Tasks</h3>
+            <div className="space-y-2">
+              {relatedTasks.map((task) => (
+                <div key={task.id} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-neutral-200 bg-white">
+                  <div className="truncate">
+                    <div className="text-sm font-medium text-neutral-800 truncate">{task.title || "Untitled Task"}</div>
+                    <div className="text-[10px] text-neutral-400 font-bold uppercase">Status: {task.status || "Open"}</div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      // Switching to task edit modal
+                      openEditRecordModal("tasks", task);
+                    }}
+                    className="flex-shrink-0 rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                  >
+                    Open
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Follow-up task helper for new incidents and evidence */}
         {(recordType === "incidents" || recordType === "evidence") && !recordForm.id && (

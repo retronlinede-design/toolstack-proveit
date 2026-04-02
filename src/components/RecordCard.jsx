@@ -11,9 +11,14 @@ export default function RecordCard({
   deleteRecord,
   toggleTaskStatus,
   openLinkedRecord,
+  openRecordModal,
 }) {
   const isTask = recordType === "tasks";
   const isDone = isTask && item.status?.toLowerCase() === "done";
+  const canCreateTask = ["evidence", "incidents", "strategy"].includes(recordType);
+  const relatedTasks = (selectedCase?.tasks || []).filter(t => 
+    t.linkedRecordIds?.includes(item.id)
+  );
 
   return (
     <div key={item.id} id={`record-${item.id}`} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
@@ -60,9 +65,13 @@ export default function RecordCard({
                       <button
                         key={linkedId}
                         onClick={() => openLinkedRecord?.(linkedId)}
-                        className="px-1.5 py-0.5 rounded border border-neutral-300 bg-neutral-50 font-mono text-neutral-600 shadow-sm hover:bg-white hover:border-lime-500 hover:text-lime-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-95 transition-all cursor-pointer"
+                        className="px-1.5 py-0.5 rounded border border-neutral-300 bg-neutral-50 text-neutral-600 shadow-sm hover:bg-white hover:border-lime-500 hover:text-lime-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-95 transition-all cursor-pointer truncate max-w-[150px]"
                       >
-                        {linkedId.substring(0, 8)}
+                        {(() => {
+                          const all = [...selectedCase.evidence, ...selectedCase.incidents, ...selectedCase.strategy, ...selectedCase.tasks];
+                          const found = all.find(r => r.id === linkedId);
+                          return found?.title || linkedId.substring(0, 8);
+                        })()}
                       </button>
                     ))}
                   </div>
@@ -103,6 +112,17 @@ export default function RecordCard({
               View
             </button>
           )}
+          {canCreateTask && (
+            <button
+              onClick={() => openRecordModal("tasks", {
+                title: `Follow up: ${item.title}`,
+                linkedRecordIds: [item.id]
+              })}
+              className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700 shadow-[0_2px_4px_rgba(60,60,60,0.1)] hover:bg-neutral-50 transition-colors"
+            >
+              + Task
+            </button>
+          )}
           <button
             onClick={() => openEditRecordModal(recordType, item)}
             className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-xs font-medium text-neutral-700 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
@@ -126,6 +146,34 @@ export default function RecordCard({
         imageCache={imageCache}
         onPreview={onPreviewFile}
       />
+
+      {recordType !== "tasks" && relatedTasks.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-neutral-100">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">Related Tasks</h4>
+          <div className="space-y-2">
+            {relatedTasks.map((task) => (
+              <div key={task.id} className="rounded-xl border border-neutral-200 bg-white p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-col truncate">
+                    <span className="font-semibold text-neutral-800 truncate">
+                      {task.title || "Untitled Task"}
+                    </span>
+                    <span className="text-[10px] text-neutral-400 font-bold uppercase">
+                      Status: {task.status || "Open"}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => openEditRecordModal("tasks", task)}
+                    className="flex-shrink-0 rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                  >
+                    Open
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {recordType === "incidents" && item.linkedEvidenceIds && item.linkedEvidenceIds.length > 0 && (
         <div className="mt-4 pt-4 border-t border-neutral-100">

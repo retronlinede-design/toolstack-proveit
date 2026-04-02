@@ -21,12 +21,14 @@ export default function FilePreviewModal({ file, onClose, imageCache = {} }) {
       return;
     }
 
-    // fallback for legacy
+    // legacy fallback
     if (file.dataUrl) {
       setUrl(file.dataUrl);
       return;
     }
-  }, [file]);
+
+    setUrl(null);
+  }, [file, imageCache]);
 
   const handleDownload = () => {
     if (!url) return;

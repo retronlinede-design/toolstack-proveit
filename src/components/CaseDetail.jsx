@@ -121,6 +121,7 @@ export default function CaseDetail({
       deleteRecord={deleteRecord}
       toggleTaskStatus={toggleTaskStatus}
       openLinkedRecord={openLinkedRecord}
+      openRecordModal={openRecordModal}
     />
   );
 };
@@ -606,6 +607,7 @@ export default function CaseDetail({
                             deleteRecord={deleteRecord}
                             toggleTaskStatus={toggleTaskStatus}
                             openLinkedRecord={openLinkedRecord}
+                            openRecordModal={openRecordModal}
                           />
                         );
                       })}

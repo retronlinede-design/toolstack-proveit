@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { getAllCases, saveCase, deleteCase, saveImage, getImagesByEvidence } from "./storage";
+import { getAllCases, saveCase, deleteCase, saveImage, getImageById } from "./storage";
 import AttachmentPreview from "./components/AttachmentPreview";
 import RecordModal from "./components/RecordModal";
 import CaseDetail from "./components/CaseDetail";
@@ -650,6 +650,10 @@ export default function ProveItApp() {
     setFullCaseExportMessage("");
   }, [selectedCaseId]);
 
+  const relatedTasksForViewing = viewingRecord ? (selectedCase?.tasks || []).filter(t => 
+    t.linkedRecordIds?.includes(viewingRecord.id)
+  ) : [];
+
   const [quickCaptures, setQuickCaptures] = useState(() => {
     try {
       const saved = localStorage.getItem("toolstack.proveit.v1.captures");
@@ -745,34 +749,33 @@ export default function ProveItApp() {
   useEffect(() => {
     async function loadAllImages() {
       const newCache = {};
-      
-      if (selectedCase) {
-        const allRecords = [
-          ...(selectedCase.evidence || []),
-          ...(selectedCase.incidents || []),
-          ...(selectedCase.tasks || []),
-          ...(selectedCase.strategy || []),
-        ];
-        for (const record of allRecords) {
-          try {
-            const images = await getImagesByEvidence(record.id);
-            if (images && images.length > 0) {
-              images.forEach(img => { newCache[img.id] = img; });
-            }
-          } catch (error) {
-            console.error("Failed to load images for record", record.id, error);
-          }
+      const imageIds = new Set();
+
+      const allRecords = selectedCase ? [
+        ...(selectedCase.evidence || []),
+        ...(selectedCase.incidents || []),
+        ...(selectedCase.tasks || []),
+        ...(selectedCase.strategy || []),
+      ] : [];
+
+      for (const record of allRecords) {
+        for (const att of record.attachments || []) {
+          if (att.storage?.imageId) imageIds.add(att.storage.imageId);
         }
       }
 
       for (const capture of reviewQueue) {
+        for (const att of capture.attachments || []) {
+          if (att.storage?.imageId) imageIds.add(att.storage.imageId);
+        }
+      }
+
+      for (const id of imageIds) {
         try {
-          const images = await getImagesByEvidence(capture.id);
-          if (images && images.length > 0) {
-            images.forEach(img => { newCache[img.id] = img; });
-          }
+          const img = await getImageById(id);
+          if (img) newCache[id] = img;
         } catch (error) {
-          console.error("Failed to load images for capture", capture.id, error);
+          console.error("Failed to load image", id, error);
         }
       }
 
@@ -780,7 +783,7 @@ export default function ProveItApp() {
     }
 
     loadAllImages();
-  }, [selectedCaseId, selectedCase, reviewQueue.length]);
+  }, [selectedCase, reviewQueue.length]);
 
   useEffect(() => {
     localStorage.setItem("toolstack.proveit.v1.captures", JSON.stringify(quickCaptures));
@@ -2016,6 +2019,34 @@ const handleRecordFiles = async (event) => {
                   <div className="space-y-1">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Internal Notes</span>
                     <p className="text-sm text-neutral-500 bg-neutral-50 p-3 rounded-xl border border-neutral-100 italic">{viewingRecord.notes}</p>
+                  </div>
+                )}
+
+                {relatedTasksForViewing.length > 0 && (
+                  <div className="space-y-3 pt-4 border-t border-neutral-100">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Related Tasks</span>
+                    <div className="space-y-2">
+                      {relatedTasksForViewing.map((task) => (
+                        <div key={task.id} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 flex items-center justify-between gap-3">
+                          <div className="truncate">
+                            <div className="text-sm font-semibold text-neutral-800 truncate">{task.title}</div>
+                            <div className="text-[10px] font-bold text-neutral-400 uppercase">Status: {task.status}</div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setViewingRecord(null);
+                              // Give it a tiny bit of time for the detail modal to close before opening the next
+                              setTimeout(() => {
+                                openEditRecordModal("tasks", task);
+                              }, 50);
+                            }}
+                            className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                          >
+                            Open
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 

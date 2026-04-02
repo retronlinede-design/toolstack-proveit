@@ -19,11 +19,13 @@ function AttachmentImage({ attachment, alt, onClick, imageCache = {} }) {
       return;
     }
 
-    // fallback for legacy attachments
+    // legacy fallback for older attachments
     if (attachment.dataUrl) {
       setImageUrl(attachment.dataUrl);
       return;
     }
+
+    setImageUrl(null);
   }, [attachment, imageCache]);
 
   if (!imageUrl) return null;
