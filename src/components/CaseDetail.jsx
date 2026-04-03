@@ -634,10 +634,10 @@ export default function CaseDetail({
             </div>
 
             {(() => {
-              const sortedLedger = sortLedgerEntries(selectedCase?.ledger || []);
-              const filteredLedger = filterLedgerEntries(sortedLedger, ledgerFilter);
+              const ledger = sortLedgerEntries(selectedCase?.ledger || []);
+              const filteredLedger = filterLedgerEntries(ledger, ledgerFilter);
               
-              if (sortedLedger.length === 0) {
+              if ((selectedCase?.ledger || []).length === 0) {
                 return (
                   <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
                     No ledger entries yet.
@@ -680,6 +680,11 @@ export default function CaseDetail({
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="font-semibold text-neutral-800">{item.label || "Untitled Ledger Entry"}</h4>
                         <div className="flex items-center gap-3">
+                          {item.batchLabel && (
+                            <span className="px-1.5 py-0.5 rounded bg-neutral-100 border border-neutral-200 text-[9px] font-bold uppercase tracking-tight text-neutral-500">
+                              {item.batchLabel}
+                            </span>
+                          )}
                           <span className="text-xs text-neutral-500">{item.category || "N/A"}</span>
                           <button 
                             onClick={() => openLedgerModal(item, item.id)}

@@ -58,6 +58,7 @@ const EMPTY_LEDGER_FORM = {
   proofType: "other",
   proofStatus: "missing",
   notes: "",
+  batchLabel: "",
   linkedRecordIds: [],
 };
 
@@ -287,6 +288,7 @@ function normalizeLedgerEntry(item) {
       ? item.proofStatus
       : "missing",
     notes: item?.notes || "",
+    batchLabel: item?.batchLabel || "",
     linkedRecordIds: Array.isArray(item?.linkedRecordIds) ? item.linkedRecordIds : [],
     edited: !!item?.edited,
     createdAt: item?.createdAt || new Date().toISOString(),
@@ -783,8 +785,9 @@ export default function ProveItApp() {
     }
   };
 
-  const openLedgerModal = (preset = {}) => {
+  const openLedgerModal = (preset = {}, ledgerId = null) => {
     setLedgerForm({ ...EMPTY_LEDGER_FORM, ...preset });
+    setEditingLedgerId(ledgerId);
     setLedgerModalOpen(true);
   };
 
@@ -937,6 +940,7 @@ export default function ProveItApp() {
   const closeLedgerModal = () => {
     setLedgerModalOpen(false);
     setLedgerForm(EMPTY_LEDGER_FORM);
+    setEditingLedgerId(null);
   };
 
   const saveLedgerEntry = async () => {
@@ -2346,6 +2350,17 @@ const handleRecordFiles = async (event) => {
                     value={ledgerForm.label}
                     onChange={(e) => setLedgerForm({ ...ledgerForm, label: e.target.value })}
                     placeholder="e.g. Monthly Rent Payment"
+                    className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Batch / Group</label>
+                  <input
+                    type="text"
+                    value={ledgerForm.batchLabel}
+                    onChange={(e) => setLedgerForm({ ...ledgerForm, batchLabel: e.target.value })}
+                    placeholder="e.g. Q1 Expenses, Repair Phase 1"
                     className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
                   />
                 </div>
