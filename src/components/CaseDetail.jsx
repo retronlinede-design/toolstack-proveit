@@ -28,6 +28,7 @@ export default function CaseDetail({
   openLedgerModal,
   deleteLedgerEntry,
   duplicateLedgerEntry,
+  openDocumentModal,
   syncStatus = "idle",
   syncMessage = "",
   fullCaseExportStatus = "idle",
@@ -70,6 +71,7 @@ export default function CaseDetail({
     tasks: "Task",
     strategy: "Str",
     ledger: "Led",
+    documents: "Doc",
   };
 
   const scrollTopLabel = scrollTopTabLabelMap[activeTab] || "Top";
@@ -743,6 +745,66 @@ export default function CaseDetail({
                   );
                 })}
               </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {activeTab === "documents" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Documents</h3>
+              <button
+                onClick={() => openDocumentModal()}
+                className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
+              >
+                + Add Document
+              </button>
+            </div>
+            {(() => {
+              const documents = selectedCase?.documents || [];
+              if (documents.length === 0) {
+                return (
+                  <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                    No documents yet.
+                  </div>
+                );
+              }
+              return (
+                <div className="space-y-3">
+                  {documents.map((doc) => (
+                    <div key={doc.id} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-neutral-900 truncate">{doc.title || "Untitled Document"}</h4>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                            <span className="text-neutral-600">{doc.documentDate || "No date"}</span>
+                            <span className="px-1.5 py-0.5 rounded border border-neutral-200 bg-neutral-100">{doc.category || "other"}</span>
+                            {doc.source && <span>Source: {doc.source}</span>}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <button 
+                            onClick={() => openDocumentModal(doc, doc.id)}
+                            className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                          >
+                            Edit
+                          </button>
+                          {doc.textContent && (
+                            <span className="shrink-0 px-1.5 py-0.5 rounded border border-blue-200 bg-blue-50 text-[9px] font-bold uppercase tracking-wider text-blue-600">
+                              Has Text
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {doc.summary && (
+                        <p className="mt-3 text-sm text-neutral-600 line-clamp-2 italic border-l-2 border-neutral-200 pl-3">
+                          {doc.summary}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
               );
             })()}
           </div>

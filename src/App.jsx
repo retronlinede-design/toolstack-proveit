@@ -69,6 +69,18 @@ const EMPTY_CAPTURE_FORM = {
   attachments: [],
 };
 
+const EMPTY_DOCUMENT_FORM = {
+  id: "",
+  title: "",
+  category: "other",
+  documentDate: "",
+  source: "",
+  summary: "",
+  textContent: "",
+  attachments: [],
+  linkedRecordIds: [],
+};
+
 async function fileToSerializable(file, recordId) {
   const isEml = file.type === "message/rfc822" || file.name.toLowerCase().endsWith(".eml");
   let emailMeta = null;
@@ -282,6 +294,23 @@ function normalizeLedgerEntry(item) {
   };
 }
 
+function normalizeDocumentEntry(item) {
+  return {
+    id: item?.id || generateId(),
+    title: item?.title || "",
+    category: item?.category || "other",
+    documentDate: item?.documentDate || "",
+    source: item?.source || "",
+    summary: item?.summary || "",
+    textContent: item?.textContent || "",
+    attachments: Array.isArray(item?.attachments) ? item.attachments : [],
+    linkedRecordIds: Array.isArray(item?.linkedRecordIds) ? item.linkedRecordIds : [],
+    edited: !!item?.edited,
+    createdAt: item?.createdAt || new Date().toISOString(),
+    updatedAt: item?.updatedAt || item?.createdAt || new Date().toISOString(),
+  };
+}
+
 function normalizeRecord(item, recordType) {
   const base = {
     id: item?.id || generateId(),
@@ -344,6 +373,7 @@ function normalizeCase(caseItem) {
   const tasks = Array.isArray(caseItem?.tasks) ? caseItem.tasks.map(r => normalizeRecord(r, "tasks")) : [];
   const strategy = Array.isArray(caseItem?.strategy) ? caseItem.strategy.map(r => normalizeRecord(r, "strategy")) : [];
   const ledger = Array.isArray(caseItem?.ledger) ? caseItem.ledger.map(normalizeLedgerEntry) : [];
+  const documents = Array.isArray(caseItem?.documents) ? caseItem.documents.map(normalizeDocumentEntry) : [];
 
   return {
     id: caseItem?.id || generateId(),
@@ -360,6 +390,7 @@ function normalizeCase(caseItem) {
     tasks: tasks,
     strategy: sortTimelineItems(strategy),
     ledger: ledger,
+    documents: documents,
   };
 }
 
@@ -374,7 +405,8 @@ function sanitizeCaseForExport(caseItem) {
     incidents: Array.isArray(caseItem.incidents) ? caseItem.incidents.map(sanitizeRecordForExport) : [],
     tasks: Array.isArray(caseItem.tasks) ? caseItem.tasks.map(sanitizeRecordForExport) : [],
     strategy: Array.isArray(caseItem.strategy) ? caseItem.strategy.map(sanitizeRecordForExport) : [],
-    ledger: Array.isArray(caseItem.ledger) ? caseItem.ledger.map(item => ({ ...item })) : []
+    ledger: Array.isArray(caseItem.ledger) ? caseItem.ledger.map(item => ({ ...item })) : [],
+    documents: Array.isArray(caseItem.documents) ? caseItem.documents.map(item => ({ ...item })) : []
   };
 }
 
@@ -390,6 +422,19 @@ function mergeRecords(existingRecords = [], incomingRecords = [], recordType) {
   }
   const merged = Array.from(recordMap.values());
   return isTimelineCapable(recordType) ? sortTimelineItems(merged) : merged;
+}
+
+function mergeDocumentEntries(existingEntries = [], incomingEntries = []) {
+  const entryMap = new Map(existingEntries.map(e => [e.id, e]));
+  for (const incoming of incomingEntries) {
+    if (entryMap.has(incoming.id)) {
+      const existing = entryMap.get(incoming.id);
+      entryMap.set(incoming.id, normalizeDocumentEntry({ ...existing, ...incoming }));
+    } else {
+      entryMap.set(incoming.id, normalizeDocumentEntry(incoming));
+    }
+  }
+  return Array.from(entryMap.values());
 }
 
 function mergeLedgerEntries(existingEntries = [], incomingEntries = []) {
@@ -425,6 +470,7 @@ function mergeCase(existingCase, incomingCase) {
     tasks: mergeRecords(nExisting.tasks, nIncoming.tasks, "tasks"),
     strategy: mergeRecords(nExisting.strategy, nIncoming.strategy, "strategy"),
     ledger: mergeLedgerEntries(nExisting.ledger, nIncoming.ledger),
+    documents: mergeDocumentEntries(nExisting.documents, nIncoming.documents),
   };
 }
 
@@ -464,6 +510,51 @@ function syncCaseLinks(caseData, record, type) {
 }
 
 async function syncCaseToSupabase(caseItem) {
+  const ledgerEntries = Array.isArray(caseItem.ledger) ? caseItem.ledger : [];
+  const totalExpected = ledgerEntries.reduce((sum, item) => sum + Number(item.expectedAmount || 0), 0);
+  const totalPaid = ledgerEntries.reduce((sum, item) => sum + Number(item.paidAmount || 0), 0);
+  const disputedCount = ledgerEntries.filter(item => item.status === "disputed").length;
+  const missingProofCount = ledgerEntries.filter(item => item.proofStatus === "missing").length;
+  const paidCount = ledgerEntries.filter(item => item.status === "paid").length;
+
+  const sortedRecent = [...ledgerEntries].sort((a, b) => {
+    const aPayment = a.paymentDate || "";
+    const bPayment = b.paymentDate || "";
+    if (aPayment !== bPayment) return bPayment.localeCompare(aPayment);
+    if (aPayment !== bPayment) return bPayment.localeCompare(aPayment); // Descending
+
+    const aDue = a.dueDate || "";
+    const bDue = b.dueDate || "";
+    if (aDue !== bDue) return bDue.localeCompare(aDue);
+    if (aDue !== bDue) return bDue.localeCompare(aDue); // Descending
+
+    const aPeriod = a.period || "";
+    const bPeriod = b.period || "";
+    if (aPeriod !== bPeriod) return bPeriod.localeCompare(aPeriod);
+    if (aPeriod !== bPeriod) return bPeriod.localeCompare(aPeriod); // Descending
+
+    const aCreated = a.createdAt || "";
+    const bCreated = b.createdAt || "";
+    return bCreated.localeCompare(aCreated);
+    return bCreated.localeCompare(aCreated); // Descending
+  });
+
+  const recentEntries = sortedRecent.slice(0, 8).map((item) => ({
+    id: item.id,
+    category: item.category,
+    subType: item.subType,
+    label: item.label,
+    period: item.period,
+    expectedAmount: item.expectedAmount,
+    paidAmount: item.paidAmount,
+    differenceAmount: item.differenceAmount,
+    paymentDate: item.paymentDate,
+    dueDate: item.dueDate,
+    status: item.status,
+    proofStatus: item.proofStatus,
+    counterparty: item.counterparty,
+  }));
+
   const payload = {
     id: caseItem.id,
     name: caseItem.name || "",
@@ -530,6 +621,15 @@ async function syncCaseToSupabase(caseItem) {
             ? item.availability.digital.files.length
             : 0,
         })),
+      ledgerSummary: {
+        totalEntries: ledgerEntries.length,
+        paidCount,
+        disputedCount,
+        missingProofCount,
+        totalExpected,
+        totalPaid,
+        recentEntries
+      }
     },
   };
 
@@ -590,7 +690,7 @@ async function exportReasoningCaseToSupabase(caseItem) {
     console.log("Full export sizes", {
       original: JSON.stringify(caseItem).length,
       light: JSON.stringify(lightCaseItem).length,
-      light: JSON.stringify(sanitizedCase).length,
+      sanitized: JSON.stringify(sanitizedCase).length,
     });
 
     const response = await fetch(
@@ -668,6 +768,10 @@ export default function ProveItApp() {
   const [ledgerForm, setLedgerForm] = useState(EMPTY_LEDGER_FORM);
   const [editingLedgerId, setEditingLedgerId] = useState(null);
 
+  const [documentModalOpen, setDocumentModalOpen] = useState(false);
+  const [documentForm, setDocumentForm] = useState(EMPTY_DOCUMENT_FORM);
+  const [editingDocumentId, setEditingDocumentId] = useState(null);
+
   const handleExportFullCase = async () => {
     if (!selectedCase) return;
     setFullCaseExportStatus("exporting");
@@ -726,6 +830,66 @@ export default function ProveItApp() {
     saveCase(updatedCase);
     setCases(prev => prev.map(c => (c.id === updatedCase.id ? updatedCase : c)));
   }
+
+  const openDocumentModal = (preset = {}, documentId = null) => {
+    setDocumentForm({ ...EMPTY_DOCUMENT_FORM, ...preset });
+    setEditingDocumentId(documentId);
+    setDocumentModalOpen(true);
+  };
+
+  const closeDocumentModal = () => {
+    setDocumentModalOpen(false);
+    setDocumentForm(EMPTY_DOCUMENT_FORM);
+    setEditingDocumentId(null);
+  };
+
+  const saveDocumentEntry = async () => {
+    if (!selectedCaseId || !documentForm.title.trim()) return;
+
+    const currentCase = cases.find(c => c.id === selectedCaseId);
+    if (!currentCase) return;
+
+    let updatedDocuments;
+    if (editingDocumentId) {
+      updatedDocuments = (currentCase.documents || []).map(doc => {
+        if (doc.id === editingDocumentId) {
+          return normalizeDocumentEntry({
+            ...doc,
+            ...documentForm,
+            id: doc.id,
+            edited: true,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+        return doc;
+      });
+    } else {
+      const newEntry = normalizeDocumentEntry({
+        ...documentForm,
+        id: generateId(),
+        edited: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      updatedDocuments = [...(currentCase.documents || []), newEntry];
+    }
+
+    const updatedCase = {
+      ...currentCase,
+      documents: updatedDocuments,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setCases((prev) => prev.map((c) => (c.id === currentCase.id ? updatedCase : c)));
+
+    try {
+      await saveCase(updatedCase);
+    } catch (error) {
+      console.error("Failed to save document entry", error);
+    }
+
+    closeDocumentModal();
+  };
 
 
 
@@ -858,6 +1022,7 @@ export default function ProveItApp() {
     { id: "tasks", label: "Tasks" },
     { id: "strategy", label: "Strategy" },
     { id: "ledger", label: "Ledger" },
+    { id: "documents", label: "Documents" },
     { id: "timeline", label: "Timeline" },
     { id: "pack", label: "Pack" },
   ];
@@ -1982,6 +2147,7 @@ const handleRecordFiles = async (event) => {
                 openLedgerModal={openLedgerModal}
                 deleteLedgerEntry={deleteLedgerEntry}
                 duplicateLedgerEntry={duplicateLedgerEntry}
+                openDocumentModal={openDocumentModal}
               />
             </div>
             <aside className="lg:col-span-4 space-y-6">
@@ -2294,6 +2460,104 @@ const handleRecordFiles = async (event) => {
                 </button>
                 <button
                   onClick={closeLedgerModal}
+                  className="flex-1 rounded-xl bg-neutral-100 py-2 font-bold text-neutral-600 hover:bg-neutral-200 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {documentModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-xl flex flex-col max-h-[90vh]">
+              <div className="mb-4">
+                <h2 className="text-xl font-semibold">{editingDocumentId ? "Edit Document" : "Add Document"}</h2>
+                <p className="text-sm text-neutral-600">{editingDocumentId ? "Update details for this document record." : "Enter details for a new document record."}</p>
+              </div>
+
+              <div className="flex-1 overflow-y-auto pr-1 space-y-4">
+                <div>
+                  <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Title</label>
+                  <input
+                    type="text"
+                    value={documentForm.title}
+                    onChange={(e) => setDocumentForm({ ...documentForm, title: e.target.value })}
+                    placeholder="Document Title"
+                    className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Category</label>
+                    <select
+                      value={documentForm.category}
+                      onChange={(e) => setDocumentForm({ ...documentForm, category: e.target.value })}
+                      className="w-full rounded-xl border border-neutral-300 p-3 bg-white"
+                    >
+                      <option value="legal">Legal</option>
+                      <option value="medical">Medical</option>
+                      <option value="financial">Financial</option>
+                      <option value="correspondence">Correspondence</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Document Date</label>
+                    <input
+                      type="date"
+                      value={documentForm.documentDate}
+                      onChange={(e) => setDocumentForm({ ...documentForm, documentDate: e.target.value })}
+                      className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Source</label>
+                  <input
+                    type="text"
+                    value={documentForm.source}
+                    onChange={(e) => setDocumentForm({ ...documentForm, source: e.target.value })}
+                    placeholder="e.g. Email from HR, Mail from Landlord"
+                    className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Summary</label>
+                  <textarea
+                    value={documentForm.summary}
+                    onChange={(e) => setDocumentForm({ ...documentForm, summary: e.target.value })}
+                    placeholder="Briefly describe what this document is about..."
+                    rows={2}
+                    className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Text Content</label>
+                  <textarea
+                    value={documentForm.textContent}
+                    onChange={(e) => setDocumentForm({ ...documentForm, textContent: e.target.value })}
+                    placeholder="Full text content or OCR result..."
+                    rows={8}
+                    className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none font-mono text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-6 flex gap-3 pt-4 border-t border-neutral-100">
+                <button
+                  onClick={saveDocumentEntry}
+                  className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
+                >
+                  Save Document
+                </button>
+                <button
+                  onClick={closeDocumentModal}
                   className="flex-1 rounded-xl bg-neutral-100 py-2 font-bold text-neutral-600 hover:bg-neutral-200 transition-all"
                 >
                   Cancel
