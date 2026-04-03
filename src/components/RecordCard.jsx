@@ -18,6 +18,9 @@ export default function RecordCard({
   const isTask = recordType === "tasks";
   const isDone = isTask && item.status?.toLowerCase() === "done";
   const canCreateTask = ["evidence", "incidents", "strategy"].includes(recordType);
+  const isNewRecord =
+    (recordType === "evidence" || recordType === "incidents") &&
+    item.edited !== true;
 
   const badgeColors = {
     evidence: "bg-purple-50 text-purple-700 border-purple-200",
@@ -31,7 +34,11 @@ export default function RecordCard({
   );
 
   return (
-    <div key={item.id} id={`record-${item.id}`} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+    <div key={item.id} id={`record-${item.id}`} className={`rounded-2xl border p-4 ${
+      isNewRecord
+        ? "border-lime-400 bg-lime-50/40 shadow-[0_0_0_1px_rgba(163,230,53,0.35)]"
+        : "border-neutral-200 bg-neutral-50"
+    }`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           {isTask && (
@@ -50,6 +57,11 @@ export default function RecordCard({
                 </span>
               )}
               <div className="font-semibold text-neutral-900">{item.title}</div>
+              {isNewRecord && (
+                <span className="px-1.5 py-0.5 rounded border border-lime-300 bg-lime-100 text-[9px] font-bold uppercase tracking-wider text-lime-700">
+                  New
+                </span>
+              )}
             </div>
             <div className="mt-2 space-y-1 text-xs text-neutral-500">
               <div>

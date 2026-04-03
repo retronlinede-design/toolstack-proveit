@@ -36,6 +36,21 @@ export default function CaseDetail({
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [timelineFilter, setTimelineFilter] = useState("all");
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 300);
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const toggleGroup = (cat) => setExpandedGroups((prev) => ({ ...prev, [cat]: !prev[cat] }));
 
   const health = selectedCase ? getCaseHealthReport(selectedCase) : null;
@@ -734,5 +749,14 @@ export default function CaseDetail({
           </div>
         )}
       </div>
+
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-6 left-6 z-50 rounded-full bg-lime-600 text-white p-3 shadow-lg hover:bg-lime-700 transition-all active:scale-95"
+        >
+          ↑
+        </button>
+      )}
     </div>
   );}
