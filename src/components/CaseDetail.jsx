@@ -40,6 +40,10 @@ export default function CaseDetail({
 
   const health = selectedCase ? getCaseHealthReport(selectedCase) : null;
 
+  const overviewStrategies = [...(selectedCase?.strategy || [])]
+    .sort((a, b) => new Date(b.eventDate || b.date || 0) - new Date(a.eventDate || a.date || 0))
+    .slice(0, 5);
+
   const nextAction = (selectedCase?.tasks || []).find(t => t.status?.toLowerCase() !== "done");
   const handleOpenNextAction = () => {
     if (!nextAction) return;
@@ -431,17 +435,53 @@ export default function CaseDetail({
               )}
             </div>
 
-            <div>
-              <h3 className="text-lg font-semibold">Case Overview</h3>
-              <p className="mt-1 text-sm text-neutral-600">Use this case view to organize evidence, incidents, tasks, and strategy in one place.</p>
+            {/* Strategy Overview Section */}
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-semibold">Strategies</h3>
+                  <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-[10px] font-bold text-neutral-600">
+                    {selectedCase.strategy?.length || 0}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => openRecordModal("strategy")}
+                    className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                  >
+                    + Add Strategy
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab("strategy")}
+                    className="rounded-lg border border-neutral-300 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors"
+                  >
+                    View All
+                  </button>
+                </div>
+              </div>
+
+              {overviewStrategies.length === 0 ? (
+                <p className="text-sm italic text-neutral-500">No strategy records yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {overviewStrategies.map((item) => (
+                    <div key={item.id} className="rounded-xl border border-neutral-200 bg-white p-3 shadow-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="font-bold text-neutral-800 truncate">{item.title}</span>
+                            <span className="shrink-0 text-[10px] font-medium text-neutral-400">{item.eventDate || item.date}</span>
+                          </div>
+                          <div className="mt-0.5 text-xs text-neutral-500 line-clamp-1">{item.description || item.notes || "No description provided."}</div>
+                        </div>
+                        <button onClick={() => openEditRecordModal("strategy", item)} className="shrink-0 rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors">Open</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="grid gap-4 md:grid-cols-5">
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4"><div className="text-2xl font-semibold">{selectedCase.evidence.length}</div><div className="text-sm text-neutral-600">Evidence</div></div>
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4"><div className="text-2xl font-semibold">{selectedCase.incidents.length}</div><div className="text-sm text-neutral-600">Incidents</div></div>
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4"><div className="text-2xl font-semibold">{selectedCase.tasks.length}</div><div className="text-sm text-neutral-600">Tasks</div></div>
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4"><div className="text-2xl font-semibold">{selectedCase.strategy.length}</div><div className="text-sm text-neutral-600">Strategy</div></div>
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4"><div className="text-2xl font-semibold">{caseInboxCount}</div><div className="text-sm text-neutral-600">Inbox</div></div>
-            </div>
+
             <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                 <div className="font-semibold">Suggested next step</div>
