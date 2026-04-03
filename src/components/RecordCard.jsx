@@ -98,11 +98,11 @@ export default function RecordCard({
         </div>
 
         {recordType === "evidence" && (
-          <div className="mt-2 flex gap-2">
+          <div className="flex flex-col items-end gap-2">
             <span
               className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
                 item.availability?.physical?.hasOriginal
-                  ? "bg-blue-50 border-blue-200 text-blue-700"
+                  ? "bg-amber-50 border-amber-200 text-amber-700"
                   : "bg-neutral-100 border-neutral-200 text-neutral-400"
               }`}
             >
@@ -123,7 +123,15 @@ export default function RecordCard({
         <div className="flex gap-2">
           {recordType === "evidence" && (
             <button
-              onClick={() => onViewRecord(item)}
+              onClick={() => {
+                const firstAttachment = item.attachments?.[0];
+
+                if (firstAttachment && onPreviewFile) {
+                  onPreviewFile(firstAttachment);
+                } else {
+                  onViewRecord?.(item);
+                }
+              }}
               className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700 shadow-[0_2px_4px_rgba(60,60,60,0.1)] hover:bg-neutral-50 transition-colors"
             >
               View
