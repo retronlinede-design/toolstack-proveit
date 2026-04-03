@@ -25,6 +25,7 @@ export default function CaseDetail({
   onExportFullCase,
   onViewRecord,
   onPreviewFile,
+  openLedgerModal,
   syncStatus = "idle",
   syncMessage = "",
   fullCaseExportStatus = "idle",
@@ -543,6 +544,111 @@ export default function CaseDetail({
           </div>
         )}
         {activeTab === "strategy" && renderListBlock(selectedCase.strategy, "No strategy notes yet. Add strategy to track approach and planning.", "strategy")}
+
+        {activeTab === "ledger" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Ledger</h3>
+              <button
+                onClick={() => openLedgerModal()}
+                className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
+              >
+                + Add Entry
+              </button>
+            </div>
+            {selectedCase?.ledger && selectedCase.ledger.length > 0 ? (
+              <div className="space-y-3">
+                {selectedCase.ledger.map((item) => {
+                  const statusBadgeColor = (status) => {
+                    switch (status) {
+                      case "paid": return "bg-lime-100 text-lime-700 border-lime-300";
+                      case "part-paid": return "bg-amber-100 text-amber-700 border-amber-300";
+                      case "unpaid": return "bg-red-100 text-red-700 border-red-300";
+                      case "disputed": return "bg-orange-100 text-orange-700 border-orange-300";
+                      case "refunded": return "bg-blue-100 text-blue-700 border-blue-300";
+                      default: return "bg-neutral-100 text-neutral-700 border-neutral-300"; // planned, other
+                    }
+                  };
+
+                  const proofStatusBadgeColor = (proofStatus) => {
+                    switch (proofStatus) {
+                      case "confirmed": return "bg-lime-100 text-lime-700 border-lime-300";
+                      case "partial": return "bg-amber-100 text-amber-700 border-amber-300";
+                      default: return "bg-red-100 text-red-700 border-red-300"; // missing
+                    }
+                  };
+
+                  return (
+                    <div key={item.id} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold text-neutral-800">{item.label || "Untitled Ledger Entry"}</h4>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-neutral-500">{item.category || "N/A"}</span>
+                          <button 
+                            onClick={() => openLedgerModal(item, item.id)}
+                            className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      </div>
+                      <div className="text-sm text-neutral-600 mb-2">Period: {item.period || "N/A"}</div>
+
+                      <div className="grid grid-cols-3 gap-2 text-sm mb-2">
+                        <div>Expected: {item.expectedAmount} {item.currency}</div>
+                        <div>Paid: {item.paidAmount} {item.currency}</div>
+                        <div>Difference: {item.differenceAmount} {item.currency}</div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex gap-2">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${statusBadgeColor(item.status)}`}>
+                            {item.status || "N/A"}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${proofStatusBadgeColor(item.proofStatus)}`}>
+                            {item.proofStatus || "N/A"}
+                          </span>
+                        </div>
+                        <div className="text-neutral-500">
+                          {item.paymentDate ? `Paid: ${item.paymentDate}` : item.dueDate ? `Due: ${item.dueDate}` : "No Date"}
+                        </div>
+                      </div>
+
+                      {item.counterparty && <div className="text-xs text-neutral-500 mt-2">Counterparty: {item.counterparty}</div>}
+                      {item.notes && <p className="text-xs text-neutral-500 mt-2 line-clamp-2">{item.notes}</p>}
+
+                      {item.linkedRecordIds && item.linkedRecordIds.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-neutral-100">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Linked Records</div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {item.linkedRecordIds.map((rid) => {
+                              const found = findRecordById(rid);
+                              if (!found) return null;
+                              return (
+                                <button
+                                  key={rid}
+                                  onClick={() => openLinkedRecord(rid)}
+                                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-neutral-300 bg-white text-[10px] font-medium text-neutral-700 shadow-sm hover:border-lime-500 hover:text-lime-600 transition-all text-left"
+                                >
+                                  <span className="opacity-50 font-bold uppercase">{found.type === 'evidence' ? 'Evidence' : found.type.slice(0, -1)}</span>
+                                  <span className="truncate max-w-[120px]">{found.record.title}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                No ledger entries yet.
+              </div>
+            )}
+          </div>
+        )}
 
         {activeTab === "ideas" && (
           <div className="space-y-4">

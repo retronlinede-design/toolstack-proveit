@@ -40,6 +40,27 @@ const EMPTY_RECORD_FORM = {
   followUpTaskTitle: "",
 };
 
+const EMPTY_LEDGER_FORM = {
+  id: "",
+  category: "other",
+  subType: "",
+  label: "",
+  period: "",
+  expectedAmount: "",
+  paidAmount: "",
+  currency: "EUR",
+  dueDate: "",
+  paymentDate: "",
+  status: "planned",
+  method: "bank_transfer",
+  reference: "",
+  counterparty: "",
+  proofType: "other",
+  proofStatus: "missing",
+  notes: "",
+  linkedRecordIds: [],
+};
+
 const EMPTY_CAPTURE_FORM = {
   caseId: "",
   title: "",
@@ -227,6 +248,40 @@ function sortTimelineItems(items) {
   });
 }
 
+function normalizeLedgerEntry(item) {
+  const expectedAmount = Number(item?.expectedAmount || 0);
+  const paidAmount = Number(item?.paidAmount || 0);
+
+  return {
+    id: item?.id || generateId(),
+    category: item?.category || "other",
+    subType: item?.subType || "",
+    label: item?.label || "",
+    period: item?.period || "",
+    expectedAmount,
+    paidAmount,
+    differenceAmount: expectedAmount - paidAmount,
+    currency: item?.currency || "EUR",
+    dueDate: item?.dueDate || "",
+    paymentDate: item?.paymentDate || "",
+    status: ["planned", "paid", "part-paid", "unpaid", "disputed", "refunded"].includes(item?.status)
+      ? item.status
+      : "planned",
+    method: item?.method || "bank_transfer",
+    reference: item?.reference || "",
+    counterparty: item?.counterparty || "",
+    proofType: item?.proofType || "other",
+    proofStatus: ["missing", "partial", "confirmed"].includes(item?.proofStatus)
+      ? item.proofStatus
+      : "missing",
+    notes: item?.notes || "",
+    linkedRecordIds: Array.isArray(item?.linkedRecordIds) ? item.linkedRecordIds : [],
+    edited: !!item?.edited,
+    createdAt: item?.createdAt || new Date().toISOString(),
+    updatedAt: item?.updatedAt || item?.createdAt || new Date().toISOString(),
+  };
+}
+
 function normalizeRecord(item, recordType) {
   const base = {
     id: item?.id || generateId(),
@@ -288,6 +343,7 @@ function normalizeCase(caseItem) {
   const incidents = Array.isArray(caseItem?.incidents) ? caseItem.incidents.map(r => normalizeRecord(r, "incidents")) : [];
   const tasks = Array.isArray(caseItem?.tasks) ? caseItem.tasks.map(r => normalizeRecord(r, "tasks")) : [];
   const strategy = Array.isArray(caseItem?.strategy) ? caseItem.strategy.map(r => normalizeRecord(r, "strategy")) : [];
+  const ledger = Array.isArray(caseItem?.ledger) ? caseItem.ledger.map(normalizeLedgerEntry) : [];
 
   return {
     id: caseItem?.id || generateId(),
@@ -303,6 +359,7 @@ function normalizeCase(caseItem) {
     incidents: sortTimelineItems(incidents),
     tasks: tasks,
     strategy: sortTimelineItems(strategy),
+    ledger: ledger,
   };
 }
 
@@ -316,7 +373,8 @@ function sanitizeCaseForExport(caseItem) {
     evidence: Array.isArray(caseItem.evidence) ? caseItem.evidence.map(sanitizeRecordForExport) : [],
     incidents: Array.isArray(caseItem.incidents) ? caseItem.incidents.map(sanitizeRecordForExport) : [],
     tasks: Array.isArray(caseItem.tasks) ? caseItem.tasks.map(sanitizeRecordForExport) : [],
-    strategy: Array.isArray(caseItem.strategy) ? caseItem.strategy.map(sanitizeRecordForExport) : []
+    strategy: Array.isArray(caseItem.strategy) ? caseItem.strategy.map(sanitizeRecordForExport) : [],
+    ledger: Array.isArray(caseItem.ledger) ? caseItem.ledger.map(item => ({ ...item })) : []
   };
 }
 
@@ -332,6 +390,19 @@ function mergeRecords(existingRecords = [], incomingRecords = [], recordType) {
   }
   const merged = Array.from(recordMap.values());
   return isTimelineCapable(recordType) ? sortTimelineItems(merged) : merged;
+}
+
+function mergeLedgerEntries(existingEntries = [], incomingEntries = []) {
+  const entryMap = new Map(existingEntries.map(e => [e.id, e]));
+  for (const incoming of incomingEntries) {
+    if (entryMap.has(incoming.id)) {
+      const existing = entryMap.get(incoming.id);
+      entryMap.set(incoming.id, normalizeLedgerEntry({ ...existing, ...incoming }));
+    } else {
+      entryMap.set(incoming.id, normalizeLedgerEntry(incoming));
+    }
+  }
+  return Array.from(entryMap.values());
 }
 
 function mergeCase(existingCase, incomingCase) {
@@ -353,6 +424,7 @@ function mergeCase(existingCase, incomingCase) {
     incidents: mergeRecords(nExisting.incidents, nIncoming.incidents, "incidents"),
     tasks: mergeRecords(nExisting.tasks, nIncoming.tasks, "tasks"),
     strategy: mergeRecords(nExisting.strategy, nIncoming.strategy, "strategy"),
+    ledger: mergeLedgerEntries(nExisting.ledger, nIncoming.ledger),
   };
 }
 
@@ -592,6 +664,10 @@ export default function ProveItApp() {
   const [fullCaseExportStatus, setFullCaseExportStatus] = useState("idle"); // idle, exporting, success, error
   const [fullCaseExportMessage, setFullCaseExportMessage] = useState("");
 
+  const [ledgerModalOpen, setLedgerModalOpen] = useState(false);
+  const [ledgerForm, setLedgerForm] = useState(EMPTY_LEDGER_FORM);
+  const [editingLedgerId, setEditingLedgerId] = useState(null);
+
   const handleExportFullCase = async () => {
     if (!selectedCase) return;
     setFullCaseExportStatus("exporting");
@@ -605,6 +681,64 @@ export default function ProveItApp() {
       setFullCaseExportStatus("error");
       setFullCaseExportMessage(error.message || "Reasoning case export failed");
     }
+  };
+
+  const openLedgerModal = (preset = {}) => {
+    setLedgerForm({ ...EMPTY_LEDGER_FORM, ...preset });
+    setLedgerModalOpen(true);
+  };
+
+  const closeLedgerModal = () => {
+    setLedgerModalOpen(false);
+    setLedgerForm(EMPTY_LEDGER_FORM);
+  };
+
+  const saveLedgerEntry = async () => {
+    if (!selectedCaseId || !ledgerForm.label.trim()) return;
+
+    const currentCase = cases.find(c => c.id === selectedCaseId);
+    if (!currentCase) return;
+
+    let updatedLedger;
+    if (editingLedgerId) {
+      updatedLedger = (currentCase.ledger || []).map(entry => {
+        if (entry.id === editingLedgerId) {
+          return normalizeLedgerEntry({
+            ...entry,
+            ...ledgerForm,
+            id: entry.id,
+            edited: true,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+        return entry;
+      });
+    } else {
+      const newEntry = normalizeLedgerEntry({
+        ...ledgerForm,
+        id: generateId(),
+        edited: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      updatedLedger = [...(currentCase.ledger || []), newEntry];
+    }
+
+    const updatedCase = {
+      ...currentCase,
+      ledger: updatedLedger,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setCases((prev) => prev.map((c) => (c.id === currentCase.id ? updatedCase : c)));
+
+    try {
+      await saveCase(updatedCase);
+    } catch (error) {
+      console.error("Failed to save ledger entry", error);
+    }
+
+    closeLedgerModal();
   };
 
   const handleSyncToSupabase = async () => {
@@ -682,6 +816,7 @@ export default function ProveItApp() {
     { id: "incidents", label: "Incidents" },
     { id: "tasks", label: "Tasks" },
     { id: "strategy", label: "Strategy" },
+    { id: "ledger", label: "Ledger" },
     { id: "timeline", label: "Timeline" },
     { id: "pack", label: "Pack" },
   ];
@@ -1803,6 +1938,7 @@ const handleRecordFiles = async (event) => {
                 fullCaseExportMessage={fullCaseExportMessage}
                 onViewRecord={setViewingRecord}
                 onPreviewFile={setPreviewFile}
+                openLedgerModal={openLedgerModal}
               />
             </div>
             <aside className="lg:col-span-4 space-y-6">
@@ -1938,6 +2074,187 @@ const handleRecordFiles = async (event) => {
               <div className="flex gap-2">
                 <button onClick={saveQuickCapture} className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">Save to Review Queue</button>
                 <button onClick={closeQuickCapture} className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {ledgerModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl flex flex-col max-h-[90vh]">
+              <div className="mb-4">
+                <h2 className="text-xl font-semibold">{editingLedgerId ? "Edit Ledger Entry" : "Add Ledger Entry"}</h2>
+                <p className="text-sm text-neutral-600">{editingLedgerId ? "Update payment or cost details." : "Enter payment or expected cost details."}</p>
+              </div>
+
+              <div className="flex-1 overflow-y-auto pr-1 space-y-4">
+                <div>
+                  <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Label</label>
+                  <input
+                    type="text"
+                    value={ledgerForm.label}
+                    onChange={(e) => setLedgerForm({ ...ledgerForm, label: e.target.value })}
+                    placeholder="e.g. Monthly Rent Payment"
+                    className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Category</label>
+                    <select
+                      value={ledgerForm.category}
+                      onChange={(e) => setLedgerForm({ ...ledgerForm, category: e.target.value })}
+                      className="w-full rounded-xl border border-neutral-300 p-3 bg-white"
+                    >
+                      <option value="housing">Housing</option>
+                      <option value="work">Work</option>
+                      <option value="legal">Legal</option>
+                      <option value="personal">Personal</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Period</label>
+                    <input
+                      type="text"
+                      value={ledgerForm.period}
+                      onChange={(e) => setLedgerForm({ ...ledgerForm, period: e.target.value })}
+                      placeholder="e.g. Jan 2024"
+                      className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Expected Amount</label>
+                    <input
+                      type="number"
+                      value={ledgerForm.expectedAmount}
+                      onChange={(e) => setLedgerForm({ ...ledgerForm, expectedAmount: e.target.value })}
+                      placeholder="0.00"
+                      className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Paid Amount</label>
+                    <input
+                      type="number"
+                      value={ledgerForm.paidAmount}
+                      onChange={(e) => setLedgerForm({ ...ledgerForm, paidAmount: e.target.value })}
+                      placeholder="0.00"
+                      className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Payment Date</label>
+                  <input
+                    type="date"
+                    value={ledgerForm.paymentDate}
+                    onChange={(e) => setLedgerForm({ ...ledgerForm, paymentDate: e.target.value })}
+                    className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Status</label>
+                    <select
+                      value={ledgerForm.status}
+                      onChange={(e) => setLedgerForm({ ...ledgerForm, status: e.target.value })}
+                      className="w-full rounded-xl border border-neutral-300 p-3 bg-white"
+                    >
+                      <option value="planned">Planned</option>
+                      <option value="paid">Paid</option>
+                      <option value="part-paid">Part Paid</option>
+                      <option value="unpaid">Unpaid</option>
+                      <option value="disputed">Disputed</option>
+                      <option value="refunded">Refunded</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Proof Status</label>
+                    <select
+                      value={ledgerForm.proofStatus}
+                      onChange={(e) => setLedgerForm({ ...ledgerForm, proofStatus: e.target.value })}
+                      className="w-full rounded-xl border border-neutral-300 p-3 bg-white"
+                    >
+                      <option value="missing">Missing</option>
+                      <option value="partial">Partial</option>
+                      <option value="confirmed">Confirmed</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Notes</label>
+                  <textarea
+                    value={ledgerForm.notes}
+                    onChange={(e) => setLedgerForm({ ...ledgerForm, notes: e.target.value })}
+                    placeholder="Additional details..."
+                    rows={3}
+                    className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <label className="text-xs font-bold uppercase text-neutral-400 block mb-2">Linked Records</label>
+                  <div className="max-h-40 overflow-y-auto space-y-2 pr-1 border border-neutral-200 rounded-xl p-2 bg-neutral-50/50">
+                    {[
+                      ...(selectedCase?.evidence || []).map(r => ({ ...r, _type: 'evidence', _label: 'Evidence' })),
+                      ...(selectedCase?.incidents || []).map(r => ({ ...r, _type: 'incidents', _label: 'Incident' })),
+                      ...(selectedCase?.strategy || []).map(r => ({ ...r, _type: 'strategy', _label: 'Strategy' })),
+                      ...(selectedCase?.tasks || []).map(r => ({ ...r, _type: 'tasks', _label: 'Task' })),
+                    ].map(rec => (
+                      <label key={rec.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white border border-transparent hover:border-neutral-200 transition-all cursor-pointer">
+                        <input 
+                          type="checkbox"
+                          checked={(ledgerForm.linkedRecordIds || []).includes(rec.id)}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setLedgerForm(prev => ({
+                              ...prev,
+                              linkedRecordIds: checked 
+                                ? [...(prev.linkedRecordIds || []), rec.id]
+                                : (prev.linkedRecordIds || []).filter(id => id !== rec.id)
+                            }));
+                          }}
+                          className="h-4 w-4 rounded border-neutral-300 text-lime-600 focus:ring-lime-500"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-medium text-neutral-800 truncate">{rec.title}</span>
+                            <span className="text-[9px] font-bold uppercase text-neutral-400 bg-neutral-100 px-1 rounded">{rec._label}</span>
+                          </div>
+                          {(rec.eventDate || rec.date) && (
+                            <div className="text-[10px] text-neutral-500">{rec.eventDate || rec.date}</div>
+                          )}
+                        </div>
+                      </label>
+                    ))}
+                    {(!selectedCase?.evidence?.length && !selectedCase?.incidents?.length && !selectedCase?.strategy?.length && !selectedCase?.tasks?.length) && (
+                      <p className="text-[10px] text-neutral-400 italic text-center py-2">No records available to link.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 flex gap-3 pt-4 border-t border-neutral-100">
+                <button
+                  onClick={saveLedgerEntry}
+                  className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
+                >
+                  Save Entry
+                </button>
+                <button
+                  onClick={closeLedgerModal}
+                  className="flex-1 rounded-xl bg-neutral-100 py-2 font-bold text-neutral-600 hover:bg-neutral-200 transition-all"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           </div>
