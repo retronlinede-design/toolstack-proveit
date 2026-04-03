@@ -29,6 +29,7 @@ export default function CaseDetail({
   deleteLedgerEntry,
   duplicateLedgerEntry,
   openDocumentModal,
+  deleteDocumentEntry,
   syncStatus = "idle",
   syncMessage = "",
   fullCaseExportStatus = "idle",
@@ -42,6 +43,7 @@ export default function CaseDetail({
   const [timelineFilter, setTimelineFilter] = useState("all");
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [ledgerFilter, setLedgerFilter] = useState("all");
+  const [expandedDocuments, setExpandedDocuments] = useState({});
 
   useEffect(() => {
     const handleScroll = () => {
@@ -54,6 +56,10 @@ export default function CaseDetail({
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const toggleDocumentExpanded = (id) => {
+    setExpandedDocuments(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   const toggleGroup = (cat) => setExpandedGroups((prev) => ({ ...prev, [cat]: !prev[cat] }));
@@ -784,12 +790,20 @@ export default function CaseDetail({
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-2">
-                          <button 
-                            onClick={() => openDocumentModal(doc, doc.id)}
-                            className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
-                          >
-                            Edit
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button 
+                              onClick={() => openDocumentModal(doc, doc.id)}
+                              className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button 
+                              onClick={() => deleteDocumentEntry(doc.id)}
+                              className="rounded-lg border border-red-300 bg-white px-2 py-0.5 text-[10px] font-bold text-red-700 shadow-sm hover:bg-red-50 transition-colors"
+                            >
+                              Delete
+                            </button>
+                          </div>
                           {doc.textContent && (
                             <span className="shrink-0 px-1.5 py-0.5 rounded border border-blue-200 bg-blue-50 text-[9px] font-bold uppercase tracking-wider text-blue-600">
                               Has Text
@@ -801,6 +815,60 @@ export default function CaseDetail({
                         <p className="mt-3 text-sm text-neutral-600 line-clamp-2 italic border-l-2 border-neutral-200 pl-3">
                           {doc.summary}
                         </p>
+                      )}
+
+                      {doc.textContent && doc.textContent.trim() && (
+                        <div className="mt-4 pt-4 border-t border-neutral-100">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Text Content</div>
+                          <div className="text-sm text-neutral-700 whitespace-pre-wrap">
+                            {expandedDocuments[doc.id] 
+                              ? doc.textContent 
+                              : doc.textContent.slice(0, 280) + (doc.textContent.length > 280 ? "..." : "")}
+                          </div>
+                          {doc.textContent.length > 280 && (
+                            <button
+                              onClick={() => toggleDocumentExpanded(doc.id)}
+                              className="mt-2 text-xs font-bold text-lime-600 hover:text-lime-700 transition-colors"
+                            >
+                              {expandedDocuments[doc.id] ? "Show less" : "Show more"}
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {doc.attachments && doc.attachments.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-neutral-100">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Attachments</div>
+                          <div className="rounded-2xl border border-neutral-200 bg-neutral-50/50 p-4">
+                            <AttachmentPreview 
+                              attachments={doc.attachments || []}
+                              imageCache={imageCache}
+                              onPreview={onPreviewFile}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {doc.linkedRecordIds && doc.linkedRecordIds.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-neutral-100">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Linked Records</div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {doc.linkedRecordIds.map((rid) => {
+                              const found = findRecordById(rid);
+                              if (!found) return null;
+                              return (
+                                <button
+                                  key={rid}
+                                  onClick={() => openLinkedRecord(rid)}
+                                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-neutral-300 bg-white text-[10px] font-medium text-neutral-700 shadow-sm hover:border-lime-500 hover:text-lime-600 transition-all text-left"
+                                >
+                                  <span className="opacity-50 font-bold uppercase">{found.type === 'evidence' ? 'Evidence' : found.type.slice(0, -1)}</span>
+                                  <span className="truncate max-w-[120px]">{found.record.title}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
                       )}
                     </div>
                   ))}

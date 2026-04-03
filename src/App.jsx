@@ -520,22 +520,18 @@ async function syncCaseToSupabase(caseItem) {
   const sortedRecent = [...ledgerEntries].sort((a, b) => {
     const aPayment = a.paymentDate || "";
     const bPayment = b.paymentDate || "";
-    if (aPayment !== bPayment) return bPayment.localeCompare(aPayment);
     if (aPayment !== bPayment) return bPayment.localeCompare(aPayment); // Descending
 
     const aDue = a.dueDate || "";
     const bDue = b.dueDate || "";
-    if (aDue !== bDue) return bDue.localeCompare(aDue);
     if (aDue !== bDue) return bDue.localeCompare(aDue); // Descending
 
     const aPeriod = a.period || "";
     const bPeriod = b.period || "";
-    if (aPeriod !== bPeriod) return bPeriod.localeCompare(aPeriod);
     if (aPeriod !== bPeriod) return bPeriod.localeCompare(aPeriod); // Descending
 
     const aCreated = a.createdAt || "";
     const bCreated = b.createdAt || "";
-    return bCreated.localeCompare(aCreated);
     return bCreated.localeCompare(aCreated); // Descending
   });
 
@@ -812,6 +808,25 @@ export default function ProveItApp() {
     setLedgerModalOpen(true);
   };
 
+  function deleteDocumentEntry(entryId) {
+    if (!selectedCaseId || !entryId) return;
+
+    const confirmed = window.confirm("Delete this document?");
+    if (!confirmed) return;
+
+    const targetCase = cases.find(c => c.id === selectedCaseId);
+    if (!targetCase) return;
+
+    const updatedCase = normalizeCase({
+      ...targetCase,
+      documents: (targetCase.documents || []).filter(item => item.id !== entryId),
+      updatedAt: new Date().toISOString(),
+    });
+
+    saveCase(updatedCase);
+    setCases(prev => prev.map(c => (c.id === updatedCase.id ? updatedCase : c)));
+  }
+
   function deleteLedgerEntry(entryId) {
     if (!selectedCaseId || !entryId) return;
 
@@ -889,6 +904,32 @@ export default function ProveItApp() {
     }
 
     closeDocumentModal();
+  };
+
+  const handleDocumentFiles = async (event) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+
+    const documentId = documentForm.id || generateId();
+
+    const serializable = await Promise.all(
+      files.map((file) => fileToSerializable(file, documentId))
+    );
+
+    setDocumentForm((prev) => ({
+      ...prev,
+      id: prev.id || documentId,
+      attachments: [...(prev.attachments || []), ...serializable],
+    }));
+
+    event.target.value = "";
+  };
+
+  const removeDocumentAttachment = (attachmentId) => {
+    setDocumentForm((prev) => ({
+      ...prev,
+      attachments: (prev.attachments || []).filter((file) => file.id !== attachmentId),
+    }));
   };
 
 
@@ -2148,6 +2189,7 @@ const handleRecordFiles = async (event) => {
                 deleteLedgerEntry={deleteLedgerEntry}
                 duplicateLedgerEntry={duplicateLedgerEntry}
                 openDocumentModal={openDocumentModal}
+                deleteDocumentEntry={deleteDocumentEntry}
               />
             </div>
             <aside className="lg:col-span-4 space-y-6">
@@ -2546,6 +2588,90 @@ const handleRecordFiles = async (event) => {
                     rows={8}
                     className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none font-mono text-sm"
                   />
+                </div>
+
+                <div className="pt-2">
+                  <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Attachments</label>
+                  <p className="text-[10px] text-neutral-500 mb-3">Upload supporting files for this document.</p>
+                  
+                  <input
+                    type="file"
+                    id="document-attachments-input"
+                    multiple
+                    onChange={handleDocumentFiles}
+                    className="hidden"
+                  />
+                  
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById('document-attachments-input').click()}
+                    className="mb-3 rounded-xl border border-lime-500 bg-white px-4 py-2 text-xs font-bold text-neutral-800 shadow-sm hover:bg-lime-50 transition-all active:scale-95"
+                  >
+                    Attach Document
+                  </button>
+
+                  {documentForm.attachments?.length > 0 ? (
+                    <div className="space-y-2">
+                      {documentForm.attachments.map((att) => (
+                        <div key={att.id} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm">
+                          <div className="flex-1 min-w-0 text-left">
+                            <div className="truncate font-medium text-neutral-800">{att.name}</div>
+                            <div className="text-[9px] font-bold uppercase text-neutral-400">{att.type || att.mimeType || "file"}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeDocumentAttachment(att.id)}
+                            className="shrink-0 rounded-lg border border-neutral-300 bg-white px-2 py-1 text-[10px] font-bold text-red-600 shadow-sm hover:bg-red-50 transition-colors"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-neutral-400 italic">No attachments added yet.</p>
+                  )}
+                </div>
+
+                <div className="pt-2">
+                  <label className="text-xs font-bold uppercase text-neutral-400 block mb-2">Linked Records</label>
+                  <div className="max-h-40 overflow-y-auto space-y-2 pr-1 border border-neutral-200 rounded-xl p-2 bg-neutral-50/50">
+                    {[
+                      ...(selectedCase?.evidence || []).map(r => ({ ...r, _type: 'evidence', _label: 'Evidence' })),
+                      ...(selectedCase?.incidents || []).map(r => ({ ...r, _type: 'incidents', _label: 'Incident' })),
+                      ...(selectedCase?.strategy || []).map(r => ({ ...r, _type: 'strategy', _label: 'Strategy' })),
+                      ...(selectedCase?.tasks || []).map(r => ({ ...r, _type: 'tasks', _label: 'Task' })),
+                    ].map(rec => (
+                      <label key={rec.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white border border-transparent hover:border-neutral-200 transition-all cursor-pointer">
+                        <input 
+                          type="checkbox"
+                          checked={(documentForm.linkedRecordIds || []).includes(rec.id)}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setDocumentForm(prev => ({
+                              ...prev,
+                              linkedRecordIds: checked 
+                                ? [...(prev.linkedRecordIds || []), rec.id]
+                                : (prev.linkedRecordIds || []).filter(id => id !== rec.id)
+                            }));
+                          }}
+                          className="h-4 w-4 rounded border-neutral-300 text-lime-600 focus:ring-lime-500"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-medium text-neutral-800 truncate">{rec.title}</span>
+                            <span className="text-[9px] font-bold uppercase text-neutral-400 bg-neutral-100 px-1 rounded">{rec._label}</span>
+                          </div>
+                          {(rec.eventDate || rec.date) && (
+                            <div className="text-[10px] text-neutral-500">{rec.eventDate || rec.date}</div>
+                          )}
+                        </div>
+                      </label>
+                    ))}
+                    {(!selectedCase?.evidence?.length && !selectedCase?.incidents?.length && !selectedCase?.strategy?.length && !selectedCase?.tasks?.length) && (
+                      <p className="text-[10px] text-neutral-400 italic text-center py-2">No records available to link.</p>
+                    )}
+                  </div>
                 </div>
               </div>
 

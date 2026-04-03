@@ -13,21 +13,26 @@ export default function FilePreviewModal({ file, onClose, imageCache = {} }) {
   useEffect(() => {
     if (!file) return;
 
+    let objectUrl = null;
     const imageId = file.storage?.imageId;
     const cached = imageId ? imageCache[imageId] : null;
 
     if (cached?.dataUrl) {
       setUrl(cached.dataUrl);
-      return;
-    }
-
-    // legacy fallback
-    if (file.dataUrl) {
+    } else if (file.dataUrl) {
+      // legacy fallback for older serializable attachments
       setUrl(file.dataUrl);
-      return;
+    } else if (file.file) {
+      // create a temporary blob URL for raw-file attachments
+      objectUrl = URL.createObjectURL(file.file);
+      setUrl(objectUrl);
+    } else {
+      setUrl(null);
     }
 
-    setUrl(null);
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
   }, [file, imageCache]);
 
   const handleDownload = () => {
