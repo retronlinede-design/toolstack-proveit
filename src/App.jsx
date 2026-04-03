@@ -534,27 +534,6 @@ async function exportReasoningCaseToSupabase(caseItem) {
         body: JSON.stringify({
           case_id: caseItem.id,
           exported_at: new Date().toISOString(),
-          case_json: {
-  id: caseItem.id,
-  name: caseItem.name,
-  summary: caseItem.summary,
-  incidents: caseItem.incidents || [],
-  tasks: caseItem.tasks || [],
-  evidence: (caseItem.evidence || []).map(e => ({
-    ...e,
-    attachments: Array.isArray(e.attachments)
-      ? e.attachments.map(att => ({
-          id: att.id,
-          name: att.name,
-          mimeType: att.mimeType,
-          size: att.size,
-          kind: att.kind,
-          createdAt: att.createdAt,
-          storage: att.storage
-        }))
-      : []
-  }))
-},
           case_json: sanitizedCase,
         }),
       }
