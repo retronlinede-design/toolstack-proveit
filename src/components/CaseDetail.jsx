@@ -26,6 +26,8 @@ export default function CaseDetail({
   onViewRecord,
   onPreviewFile,
   openLedgerModal,
+  deleteLedgerEntry,
+  duplicateLedgerEntry,
   syncStatus = "idle",
   syncMessage = "",
   fullCaseExportStatus = "idle",
@@ -38,6 +40,7 @@ export default function CaseDetail({
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [timelineFilter, setTimelineFilter] = useState("all");
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [ledgerFilter, setLedgerFilter] = useState("all");
 
   useEffect(() => {
     const handleScroll = () => {
@@ -59,6 +62,17 @@ export default function CaseDetail({
   const overviewStrategies = [...(selectedCase?.strategy || [])]
     .sort((a, b) => new Date(b.eventDate || b.date || 0) - new Date(a.eventDate || a.date || 0))
     .slice(0, 5);
+
+  const scrollTopTabLabelMap = {
+    overview: "Home",
+    evidence: "Ev",
+    incidents: "Inc",
+    tasks: "Task",
+    strategy: "Str",
+    ledger: "Led",
+  };
+
+  const scrollTopLabel = scrollTopTabLabelMap[activeTab] || "Top";
 
   const nextAction = (selectedCase?.tasks || []).find(t => t.status?.toLowerCase() !== "done");
   const handleOpenNextAction = () => {
@@ -127,6 +141,37 @@ export default function CaseDetail({
       const idB = String(b.id || "");
       return idA.localeCompare(idB);
     });
+  };
+
+  const sortLedgerEntries = (entries = []) => {
+    return [...entries].sort((a, b) => {
+      const aPayment = a.paymentDate || "";
+      const bPayment = b.paymentDate || "";
+      if (aPayment !== bPayment) return bPayment.localeCompare(aPayment);
+
+      const aDue = a.dueDate || "";
+      const bDue = b.dueDate || "";
+      if (aDue !== bDue) return bDue.localeCompare(aDue);
+
+      const aPeriod = a.period || "";
+      const bPeriod = b.period || "";
+      if (aPeriod !== bPeriod) return bPeriod.localeCompare(aPeriod);
+
+      const aCreated = a.createdAt || "";
+      const bCreated = b.createdAt || "";
+      if (aCreated !== bCreated) return bCreated.localeCompare(aCreated);
+
+      return String(a.id || "").localeCompare(String(b.id || ""));
+    });
+  };
+
+  const filterLedgerEntries = (entries = [], filter = "all") => {
+    if (filter === "all") return entries;
+    if (filter === "rent") return entries.filter(item => item.category === "rent");
+    if (filter === "installment") return entries.filter(item => item.category === "installment");
+    if (filter === "missing-proof") return entries.filter(item => item.proofStatus === "missing");
+    if (filter === "disputed") return entries.filter(item => item.status === "disputed");
+    return entries;
   };
 
   const renderRecordCard = (item, recordType) => {
@@ -556,9 +601,53 @@ export default function CaseDetail({
                 + Add Entry
               </button>
             </div>
-            {selectedCase?.ledger && selectedCase.ledger.length > 0 ? (
+
+            {/* Filter Bar */}
+            <div className="flex flex-wrap gap-2 pb-2">
+              {[
+                { id: "all", label: "All" },
+                { id: "rent", label: "Rent" },
+                { id: "installment", label: "Installment" },
+                { id: "missing-proof", label: "Missing Proof" },
+                { id: "disputed", label: "Disputed" },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setLedgerFilter(f.id)}
+                  className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-lg border transition-all ${
+                    ledgerFilter === f.id
+                      ? "bg-lime-500 border-lime-600 text-white shadow-sm"
+                      : "bg-white border-neutral-200 text-neutral-500 hover:bg-neutral-50"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {(() => {
+              const sortedLedger = sortLedgerEntries(selectedCase?.ledger || []);
+              const filteredLedger = filterLedgerEntries(sortedLedger, ledgerFilter);
+              
+              if (sortedLedger.length === 0) {
+                return (
+                  <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                    No ledger entries yet.
+                  </div>
+                );
+              }
+
+              if (filteredLedger.length === 0) {
+                return (
+                  <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                    No ledger entries match this filter.
+                  </div>
+                );
+              }
+
+              return (
               <div className="space-y-3">
-                {selectedCase.ledger.map((item) => {
+                {filteredLedger.map((item) => {
                   const statusBadgeColor = (status) => {
                     switch (status) {
                       case "paid": return "bg-lime-100 text-lime-700 border-lime-300";
@@ -589,6 +678,18 @@ export default function CaseDetail({
                             className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
                           >
                             Edit
+                          </button>
+                          <button 
+                            onClick={() => duplicateLedgerEntry(item)}
+                            className="rounded-lg border border-neutral-300 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors"
+                          >
+                            Duplicate
+                          </button>
+                          <button 
+                            onClick={() => deleteLedgerEntry(item.id)}
+                            className="rounded-lg border border-red-300 bg-white px-2 py-0.5 text-[10px] font-bold text-red-700 shadow-sm hover:bg-red-50 transition-colors"
+                          >
+                            Delete
                           </button>
                         </div>
                       </div>
@@ -642,11 +743,8 @@ export default function CaseDetail({
                   );
                 })}
               </div>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-                No ledger entries yet.
-              </div>
-            )}
+              );
+            })()}
           </div>
         )}
 
@@ -859,9 +957,9 @@ export default function CaseDetail({
       {showScrollTop && (
         <button
           onClick={scrollToTop}
-          className="fixed bottom-6 left-6 z-50 rounded-full bg-lime-600 text-white p-3 shadow-lg hover:bg-lime-700 transition-all active:scale-95"
+          className="fixed bottom-6 left-6 z-50 h-12 w-12 rounded-full bg-lime-600 text-white shadow-lg hover:bg-lime-700 transition-all active:scale-95 flex items-center justify-center text-[10px] font-bold leading-none text-center"
         >
-          ↑
+          {scrollTopLabel}
         </button>
       )}
     </div>

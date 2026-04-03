@@ -688,6 +688,47 @@ export default function ProveItApp() {
     setLedgerModalOpen(true);
   };
 
+  const duplicateLedgerEntry = (entry) => {
+    if (!entry) return;
+
+    const duplicated = {
+      ...entry,
+      id: "",
+      label: entry.label ? `${entry.label} (Copy)` : "Copied Entry",
+      edited: false,
+      createdAt: "",
+      updatedAt: "",
+    };
+
+    setEditingLedgerId(null);
+    setLedgerForm({
+      ...EMPTY_LEDGER_FORM,
+      ...duplicated,
+    });
+    setLedgerModalOpen(true);
+  };
+
+  function deleteLedgerEntry(entryId) {
+    if (!selectedCaseId || !entryId) return;
+
+    const confirmed = window.confirm("Delete this ledger entry?");
+    if (!confirmed) return;
+
+    const targetCase = cases.find(c => c.id === selectedCaseId);
+    if (!targetCase) return;
+
+    const updatedCase = normalizeCase({
+      ...targetCase,
+      ledger: (targetCase.ledger || []).filter(item => item.id !== entryId),
+      updatedAt: new Date().toISOString(),
+    });
+
+    saveCase(updatedCase);
+    setCases(prev => prev.map(c => (c.id === updatedCase.id ? updatedCase : c)));
+  }
+
+
+
   const closeLedgerModal = () => {
     setLedgerModalOpen(false);
     setLedgerForm(EMPTY_LEDGER_FORM);
@@ -1939,6 +1980,8 @@ const handleRecordFiles = async (event) => {
                 onViewRecord={setViewingRecord}
                 onPreviewFile={setPreviewFile}
                 openLedgerModal={openLedgerModal}
+                deleteLedgerEntry={deleteLedgerEntry}
+                duplicateLedgerEntry={duplicateLedgerEntry}
               />
             </div>
             <aside className="lg:col-span-4 space-y-6">
