@@ -228,29 +228,35 @@ export default function CaseDetail({
 
   const filterLedgerEntries = (entries = [], filter = "all") => {
     if (filter === "all") return entries;
-    if (filter === "rent") return entries.filter(item => item.category === "rent");
-    if (filter === "installment") return entries.filter(item => item.category === "installment");
-    if (filter === "missing-proof") return entries.filter(item => item.proofStatus === "missing");
-    if (filter === "disputed") return entries.filter(item => item.status === "disputed");
-    return entries;
+    return entries.filter(item => item.category === filter);
   };
 
-  const groupLedgerEntriesByBatch = (entries = []) => {
-    const groups = new Map();
+  const groupLedgerEntriesByBatch = (ledger = []) => {
+    const groupedLedger = Object.values(
+      ledger.reduce((acc, item) => {
+        const key = item.batchLabel || "Ungrouped";
+        if (!acc[key]) {
+          acc[key] = {
+            batchLabel: key,
+            items: []
+          };
+        }
+        acc[key].items.push(item);
+        return acc;
+      }, {})
+    );
 
-    entries.forEach(item => {
-      const key = item.batchLabel && item.batchLabel.trim()
-        ? item.batchLabel.trim()
-        : "Ungrouped";
-
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(item);
+    groupedLedger.sort((a, b) => {
+      if (a.batchLabel === "Ungrouped") return 1;
+      if (b.batchLabel === "Ungrouped") return -1;
+      return a.batchLabel.localeCompare(b.batchLabel);
     });
 
-    return Array.from(groups.entries()).map(([batchLabel, items]) => ({
-      batchLabel,
-      items,
-    }));
+    groupedLedger.forEach(group => {
+      group.items.sort((a, b) => new Date(b.date) - new Date(a.date));
+    });
+
+    return groupedLedger;
   };
 
   const renderRecordCard = (item, recordType) => {
@@ -728,13 +734,51 @@ export default function CaseDetail({
         {activeTab === "ledger" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Ledger</h3>
+              <div className="flex items-center gap-4">
+                <h3 className="text-lg font-semibold">Ledger</h3>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => openLedgerModal({ category: "rent" })}
+                    className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                  >
+                    + Rent
+                  </button>
+                  <button 
+                    onClick={() => openLedgerModal({ category: "utility" })}
+                    className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                  >
+                    + Utility
+                  </button>
+                  <button 
+                    onClick={() => openLedgerModal({ category: "installment" })}
+                    className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                  >
+                    + Installment
+                  </button>
+                </div>
+              </div>
               <button
                 onClick={() => openLedgerModal()}
                 className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
               >
                 + Add Entry
               </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2 mb-4 overflow-x-auto pb-2">
+              {["all", "rent", "installment", "deposit", "furniture", "repair", "utility", "legal", "other"].map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setLedgerFilter(f)}
+                  className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border transition-all whitespace-nowrap ${
+                    ledgerFilter === f
+                      ? "bg-lime-500 border-lime-600 text-white shadow-sm"
+                      : "bg-white border-neutral-300 text-neutral-500 hover:bg-neutral-50"
+                  }`}
+                >
+                  {f}
+                </button>
+              ))}
             </div>
 
             {(() => {
@@ -763,17 +807,32 @@ export default function CaseDetail({
                   {groupedLedger.map((group) => {
                     const isCollapsed = collapsedLedgerGroups[group.batchLabel];
                     return (
-                      <div key={group.batchLabel} className="space-y-3">
-                        <button 
-                          onClick={() => toggleLedgerGroup(group.batchLabel)}
-                          className="flex items-center gap-2 px-1 w-full hover:bg-neutral-50 transition-colors py-1 rounded-lg text-left"
-                        >
-                          <span className="text-[10px] text-neutral-400 w-3">
-                            {isCollapsed ? "▶" : "▼"}
-                          </span>
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">{group.batchLabel}</h4>
-                          <span className="text-[10px] font-medium text-neutral-400">{group.items.length} entries</span>
-                        </button>
+                      <div key={group.batchLabel} className="space-y-3 border-b border-neutral-100 pb-3 last:border-b-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <button
+                            onClick={() => toggleLedgerGroup(group.batchLabel)}
+                            className="flex items-center gap-2 px-1 py-1 rounded-lg text-left hover:bg-neutral-50 transition-colors"
+                          >
+                            <span className="text-[10px] text-neutral-400 w-3">
+                              {isCollapsed ? "▶" : "▼"}
+                            </span>
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">
+                              {group.batchLabel === "Ungrouped" ? "Ungrouped Entries" : group.batchLabel}
+                            </h4>
+                            <span className="text-[10px] font-medium text-neutral-400">{group.items.length} entries</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openLedgerModal({
+                                batchLabel: group.batchLabel
+                              });
+                            }}
+                            className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                          >
+                            Add to Group
+                          </button>
+                        </div>
                         {!isCollapsed && (
                           <div className="space-y-3">
                             {group.items.map((item) => {

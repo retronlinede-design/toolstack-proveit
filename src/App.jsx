@@ -8,6 +8,8 @@ import { ShieldCheck } from "lucide-react";
 const SUPABASE_SYNC_URL = "https://aftbtklrlkccngjiaacv.supabase.co/functions/v1/proveit-upsert-case";
 const SUPABASE_SYNC_API_KEY = "proveit-live-read-123456";
 
+const lastUsedGroupByType = {};
+
 /**
  * Safe UUID fallback for insecure contexts or older browsers.
  */
@@ -59,6 +61,7 @@ const EMPTY_LEDGER_FORM = {
   proofStatus: "missing",
   notes: "",
   batchLabel: "",
+  groupMode: "none",
   linkedRecordIds: [],
 };
 
@@ -265,9 +268,22 @@ function normalizeLedgerEntry(item) {
   const expectedAmount = Number(item?.expectedAmount || 0);
   const paidAmount = Number(item?.paidAmount || 0);
 
+  const validLedgerCategories = [
+    "rent",
+    "installment",
+    "deposit",
+    "furniture",
+    "repair",
+    "utility",
+    "legal",
+    "other"
+  ];
+
   return {
     id: item?.id || generateId(),
-    category: item?.category || "other",
+    category: validLedgerCategories.includes(item?.category)
+      ? item.category
+      : "other",
     subType: item?.subType || "",
     label: item?.label || "",
     period: item?.period || "",
@@ -1065,7 +1081,40 @@ export default function ProveItApp() {
 
 
   const openLedgerModal = (preset = {}, ledgerId = null) => {
-    setLedgerForm({ ...EMPTY_LEDGER_FORM, ...preset });
+    const existingGroups = Array.from(new Set((selectedCase?.ledger || [])
+      .map(item => item.batchLabel)
+      .filter(label => label && label.trim() !== "")));
+
+    const defaultGroups = {
+      rent: "Rent",
+      utility: "Utilities",
+      furniture: "Furniture",
+      installment: "Installments",
+      repair: "Repairs",
+      legal: "Legal",
+      deposit: "Deposit"
+    };
+
+    let batchLabel = preset.batchLabel || "";
+    if (preset.category && !batchLabel) {
+      batchLabel = lastUsedGroupByType[preset.category] || defaultGroups[preset.category] || "";
+    }
+
+    let groupMode = "none";
+    if (batchLabel) {
+      if (existingGroups.includes(batchLabel)) {
+        groupMode = batchLabel;
+      } else {
+        groupMode = "__new__";
+      }
+    }
+
+    setLedgerForm({ 
+      ...EMPTY_LEDGER_FORM, 
+      ...preset, 
+      batchLabel,
+      groupMode 
+    });
     setEditingLedgerId(ledgerId);
     setLedgerModalOpen(true);
   };
@@ -1224,6 +1273,10 @@ export default function ProveItApp() {
 
   const saveLedgerEntry = async () => {
     if (!selectedCaseId || !ledgerForm.label.trim()) return;
+
+    if (ledgerForm.category && ledgerForm.batchLabel) {
+      lastUsedGroupByType[ledgerForm.category] = ledgerForm.batchLabel;
+    }
 
     const currentCase = cases.find(c => c.id === selectedCaseId);
     if (!currentCase) return;
@@ -2658,20 +2711,64 @@ const handleRecordFiles = async (event) => {
                     placeholder="e.g. Q1 Expenses, Repair Phase 1"
                     className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
                   />
+                  <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Group</label>
+                  <select
+                    value={ledgerForm.groupMode}
+                    onChange={(e) => {
+                      const mode = e.target.value;
+                      let newBatchLabel = ledgerForm.batchLabel;
+                      if (mode === "none") newBatchLabel = "";
+                      else if (mode !== "__new__") newBatchLabel = mode;
+                      
+                      setLedgerForm({ 
+                        ...ledgerForm, 
+                        groupMode: mode,
+                        batchLabel: newBatchLabel
+                      });
+                    }}
+                    className="w-full rounded-xl border border-neutral-300 p-3 bg-white focus:border-lime-500 outline-none"
+                  >
+                    <option value="none">No Group</option>
+                    {Array.from(new Set((selectedCase?.ledger || [])
+                      .map(item => item.batchLabel)
+                      .filter(label => label && label.trim() !== "")))
+                      .map(group => (
+                        <option key={group} value={group}>{group}</option>
+                      ))
+                    }
+                    <option value="__new__">Create New Group</option>
+                  </select>
                 </div>
+
+                {ledgerForm.groupMode === "__new__" && (
+                  <div>
+                    <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">New Group Name</label>
+                    <input
+                      type="text"
+                      value={ledgerForm.batchLabel}
+                      onChange={(e) => setLedgerForm({ ...ledgerForm, batchLabel: e.target.value })}
+                      placeholder="e.g. Q1 Expenses"
+                      className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
+                    />
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Category</label>
+                    <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Type</label>
                     <select
                       value={ledgerForm.category}
                       onChange={(e) => setLedgerForm({ ...ledgerForm, category: e.target.value })}
                       className="w-full rounded-xl border border-neutral-300 p-3 bg-white"
                     >
-                      <option value="housing">Housing</option>
-                      <option value="work">Work</option>
+                      <option value="rent">Rent</option>
+                      <option value="installment">Installment</option>
+                      <option value="deposit">Deposit</option>
+                      <option value="furniture">Furniture</option>
+                      <option value="repair">Repair</option>
+                      <option value="utility">Utility</option>
                       <option value="legal">Legal</option>
-                      <option value="personal">Personal</option>
                       <option value="other">Other</option>
                     </select>
                   </div>
