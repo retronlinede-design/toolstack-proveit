@@ -514,6 +514,190 @@ function mergeCase(existingCase, incomingCase) {
   };
 }
 
+async function buildFullBackupAttachment(att) {
+  if (!att) return att;
+
+  const cloned = { ...att };
+
+  if (att.storage?.imageId) {
+    const stored = await getImageById(att.storage.imageId);
+    if (stored && stored.dataUrl) {
+      cloned.backupDataUrl = stored.dataUrl;
+    }
+  }
+
+  return cloned;
+}
+
+async function buildFullBackupRecord(record) {
+  if (!record) return record;
+
+  const cloned = { ...record };
+
+  cloned.attachments = await Promise.all(
+    (record.attachments || []).map(buildFullBackupAttachment)
+  );
+
+  if (record.availability?.digital?.files) {
+    cloned.availability = {
+      ...record.availability,
+      digital: {
+        ...record.availability.digital,
+        files: await Promise.all(
+          (record.availability.digital.files || []).map(buildFullBackupAttachment)
+        ),
+      },
+    };
+  }
+
+  return cloned;
+}
+
+async function buildFullBackupCase(caseItem) {
+  if (!caseItem) return caseItem;
+
+  const cloned = { ...caseItem };
+
+  cloned.evidence = await Promise.all(
+    (caseItem.evidence || []).map(buildFullBackupRecord)
+  );
+
+  cloned.incidents = await Promise.all(
+    (caseItem.incidents || []).map(buildFullBackupRecord)
+  );
+
+  cloned.tasks = await Promise.all(
+    (caseItem.tasks || []).map(buildFullBackupRecord)
+  );
+
+  cloned.strategy = await Promise.all(
+    (caseItem.strategy || []).map(buildFullBackupRecord)
+  );
+
+  cloned.documents = await Promise.all(
+    (caseItem.documents || []).map(async (doc) => ({
+      ...doc,
+      attachments: await Promise.all(
+        (doc.attachments || []).map(buildFullBackupAttachment)
+      ),
+    }))
+  );
+
+  return cloned;
+}
+
+async function buildFullBackupQuickCapture(capture) {
+  if (!capture) return capture;
+
+  const cloned = { ...capture };
+
+  cloned.attachments = await Promise.all(
+    (capture.attachments || []).map(buildFullBackupAttachment)
+  );
+
+  return cloned;
+}
+
+async function restoreFullBackupAttachment(att, ownerId) {
+  if (!att) return att;
+
+  const cloned = { ...att };
+
+  if (!att.backupDataUrl) {
+    return cloned;
+  }
+
+  let imageId = att.storage?.imageId || att.imageId || att.id || generateId();
+
+  try {
+    await saveImage({
+      id: imageId,
+      evidenceId: ownerId || null,
+      dataUrl: att.backupDataUrl,
+      createdAt: att.createdAt || new Date().toISOString(),
+    });
+
+    cloned.storage = {
+      ...(cloned.storage || {}),
+      type: "indexeddb",
+      imageId,
+    };
+    // Remove backupDataUrl after restoring to keep the attachment clean
+    delete cloned.backupDataUrl;
+  } catch (err) {
+    console.error("Failed to restore attachment to IndexedDB", att?.id, err);
+  }
+
+  return cloned;
+}
+
+async function restoreFullBackupRecord(record) {
+  if (!record) return record;
+
+  const cloned = { ...record };
+  const ownerId = record.id || generateId();
+
+  cloned.attachments = await Promise.all(
+    (record.attachments || []).map((att) => restoreFullBackupAttachment(att, ownerId))
+  );
+
+  if (record.availability?.digital?.files) {
+    cloned.availability = {
+      ...record.availability,
+      digital: {
+        ...record.availability.digital,
+        files: await Promise.all(
+          (record.availability.digital.files || []).map((att) =>
+            restoreFullBackupAttachment(att, ownerId)
+          )
+        ),
+      },
+    };
+  }
+
+  return cloned;
+}
+
+async function restoreFullBackupDocument(doc) {
+  if (!doc) return doc;
+
+  const cloned = { ...doc };
+  const ownerId = doc.id || generateId();
+
+  cloned.attachments = await Promise.all(
+    (doc.attachments || []).map((att) => restoreFullBackupAttachment(att, ownerId))
+  );
+
+  return cloned;
+}
+
+async function restoreFullBackupCase(caseItem) {
+  if (!caseItem) return caseItem;
+
+  const cloned = { ...caseItem };
+
+  cloned.evidence = await Promise.all((caseItem.evidence || []).map(restoreFullBackupRecord));
+  cloned.incidents = await Promise.all((caseItem.incidents || []).map(restoreFullBackupRecord));
+  cloned.tasks = await Promise.all((caseItem.tasks || []).map(restoreFullBackupRecord));
+  cloned.strategy = await Promise.all((caseItem.strategy || []).map(restoreFullBackupRecord));
+  cloned.documents = await Promise.all((caseItem.documents || []).map(restoreFullBackupDocument));
+
+  return cloned;
+}
+
+async function restoreFullBackupQuickCapture(capture) {
+  if (!capture) return capture;
+
+  const cloned = { ...capture };
+  const ownerId = capture.id || generateId();
+
+  cloned.attachments = await Promise.all(
+    (capture.attachments || []).map((att) => restoreFullBackupAttachment(att, ownerId))
+  );
+
+  return cloned;
+}
+
 /**
  * Syncs bi-directional links between Incidents and Evidence items.
  */
@@ -823,6 +1007,53 @@ export default function ProveItApp() {
     }
   };
 
+  const handleFullBackup = async () => {
+    try {
+      const allCases = await getAllCases();
+      const fullCases = await Promise.all(allCases.map(buildFullBackupCase));
+      const fullQuickCaptures = await Promise.all(
+        (quickCaptures || []).map(buildFullBackupQuickCapture)
+      );
+
+      const payload = {
+        version: "2.1-full-backup",
+        exportedAt: new Date().toISOString(),
+        app: "proveit",
+        type: "FULL_BACKUP",
+        includesBinaryData: true,
+        data: {
+          cases: fullCases,
+          quickCaptures: fullQuickCaptures,
+          selectedCaseId,
+          activeTab,
+        },
+      };
+
+      const blob = new Blob([JSON.stringify(payload)], {
+        type: "application/json",
+      });
+
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `proveit-full-backup-${new Date()
+        .toISOString()
+        .slice(0, 10)}.json`;
+
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      URL.revokeObjectURL(url);
+
+      console.log("FULL BACKUP exported");
+    } catch (err) {
+      console.error("FULL BACKUP failed", err);
+      alert("Full backup failed");
+    }
+  };
+
   const handleUpdateCase = async (updatedCase) => {
     try {
       await saveCase(updatedCase);
@@ -1087,7 +1318,7 @@ export default function ProveItApp() {
 
   const quickActions = [
     { label: "Quick Capture" },
-    { label: "Export" },
+    { label: "FULL BACKUP" },
     { label: "Import" },
     { label: "Add Task" },
     { label: "Add Strategy" },
@@ -1371,7 +1602,20 @@ export default function ProveItApp() {
         return;
       }
 
-      const normalizedCases = (imported.cases || []).map(normalizeCase);
+      const isFullBackup =
+        parsed?.type === "FULL_BACKUP" ||
+        parsed?.includesBinaryData === true ||
+        parsed?.version === "2.1-full-backup";
+
+      let incomingCases = imported.cases || [];
+      let incomingQuickCaptures = imported.quickCaptures || [];
+
+      if (isFullBackup) {
+        incomingCases = await Promise.all(incomingCases.map(restoreFullBackupCase));
+        incomingQuickCaptures = await Promise.all(incomingQuickCaptures.map(restoreFullBackupQuickCapture));
+      }
+
+      const normalizedCases = incomingCases.map(normalizeCase);
       const currentCases = await getAllCases();
       const caseMap = new Map(currentCases.map(c => [c.id, c]));
 
@@ -1392,7 +1636,7 @@ export default function ProveItApp() {
       }
 
       setCases(mergedCases);
-      setQuickCaptures((imported.quickCaptures || []).map(q => ({
+      setQuickCaptures((incomingQuickCaptures || []).map(q => ({
         ...q,
         source: q.source || "manual",
         updatedAt: q.updatedAt || q.createdAt || new Date().toISOString(),
@@ -2174,7 +2418,7 @@ const handleRecordFiles = async (event) => {
           <div className="flex gap-2 flex-wrap border-t border-neutral-100 pt-6">
             {quickActions.map((a) => {
               const isQuick = a.label === "Quick Capture";
-              const isExport = a.label === "Export";
+              const isFullBackup = a.label === "FULL BACKUP";
               const isImport = a.label === "Import";
               const isTask = a.label === "Add Task";
               const isStrategy = a.label === "Add Strategy";
@@ -2192,10 +2436,11 @@ const handleRecordFiles = async (event) => {
                 <button
                   key={a.label}
                   onClick={
-                    isQuick ? openQuickCapture : 
-                    isExport ? exportData : 
+                    isQuick ? openQuickCapture :
+                    isFullBackup ? handleFullBackup :
                     isTask ? () => setAssignRecordType("tasks") :
-                    isStrategy ? () => setAssignRecordType("strategy") : undefined
+                    isStrategy ? () => setAssignRecordType("strategy") :
+                    undefined
                   }
                   className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
                 >
@@ -2232,6 +2477,7 @@ const handleRecordFiles = async (event) => {
                 onExportSnapshot={exportCaseSnapshot}
                 onSyncToSupabase={handleSyncToSupabase}
                 onExportFullCase={handleExportFullCase}
+                onExportFullBackup={handleFullBackup}
                 syncStatus={syncStatus}
                 syncMessage={syncMessage}
                 fullCaseExportStatus={fullCaseExportStatus}

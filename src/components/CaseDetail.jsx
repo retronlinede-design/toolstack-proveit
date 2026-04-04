@@ -23,6 +23,7 @@ export default function CaseDetail({
   onExportSnapshot,
   onSyncToSupabase,
   onExportFullCase,
+  onExportFullBackup,
   onViewRecord,
   onPreviewFile,
   openLedgerModal,
