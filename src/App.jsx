@@ -386,7 +386,7 @@ function normalizeCase(caseItem) {
   const strategy = Array.isArray(caseItem?.strategy) ? caseItem.strategy.map(r => normalizeRecord(r, "strategy")) : [];
   const ledger = Array.isArray(caseItem?.ledger) ? caseItem.ledger.map(normalizeLedgerEntry) : [];
   const documents = Array.isArray(caseItem?.documents) ? caseItem.documents.map(normalizeDocumentEntry) : [];
-  const actionSummary = normalizeActionSummary(caseItem?.actionSummary);
+  const actionSummary = normalizeActionSummary(caseItem?.actionSummary || {});
 
   return {
     id: caseItem?.id || generateId(),
@@ -822,6 +822,16 @@ export default function ProveItApp() {
       setFullCaseExportMessage(error.message || "Reasoning case export failed");
     }
   };
+
+  const handleUpdateCase = async (updatedCase) => {
+    try {
+      await saveCase(updatedCase);
+      setCases((prev) => prev.map((c) => (c.id === updatedCase.id ? updatedCase : c)));
+    } catch (error) {
+      console.error("Failed to update case", error);
+    }
+  };
+
 
   const openLedgerModal = (preset = {}, ledgerId = null) => {
     setLedgerForm({ ...EMPTY_LEDGER_FORM, ...preset });
@@ -2216,6 +2226,7 @@ const handleRecordFiles = async (event) => {
                 openEditRecordModal={openEditRecordModal}
                 toggleTaskStatus={toggleTaskStatus}
                 openEditCaseModal={openEditCaseModal}
+                onUpdateCase={handleUpdateCase} // Pass the new handler
                 deleteRecord={deleteRecord}
                 exportSelectedCase={exportSelectedCase}
                 onExportSnapshot={exportCaseSnapshot}

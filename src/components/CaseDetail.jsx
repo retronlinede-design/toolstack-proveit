@@ -45,6 +45,13 @@ export default function CaseDetail({
   const [ledgerFilter, setLedgerFilter] = useState("all");
   const [expandedDocuments, setExpandedDocuments] = useState({});
   const [collapsedLedgerGroups, setCollapsedLedgerGroups] = useState({});
+   const [actionSummaryEditOpen, setActionSummaryEditOpen] = useState(false);
+  const [actionSummaryForm, setActionSummaryForm] = useState({
+    currentFocus: "",
+    nextActions: "",
+    importantReminders: "",
+    strategyFocus: "",
+  });
 
   useEffect(() => {
     const handleScroll = () => {
@@ -72,7 +79,44 @@ export default function CaseDetail({
 
   const toggleGroup = (cat) => setExpandedGroups((prev) => ({ ...prev, [cat]: !prev[cat] }));
 
+  function openActionSummaryEdit() {
+    const s = selectedCase?.actionSummary || {};
+    setActionSummaryForm({
+      currentFocus: s.currentFocus || "",
+      nextActions: (s.nextActions || []).join("\n"),
+      importantReminders: (s.importantReminders || []).join("\n"),
+      strategyFocus: (s.strategyFocus || []).join("\n"),
+    });
+    setActionSummaryEditOpen(true);
+  }
+
+  function saveActionSummary() {
+    if (!selectedCase) return;
+
+    const updated = {
+      ...selectedCase,
+      actionSummary: {
+        currentFocus: actionSummaryForm.currentFocus,
+        nextActions: actionSummaryForm.nextActions.split("\n").filter(Boolean),
+        importantReminders: actionSummaryForm.importantReminders.split("\n").filter(Boolean),
+        strategyFocus: actionSummaryForm.strategyFocus.split("\n").filter(Boolean),
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    onUpdateCase(updated); // This already correctly calls the prop
+    setActionSummaryEditOpen(false);
+  }
+
   const health = selectedCase ? getCaseHealthReport(selectedCase) : null;
+
+  const actionSummary = selectedCase?.actionSummary || {};
+  const {
+    currentFocus,
+    nextActions = [],
+    importantReminders = [],
+    strategyFocus = [],
+  } = actionSummary;
 
   const overviewStrategies = [...(selectedCase?.strategy || [])]
     .sort((a, b) => new Date(b.eventDate || b.date || 0) - new Date(a.eventDate || a.date || 0))
@@ -413,6 +457,62 @@ export default function CaseDetail({
               {fullCaseExportMessage && (
                 <span className={`text-[10px] font-bold uppercase tracking-tight text-center ${fullCaseExportStatus === 'error' ? 'text-red-500' : 'text-lime-600'}`}>{fullCaseExportMessage}</span>
               )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Summary Panel */}
+      <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
+        <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500 mb-4">Action Summary</h3>
+        <button
+          onClick={openActionSummaryEdit}
+          className="text-xs font-bold text-lime-600 hover:underline"
+        >
+          Edit
+        </button>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-1.5">
+            <div className="text-[10px] font-bold uppercase tracking-tight text-neutral-400">Current Focus</div>
+            <p className="text-sm font-medium text-neutral-800">
+              {currentFocus || "No current focus set."}
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="text-[10px] font-bold uppercase tracking-tight text-neutral-400">Do Next</div>
+            {nextActions.length > 0 ? (
+              <ul className="space-y-1 list-disc list-inside marker:text-lime-500">
+                {nextActions.map((action, i) => (
+                  <li key={i} className="text-xs text-neutral-700">{action}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-neutral-500 italic">No next actions defined.</p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="text-[10px] font-bold uppercase tracking-tight text-neutral-400">Important Reminders</div>
+            {importantReminders.length > 0 ? (
+              <ul className="space-y-1 list-disc list-inside marker:text-amber-500">
+                {importantReminders.map((reminder, i) => (
+                  <li key={i} className="text-xs text-neutral-700">{reminder}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-neutral-500 italic">No reminders.</p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="text-[10px] font-bold uppercase tracking-tight text-neutral-400">Strategy Focus</div>
+            <div className="flex flex-wrap gap-1.5">
+              {strategyFocus.length > 0 ? strategyFocus.map((strat, i) => (
+                <span key={i} className="px-2 py-0.5 rounded-lg bg-lime-50 border border-lime-100 text-[10px] font-bold text-lime-700">
+                  {strat}
+                </span>
+              )) : <p className="text-xs text-neutral-500 italic">No strategy focus defined.</p>}
             </div>
           </div>
         </div>
@@ -1122,6 +1222,52 @@ export default function CaseDetail({
           {scrollTopLabel}
         </button>
       )}
+
+      {actionSummaryEditOpen && (
+        <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg space-y-4">
+            <h3 className="text-lg font-semibold">Edit Action Summary</h3>
+
+            <textarea
+              placeholder="Current Focus"
+              value={actionSummaryForm.currentFocus}
+              onChange={(e) => setActionSummaryForm(f => ({ ...f, currentFocus: e.target.value }))}
+              className="w-full border p-2 rounded"
+            />
+
+            <textarea
+              placeholder="Next Actions (one per line)"
+              value={actionSummaryForm.nextActions}
+              onChange={(e) => setActionSummaryForm(f => ({ ...f, nextActions: e.target.value }))}
+              className="w-full border p-2 rounded"
+            />
+
+            <textarea
+              placeholder="Important Reminders"
+              value={actionSummaryForm.importantReminders}
+              onChange={(e) => setActionSummaryForm(f => ({ ...f, importantReminders: e.target.value }))}
+              className="w-full border p-2 rounded"
+            />
+
+            <textarea
+              placeholder="Strategy Focus"
+              value={actionSummaryForm.strategyFocus}
+              onChange={(e) => setActionSummaryForm(f => ({ ...f, strategyFocus: e.target.value }))}
+              className="w-full border p-2 rounded"
+            />
+
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setActionSummaryEditOpen(false)} className="px-3 py-1 border rounded">
+                Cancel
+              </button>
+              <button onClick={saveActionSummary} className="px-3 py-1 bg-lime-600 text-white rounded">
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+                          
