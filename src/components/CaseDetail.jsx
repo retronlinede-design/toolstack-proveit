@@ -41,7 +41,7 @@ export default function CaseDetail({
   const [ideas, setIdeas] = useState([]);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [timelineFilter, setTimelineFilter] = useState("all");
+  const [timelineFilter, setTimelineFilter] = useState("core");
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [ledgerFilter, setLedgerFilter] = useState("all");
   const [expandedDocuments, setExpandedDocuments] = useState({});
@@ -1169,7 +1169,7 @@ export default function CaseDetail({
 
             {/* Timeline Filter Controls */}
             <div className="flex flex-wrap gap-2 pb-2 overflow-x-auto">
-              {["all", "incidents", "evidence", "strategy", "tasks"].map((f) => (
+              {["core", "incidents", "evidence", "tasks", "strategy", "all"].map((f) => (
                 <button
                   key={f}
                   onClick={() => setTimelineFilter(f)}
@@ -1179,31 +1179,39 @@ export default function CaseDetail({
                       : "bg-white border-neutral-200 text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300"
                   }`}
                 >
-                  {f}
+                  {f === "core" ? "Core" : f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
                 </button>
               ))}
             </div>
 
-            {timelineItems.filter(item => {
-              if (timelineFilter === "all") return true;
-              const filterMap = {
-                incidents: "Incident",
-                evidence: "Evidence",
-                tasks: "Task",
-                strategy: "Strategy"
-              };
-              return item._kind === filterMap[timelineFilter];
-            }).length ? (
-              (() => {
-                const filtered = timelineItems.filter(item => {
-                  if (timelineFilter === "all") return true;
-                  const filterMap = { incidents: "Incident", evidence: "Evidence", tasks: "Task", strategy: "Strategy" };
-                  return item._kind === filterMap[timelineFilter];
-                });
+            {(() => {
+              const filteredTimelineItems = timelineItems.filter(item => {
+                if (timelineFilter === "core") {
+                  return item._kind === "Incident" || item._kind === "Evidence";
+                }
+                if (timelineFilter === "all") return true;
+                const filterMap = {
+                  incidents: "Incident",
+                  evidence: "Evidence",
+                  tasks: "Task",
+                  strategy: "Strategy",
+                };
+                return item._kind === filterMap[timelineFilter];
+              });
+
+              if (filteredTimelineItems.length === 0) {
+                return (
+                  <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                    {timelineItems.length === 0 
+                      ? "No timeline entries yet. Add records to see the chronology of the case."
+                      : "No timeline entries match this filter."}
+                  </div>
+                );
+              }
 
                 const groups = [];
                 let lastDate = null;
-                filtered.forEach(item => {
+                filteredTimelineItems.forEach(item => {
                   const d = item.eventDate || item.date || "Unknown Date";
                   if (d !== lastDate) {
                     groups.push({ date: d, items: [item] });
@@ -1254,12 +1262,7 @@ export default function CaseDetail({
                     </div>
                   </div>
                 ));
-              })()
-            ) : (
-              <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-                No timeline entries yet. Add records to see the chronology of the case.
-              </div>
-            )}
+              })()}
           </div>
         )}
 

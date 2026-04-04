@@ -2703,14 +2703,6 @@ const handleRecordFiles = async (event) => {
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Batch / Group</label>
-                  <input
-                    type="text"
-                    value={ledgerForm.batchLabel}
-                    onChange={(e) => setLedgerForm({ ...ledgerForm, batchLabel: e.target.value })}
-                    placeholder="e.g. Q1 Expenses, Repair Phase 1"
-                    className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
-                  />
                   <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Group</label>
                   <select
                     value={ledgerForm.groupMode}
@@ -2755,7 +2747,6 @@ const handleRecordFiles = async (event) => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Category</label>
                     <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Type</label>
                     <select
                       value={ledgerForm.category}
