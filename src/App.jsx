@@ -296,6 +296,16 @@ function normalizeLedgerEntry(item) {
   };
 }
 
+function normalizeActionSummary(summary) {
+  return {
+    currentFocus: summary?.currentFocus || "",
+    nextActions: Array.isArray(summary?.nextActions) ? summary.nextActions : [],
+    importantReminders: Array.isArray(summary?.importantReminders) ? summary.importantReminders : [],
+    strategyFocus: Array.isArray(summary?.strategyFocus) ? summary.strategyFocus : [],
+    updatedAt: summary?.updatedAt || "",
+  };
+}
+
 function normalizeDocumentEntry(item) {
   return {
     id: item?.id || generateId(),
@@ -376,6 +386,7 @@ function normalizeCase(caseItem) {
   const strategy = Array.isArray(caseItem?.strategy) ? caseItem.strategy.map(r => normalizeRecord(r, "strategy")) : [];
   const ledger = Array.isArray(caseItem?.ledger) ? caseItem.ledger.map(normalizeLedgerEntry) : [];
   const documents = Array.isArray(caseItem?.documents) ? caseItem.documents.map(normalizeDocumentEntry) : [];
+  const actionSummary = normalizeActionSummary(caseItem?.actionSummary);
 
   return {
     id: caseItem?.id || generateId(),
@@ -393,6 +404,7 @@ function normalizeCase(caseItem) {
     strategy: sortTimelineItems(strategy),
     ledger: ledger,
     documents: documents,
+    actionSummary,
   };
 }
 
@@ -408,7 +420,22 @@ function sanitizeCaseForExport(caseItem) {
     tasks: Array.isArray(caseItem.tasks) ? caseItem.tasks.map(sanitizeRecordForExport) : [],
     strategy: Array.isArray(caseItem.strategy) ? caseItem.strategy.map(sanitizeRecordForExport) : [],
     ledger: Array.isArray(caseItem.ledger) ? caseItem.ledger.map(item => ({ ...item })) : [],
-    documents: Array.isArray(caseItem.documents) ? caseItem.documents.map(item => ({ ...item })) : []
+    documents: Array.isArray(caseItem.documents) ? caseItem.documents.map(item => ({ ...item })) : [],
+    actionSummary: caseItem?.actionSummary
+      ? {
+          currentFocus: caseItem.actionSummary.currentFocus || "",
+          nextActions: Array.isArray(caseItem.actionSummary.nextActions) ? caseItem.actionSummary.nextActions : [],
+          importantReminders: Array.isArray(caseItem.actionSummary.importantReminders) ? caseItem.actionSummary.importantReminders : [],
+          strategyFocus: Array.isArray(caseItem.actionSummary.strategyFocus) ? caseItem.actionSummary.strategyFocus : [],
+          updatedAt: caseItem.actionSummary.updatedAt || "",
+        }
+      : {
+          currentFocus: "",
+          nextActions: [],
+          importantReminders: [],
+          strategyFocus: [],
+          updatedAt: "",
+        },
   };
 }
 
@@ -473,6 +500,17 @@ function mergeCase(existingCase, incomingCase) {
     strategy: mergeRecords(nExisting.strategy, nIncoming.strategy, "strategy"),
     ledger: mergeLedgerEntries(nExisting.ledger, nIncoming.ledger),
     documents: mergeDocumentEntries(nExisting.documents, nIncoming.documents),
+    actionSummary: normalizeActionSummary(
+      incomingCase?.actionSummary && (
+        incomingCase.actionSummary.currentFocus ||
+        (incomingCase.actionSummary.nextActions || []).length ||
+        (incomingCase.actionSummary.importantReminders || []).length ||
+        (incomingCase.actionSummary.strategyFocus || []).length ||
+        incomingCase.actionSummary.updatedAt
+      )
+        ? incomingCase.actionSummary
+        : existingCase?.actionSummary
+    ),
   };
 }
 
