@@ -22,6 +22,8 @@ export default function FilePreviewModal({ file, onClose, imageCache = {} }) {
     } else if (file.dataUrl) {
       // legacy fallback for older serializable attachments
       setUrl(file.dataUrl);
+    } else if (file.backupDataUrl) {
+      setUrl(file.backupDataUrl);
     } else if (file.file) {
       // create a temporary blob URL for raw-file attachments
       objectUrl = URL.createObjectURL(file.file);

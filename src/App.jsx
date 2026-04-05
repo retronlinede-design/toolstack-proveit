@@ -1463,6 +1463,12 @@ export default function ProveItApp() {
         }
       }
 
+      for (const doc of selectedCase?.documents || []) {
+        for (const att of doc.attachments || []) {
+          if (att.storage?.imageId) imageIds.add(att.storage.imageId);
+        }
+      }
+
       for (const capture of reviewQueue) {
         for (const att of capture.attachments || []) {
           if (att.storage?.imageId) imageIds.add(att.storage.imageId);
