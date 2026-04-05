@@ -163,6 +163,12 @@ const normalizeQuickCaptureStatus = (value) => {
   return "unreviewed";
 };
 
+const normalizeCaseName = (value) => {
+  if (typeof value !== "string") return "Imported Case";
+  const trimmed = value.trim();
+  return trimmed || "Imported Case";
+};
+
 /**
  * Validates and normalizes a date string to YYYY-MM-DD.
  */
@@ -406,7 +412,7 @@ function normalizeCase(caseItem) {
 
   return {
     id: caseItem?.id || generateId(),
-    name: caseItem?.name || "Imported Case",
+    name: normalizeCaseName(caseItem?.name),
     category: normalizeCategory(caseItem?.category),
     status: normalizeCaseStatus(caseItem?.status),
     notes: caseItem?.notes || "",
@@ -502,7 +508,11 @@ function mergeCase(existingCase, incomingCase) {
   return {
     ...nExisting,
     ...nIncoming,
-    name: nIncoming.name || nExisting.name || "Imported Case",
+    name: normalizeCaseName(
+      (typeof incomingCase?.name === "string" && incomingCase.name.trim())
+        ? incomingCase.name
+        : existingCase?.name
+    ),
     category: normalizeCategory(nIncoming.category || nExisting.category),
     status: normalizeCaseStatus(nIncoming.status || nExisting.status),
     notes: nIncoming.notes || nExisting.notes || "",

@@ -14,6 +14,8 @@ export default function RecordCard({
   openRecordModal,
   showTypeBadge = false,
   isTimeline = false,
+  isMilestone = false,
+  isActionItem = false,
 }) {
   const isTask = recordType === "tasks";
   const isDone = isTask && item.status?.toLowerCase() === "done";
@@ -37,6 +39,24 @@ export default function RecordCard({
     t.linkedRecordIds?.includes(item.id)
   );
 
+  const getPrimaryLinkedRecord = () => {
+    if (recordType !== "tasks") return null;
+
+    const firstLinkedId = item.linkedRecordIds?.[0];
+    if (!firstLinkedId) return null;
+
+    const all = [
+      ...(selectedCase?.evidence || []),
+      ...(selectedCase?.incidents || []),
+      ...(selectedCase?.strategy || []),
+      ...(selectedCase?.tasks || []),
+    ];
+
+    return all.find((r) => r.id === firstLinkedId) || null;
+  };
+
+  const primaryLinkedRecord = getPrimaryLinkedRecord();
+
   return (
     <div key={item.id} id={`record-${item.id}`} className={`rounded-2xl border p-4 ${
       isNewRecord
@@ -56,6 +76,16 @@ export default function RecordCard({
             />
           )}
           <div className={isDone ? "line-through opacity-60" : ""}>
+            {isMilestone && (
+              <div className="mb-1 inline-block rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-lime-100 text-lime-700">
+                Milestone
+              </div>
+            )}
+            {isActionItem && (
+              <div className={`mb-1 inline-block rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 ${isMilestone ? "ml-1" : ""}`}>
+                Action Required
+              </div>
+            )}
             <div className="flex items-center gap-2">
               {showTypeBadge && (
                 <span className={`px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wider ${badgeColors[recordType]}`}>
@@ -94,6 +124,16 @@ export default function RecordCard({
                   : "Unknown"}
               </div>
             </div>
+            {isTask && (
+              <div className="mt-2 text-xs text-neutral-500">
+                <span className="font-medium text-neutral-700">Origin: </span>
+                {primaryLinkedRecord ? (
+                  <span className="truncate">{primaryLinkedRecord.title}</span>
+                ) : (
+                  "Not linked"
+                )}
+              </div>
+            )}
 
             {item.linkedRecordIds &&
               Array.isArray(item.linkedRecordIds) &&
@@ -172,10 +212,34 @@ export default function RecordCard({
             </button>
           )}
           <button
-            onClick={() => openEditRecordModal(recordType, item)}
+            onClick={() => {
+              if (recordType === "tasks" && primaryLinkedRecord) {
+                openEditRecordModal(primaryLinkedRecord.type, primaryLinkedRecord);
+              } else {
+                openEditRecordModal(recordType, item);
+              }
+            }}
             className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-xs font-medium text-neutral-700 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
           >
-            Open
+            {isTask
+              ? primaryLinkedRecord ? "Open Origin" : "Link Origin"
+              : "Open"}
+          </button>
+          {isTask && primaryLinkedRecord && (
+            <button
+              onClick={() => {
+                openEditRecordModal("tasks", item);
+              }}
+              className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700 shadow-[0_2px_4px_rgba(60,60,60,0.1)] hover:bg-neutral-50 transition-colors"
+            >
+              Change Origin
+            </button>
+          )}
+          <button
+            onClick={() => deleteRecord(recordType, item.id)}
+            className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-red-600 shadow-[0_2px_4px_rgba(60,60,60,0.1)] hover:bg-red-50 hover:border-red-200 transition-colors"
+          >
+            Delete
           </button>
           <button
             onClick={() => deleteRecord(recordType, item.id)}

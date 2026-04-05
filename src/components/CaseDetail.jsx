@@ -37,11 +37,12 @@ export default function CaseDetail({
   fullCaseExportMessage = "",
 }) {
   const [expandedGroups, setExpandedGroups] = useState({});
-  const [taskFilter, setTaskFilter] = useState("open"); // "open", "done", "all"
+  const [showCompletedTasks, setShowCompletedTasks] = useState(false);
   const [ideas, setIdeas] = useState([]);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [timelineFilter, setTimelineFilter] = useState("core");
+  const [timelineView, setTimelineView] = useState("core");
+  const [timelineTagFilter, setTimelineTagFilter] = useState(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [ledgerFilter, setLedgerFilter] = useState("all");
   const [expandedDocuments, setExpandedDocuments] = useState({});
@@ -183,6 +184,30 @@ export default function CaseDetail({
     Healthy: { color: "text-lime-600 bg-lime-50 border-lime-200", icon: CheckCircle2 },
     "Needs review": { color: "text-amber-600 bg-amber-50 border-amber-200", icon: AlertTriangle },
     "High risk": { color: "text-red-600 bg-red-50 border-red-200", icon: AlertCircle },
+  };
+
+  const timelineViewLabelMap = {
+    core: "Core",
+    master: "Master",
+    incidents: "Incidents",
+    evidence: "Evidence",
+    milestones: "Milestones",
+  };
+
+  const timelineViewDescriptionMap = {
+    core: "Key case chronology using incidents and evidence only.",
+    master: "Complete chronological stream of all timeline-relevant records.",
+    incidents: "Incident records only.",
+    evidence: "Evidence records only.",
+    milestones: "Critical turning points and major events.",
+  };
+
+  const timelineEmptyMessageMap = {
+    core: "No incident or evidence records yet.",
+    master: "No timeline records yet.",
+    incidents: "No incidents recorded yet.",
+    evidence: "No evidence records yet.",
+    milestones: "No milestone items yet.",
   };
 
   if (!selectedCase) return renderCaseList();
@@ -338,6 +363,15 @@ export default function CaseDetail({
   ]);
 
   const milestones = timelineItems.filter(item => item.importance === "critical");
+
+  const allTasks = selectedCase?.tasks || [];
+  const openTasks = allTasks.filter((t) => t.status?.toLowerCase() !== "done");
+  const doneTasks = allTasks.filter((t) => t.status?.toLowerCase() === "done");
+  const nextTask = openTasks[0] || null;
+
+  const allTimelineTags = Array.from(
+    new Set(timelineItems.flatMap((item) => item.tags || []))
+  ).sort();
 
   return (
     <div className="space-y-6">
@@ -700,33 +734,46 @@ export default function CaseDetail({
         {activeTab === "evidence" && renderListBlock(selectedCase.evidence, "No evidence yet. Add your first evidence item for this case.", "evidence")}
         {activeTab === "incidents" && renderListBlock(selectedCase.incidents, "No incidents yet. Add your first incident to start the case timeline.", "incidents")}
         {activeTab === "tasks" && (
-          <div className="space-y-4">
-            <div className="flex gap-2 mb-2">
-              {["open", "done", "all"].map((filter) => (
-                <button
-                  key={filter}
-                  onClick={() => setTaskFilter(filter)}
-                  className={`px-3 py-1 text-sm rounded-md border ${
-                    taskFilter === filter
-                      ? "bg-lime-400/30 border-lime-500"
-                      : "bg-white border-neutral-300"
-                  }`}
-                >
-                  {filter === "open" ? "Open" : filter === "done" ? "Done" : "All"}
-                </button>
-              ))}
+          <div className="space-y-8">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Open</div>
+                <div className="mt-1 text-lg font-semibold text-neutral-900">{openTasks.length}</div>
+              </div>
+
+              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Completed</div>
+                <div className="mt-1 text-lg font-semibold text-neutral-900">{doneTasks.length}</div>
+              </div>
+
+              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Next Action</div>
+                <div className="mt-1 text-sm font-medium text-neutral-900 truncate">
+                  {nextTask ? nextTask.title : "No open tasks"}
+                </div>
+              </div>
             </div>
 
-            {renderListBlock(
-              (() => {
-                const tasks = selectedCase.tasks || [];
-                if (taskFilter === "open") return tasks.filter((t) => t.status?.toLowerCase() !== "done");
-                if (taskFilter === "done") return tasks.filter((t) => t.status?.toLowerCase() === "done");
-                return tasks;
-              })(),
-              "No tasks found.",
-              "tasks"
-            )}
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Action Now</h3>
+              {renderListBlock(openTasks, "No open tasks remaining.", "tasks")}
+            </div>
+
+            <div className="space-y-4">
+              <button
+                onClick={() => setShowCompletedTasks((prev) => !prev)}
+                className="flex w-full items-center justify-between rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-left transition-colors hover:bg-neutral-100"
+              >
+                <span className="text-sm font-semibold text-neutral-900">
+                  Completed ({doneTasks.length})
+                </span>
+                <span className="text-xs font-bold text-neutral-500">
+                  {showCompletedTasks ? "Hide" : "Show"}
+                </span>
+              </button>
+
+              {showCompletedTasks && renderListBlock(doneTasks, "No completed tasks yet.", "tasks")}
+            </div>
           </div>
         )}
         {activeTab === "strategy" && renderListBlock(selectedCase.strategy, "No strategy notes yet. Add strategy to track approach and planning.", "strategy")}
@@ -1142,69 +1189,77 @@ export default function CaseDetail({
 
         {activeTab === "timeline" && (
           <div className="space-y-6">
-            {/* Milestones Layer */}
-            {milestones.length > 0 && (
-              <div className="mb-8 space-y-3">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-lime-500 animate-pulse"></span>
-                  Key Milestones
-                </h3>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {milestones.map((m) => (
-                    <div key={`milestone-${m.id}`} className="group relative p-4 rounded-2xl border-2 border-lime-500 bg-white shadow-[0_4px_12px_rgba(132,204,22,0.1)] transition-all hover:shadow-[0_4px_20px_rgba(132,204,22,0.2)]">
-                      <div className="text-[10px] font-bold text-lime-600 uppercase tracking-widest mb-1">{m.eventDate || m.date}</div>
-                      <div className="font-bold text-neutral-900 leading-tight mb-2 text-lg">{m.title}</div>
-                      {m.description && <p className="text-xs text-neutral-600 line-clamp-2 italic mb-3">"{m.description}"</p>}
-                      <button 
-                        onClick={() => openLinkedRecord(m.id)}
-                        className="text-[10px] font-extrabold uppercase tracking-tighter text-neutral-400 group-hover:text-lime-600 transition-colors flex items-center gap-1"
-                      >
-                        View Origin Record <span>→</span>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Timeline Filter Controls */}
             <div className="flex flex-wrap gap-2 pb-2 overflow-x-auto">
-              {["core", "incidents", "evidence", "tasks", "strategy", "all"].map((f) => (
+              {["core", "master", "incidents", "evidence", "milestones"].map((f) => (
                 <button
                   key={f}
-                  onClick={() => setTimelineFilter(f)}
+                  onClick={() => setTimelineView(f)}
                   className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-xl border transition-all ${
-                    timelineFilter === f
+                    timelineView === f
                       ? "bg-lime-500 border-lime-600 text-white shadow-md"
                       : "bg-white border-neutral-200 text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300"
                   }`}
                 >
-                  {f === "core" ? "Core" : f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
+                  {timelineViewLabelMap[f] || f}
                 </button>
               ))}
             </div>
 
+            <div className="mt-2 text-xs text-neutral-500">
+              {timelineViewDescriptionMap[timelineView] || ""}
+            </div>
+
+            {allTimelineTags.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {allTimelineTags.map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => setTimelineTagFilter(timelineTagFilter === tag ? null : tag)}
+                    className={`px-2 py-1 rounded-full text-xs font-bold transition-all ${
+                      timelineTagFilter === tag
+                        ? "bg-lime-500 text-white shadow-sm"
+                        : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {(() => {
-              const filteredTimelineItems = timelineItems.filter(item => {
-                if (timelineFilter === "core") {
+              let filteredTimelineItems = timelineItems.filter((item) => {
+                if (timelineView === "core") {
                   return item._kind === "Incident" || item._kind === "Evidence";
                 }
-                if (timelineFilter === "all") return true;
-                const filterMap = {
-                  incidents: "Incident",
-                  evidence: "Evidence",
-                  tasks: "Task",
-                  strategy: "Strategy",
-                };
-                return item._kind === filterMap[timelineFilter];
+                if (timelineView === "master") {
+                  return true;
+                }
+                if (timelineView === "incidents") {
+                  return item._kind === "Incident";
+                }
+                if (timelineView === "evidence") {
+                  return item._kind === "Evidence";
+                }
+                if (timelineView === "milestones") {
+                  return item.importance === "critical" || item.isMilestone === true;
+                }
+                return true;
               });
+
+              if (timelineTagFilter) {
+                filteredTimelineItems = filteredTimelineItems.filter(
+                  (item) => Array.isArray(item.tags) && item.tags.includes(timelineTagFilter)
+                );
+              }
 
               if (filteredTimelineItems.length === 0) {
                 return (
                   <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-                    {timelineItems.length === 0 
-                      ? "No timeline entries yet. Add records to see the chronology of the case."
-                      : "No timeline entries match this filter."}
+                    {timelineTagFilter 
+                      ? `No items match the selected tag: ${timelineTagFilter}`
+                      : (timelineEmptyMessageMap[timelineView] || "No timeline records yet.")}
                   </div>
                 );
               }
@@ -1256,6 +1311,15 @@ export default function CaseDetail({
                             openRecordModal={openRecordModal}
                             showTypeBadge={true}
                             isTimeline={true}
+                            isMilestone={item.importance === "critical"}
+                            isActionItem={
+                              Array.isArray(item.tags) &&
+                              (
+                                item.tags.includes("action") ||
+                                item.tags.includes("follow-up") ||
+                                item.tags.includes("pending")
+                              )
+                            }
                           />
                         );
                       })}
