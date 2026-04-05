@@ -47,6 +47,7 @@ export default function CaseDetail({
   const [ledgerFilter, setLedgerFilter] = useState("all");
   const [expandedDocuments, setExpandedDocuments] = useState({});
   const [collapsedLedgerGroups, setCollapsedLedgerGroups] = useState({});
+  const [showVerifiedEvidence, setShowVerifiedEvidence] = useState(false);
    const [actionSummaryEditOpen, setActionSummaryEditOpen] = useState(false);
   const [actionSummaryForm, setActionSummaryForm] = useState({
     currentFocus: "",
@@ -355,6 +356,11 @@ export default function CaseDetail({
 
 
   const caseInboxCount = reviewQueue.filter((item) => item.caseId === selectedCase.id).length;
+  const allEvidence = selectedCase?.evidence || [];
+  const needsReviewEvidence = allEvidence.filter(item => item.status === "needs_review");
+  const incompleteEvidence = allEvidence.filter(item => item.status === "incomplete");
+  const verifiedEvidence = allEvidence.filter(item => item.status === "verified");
+
   const timelineItems = sortChronological([
     ...selectedCase.evidence.map((item) => ({ ...item, _kind: "Evidence" })),
     ...selectedCase.incidents.map((item) => ({ ...item, _kind: "Incident" })),
@@ -731,7 +737,52 @@ export default function CaseDetail({
           </div>
         )}
 
-        {activeTab === "evidence" && renderListBlock(selectedCase.evidence, "No evidence yet. Add your first evidence item for this case.", "evidence")}
+        {activeTab === "evidence" && (
+          <div className="space-y-8">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Needs Review</div>
+                <div className="mt-1 text-lg font-semibold text-neutral-900">{needsReviewEvidence.length}</div>
+              </div>
+
+              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Incomplete</div>
+                <div className="mt-1 text-lg font-semibold text-neutral-900">{incompleteEvidence.length}</div>
+              </div>
+
+              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Verified</div>
+                <div className="mt-1 text-lg font-semibold text-neutral-900">{verifiedEvidence.length}</div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Needs Review</h3>
+              {renderListBlock(needsReviewEvidence, "No evidence needing review.", "evidence")}
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Incomplete</h3>
+              {renderListBlock(incompleteEvidence, "No incomplete evidence.", "evidence")}
+            </div>
+
+            <div className="space-y-4">
+              <button
+                onClick={() => setShowVerifiedEvidence((prev) => !prev)}
+                className="flex w-full items-center justify-between rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-left transition-colors hover:bg-neutral-100"
+              >
+                <span className="text-sm font-semibold text-neutral-900">
+                  Verified ({verifiedEvidence.length})
+                </span>
+                <span className="text-xs font-bold text-neutral-500">
+                  {showVerifiedEvidence ? "Hide" : "Show"}
+                </span>
+              </button>
+
+              {showVerifiedEvidence && renderListBlock(verifiedEvidence, "No verified evidence yet.", "evidence")}
+            </div>
+          </div>
+        )}
         {activeTab === "incidents" && renderListBlock(selectedCase.incidents, "No incidents yet. Add your first incident to start the case timeline.", "incidents")}
         {activeTab === "tasks" && (
           <div className="space-y-8">

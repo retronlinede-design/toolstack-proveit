@@ -17,6 +17,7 @@ export default function RecordCard({
   isMilestone = false,
   isActionItem = false,
 }) {
+  const isEvidence = recordType === "evidence";
   const isTask = recordType === "tasks";
   const isDone = isTask && item.status?.toLowerCase() === "done";
   const canCreateTask = ["evidence", "incidents", "strategy"].includes(recordType);
@@ -58,15 +59,57 @@ export default function RecordCard({
   const primaryLinkedRecord = getPrimaryLinkedRecord();
 
   return (
-    <div key={item.id} id={`record-${item.id}`} className={`rounded-2xl border p-4 ${
+    <div key={item.id} id={`record-${item.id}`} className={`relative rounded-2xl border p-4 ${
       isNewRecord
         ? "border-lime-400 bg-lime-50/40 shadow-[0_0_0_1px_rgba(163,230,53,0.35)]"
         : isNewTask
         ? "border-amber-300 bg-amber-50/40"
         : "border-neutral-200 bg-neutral-50"
     }`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+      {/* Action Grid */}
+      <div className="absolute top-3 right-3 grid grid-cols-2 gap-1 z-10">
+        <button
+          onClick={() => openEditRecordModal(recordType, item)}
+          className="px-2 py-1 text-[10px] font-semibold rounded-md bg-neutral-100 hover:bg-neutral-200 text-neutral-700 border border-neutral-200 whitespace-nowrap text-center transition-all active:scale-95"
+        >
+          Open
+        </button>
+
+        {isTask ? (
+          <button
+            onClick={() => primaryLinkedRecord ? openEditRecordModal(primaryLinkedRecord.type, primaryLinkedRecord) : openEditRecordModal("tasks", item)}
+            className="px-2 py-1 text-[10px] font-semibold rounded-md bg-neutral-100 hover:bg-neutral-200 text-neutral-700 border border-neutral-200 whitespace-nowrap text-center transition-all active:scale-95"
+          >
+            {primaryLinkedRecord ? "Origin" : "Open Task"}
+          </button>
+        ) : (
+          <div />
+        )}
+
+        {canCreateTask ? (
+          <button
+            onClick={() => openRecordModal("tasks", {
+              title: `Follow up: ${item.title}`,
+              linkedRecordIds: [item.id]
+            })}
+            className="px-2 py-1 text-[10px] font-semibold rounded-md bg-neutral-100 hover:bg-neutral-200 text-neutral-700 border border-neutral-200 whitespace-nowrap text-center transition-all active:scale-95"
+          >
+            Task
+          </button>
+        ) : (
+          <div />
+        )}
+
+        <button
+          onClick={() => deleteRecord(recordType, item.id)}
+          className="px-2 py-1 text-[10px] font-semibold rounded-md bg-white hover:bg-red-50 text-red-600 border border-neutral-200 hover:border-red-200 whitespace-nowrap text-center transition-all active:scale-95"
+        >
+          Delete
+        </button>
+      </div>
+
+      <div className="flex items-start justify-between gap-3 pr-24">
+        <div className="flex items-center gap-3 min-w-0">
           {isTask && (
             <input
               type="checkbox"
@@ -76,6 +119,31 @@ export default function RecordCard({
             />
           )}
           <div className={isDone ? "line-through opacity-60" : ""}>
+            {isEvidence && (
+              <div className="flex items-center gap-2 mb-1">
+                <div className="inline-block rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-neutral-200 text-neutral-700">
+                  Evidence
+                </div>
+                {item.status && (
+                  <div className={`inline-block rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                    item.status === 'verified' ? 'bg-lime-100 text-lime-700' :
+                    item.status === 'incomplete' ? 'bg-red-100 text-red-700' :
+                    'bg-amber-100 text-amber-700'
+                  }`}>
+                    {item.status === 'needs_review' ? 'Needs Review' : item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                  </div>
+                )}
+                {item.importance === "critical" ? (
+                  <div className="inline-block rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-lime-100 text-lime-700">
+                    Strong Evidence
+                  </div>
+                ) : item.tags?.length > 0 ? (
+                  <div className="inline-block rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-neutral-100 text-neutral-600">
+                    Supporting Evidence
+                  </div>
+                ) : null}
+              </div>
+            )}
             {isMilestone && (
               <div className="mb-1 inline-block rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-lime-100 text-lime-700">
                 Milestone
@@ -104,7 +172,55 @@ export default function RecordCard({
                 </span>
               )}
             </div>
+
+            {isEvidence && (item.description || item.notes) && (
+              <div className="mt-1 text-xs text-neutral-600 truncate max-w-[400px]">
+                What this shows: {item.description || item.notes}
+              </div>
+            )}
+
+            {isEvidence && item.attachments?.length > 0 && (
+              <div className="mt-3 space-y-3">
+                <div className="flex flex-wrap gap-1.5">
+                  {item.attachments.map((att, i) => {
+                    const type = att.type || att.mimeType || "";
+                    let label = "File";
+                    if (type.startsWith("image/")) label = "Image";
+                    else if (type === "application/pdf") label = "PDF";
+                    return (
+                      <span key={i} className="inline-block rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-600">
+                        {label}
+                      </span>
+                    );
+                  })}
+                </div>
+                <AttachmentPreview
+                  attachments={item.attachments}
+                  imageCache={imageCache}
+                  onPreview={onPreviewFile}
+                />
+              </div>
+            )}
+
             <div className="mt-2 space-y-1 text-xs text-neutral-500">
+              {isEvidence && (
+                <div className="flex gap-2 mb-1">
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                    item.availability?.physical?.hasOriginal
+                      ? "bg-amber-50 border-amber-200 text-amber-700"
+                      : "bg-neutral-100 border-neutral-200 text-neutral-400"
+                  }`}>
+                    PHYSICAL
+                  </span>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                    item.availability?.digital?.hasDigital
+                      ? "bg-purple-50 border-purple-200 text-purple-700"
+                      : "bg-neutral-100 border-neutral-200 text-neutral-400"
+                  }`}>
+                    DIGITAL {item.attachments?.length > 0 && `(${item.attachments.length})`}
+                  </span>
+                </div>
+              )}
               <div>
                 <span className="font-medium text-neutral-700">Date:</span> {item.eventDate || item.date}
               </div>
@@ -135,123 +251,51 @@ export default function RecordCard({
               </div>
             )}
 
-            {item.linkedRecordIds &&
-              Array.isArray(item.linkedRecordIds) &&
-              item.linkedRecordIds.length > 0 && (
-                <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px]">
-                  <span className="font-bold uppercase tracking-tight text-neutral-500">Linked:</span>
+            {isEvidence && relatedTasks.length > 0 && (
+              <div className="mt-2 flex items-center gap-2 text-[10px]">
+                <span className="font-bold uppercase tracking-tight text-neutral-500">Related Tasks: {relatedTasks.length}</span>
+                <button
+                  onClick={() => openEditRecordModal("tasks", relatedTasks[0])}
+                  className="px-2 py-1 rounded-lg border border-neutral-300 bg-white text-[11px] font-medium text-neutral-600 shadow-sm hover:bg-neutral-50 transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+                >
+                  Task
+                </button>
+              </div>
+            )}
+
+            {(() => {
+              const allLinkIds = Array.from(new Set([...(item.linkedIncidentIds || []), ...(item.linkedRecordIds || [])]));
+              if (allLinkIds.length === 0) return null;
+              return (
+                <div className="mt-2 space-y-1">
+                  <div className="text-[10px] font-bold uppercase tracking-tight text-neutral-500">{isEvidence ? "Linked To" : "Linked:"}</div>
                   <div className="flex flex-wrap gap-1">
-                    {item.linkedRecordIds.map((linkedId) => (
+                    {allLinkIds.map(linkedId => (
                       <button
                         key={linkedId}
                         onClick={() => openLinkedRecord?.(linkedId)}
                         className="px-1.5 py-0.5 rounded border border-neutral-300 bg-neutral-50 text-neutral-600 shadow-sm hover:bg-white hover:border-lime-500 hover:text-lime-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-95 transition-all cursor-pointer truncate max-w-[150px]"
                       >
-                        {(() => {
-                          const all = [...selectedCase.evidence, ...selectedCase.incidents, ...selectedCase.strategy, ...selectedCase.tasks];
-                          const found = all.find(r => r.id === linkedId);
-                          return found?.title || linkedId.substring(0, 8);
-                        })()}
+                        {([...selectedCase.evidence, ...selectedCase.incidents, ...selectedCase.strategy, ...selectedCase.tasks].find(r => r.id === linkedId)?.title) || "Unknown Record"}
                       </button>
                     ))}
                   </div>
                 </div>
-              )}
+              );
+            })()}
           </div>
         </div>
 
-        {recordType === "evidence" && (
-          <div className="flex flex-col items-end gap-2">
-            <span
-              className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                item.availability?.physical?.hasOriginal
-                  ? "bg-amber-50 border-amber-200 text-amber-700"
-                  : "bg-neutral-100 border-neutral-200 text-neutral-400"
-              }`}
-            >
-              PHYSICAL
-            </span>
-            <span
-              className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                item.availability?.digital?.hasDigital
-                  ? "bg-purple-50 border-purple-200 text-purple-700"
-                  : "bg-neutral-100 border-neutral-200 text-neutral-400"
-              }`}
-            >
-              DIGITAL {item.attachments?.length > 0 && `(${item.attachments.length})`}
-            </span>
-          </div>
-        )}
-
-        <div className="flex gap-2">
-          {recordType === "evidence" && (
-            <button
-              onClick={() => {
-                const firstAttachment = item.attachments?.[0];
-
-                if (firstAttachment && onPreviewFile) {
-                  onPreviewFile(firstAttachment);
-                } else {
-                  onViewRecord?.(item);
-                }
-              }}
-              className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700 shadow-[0_2px_4px_rgba(60,60,60,0.1)] hover:bg-neutral-50 transition-colors"
-            >
-              View
-            </button>
-          )}
-          {canCreateTask && (
-            <button
-              onClick={() => openRecordModal("tasks", {
-                title: `Follow up: ${item.title}`,
-                linkedRecordIds: [item.id]
-              })}
-              className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700 shadow-[0_2px_4px_rgba(60,60,60,0.1)] hover:bg-neutral-50 transition-colors"
-            >
-              + Task
-            </button>
-          )}
-          <button
-            onClick={() => {
-              if (recordType === "tasks" && primaryLinkedRecord) {
-                openEditRecordModal(primaryLinkedRecord.type, primaryLinkedRecord);
-              } else {
-                openEditRecordModal(recordType, item);
-              }
-            }}
-            className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-xs font-medium text-neutral-700 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
-          >
-            {isTask
-              ? primaryLinkedRecord ? "Open Origin" : "Link Origin"
-              : "Open"}
-          </button>
-          {isTask && primaryLinkedRecord && (
-            <button
-              onClick={() => {
-                openEditRecordModal("tasks", item);
-              }}
-              className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700 shadow-[0_2px_4px_rgba(60,60,60,0.1)] hover:bg-neutral-50 transition-colors"
-            >
-              Change Origin
-            </button>
-          )}
-          <button
-            onClick={() => deleteRecord(recordType, item.id)}
-            className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-red-600 shadow-[0_2px_4px_rgba(60,60,60,0.1)] hover:bg-red-50 hover:border-red-200 transition-colors"
-          >
-            Delete
-          </button>
-        </div>
       </div>
 
-      {item.description ? (
+      {!isEvidence && item.description ? (
         <p className={`mt-3 text-sm text-neutral-700 ${isTimeline ? "line-clamp-2" : ""}`}>
           {isTimeline && item.description.length > 160 
             ? item.description.substring(0, 160) + "..." 
             : item.description}
         </p>
       ) : null}
-      {item.notes ? (
+      {!isEvidence && item.notes ? (
         <p className={`mt-2 text-sm text-neutral-500 italic ${isTimeline ? "line-clamp-1" : ""}`}>
           {isTimeline && item.notes.length > 100 
             ? item.notes.substring(0, 100) + "..." 
@@ -259,11 +303,13 @@ export default function RecordCard({
         </p>
       ) : null}
 
-      <AttachmentPreview
-        attachments={item.attachments || []}
-        imageCache={imageCache}
-        onPreview={onPreviewFile}
-      />
+      {!isEvidence && (
+        <AttachmentPreview
+          attachments={item.attachments || []}
+          imageCache={imageCache}
+          onPreview={onPreviewFile}
+        />
+      )}
 
       {recordType !== "tasks" && relatedTasks.length > 0 && (
         <div className="mt-4 pt-4 border-t border-neutral-100">
@@ -282,7 +328,7 @@ export default function RecordCard({
                   </div>
                   <button
                     onClick={() => openEditRecordModal("tasks", task)}
-                    className="flex-shrink-0 rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                    className="flex-shrink-0 rounded-lg border border-lime-500 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors whitespace-nowrap"
                   >
                     Open
                   </button>
@@ -346,14 +392,14 @@ export default function RecordCard({
                       {evidenceItem.attachments?.[0] && onPreviewFile && (
                         <button
                           onClick={() => onPreviewFile(evidenceItem.attachments[0])}
-                          className="rounded-lg border border-neutral-300 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors"
+                          className="rounded-lg border border-neutral-300 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors whitespace-nowrap"
                         >
                           Preview
                         </button>
                       )}
                       <button
                         onClick={() => openEditRecordModal("evidence", evidenceItem)}
-                        className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                        className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors whitespace-nowrap"
                       >
                         Open
                       </button>

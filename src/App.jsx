@@ -1379,14 +1379,6 @@ export default function ProveItApp() {
   const [captureForm, setCaptureForm] = useState(EMPTY_CAPTURE_FORM);
   const [form, setForm] = useState({ name: "", category: "general", customCategory: "", notes: "", description: "" });
 
-  const quickActions = [
-    { label: "Quick Capture" },
-    { label: "FULL BACKUP" },
-    { label: "Import" },
-    { label: "Add Task" },
-    { label: "Add Strategy" },
-  ];
-
   const setupSteps = [
     { step: "1", title: "Create your first case", text: "Start with one case file using a generic template or create your own custom case from scratch." },
     { step: "2", title: "Add core records", text: "Add your first evidence, incident, task, or strategy note. Upload a phone photo, PDF, screenshot, or document." },
@@ -2475,42 +2467,20 @@ const handleRecordFiles = async (event) => {
                 Local Storage Active
               </div>
               <p className="mt-1 text-[10px] text-neutral-400">Secure • Browser Only • Offline First</p>
-            </div>
-          </div>
 
-          <div className="flex gap-2 flex-wrap border-t border-neutral-100 pt-6">
-            {quickActions.map((a) => {
-              const isQuick = a.label === "Quick Capture";
-              const isFullBackup = a.label === "FULL BACKUP";
-              const isImport = a.label === "Import";
-              const isTask = a.label === "Add Task";
-              const isStrategy = a.label === "Add Strategy";
-
-              if (isImport) {
-                return (
-                  <label key={a.label} className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95 cursor-pointer">
-                    {a.label} 
-                    <input type="file" accept="application/json,.json" className="hidden" onChange={importData} />
-                  </label>
-                );
-              }
-
-              return (
+              <div className="mt-3 flex flex-col gap-1.5 w-28">
                 <button
-                  key={a.label}
-                  onClick={
-                    isQuick ? openQuickCapture :
-                    isFullBackup ? handleFullBackup :
-                    isTask ? () => setAssignRecordType("tasks") :
-                    isStrategy ? () => setAssignRecordType("strategy") :
-                    undefined
-                  }
-                  className="flex-1 min-w-max px-3 py-1.5 text-sm rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
+                  onClick={handleFullBackup}
+                  className="px-2 py-1 text-[10px] rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-sm hover:bg-lime-400/30 transition-all active:scale-95"
                 >
-                  {a.label}
+                  Export
                 </button>
-              );
-            })}
+                <label className="px-2 py-1 text-[10px] rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-sm hover:bg-lime-400/30 transition-all active:scale-95 cursor-pointer">
+                  Import
+                  <input type="file" accept="application/json,.json" className="hidden" onChange={importData} />
+                </label>
+              </div>
+            </div>
           </div>
         </header>
 
