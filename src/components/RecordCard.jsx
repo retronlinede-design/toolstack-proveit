@@ -241,12 +241,6 @@ export default function RecordCard({
           >
             Delete
           </button>
-          <button
-            onClick={() => deleteRecord(recordType, item.id)}
-            className="rounded-lg border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-red-600 shadow-[0_2px_4px_rgba(60,60,60,0.1)] hover:bg-red-50 hover:border-red-200 transition-colors"
-          >
-            Delete
-          </button>
         </div>
       </div>
 
