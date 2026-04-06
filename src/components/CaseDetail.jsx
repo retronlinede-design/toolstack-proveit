@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import AttachmentPreview from "./AttachmentPreview";
 import { AlertCircle, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 import { isTimelineCapable, getCaseHealthReport } from "../lib/caseHealth";
@@ -48,6 +48,7 @@ export default function CaseDetail({
   const [expandedDocuments, setExpandedDocuments] = useState({});
   const [collapsedLedgerGroups, setCollapsedLedgerGroups] = useState({});
   const [showVerifiedEvidence, setShowVerifiedEvidence] = useState(false);
+  const [activeLedgerRecord, setActiveLedgerRecord] = useState(null);
   const [evidenceView, setEvidenceView] = useState("workflow");
    const [actionSummaryEditOpen, setActionSummaryEditOpen] = useState(false);
   const [actionSummaryForm, setActionSummaryForm] = useState({
@@ -82,6 +83,177 @@ export default function CaseDetail({
   };
 
   const toggleGroup = (cat) => setExpandedGroups((prev) => ({ ...prev, [cat]: !prev[cat] }));
+
+  function isTrackingRecord(doc) {
+    return typeof doc?.textContent === "string" && doc.textContent.includes("[TRACK RECORD]");
+  }
+
+  function getSection(text, startMarker, endMarker = null) {
+    if (!text || !startMarker) return "";
+    const start = text.indexOf(startMarker);
+    if (start === -1) return "";
+
+    const from = start + startMarker.length;
+    const rest = text.slice(from);
+
+    if (!endMarker) return rest.trim();
+
+    const end = rest.indexOf(endMarker);
+    if (end === -1) return rest.trim();
+
+    return rest.slice(0, end).trim();
+  }
+
+  function parseMetaBlock(metaText) {
+    const meta = {
+      type: "",
+      subject: "",
+      period: "",
+      status: "",
+    };
+
+    if (!metaText) return meta;
+
+    metaText
+      .split("\n")
+      .map(line => line.trim())
+      .filter(Boolean)
+      .forEach(line => {
+        const idx = line.indexOf(":");
+        if (idx === -1) return;
+
+        const key = line.slice(0, idx).trim().toLowerCase();
+        const value = line.slice(idx + 1).trim();
+
+        if (key in meta) {
+          meta[key] = value;
+        }
+      });
+
+    return meta;
+  }
+
+  function parseTrackTable(tableText) {
+    if (!tableText) return [];
+
+    const lines = tableText
+      .split("\n")
+      .map(line => line.trim())
+      .filter(line => line.startsWith("|") && line.endsWith("|"));
+
+    if (lines.length < 3) return [];
+
+    const headers = lines[0]
+      .split("|")
+      .map(cell => cell.trim())
+      .filter(Boolean);
+
+    const separator = lines[1];
+    const dataLines = lines.slice(2);
+
+    if (!separator.includes("---")) return [];
+
+    return dataLines
+      .map(line => line.split("|").map(cell => cell.trim()).filter(Boolean))
+      .filter(cells => cells.length === headers.length)
+      .map(cells => {
+        const row = {};
+        headers.forEach((header, index) => {
+          row[header] = cells[index] ?? "";
+        });
+        return row;
+      });
+  }
+
+  function parseFileLinks(sectionText) {
+    if (!sectionText) return [];
+    return sectionText
+      .split("\n")
+      .map(line => line.trim())
+      .filter(line => line.startsWith("-"))
+      .map(line => line.replace(/^-+\s*/, "").trim())
+      .filter(Boolean);
+  }
+
+  function parseTrackingRecord(doc) {
+    const text = doc?.textContent || "";
+
+    const metaText = getSection(text, "meta:", "--- TABLE ---");
+    const tableText = getSection(text, "--- TABLE ---", "--- SUMMARY (GPT READY) ---");
+    const summaryText = getSection(text, "--- SUMMARY (GPT READY) ---", "--- FILE LINKS ---");
+    const fileLinksText = getSection(text, "--- FILE LINKS ---", "--- NOTES ---");
+    const notesText = getSection(text, "--- NOTES ---");
+
+    const meta = parseMetaBlock(metaText);
+    const table = parseTrackTable(tableText);
+    const fileLinks = parseFileLinks(fileLinksText);
+
+    return {
+      id: doc.id,
+      title: doc.title || "Untitled Tracking Record",
+      category: doc.category || "other",
+      documentDate: doc.documentDate || "",
+      source: doc.source || "",
+      meta,
+      table,
+      summary: summaryText || "",
+      fileLinks,
+      notes: notesText || "",
+      rawDocument: doc,
+    };
+  }
+
+  function mapDirectionToLedger(direction) {
+    if (direction === "paid") return "outgoing";
+    if (direction === "received") return "incoming";
+    return null;
+  }
+
+  function parseAmount(value) {
+    if (typeof value !== "string") return 0;
+    const normalized = value.replace("€", "").replace(",", ".").trim();
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function generateLedgerEntries(trackingRecords) {
+    const entries = [];
+
+    trackingRecords.forEach(record => {
+      if (record.meta.type !== "payment_tracker") return;
+
+      record.table.forEach((row, index) => {
+        const date = row["Date"] || "";
+        const amount = parseAmount(row["Amount €"]);
+        const directionRaw = (row["Direction"] || "").trim().toLowerCase();
+        const status = (row["Status"] || "").trim().toLowerCase();
+        const note = row["Notes"] || "";
+        const direction = mapDirectionToLedger(directionRaw);
+
+        if (!direction) return;
+        if (!amount || amount <= 0) return;
+        if (status === "waived") return;
+
+        entries.push({
+          id: `${record.id}__derived__${index}`,
+          date,
+          subject: record.meta.subject || record.title || "unknown_subject",
+          amount,
+          direction,
+          status: status || "confirmed",
+          note,
+          sourceTrackingRecordId: record.id,
+          sourceTrackingRecordTitle: record.title,
+        });
+      });
+    });
+
+    return entries.sort((a, b) => {
+      const dateCompare = String(b.date || "").localeCompare(String(a.date || ""));
+      if (dateCompare !== 0) return dateCompare;
+      return String(a.id || "").localeCompare(String(b.id || ""));
+    });
+  }
 
   function openActionSummaryEdit() {
     const s = selectedCase?.actionSummary || {};
@@ -211,6 +383,61 @@ export default function CaseDetail({
     evidence: "No evidence records yet.",
     milestones: "No milestone items yet.",
   };
+
+  const trackingDocuments = useMemo(() => {
+    return (selectedCase?.documents || []).filter(isTrackingRecord);
+  }, [selectedCase?.documents]);
+
+  const parsedTrackingRecords = useMemo(() => {
+    return trackingDocuments.map(parseTrackingRecord);
+  }, [trackingDocuments]);
+
+  const derivedTrackingLedger = useMemo(() => {
+    return generateLedgerEntries(parsedTrackingRecords);
+  }, [parsedTrackingRecords]);
+
+  const { totalOutgoing, totalIncoming } = useMemo(() => {
+    let totalOutgoing = 0;
+    let totalIncoming = 0;
+
+    derivedTrackingLedger.forEach(entry => {
+      if (entry.status === "disputed" || entry.status === "pending") return;
+      if (entry.direction === "outgoing") totalOutgoing += entry.amount;
+      if (entry.direction === "incoming") totalIncoming += entry.amount;
+    });
+
+    return { totalOutgoing, totalIncoming };
+  }, [derivedTrackingLedger]);
+  const statusNotes = useMemo(() => {
+  const notes = [];
+
+  parsedTrackingRecords.forEach(record => {
+    if (record.meta.type !== "payment_tracker") return;
+
+    record.table.forEach((row, index) => {
+      const status = (row["Status"] || "").trim().toLowerCase();
+      const directionRaw = (row["Direction"] || "").trim().toLowerCase();
+
+      if (
+        status === "waived" ||
+        status === "disputed" ||
+        status === "pending" ||
+        directionRaw === "not_paid"
+      ) {
+        notes.push({
+          id: `${record.id}__status__${index}`,
+          subject: record.meta.subject || record.title || "unknown_subject",
+          date: row["Date"] || "",
+          status: status || directionRaw,
+          note: row["Notes"] || "",
+        });
+      }
+    });
+  });
+
+  return notes;
+}, [parsedTrackingRecords]);
+
 
   if (!selectedCase) return renderCaseList();
 
@@ -1079,24 +1306,132 @@ export default function CaseDetail({
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">Documents</h3>
               <button
+                onClick={() => openDocumentModal({
+                  title: "New Tracking Record",
+                  textContent: `[TRACK RECORD]
+
+meta:
+type:
+subject:
+period:
+status:
+
+--- TABLE ---
+
+| Date       | Amount € | Direction | Status    | Notes |
+|------------|----------|-----------|-----------|-------|
+
+--- SUMMARY (GPT READY) ---
+
+
+
+--- FILE LINKS ---
+
+
+
+--- NOTES ---
+
+
+`
+                })}
+                className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
+              >
+                Add Tracking Record
+              </button>
+              <button
                 onClick={() => openDocumentModal()}
                 className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
               >
                 + Add Document
               </button>
             </div>
+
+            {parsedTrackingRecords.length > 0 && (
+              <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-blue-900">Tracking Records</h3>
+                  <span className="text-xs text-blue-700">
+                    {parsedTrackingRecords.length} tracking record{parsedTrackingRecords.length === 1 ? "" : "s"} · {derivedTrackingLedger.length} generated ledger entr{derivedTrackingLedger.length === 1 ? "y" : "ies"}
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {parsedTrackingRecords.map((record) => (
+                    <div key={record.id} className="rounded-xl border border-blue-100 bg-white p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-semibold text-neutral-900">{record.title}</span>
+                            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
+                              {record.meta.type || "unknown"}
+                            </span>
+                            {record.meta.status && (
+                              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-600">
+                                {record.meta.status}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="mt-2 text-xs text-neutral-600">
+                            <div><span className="font-medium text-neutral-800">Subject:</span> {record.meta.subject || "—"}</div>
+                            <div><span className="font-medium text-neutral-800">Period:</span> {record.meta.period || "—"}</div>
+                            <div><span className="font-medium text-neutral-800">Rows:</span> {record.table.length}</div>
+                            <div><span className="font-medium text-neutral-800">File links:</span> {record.fileLinks.length}</div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button 
+                            onClick={() => setActiveLedgerRecord(record)}
+                            className="rounded-lg border border-blue-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-blue-50 transition-colors"
+                          >
+                            View Payments
+                          </button>
+                          <button 
+                            onClick={() => openDocumentModal(record.rawDocument, record.rawDocument.id)}
+                            className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                          >
+                            View
+                          </button>
+                          <button 
+                            onClick={() => openDocumentModal(record.rawDocument, record.rawDocument.id)}
+                            className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            onClick={() => deleteDocumentEntry(record.rawDocument.id)}
+                            className="rounded-lg border border-red-300 bg-white px-2 py-0.5 text-[10px] font-bold text-red-700 shadow-sm hover:bg-red-50 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+
+                      {record.summary && (
+                        <p className="mt-2 text-xs text-neutral-700 line-clamp-3">{record.summary}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500 mt-6">Other Documents</h3>
+
             {(() => {
-              const documents = selectedCase?.documents || [];
-              if (documents.length === 0) {
+              const otherDocuments = (selectedCase?.documents || []).filter(doc => !isTrackingRecord(doc));
+
+              if (otherDocuments.length === 0) {
                 return (
                   <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-                    No documents yet.
+                    No other documents yet.
                   </div>
                 );
               }
               return (
                 <div className="space-y-3">
-                  {documents.map((doc) => (
+                  {otherDocuments.map((doc) => (
                     <div key={doc.id} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
@@ -1472,6 +1807,47 @@ export default function CaseDetail({
                 Save
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {activeLedgerRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-4 shadow-xl">
+            
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold">
+                Ledger — {activeLedgerRecord.title}
+              </h3>
+              <button
+                onClick={() => setActiveLedgerRecord(null)}
+                className="text-xs text-neutral-500"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-2 max-h-[400px] overflow-y-auto">
+              {generateLedgerEntries([activeLedgerRecord]).map((entry) => (
+                <div
+                  key={entry.id}
+                  className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs"
+                >
+                  <div>
+                    <div className="font-medium">{entry.date}</div>
+                    <div className="text-neutral-500">{entry.direction}</div>
+                  </div>
+
+                  <div className="text-right">
+                    <div className="font-semibold">€{entry.amount}</div>
+                    <div className="text-[10px] uppercase text-neutral-500">
+                      {entry.status}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
           </div>
         </div>
       )}
