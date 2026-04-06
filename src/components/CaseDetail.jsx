@@ -333,7 +333,7 @@ export default function CaseDetail({
 
   // Helper to find a record by ID across all record types in the current case
   const findRecordById = (recordId) => {
-    const recordTypes = ['evidence', 'incidents', 'tasks', 'strategy'];
+    const recordTypes = ['evidence', 'incidents', 'tasks', 'strategy', 'documents'];
     for (const type of recordTypes) {
       const record = selectedCase[type]?.find(r => r.id === recordId);
       if (record) {
@@ -348,6 +348,11 @@ export default function CaseDetail({
   const openLinkedRecord = (recordId) => {
     const found = findRecordById(recordId);
     if (!found) return;
+
+    if (found.type === 'documents') {
+      openDocumentModal(found.record, found.record.id);
+      return;
+    }
 
     const { record, type } = found;
     setActiveTab(type);
@@ -1854,4 +1859,3 @@ status:
     </div>
   );
 }
-                          

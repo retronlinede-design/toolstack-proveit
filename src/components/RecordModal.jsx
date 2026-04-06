@@ -90,6 +90,8 @@ export default function RecordModal({
     evidence: "Evidence",
     incidents: "Incident",
     strategy: "Strategy",
+    documents: "Document",
+    Document: "Document",
   };
 
   const getRecordDetails = (id) => {
@@ -98,6 +100,7 @@ export default function RecordModal({
       ...selectedCase.incidents,
       ...selectedCase.strategy,
       ...(selectedCase.tasks || []),
+      ...(selectedCase.documents || []),
     ];
     const found = all.find((r) => r.id === id);
     if (!found) return null;
@@ -137,7 +140,8 @@ export default function RecordModal({
                   ? [
                       ...selectedCase.incidents.map(i => ({...i, _type: 'Incident'})), 
                       ...selectedCase.evidence.map(e => ({...e, _type: 'Evidence'})), 
-                      ...selectedCase.strategy.map(s => ({...s, _type: 'Strategy'}))
+                      ...selectedCase.strategy.map(s => ({...s, _type: 'Strategy'})),
+                      ...(selectedCase.documents || []).map(d => ({ ...d, _type: 'Document', type: 'documents' }))
                     ]
                   : selectedCase.evidence;
 
@@ -247,7 +251,8 @@ export default function RecordModal({
               {[
                 ...selectedCase.incidents.map(i => ({...i, _type: 'Incident'})), 
                 ...selectedCase.evidence.map(e => ({...e, _type: 'Evidence'})), 
-                ...selectedCase.strategy.map(s => ({...s, _type: 'Strategy'}))
+                ...selectedCase.strategy.map(s => ({...s, _type: 'Strategy'})),
+                ...(selectedCase.documents || []).map(d => ({ ...d, _type: 'Document', type: 'documents' }))
               ].filter(r => r.id !== recordForm.id).map(r => (
                 <option key={r.id} value={r.id} disabled={recordForm.linkedRecordIds?.includes(r.id)}>
                   {r.title || "Untitled"} ({r._type})
