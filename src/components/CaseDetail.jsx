@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import AttachmentPreview from "./AttachmentPreview";
-import { AlertCircle, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
+import { AlertCircle, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, X } from "lucide-react";
 import { isTimelineCapable, getCaseHealthReport } from "../lib/caseHealth";
 import RecordCard from "./RecordCard";
 
@@ -49,6 +49,7 @@ export default function CaseDetail({
   const [activeLedgerRecord, setActiveLedgerRecord] = useState(null);
   const [evidenceView, setEvidenceView] = useState("workflow");
    const [actionSummaryEditOpen, setActionSummaryEditOpen] = useState(false);
+  const [quickActionInput, setQuickActionInput] = useState("");
   const [actionSummaryForm, setActionSummaryForm] = useState({
     currentFocus: "",
     nextActions: "",
@@ -291,6 +292,51 @@ export default function CaseDetail({
     importantReminders = [],
     strategyFocus = [],
   } = actionSummary;
+
+  const copyActionSummaryToClipboard = () => {
+    const text = `Focus: ${currentFocus || "—"}
+
+Next:
+${nextActions.join("\n") || "—"}
+
+Reminders:
+${importantReminders.join("\n") || "—"}
+
+Strategy:
+${strategyFocus.join("\n") || "—"}`;
+    navigator.clipboard.writeText(text);
+  };
+
+  const handleQuickActionKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      const val = quickActionInput.trim();
+      if (!val) return;
+
+      const updated = {
+        ...selectedCase,
+        actionSummary: {
+          ...actionSummary,
+          nextActions: [...nextActions, val],
+          updatedAt: new Date().toISOString(),
+        },
+      };
+
+      onUpdateCase(updated);
+      setQuickActionInput("");
+    }
+  };
+
+  const handleRemoveNextAction = (index) => {
+    const updated = {
+      ...selectedCase,
+      actionSummary: {
+        ...actionSummary,
+        nextActions: nextActions.filter((_, i) => i !== index),
+        updatedAt: new Date().toISOString(),
+      },
+    };
+    onUpdateCase(updated);
+  };
 
   const overviewStrategies = [...(selectedCase?.strategy || [])]
     .sort((a, b) => new Date(b.eventDate || b.date || 0) - new Date(a.eventDate || a.date || 0))
@@ -732,29 +778,61 @@ export default function CaseDetail({
         >
           Edit
         </button>
+        <button
+          onClick={copyActionSummaryToClipboard}
+          className="ml-4 text-xs font-bold text-neutral-400 hover:text-neutral-600 transition-colors"
+        >
+          Copy summary
+        </button>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1.5">
-            <div className="text-[10px] font-bold uppercase tracking-tight text-neutral-400">Current Focus</div>
-            <p className="text-sm font-medium text-neutral-800">
+            <div className="text-[10px] font-semibold uppercase tracking-tight text-neutral-500">Current Focus (What matters now)</div>
+            <p className="text-[10px] text-neutral-500">Short statement of what this case is about right now.</p>
+            <p className="text-base font-semibold text-neutral-900">
               {currentFocus || "No current focus set."}
             </p>
           </div>
 
-          <div className="space-y-1.5">
-            <div className="text-[10px] font-bold uppercase tracking-tight text-neutral-400">Do Next</div>
+          <div className="space-y-1.5 md:border-l border-neutral-200 md:pl-6">
+            <div className="text-[10px] font-semibold uppercase tracking-tight text-neutral-500">Next Actions (Do these next, in order)</div>
+            <p className="text-[10px] text-neutral-500">Write 1 action per line. Keep it short and concrete.</p>
+            <div className="text-xs text-neutral-500">
+              Top priority: <span className="font-semibold text-neutral-900">{nextActions[0] || "—"}</span>
+            </div>
             {nextActions.length > 0 ? (
-              <ul className="space-y-1 list-disc list-inside marker:text-lime-500">
+              <ul className="space-y-1">
                 {nextActions.map((action, i) => (
-                  <li key={i} className="text-xs text-neutral-700">{action}</li>
+                  <li key={i} className="flex items-start justify-between gap-2 text-xs text-neutral-700 group py-0.5 leading-tight">
+                    <div className="flex items-start gap-2 min-w-0">
+                      <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-lime-600" />
+                      <span className="break-words">{action}</span>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveNextAction(i)}
+                      className="opacity-0 group-hover:opacity-100 p-0.5 rounded-md hover:bg-red-50 text-neutral-300 hover:text-red-500 transition-all shrink-0"
+                      title="Remove"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-xs text-neutral-500 italic">No next actions defined.</p>
+              <p className="text-xs text-neutral-500 italic">List the next steps to move this case forward.</p>
             )}
+            <input
+              type="text"
+              placeholder="Add next action and press Enter"
+              value={quickActionInput}
+              onChange={(e) => setQuickActionInput(e.target.value)}
+              onKeyDown={handleQuickActionKeyDown}
+              className="w-full mt-2 text-xs border-b border-neutral-200 bg-transparent py-1 focus:border-lime-500 focus:outline-none transition-colors"
+            />
           </div>
 
-          <div className="space-y-1.5">
-            <div className="text-[10px] font-bold uppercase tracking-tight text-neutral-400">Important Reminders</div>
+          <div className="space-y-1.5 lg:border-l border-neutral-200 lg:pl-6">
+            <div className="text-[10px] font-semibold uppercase tracking-tight text-neutral-500">Important Reminders (Do not forget)</div>
+            <div className="text-[10px] text-neutral-500">Key facts, deadlines, or constraints to keep in mind.</div>
             {importantReminders.length > 0 ? (
               <ul className="space-y-1 list-disc list-inside marker:text-amber-500">
                 {importantReminders.map((reminder, i) => (
@@ -762,13 +840,13 @@ export default function CaseDetail({
                 ))}
               </ul>
             ) : (
-              <p className="text-xs text-neutral-500 italic">No reminders.</p>
+              <p className="text-xs text-neutral-500 italic">Add anything that must not be forgotten.</p>
             )}
           </div>
 
-          <div className="space-y-1.5">
-            <div className="text-[10px] font-bold uppercase tracking-tight text-neutral-400">Strategy Focus</div>
-            <div className="flex flex-wrap gap-1.5">
+          <div className="space-y-1.5 md:border-l border-neutral-200 md:pl-6">
+            <div className="text-[10px] font-semibold uppercase tracking-tight text-neutral-500">Strategy Focus (Approach / leverage)</div>
+            <div className="text-[10px] text-neutral-500 flex flex-wrap gap-1.5">
               {strategyFocus.length > 0 ? strategyFocus.map((strat, i) => (
                 <span key={i} className="px-2 py-0.5 rounded-lg bg-lime-50 border border-lime-100 text-[10px] font-bold text-lime-700">
                   {strat}
