@@ -22,7 +22,7 @@ serve(async (req) => {
     // Initialize Supabase client with service role key for internal access
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      Deno.env.get('PROVEIT_SUPABASE_SECRET_KEY') ?? ''
     )
 
     // Fetch the specific case snapshot from the database

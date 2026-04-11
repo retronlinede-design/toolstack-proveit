@@ -18,52 +18,21 @@ export default function RecordCard({
   isActionItem = false,
 }) {
   const isEvidence = recordType === "evidence";
-  const isTask = recordType === "tasks";
-  const isDone = isTask && item.status?.toLowerCase() === "done";
   const canCreateTask = ["evidence", "incidents", "strategy"].includes(recordType);
   const isNewRecord =
     (recordType === "evidence" || recordType === "incidents") &&
-    item.edited !== true;
-  const isNewTask =
-    recordType === "tasks" &&
-    item.status?.toLowerCase() !== "done" &&
     item.edited !== true;
 
   const badgeColors = {
     evidence: "bg-purple-50 text-purple-700 border-purple-200",
     incidents: "bg-amber-50 text-amber-700 border-amber-200",
     strategy: "bg-blue-50 text-blue-700 border-blue-200",
-    tasks: "bg-lime-50 text-lime-700 border-lime-200",
   };
-
-  const relatedTasks = (selectedCase?.tasks || []).filter(t => 
-    t.linkedRecordIds?.includes(item.id)
-  );
-
-  const getPrimaryLinkedRecord = () => {
-    if (recordType !== "tasks") return null;
-
-    const firstLinkedId = item.linkedRecordIds?.[0];
-    if (!firstLinkedId) return null;
-
-    const all = [
-      ...(selectedCase?.evidence || []),
-      ...(selectedCase?.incidents || []),
-      ...(selectedCase?.strategy || []),
-      ...(selectedCase?.tasks || []),
-    ];
-
-    return all.find((r) => r.id === firstLinkedId) || null;
-  };
-
-  const primaryLinkedRecord = getPrimaryLinkedRecord();
 
   return (
     <div key={item.id} id={`record-${item.id}`} className={`relative rounded-2xl border p-4 ${
       isNewRecord
         ? "border-lime-400 bg-lime-50/40 shadow-[0_0_0_1px_rgba(163,230,53,0.35)]"
-        : isNewTask
-        ? "border-amber-300 bg-amber-50/40"
         : "border-neutral-200 bg-neutral-50"
     }`}>
       {/* Action Grid */}
@@ -75,31 +44,8 @@ export default function RecordCard({
           Open
         </button>
 
-        {isTask ? (
-          <button
-            onClick={() => primaryLinkedRecord ? openEditRecordModal(primaryLinkedRecord.type, primaryLinkedRecord) : openEditRecordModal("tasks", item)}
-            className="px-2 py-1 text-[10px] font-semibold rounded-md bg-neutral-100 hover:bg-neutral-200 text-neutral-700 border border-neutral-200 whitespace-nowrap text-center transition-all active:scale-95"
-          >
-            {primaryLinkedRecord ? "Origin" : "Open Task"}
-          </button>
-        ) : (
-          <div />
-        )}
-
-        {canCreateTask ? (
-          <button
-            onClick={() => openRecordModal("tasks", {
-              title: `Follow up: ${item.title}`,
-              linkedRecordIds: [item.id]
-            })}
-            className="px-2 py-1 text-[10px] font-semibold rounded-md bg-neutral-100 hover:bg-neutral-200 text-neutral-700 border border-neutral-200 whitespace-nowrap text-center transition-all active:scale-95"
-          >
-            Task
-          </button>
-        ) : (
-          <div />
-        )}
-
+        <div />
+        <div />
         <button
           onClick={() => deleteRecord(recordType, item.id)}
           className="px-2 py-1 text-[10px] font-semibold rounded-md bg-white hover:bg-red-50 text-red-600 border border-neutral-200 hover:border-red-200 whitespace-nowrap text-center transition-all active:scale-95"
@@ -110,15 +56,7 @@ export default function RecordCard({
 
       <div className="flex items-start justify-between gap-3 pr-24">
         <div className="flex items-center gap-3 min-w-0">
-          {isTask && (
-            <input
-              type="checkbox"
-              checked={isDone}
-              onChange={() => toggleTaskStatus(item.id)}
-              className="h-5 w-5 cursor-pointer rounded border-neutral-300 text-lime-600 focus:ring-lime-500"
-            />
-          )}
-          <div className={isDone ? "line-through opacity-60" : ""}>
+          <div>
             {isEvidence && (
               <div className="flex items-center gap-2 mb-1">
                 <div className="inline-block rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-neutral-200 text-neutral-700">
@@ -157,17 +95,12 @@ export default function RecordCard({
             <div className="flex items-center gap-2">
               {showTypeBadge && (
                 <span className={`px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wider ${badgeColors[recordType]}`}>
-                  {recordType === "evidence" ? "Evidence" : recordType.slice(0, -1)}
+                  {recordType === "evidence" ? "Evidence" : recordType === "incidents" ? "Incident" : recordType === "strategy" ? "Strategy" : "Record"}
                 </span>
               )}
               <div className="font-semibold text-neutral-900">{item.title}</div>
               {isNewRecord && (
                 <span className="px-1.5 py-0.5 rounded border border-lime-300 bg-lime-100 text-[9px] font-bold uppercase tracking-wider text-lime-700">
-                  New
-                </span>
-              )}
-              {isNewTask && (
-                <span className="px-1.5 py-0.5 rounded border border-amber-300 bg-amber-100 text-[9px] font-bold uppercase tracking-wider text-amber-700">
                   New
                 </span>
               )}
@@ -240,29 +173,6 @@ export default function RecordCard({
                   : "Unknown"}
               </div>
             </div>
-            {isTask && (
-              <div className="mt-2 text-xs text-neutral-500">
-                <span className="font-medium text-neutral-700">Origin: </span>
-                {primaryLinkedRecord ? (
-                  <span className="truncate">{primaryLinkedRecord.title}</span>
-                ) : (
-                  "Not linked"
-                )}
-              </div>
-            )}
-
-            {isEvidence && relatedTasks.length > 0 && (
-              <div className="mt-2 flex items-center gap-2 text-[10px]">
-                <span className="font-bold uppercase tracking-tight text-neutral-500">Related Tasks: {relatedTasks.length}</span>
-                <button
-                  onClick={() => openEditRecordModal("tasks", relatedTasks[0])}
-                  className="px-2 py-1 rounded-lg border border-neutral-300 bg-white text-[11px] font-medium text-neutral-600 shadow-sm hover:bg-neutral-50 transition-all active:scale-95 cursor-pointer whitespace-nowrap"
-                >
-                  Task
-                </button>
-              </div>
-            )}
-
             {(() => {
               const allLinkIds = Array.from(new Set([...(item.linkedIncidentIds || []), ...(item.linkedRecordIds || [])]));
               if (allLinkIds.length === 0) return null;
@@ -276,7 +186,7 @@ export default function RecordCard({
                         onClick={() => openLinkedRecord?.(linkedId)}
                         className="px-1.5 py-0.5 rounded border border-neutral-300 bg-neutral-50 text-neutral-600 shadow-sm hover:bg-white hover:border-lime-500 hover:text-lime-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-95 transition-all cursor-pointer truncate max-w-[150px]"
                       >
-                        {([...selectedCase.evidence, ...selectedCase.incidents, ...selectedCase.strategy, ...selectedCase.tasks].find(r => r.id === linkedId)?.title) || "Unknown Record"}
+                        {([...selectedCase.evidence, ...selectedCase.incidents, ...selectedCase.strategy].find(r => r.id === linkedId)?.title) || "Unknown Record"}
                       </button>
                     ))}
                   </div>
@@ -309,34 +219,6 @@ export default function RecordCard({
           imageCache={imageCache}
           onPreview={onPreviewFile}
         />
-      )}
-
-      {recordType !== "tasks" && relatedTasks.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-neutral-100">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">Related Tasks</h4>
-          <div className="space-y-2">
-            {relatedTasks.map((task) => (
-              <div key={task.id} className="rounded-xl border border-neutral-200 bg-white p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex flex-col truncate">
-                    <span className="font-semibold text-neutral-800 truncate">
-                      {task.title || "Untitled Task"}
-                    </span>
-                    <span className="text-[10px] text-neutral-400 font-bold uppercase">
-                      Status: {task.status || "Open"}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => openEditRecordModal("tasks", task)}
-                    className="flex-shrink-0 rounded-lg border border-lime-500 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors whitespace-nowrap"
-                  >
-                    Open
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       )}
 
       {recordType === "incidents" && item.linkedEvidenceIds && item.linkedEvidenceIds.length > 0 && (

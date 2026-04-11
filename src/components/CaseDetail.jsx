@@ -15,7 +15,6 @@ export default function CaseDetail({
   openRecordModal,
   renderCaseList,
   openEditRecordModal,
-  toggleTaskStatus,
   openEditCaseModal,
   deleteRecord,
   exportSelectedCase,
@@ -37,7 +36,6 @@ export default function CaseDetail({
   fullCaseExportMessage = "",
 }) {
   const [expandedGroups, setExpandedGroups] = useState({});
-  const [showCompletedTasks, setShowCompletedTasks] = useState(false);
   const [ideas, setIdeas] = useState([]);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -302,23 +300,12 @@ export default function CaseDetail({
     overview: "Home",
     evidence: "Ev",
     incidents: "Inc",
-    tasks: "Task",
     strategy: "Str",
     ledger: "Led",
     documents: "Doc",
   };
 
   const scrollTopLabel = scrollTopTabLabelMap[activeTab] || "Top";
-
-  const nextAction = (selectedCase?.tasks || []).find(t => t.status?.toLowerCase() !== "done");
-  const handleOpenNextAction = () => {
-    if (!nextAction) return;
-    setActiveTab("tasks");
-    setTimeout(() => {
-      const el = document.getElementById(`record-${nextAction.id}`);
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 100);
-  };
 
   const handleOpenIssue = (issue) => {
     if (issue.tab) setActiveTab(issue.tab);
@@ -333,7 +320,7 @@ export default function CaseDetail({
 
   // Helper to find a record by ID across all record types in the current case
   const findRecordById = (recordId) => {
-    const recordTypes = ['evidence', 'incidents', 'tasks', 'strategy', 'documents'];
+    const recordTypes = ['evidence', 'incidents', 'strategy', 'documents'];
     for (const type of recordTypes) {
       const record = selectedCase[type]?.find(r => r.id === recordId);
       if (record) {
@@ -529,7 +516,6 @@ export default function CaseDetail({
       onViewRecord={onViewRecord}
       openEditRecordModal={openEditRecordModal}
       deleteRecord={deleteRecord}
-      toggleTaskStatus={toggleTaskStatus}
       openLinkedRecord={openLinkedRecord}
       openRecordModal={openRecordModal}
     />
@@ -604,16 +590,10 @@ export default function CaseDetail({
   const timelineItems = sortChronological([
     ...selectedCase.evidence.map((item) => ({ ...item, _kind: "Evidence" })),
     ...selectedCase.incidents.map((item) => ({ ...item, _kind: "Incident" })),
-    ...selectedCase.tasks.map((item) => ({ ...item, _kind: "Task" })),
     ...selectedCase.strategy.map((item) => ({ ...item, _kind: "Strategy" })),
   ]);
 
   const milestones = timelineItems.filter(item => item.importance === "critical");
-
-  const allTasks = selectedCase?.tasks || [];
-  const openTasks = allTasks.filter((t) => t.status?.toLowerCase() !== "done");
-  const doneTasks = allTasks.filter((t) => t.status?.toLowerCase() === "done");
-  const nextTask = openTasks[0] || null;
 
   const allTimelineTags = Array.from(
     new Set(timelineItems.flatMap((item) => item.tags || []))
@@ -659,12 +639,6 @@ export default function CaseDetail({
                     className="w-full text-left px-4 py-2 text-sm hover:bg-neutral-50 text-neutral-700 font-medium transition-colors"
                   >
                     Evidence
-                  </button>
-                  <button 
-                    onClick={() => { openRecordModal("tasks"); setShowAddMenu(false); }}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-neutral-50 text-neutral-700 font-medium transition-colors"
-                  >
-                    Task
                   </button>
                   <button 
                     onClick={() => { openRecordModal("strategy"); setShowAddMenu(false); }}
@@ -803,29 +777,6 @@ export default function CaseDetail({
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Next Action Panel */}
-      <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500 mb-3">Next Action</h3>
-        {nextAction ? (
-          <div className="flex items-center justify-between gap-4 rounded-2xl border border-lime-100 bg-lime-50/30 p-4">
-            <div className="min-w-0">
-              <div className="font-semibold text-neutral-900 truncate">{nextAction.title}</div>
-              <div className="text-xs text-neutral-500 mt-1">{nextAction.date || "No date set"}</div>
-            </div>
-            <button 
-              onClick={handleOpenNextAction}
-              className="flex-shrink-0 rounded-xl border border-lime-500 bg-white px-4 py-2 text-xs font-bold text-neutral-800 shadow-sm hover:bg-lime-400/30 transition-all active:scale-95"
-            >
-              Open Task
-            </button>
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-dashed border-neutral-200 p-4 text-center">
-            <p className="text-sm text-neutral-500 italic">No open tasks</p>
-          </div>
-        )}
       </div>
 
       <div className="rounded-3xl border border-neutral-200 bg-white p-3 shadow-sm">
@@ -1046,49 +997,40 @@ export default function CaseDetail({
           </div>
         )}
         {activeTab === "incidents" && renderListBlock(selectedCase.incidents, "No incidents yet. Add your first incident to start the case timeline.", "incidents")}
-        {activeTab === "tasks" && (
-          <div className="space-y-8">
+           <div className="space-y-8">
             <div className="grid gap-3 md:grid-cols-3">
               <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Open</div>
-                <div className="mt-1 text-lg font-semibold text-neutral-900">{openTasks.length}</div>
               </div>
 
               <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Completed</div>
-                <div className="mt-1 text-lg font-semibold text-neutral-900">{doneTasks.length}</div>
               </div>
 
               <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Next Action</div>
                 <div className="mt-1 text-sm font-medium text-neutral-900 truncate">
-                  {nextTask ? nextTask.title : "No open tasks"}
                 </div>
               </div>
             </div>
 
             <div className="space-y-4">
               <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Action Now</h3>
-              {renderListBlock(openTasks, "No open tasks remaining.", "tasks")}
             </div>
 
             <div className="space-y-4">
               <button
-                onClick={() => setShowCompletedTasks((prev) => !prev)}
                 className="flex w-full items-center justify-between rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-left transition-colors hover:bg-neutral-100"
               >
                 <span className="text-sm font-semibold text-neutral-900">
-                  Completed ({doneTasks.length})
                 </span>
                 <span className="text-xs font-bold text-neutral-500">
-                  {showCompletedTasks ? "Hide" : "Show"}
                 </span>
               </button>
 
-              {showCompletedTasks && renderListBlock(doneTasks, "No completed tasks yet.", "tasks")}
             </div>
           </div>
-        )}
+        
         {activeTab === "strategy" && renderListBlock(selectedCase.strategy, "No strategy notes yet. Add strategy to track approach and planning.", "strategy")}
 
         {activeTab === "ledger" && (
@@ -1711,7 +1653,6 @@ status:
                         const kindToTypeMap = {
                           Evidence: "evidence",
                           Incident: "incidents",
-                          Task: "tasks",
                           Strategy: "strategy",
                         };
                         const recordType = kindToTypeMap[item._kind] || "evidence";
@@ -1727,7 +1668,6 @@ status:
                             onViewRecord={onViewRecord}
                             openEditRecordModal={openEditRecordModal}
                             deleteRecord={deleteRecord}
-                            toggleTaskStatus={toggleTaskStatus}
                             openLinkedRecord={openLinkedRecord}
                             openRecordModal={openRecordModal}
                             showTypeBadge={true}
@@ -1754,7 +1694,7 @@ status:
         {activeTab === "pack" && (
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Pack Preview</h3>
-            <p className="text-sm text-neutral-600">V1 pack will include evidence and incidents only. Tasks are intentionally excluded from the print pack.</p>
+            <p className="text-sm text-neutral-600">V1 pack will include evidence and incidents only.</p>
             <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
               Pack preview placeholder. Later this view will assemble the selected evidence and incidents into a clean printable case file.
             </div>

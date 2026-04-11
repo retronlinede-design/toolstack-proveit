@@ -148,12 +148,8 @@ const normalizeCaseStatus = (value) => {
   return "open";
 };
 
-const normalizeRecordStatus = (value, recordType) => {
+const normalizeRecordStatus = (value) => {
   const val = (value || "").toLowerCase().trim();
-  const type = (recordType || "").toLowerCase().trim();
-  if (type === "tasks") {
-    return val === "done" ? "done" : "open";
-  }
   return val === "archived" ? "archived" : "open";
 };
 
@@ -833,16 +829,7 @@ async function syncCaseToSupabase(caseItem) {
           description: item.description || "",
           status: item.status || "open",
         })),
-      openTasks: (caseItem.tasks || [])
-        .filter((task) => task.status !== "done")
-        .slice(0, 10)
-        .map((task) => ({
-          id: task.id,
-          title: task.title || "",
-          description: task.description || "",
-          status: task.status || "open",
-          priority: task.priority || "medium",
-        })),
+      openTasks: [],
       strategy: (caseItem.strategy || [])
         .slice(0, 10)
         .map((item) => ({
@@ -994,7 +981,7 @@ export default function ProveItApp() {
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const saved = localStorage.getItem("toolstack.proveit.v1.activeTab");
-      return saved || "overview";
+      return (saved && saved !== "tasks") ? saved : "overview";
     } catch {
       return "overview";
     }
@@ -1398,7 +1385,6 @@ export default function ProveItApp() {
     { id: "overview", label: "Overview" },
     { id: "evidence", label: "Evidence" },
     { id: "incidents", label: "Incidents" },
-    { id: "tasks", label: "Tasks" },
     { id: "strategy", label: "Strategy" },
     { id: "ledger", label: "Ledger" },
     { id: "documents", label: "Documents" },
@@ -1453,7 +1439,6 @@ export default function ProveItApp() {
       const allRecords = selectedCase ? [
         ...(selectedCase.evidence || []),
         ...(selectedCase.incidents || []),
-        ...(selectedCase.tasks || []),
         ...(selectedCase.strategy || []),
       ] : [];
 
@@ -1988,40 +1973,6 @@ const handleRecordFiles = async (event) => {
     removeRecordAttachment(attachmentId);
   };
 
-  const toggleTaskStatus = async (taskId) => {
-    if (!selectedCase) return;
-
-    const updatedTasks = (selectedCase.tasks || []).map((task) => {
-      if (task.id === taskId) {
-        return {
-          ...task,
-          status: task.status === "done" ? "open" : "done",
-          updatedAt: new Date().toISOString(),
-          edited: true,
-        };
-      }
-      return task;
-    });
-
-    const updatedCase = {
-      ...selectedCase,
-      tasks: updatedTasks,
-      updatedAt: new Date().toISOString(),
-    };
-
-    setCases((prev) =>
-      prev.map((c) =>
-        c.id === selectedCase.id ? updatedCase : c
-      )
-    );
-
-    try {
-      await saveCase(updatedCase);
-    } catch (error) {
-      console.error("Failed to save updated case", error);
-    }
-  };
-
   const handleUnlinkEvidenceFromIncident = async (incidentId, evidenceIdToUnlink) => {
     if (!selectedCase) return;
     const incident = selectedCase.incidents.find(i => i.id === incidentId);
@@ -2108,29 +2059,14 @@ const handleRecordFiles = async (event) => {
 
       updatedCase = syncCaseLinks(updatedCase, updatedRecord, recordType);
 
-      // Prompt to close linked tasks when evidence is saved (Edit mode)
       if (recordType === "evidence") {
-        const linkedIds = updatedRecord.linkedRecordIds || [];
-        const openTasks = (updatedCase.tasks || []).filter(t => linkedIds.includes(t.id) && t.status === "open");
-        if (openTasks.length > 0) {
-          if (window.confirm("Mark linked follow-up task as done?")) {
-            updatedCase.tasks = updatedCase.tasks.map(t => 
-              linkedIds.includes(t.id) && t.status === "open"
-                ? { ...t, status: "done", updatedAt: new Date().toISOString(), edited: true }
-                : t
-            );
-          }
-        }
+        // logic removed
       }
     } else {
       const newRecordId = recordForm.id || generateId();
       // Attachments are already serialized via fileToSerializable
       let attachmentObjects = recordForm.attachments;
       let availability = { ...recordForm.availability };
-
-      // Follow-up task logic for new records
-      const followUpTaskId = generateId();
-      const needsFollowUp = (recordType === "incidents" || recordType === "evidence") && recordForm.createFollowUpTask;
 
       if (recordType === "evidence") {
         availability.digital.files = attachmentObjects;
@@ -2154,28 +2090,9 @@ const handleRecordFiles = async (event) => {
         reviewNotes: recordForm.reviewNotes,
         linkedIncidentIds: recordForm.linkedIncidentIds,
         linkedEvidenceIds: recordForm.linkedEvidenceIds,
-        linkedRecordIds: Array.from(new Set([
-          ...(recordForm.linkedRecordIds || []),
-          ...(needsFollowUp ? [followUpTaskId] : [])
-        ])),
+        linkedRecordIds: recordForm.linkedRecordIds || [],
         createdAt: new Date().toISOString(),
       }, recordType);
-
-      let updatedTasks = selectedCase.tasks || [];
-      if (needsFollowUp) {
-        const followUpTask = normalizeRecord({
-          id: followUpTaskId,
-          type: "tasks",
-          title: recordForm.followUpTaskTitle?.trim() || `Follow up: ${recordForm.title.trim()}`,
-          date: recordForm.date || new Date().toISOString().slice(0, 10),
-          description: `Follow-up task created from ${recordType === "incidents" ? "incident" : "evidence"} record.`,
-          status: "open",
-          linkedRecordIds: Array.from(new Set([...(recordForm.linkedRecordIds?.filter(id => id.startsWith('task')) || []), newRecordId])),
-          source: "manual",
-          createdAt: new Date().toISOString(),
-        }, "tasks");
-        updatedTasks = [followUpTask, ...updatedTasks];
-      }
 
       const updatedList = [newRecord, ...selectedCase[recordType]];
 
@@ -2185,30 +2102,10 @@ const handleRecordFiles = async (event) => {
         updatedAt: new Date().toISOString(),
       };
 
-      // Only update the tasks list if a follow-up task was requested and we aren't 
-      // already saving a task (to avoid overwriting the new task list).
-      if (needsFollowUp && recordType !== "tasks") {
-        updatedCase.tasks = updatedTasks;
-      }
-
       updatedCase = syncCaseLinks(updatedCase, newRecord, recordType);
 
-      // Prompt to close linked tasks when evidence is added (New record mode)
       if (recordType === "evidence") {
-        const linkedIds = newRecord.linkedRecordIds || [];
-        // Exclude the follow-up task created in this same step if any
-        const openTasks = (updatedCase.tasks || []).filter(t => 
-          linkedIds.includes(t.id) && t.status === "open" && t.id !== (needsFollowUp ? followUpTaskId : null)
-        );
-        if (openTasks.length > 0) {
-          if (window.confirm("Mark linked follow-up task as done?")) {
-            updatedCase.tasks = updatedCase.tasks.map(t => 
-              linkedIds.includes(t.id) && t.status === "open" && t.id !== (needsFollowUp ? followUpTaskId : null)
-                ? { ...t, status: "done", updatedAt: new Date().toISOString(), edited: true }
-                : t
-            );
-          }
-        }
+        // logic removed
       }
     }
 
@@ -2230,7 +2127,6 @@ const handleRecordFiles = async (event) => {
 
     if (recordType === "evidence") setActiveTab("evidence");
     if (recordType === "incidents") setActiveTab("incidents");
-    if (recordType === "tasks") setActiveTab("tasks");
     if (recordType === "strategy") setActiveTab("strategy");
 
     closeRecordModal();
@@ -2508,7 +2404,6 @@ const handleRecordFiles = async (event) => {
                 openRecordModal={openRecordModal}
                 renderCaseList={renderCaseList}
                 openEditRecordModal={openEditRecordModal}
-                toggleTaskStatus={toggleTaskStatus}
                 openEditCaseModal={openEditCaseModal}
                 onUpdateCase={handleUpdateCase} // Pass the new handler
                 deleteRecord={deleteRecord}
