@@ -9,8 +9,6 @@ export default function RecordCard({
   onViewRecord,
   openEditRecordModal,
   deleteRecord,
-  toggleTaskStatus,
-  openLinkedRecord,
   openRecordModal,
   showTypeBadge = false,
   isTimeline = false,

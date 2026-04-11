@@ -30,6 +30,7 @@ export default function CaseDetail({
   duplicateLedgerEntry,
   openDocumentModal,
   deleteDocumentEntry,
+  reviewQueueSection,
   syncStatus = "idle",
   syncMessage = "",
   fullCaseExportStatus = "idle",
@@ -770,8 +771,9 @@ ${strategyFocus.join("\n") || "—"}`;
       </div>
 
       {/* Action Summary Panel */}
-      <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500 mb-4">Action Summary</h3>
+      <div className="w-full rounded-3xl border border-neutral-200 bg-neutral-50 p-5 shadow-md mb-6">
+        <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Action Summary</h3>
+        <p className="text-xs text-neutral-500 mb-4">Last updated: {actionSummary.updatedAt ? new Date(actionSummary.updatedAt).toLocaleString() : "Never"}</p>
         <button
           onClick={openActionSummaryEdit}
           className="text-xs font-bold text-lime-600 hover:underline"
@@ -784,7 +786,7 @@ ${strategyFocus.join("\n") || "—"}`;
         >
           Copy summary
         </button>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="space-y-5">
           <div className="space-y-1.5">
             <div className="text-[10px] font-semibold uppercase tracking-tight text-neutral-500">Current Focus (What matters now)</div>
             <p className="text-[10px] text-neutral-500">Short statement of what this case is about right now.</p>
@@ -794,18 +796,24 @@ ${strategyFocus.join("\n") || "—"}`;
           </div>
 
           <div className="space-y-1.5 md:border-l border-neutral-200 md:pl-6">
+            <div className="mb-4 space-y-1">
+              <div className="text-[10px] font-semibold uppercase tracking-tight text-neutral-500">Top Priority</div>
+              <div className="rounded-xl border border-lime-200 bg-lime-50 px-3 py-2 text-sm font-semibold text-neutral-900">
+                {nextActions[0] || "No priority set"}
+              </div>
+            </div>
             <div className="text-[10px] font-semibold uppercase tracking-tight text-neutral-500">Next Actions (Do these next, in order)</div>
             <p className="text-[10px] text-neutral-500">Write 1 action per line. Keep it short and concrete.</p>
-            <div className="text-xs text-neutral-500">
-              Top priority: <span className="font-semibold text-neutral-900">{nextActions[0] || "—"}</span>
-            </div>
             {nextActions.length > 0 ? (
               <ul className="space-y-1">
                 {nextActions.map((action, i) => (
                   <li key={i} className="flex items-start justify-between gap-2 text-xs text-neutral-700 group py-0.5 leading-tight">
                     <div className="flex items-start gap-2 min-w-0">
                       <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-lime-600" />
-                      <span className="break-words">{action}</span>
+                      <span className={`break-words ${i === 0 ? "font-bold text-neutral-900" : ""}`}>
+                        {i === 0 && <span className="text-[10px] font-bold uppercase text-neutral-400 mr-1">Top priority:</span>}
+                        {action}
+                      </span>
                     </div>
                     <button
                       onClick={() => handleRemoveNextAction(i)}
@@ -830,13 +838,14 @@ ${strategyFocus.join("\n") || "—"}`;
             />
           </div>
 
+          <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-1.5 lg:border-l border-neutral-200 lg:pl-6">
             <div className="text-[10px] font-semibold uppercase tracking-tight text-neutral-500">Important Reminders (Do not forget)</div>
             <div className="text-[10px] text-neutral-500">Key facts, deadlines, or constraints to keep in mind.</div>
             {importantReminders.length > 0 ? (
               <ul className="space-y-1 list-disc list-inside marker:text-amber-500">
                 {importantReminders.map((reminder, i) => (
-                  <li key={i} className="text-xs text-neutral-700">{reminder}</li>
+                  <li key={i} className="text-xs text-neutral-600">{reminder}</li>
                 ))}
               </ul>
             ) : (
@@ -846,938 +855,918 @@ ${strategyFocus.join("\n") || "—"}`;
 
           <div className="space-y-1.5 md:border-l border-neutral-200 md:pl-6">
             <div className="text-[10px] font-semibold uppercase tracking-tight text-neutral-500">Strategy Focus (Approach / leverage)</div>
-            <div className="text-[10px] text-neutral-500 flex flex-wrap gap-1.5">
-              {strategyFocus.length > 0 ? strategyFocus.map((strat, i) => (
-                <span key={i} className="px-2 py-0.5 rounded-lg bg-lime-50 border border-lime-100 text-[10px] font-bold text-lime-700">
-                  {strat}
-                </span>
-              )) : <p className="text-xs text-neutral-500 italic">No strategy focus defined.</p>}
+            <p className="text-[10px] text-neutral-500">High-level approach and leverage points.</p>
+            <div className="flex flex-wrap gap-1.5">
+              {strategyFocus.length > 0 ? (
+                strategyFocus.map((strat, i) => (
+                  <span key={i} className="px-2 py-0.5 rounded-lg bg-lime-50 border border-lime-100 text-[10px] font-bold text-lime-700">
+                    {strat}
+                  </span>
+                ))
+              ) : (
+                <p className="text-xs text-neutral-500 italic">Define your current approach.</p>
+              )}
             </div>
           </div>
         </div>
       </div>
-
-      <div className="rounded-3xl border border-neutral-200 bg-white p-3 shadow-sm">
-        <div className="flex flex-wrap gap-2">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-                className={`rounded-2xl border border-lime-500 px-4 py-2 text-sm font-medium shadow-[0_2px_4px_rgba(60,60,60,0.2)] transition-colors ${
-                  activeTab === tab.id ? "bg-lime-400/30 text-neutral-900" : "bg-white text-neutral-700 hover:bg-lime-400/30"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
       </div>
 
-      <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
-        {activeTab === "overview" && (
-          <div className="space-y-5">
-            {/* Case Health Card */}
-            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-semibold">Case Health</h3>
-                  {health && (
-                    <div className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-bold ${statusConfig[health.status].color}`}>
-                      {(() => {
-                        const Icon = statusConfig[health.status].icon;
-                        return <Icon className="h-3 w-3" />;
-                      })()}
-                      {health.status}
-                    </div>
-                  )}
-                </div>
-                <div className="text-sm font-medium text-neutral-500">
-                  {health?.totalIssues} issue{health?.totalIssues !== 1 ? "s" : ""} found
-                </div>
-              </div>
+      <div className="grid gap-6 lg:grid-cols-12">
+        <div className="lg:col-span-8 space-y-6">
+          <div className="rounded-3xl border border-neutral-200 bg-white p-3 shadow-sm">
+            <div className="flex flex-wrap gap-2">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                    className={`rounded-2xl border border-lime-500 px-4 py-2 text-sm font-medium shadow-[0_2px_4px_rgba(60,60,60,0.2)] transition-colors ${
+                      activeTab === tab.id ? "bg-lime-400/30 text-neutral-900" : "bg-white text-neutral-700 hover:bg-lime-400/30"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-              <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
-                {health &&
-                  Object.entries(health.totals).map(([label, count]) => (
-                    <div key={label} className="rounded-xl border border-neutral-200 bg-white p-2 text-center">
-                      <div className="text-xl font-bold text-neutral-800">{count}</div>
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{label}</div>
-                    </div>
-                  ))}
-              </div>
-
-              {health?.issues.length > 0 && (
-                <div className="space-y-2">
-                  {health.issues.map((group) => (
-                    <div key={group.category} className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
-                      <button onClick={() => toggleGroup(group.category)} className="flex w-full items-center justify-between p-3 transition-colors hover:bg-neutral-50">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-neutral-700">{group.category}</span>
-                          <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-[10px] font-bold text-neutral-600">{group.items.length}</span>
-                        </div>
-                        {expandedGroups[group.category] ? <ChevronDown className="h-4 w-4 text-neutral-400" /> : <ChevronRight className="h-4 w-4 text-neutral-400" />}
-                      </button>
-                      {expandedGroups[group.category] && (
-                        <div className="space-y-2 border-t border-neutral-100 px-3 pb-3 pt-2">
-                          {group.items.map((item, idx) => (
-                            <div key={idx} className="border-b border-neutral-50 pb-2 text-xs last:border-0 last:pb-0">
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex-1">
-                                  <div className="flex items-start justify-between">
-                                    <span className="font-semibold text-neutral-800">{item.title}</span>
-                                    {item.date && <span className="font-medium text-neutral-400">{item.date}</span>}
-                                  </div>
-                                  <div className="mt-0.5 text-neutral-500">{item.detail}</div>
-                                </div>
-                                <button
-                                  onClick={() => handleOpenIssue(item)}
-                                  className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
-                                >
-                                  Open
-                                </button>
-                              </div>
-                            </div>
-                          ))}
+          <div className="w-full rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
+            {/* Tab content logic... */}
+            {activeTab === "overview" && (
+              <div className="space-y-5">
+                {/* Case Health Card */}
+                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-semibold">Case Health</h3>
+                      {health && (
+                        <div className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-bold ${statusConfig[health.status].color}`}>
+                          {(() => {
+                            const Icon = statusConfig[health.status].icon;
+                            return <Icon className="h-3 w-3" />;
+                          })()}
+                          {health.status}
                         </div>
                       )}
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Strategy Overview Section */}
-            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-semibold">Strategies</h3>
-                  <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-[10px] font-bold text-neutral-600">
-                    {selectedCase.strategy?.length || 0}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => openRecordModal("strategy")}
-                    className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
-                  >
-                    + Add Strategy
-                  </button>
-                  <button 
-                    onClick={() => setActiveTab("strategy")}
-                    className="rounded-lg border border-neutral-300 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors"
-                  >
-                    View All
-                  </button>
-                </div>
-              </div>
-
-              {overviewStrategies.length === 0 ? (
-                <p className="text-sm italic text-neutral-500">No strategy records yet.</p>
-              ) : (
-                <div className="space-y-2">
-                  {overviewStrategies.map((item) => (
-                    <div key={item.id} className="rounded-xl border border-neutral-200 bg-white p-3 shadow-sm">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <span className="font-bold text-neutral-800 truncate">{item.title}</span>
-                            <span className="shrink-0 text-[10px] font-medium text-neutral-400">{item.eventDate || item.date}</span>
-                          </div>
-                          <div className="mt-0.5 text-xs text-neutral-500 line-clamp-1">{item.description || item.notes || "No description provided."}</div>
-                        </div>
-                        <button onClick={() => openEditRecordModal("strategy", item)} className="shrink-0 rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors">Open</button>
-                      </div>
+                    <div className="text-sm font-medium text-neutral-500">
+                      {health?.totalIssues} issue{health?.totalIssues !== 1 ? "s" : ""} found
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                <div className="font-semibold">Suggested next step</div>
-                <p className="mt-2 text-sm text-neutral-600">Use Quick Capture when something happens fast, then review and convert it into evidence, incidents, tasks, or strategy.</p>
-              </div>
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                <div className="font-semibold">Pack readiness</div>
-                <p className="mt-2 text-sm text-neutral-600">Later, this case will generate a clean evidence and incident pack for print/export.</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "evidence" && (
-          <div className="space-y-6">
-            <div className="flex gap-2">
-              {["workflow", "timeline"].map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setEvidenceView(v)}
-                  className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border transition-all ${
-                    evidenceView === v
-                      ? "bg-lime-500 border-lime-600 text-white shadow-sm"
-                      : "bg-white border-neutral-300 text-neutral-500 hover:bg-neutral-50"
-                  }`}
-                >
-                  {v}
-                </button>
-              ))}
-            </div>
-
-            {evidenceView === "workflow" && (
-              <div className="space-y-8">
-                <div className="grid gap-3 md:grid-cols-3">
-                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Needs Review</div>
-                    <div className="mt-1 text-lg font-semibold text-neutral-900">{needsReviewEvidence.length}</div>
                   </div>
 
-                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Incomplete</div>
-                    <div className="mt-1 text-lg font-semibold text-neutral-900">{incompleteEvidence.length}</div>
+                  <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+                    {health &&
+                      Object.entries(health.totals).map(([label, count]) => (
+                        <div key={label} className="rounded-xl border border-neutral-200 bg-white p-2 text-center">
+                          <div className="text-xl font-bold text-neutral-800">{count}</div>
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{label}</div>
+                        </div>
+                      ))}
                   </div>
 
-                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Verified</div>
-                    <div className="mt-1 text-lg font-semibold text-neutral-900">{verifiedEvidence.length}</div>
+                  {health?.issues.length > 0 && (
+                    <div className="space-y-2">
+                      {health.issues.map((group) => (
+                        <div key={group.category} className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                          <button onClick={() => toggleGroup(group.category)} className="flex w-full items-center justify-between p-3 transition-colors hover:bg-neutral-50">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold text-neutral-700">{group.category}</span>
+                              <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-[10px] font-bold text-neutral-600">{group.items.length}</span>
+                            </div>
+                            {expandedGroups[group.category] ? <ChevronDown className="h-4 w-4 text-neutral-400" /> : <ChevronRight className="h-4 w-4 text-neutral-400" />}
+                          </button>
+                          {expandedGroups[group.category] && (
+                            <div className="space-y-2 border-t border-neutral-100 px-3 pb-3 pt-2">
+                              {group.items.map((item, idx) => (
+                                <div key={idx} className="border-b border-neutral-50 pb-2 text-xs last:border-0 last:pb-0">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex-1">
+                                      <div className="flex items-start justify-between">
+                                        <span className="font-semibold text-neutral-800">{item.title}</span>
+                                        {item.date && <span className="font-medium text-neutral-400">{item.date}</span>}
+                                      </div>
+                                      <div className="mt-0.5 text-neutral-500">{item.detail}</div>
+                                    </div>
+                                    <button
+                                      onClick={() => handleOpenIssue(item)}
+                                      className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                                    >
+                                      Open
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Strategy Overview Section */}
+                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-semibold">Strategies</h3>
+                      <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-[10px] font-bold text-neutral-600">
+                        {selectedCase.strategy?.length || 0}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => openRecordModal("strategy")}
+                        className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                      >
+                        + Add Strategy
+                      </button>
+                      <button 
+                        onClick={() => setActiveTab("strategy")}
+                        className="rounded-lg border border-neutral-300 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors"
+                      >
+                        View All
+                      </button>
+                    </div>
                   </div>
+
+                  {overviewStrategies.length === 0 ? (
+                    <p className="text-sm italic text-neutral-500">No strategy records yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {overviewStrategies.map((item) => (
+                        <div key={item.id} className="rounded-xl border border-neutral-200 bg-white p-3 shadow-sm">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="font-bold text-neutral-800 truncate">{item.title}</span>
+                                <span className="shrink-0 text-[10px] font-medium text-neutral-400">{item.eventDate || item.date}</span>
+                              </div>
+                              <div className="mt-0.5 text-xs text-neutral-500 line-clamp-1">{item.description || item.notes || "No description provided."}</div>
+                            </div>
+                            <button onClick={() => openEditRecordModal("strategy", item)} className="shrink-0 rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors">Open</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                <div className="space-y-4">
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Needs Review</h3>
-                  {renderListBlock(needsReviewEvidence, "No evidence needing review.", "evidence")}
-                </div>
-
-                <div className="space-y-4">
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Incomplete</h3>
-                  {renderListBlock(incompleteEvidence, "No incomplete evidence.", "evidence")}
-                </div>
-
-                <div className="space-y-4">
-                  <button
-                    onClick={() => setShowVerifiedEvidence((prev) => !prev)}
-                    className="flex w-full items-center justify-between rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-left transition-colors hover:bg-neutral-100"
-                  >
-                    <span className="text-sm font-semibold text-neutral-900">
-                      Verified ({verifiedEvidence.length})
-                    </span>
-                    <span className="text-xs font-bold text-neutral-500">
-                      {showVerifiedEvidence ? "Hide" : "Show"}
-                    </span>
-                  </button>
-
-                  {showVerifiedEvidence && renderListBlock(verifiedEvidence, "No verified evidence yet.", "evidence")}
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                    <div className="font-semibold">Suggested next step</div>
+                    <p className="mt-2 text-sm text-neutral-600">Use Quick Capture when something happens fast, then review and convert it into evidence, incidents, tasks, or strategy.</p>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                    <div className="font-semibold">Pack readiness</div>
+                    <p className="mt-2 text-sm text-neutral-600">Later, this case will generate a clean evidence and incident pack for print/export.</p>
+                  </div>
                 </div>
               </div>
             )}
-
-            {evidenceView === "timeline" && renderListBlock(evidenceTimelineItems, "No evidence records yet.", "evidence")}
-          </div>
-        )}
-        {activeTab === "incidents" && renderListBlock(selectedCase.incidents, "No incidents yet. Add your first incident to start the case timeline.", "incidents")}
-           <div className="space-y-8">
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Open</div>
-              </div>
-
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Completed</div>
-              </div>
-
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Next Action</div>
-                <div className="mt-1 text-sm font-medium text-neutral-900 truncate">
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Action Now</h3>
-            </div>
-
-            <div className="space-y-4">
-              <button
-                className="flex w-full items-center justify-between rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-left transition-colors hover:bg-neutral-100"
-              >
-                <span className="text-sm font-semibold text-neutral-900">
-                </span>
-                <span className="text-xs font-bold text-neutral-500">
-                </span>
-              </button>
-
-            </div>
-          </div>
-        
-        {activeTab === "strategy" && renderListBlock(selectedCase.strategy, "No strategy notes yet. Add strategy to track approach and planning.", "strategy")}
-
-        {activeTab === "ledger" && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <h3 className="text-lg font-semibold">Ledger</h3>
+            
+            {activeTab === "evidence" && (
+              <div className="space-y-6">
                 <div className="flex gap-2">
-                  <button 
-                    onClick={() => openLedgerModal({ category: "rent" })}
-                    className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                  {["workflow", "timeline"].map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => setEvidenceView(v)}
+                      className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border transition-all ${
+                        evidenceView === v
+                          ? "bg-lime-500 border-lime-600 text-white shadow-sm"
+                          : "bg-white border-neutral-300 text-neutral-500 hover:bg-neutral-50"
+                      }`}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+
+                {evidenceView === "workflow" && (
+                  <div className="space-y-8">
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Needs Review</div>
+                        <div className="mt-1 text-lg font-semibold text-neutral-900">{needsReviewEvidence.length}</div>
+                      </div>
+
+                      <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Incomplete</div>
+                        <div className="mt-1 text-lg font-semibold text-neutral-900">{incompleteEvidence.length}</div>
+                      </div>
+
+                      <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Verified</div>
+                        <div className="mt-1 text-lg font-semibold text-neutral-900">{verifiedEvidence.length}</div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Needs Review</h3>
+                      {renderListBlock(needsReviewEvidence, "No evidence needing review.", "evidence")}
+                    </div>
+
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Incomplete</h3>
+                      {renderListBlock(incompleteEvidence, "No incomplete evidence.", "evidence")}
+                    </div>
+
+                    <div className="space-y-4">
+                      <button
+                        onClick={() => setShowVerifiedEvidence((prev) => !prev)}
+                        className="flex w-full items-center justify-between rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-left transition-colors hover:bg-neutral-100"
+                      >
+                        <span className="text-sm font-semibold text-neutral-900">
+                          Verified ({verifiedEvidence.length})
+                        </span>
+                        <span className="text-xs font-bold text-neutral-500">
+                          {showVerifiedEvidence ? "Hide" : "Show"}
+                        </span>
+                      </button>
+
+                      {showVerifiedEvidence && renderListBlock(verifiedEvidence, "No verified evidence yet.", "evidence")}
+                    </div>
+                  </div>
+                )}
+
+                {evidenceView === "timeline" && renderListBlock(evidenceTimelineItems, "No evidence records yet.", "evidence")}
+              </div>
+            )}
+            {activeTab === "incidents" && renderListBlock(selectedCase.incidents, "No incidents yet. Add your first incident to start the case timeline.", "incidents")}
+            {activeTab === "strategy" && renderListBlock(selectedCase.strategy, "No strategy notes yet. Add strategy to track approach and planning.", "strategy")}
+
+            {activeTab === "ledger" && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <h3 className="text-lg font-semibold">Ledger</h3>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => openLedgerModal({ category: "rent" })}
+                        className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                      >
+                        + Rent
+                      </button>
+                      <button 
+                        onClick={() => openLedgerModal({ category: "utility" })}
+                        className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                      >
+                        + Utility
+                      </button>
+                      <button 
+                        onClick={() => openLedgerModal({ category: "installment" })}
+                        className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                      >
+                        + Installment
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => openLedgerModal()}
+                    className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
                   >
-                    + Rent
-                  </button>
-                  <button 
-                    onClick={() => openLedgerModal({ category: "utility" })}
-                    className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
-                  >
-                    + Utility
-                  </button>
-                  <button 
-                    onClick={() => openLedgerModal({ category: "installment" })}
-                    className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
-                  >
-                    + Installment
+                    + Add Entry
                   </button>
                 </div>
-              </div>
-              <button
-                onClick={() => openLedgerModal()}
-                className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
-              >
-                + Add Entry
-              </button>
-            </div>
 
-            <div className="flex flex-wrap gap-2 mb-4 overflow-x-auto pb-2">
-              {["all", "rent", "installment", "deposit", "furniture", "repair", "utility", "legal", "other"].map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setLedgerFilter(f)}
-                  className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border transition-all whitespace-nowrap ${
-                    ledgerFilter === f
-                      ? "bg-lime-500 border-lime-600 text-white shadow-sm"
-                      : "bg-white border-neutral-300 text-neutral-500 hover:bg-neutral-50"
-                  }`}
-                >
-                  {f}
-                </button>
-              ))}
-            </div>
+                <div className="flex flex-wrap gap-2 mb-4 overflow-x-auto pb-2">
+                  {["all", "rent", "installment", "deposit", "furniture", "repair", "utility", "legal", "other"].map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setLedgerFilter(f)}
+                      className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border transition-all whitespace-nowrap ${
+                        ledgerFilter === f
+                          ? "bg-lime-500 border-lime-600 text-white shadow-sm"
+                          : "bg-white border-neutral-300 text-neutral-500 hover:bg-neutral-50"
+                      }`}
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
 
-            {(() => {
-              const ledger = sortLedgerEntries(selectedCase?.ledger || []);
-              const filteredLedger = filterLedgerEntries(ledger, ledgerFilter);
-              const groupedLedger = groupLedgerEntriesByBatch(filteredLedger);
+                {(() => {
+                  const ledger = sortLedgerEntries(selectedCase?.ledger || []);
+                  const filteredLedger = filterLedgerEntries(ledger, ledgerFilter);
+                  const groupedLedger = groupLedgerEntriesByBatch(filteredLedger);
 
-              if ((selectedCase?.ledger || []).length === 0) {
-                return (
-                  <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-                    No ledger entries yet.
-                  </div>
-                );
-              }
-
-              if (filteredLedger.length === 0) {
-                return (
-                  <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-                    No ledger entries match this filter.
-                  </div>
-                );
-              }
-
-              return (
-                <div className="space-y-8">
-                  {groupedLedger.map((group) => {
-                    const isCollapsed = collapsedLedgerGroups[group.batchLabel];
+                  if ((selectedCase?.ledger || []).length === 0) {
                     return (
-                      <div key={group.batchLabel} className="space-y-3 border-b border-neutral-100 pb-3 last:border-b-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <button
-                            onClick={() => toggleLedgerGroup(group.batchLabel)}
-                            className="flex items-center gap-2 px-1 py-1 rounded-lg text-left hover:bg-neutral-50 transition-colors"
-                          >
-                            <span className="text-[10px] text-neutral-400 w-3">
-                              {isCollapsed ? "▶" : "▼"}
-                            </span>
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">
-                              {group.batchLabel === "Ungrouped" ? "Ungrouped Entries" : group.batchLabel}
-                            </h4>
-                            <span className="text-[10px] font-medium text-neutral-400">{group.items.length} entries</span>
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openLedgerModal({
-                                batchLabel: group.batchLabel
-                              });
-                            }}
-                            className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
-                          >
-                            Add to Group
-                          </button>
-                        </div>
-                        {!isCollapsed && (
-                          <div className="space-y-3">
-                            {group.items.map((item) => {
-                          const statusBadgeColor = (status) => {
-                            switch (status) {
-                              case "paid": return "bg-lime-100 text-lime-700 border-lime-300";
-                              case "part-paid": return "bg-amber-100 text-amber-700 border-amber-300";
-                              case "unpaid": return "bg-red-100 text-red-700 border-red-300";
-                              case "disputed": return "bg-orange-100 text-orange-700 border-orange-300";
-                              case "refunded": return "bg-blue-100 text-blue-700 border-blue-300";
-                              default: return "bg-neutral-100 text-neutral-700 border-neutral-300";
-                            }
-                          };
-
-                          const proofStatusBadgeColor = (proofStatus) => {
-                            switch (proofStatus) {
-                              case "confirmed": return "bg-lime-100 text-lime-700 border-lime-300";
-                              case "partial": return "bg-amber-100 text-amber-700 border-amber-300";
-                              default: return "bg-red-100 text-red-700 border-red-300";
-                            }
-                          };
-
-                          return (
-                            <div key={item.id} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-semibold text-neutral-800">{item.label || "Untitled Ledger Entry"}</h4>
-                                <div className="flex items-center gap-3">
-                                  {item.batchLabel && (
-                                    <span className="px-1.5 py-0.5 rounded bg-neutral-100 border border-neutral-200 text-[9px] font-bold uppercase tracking-tight text-neutral-500">
-                                      {item.batchLabel}
-                                    </span>
-                                  )}
-                                  <span className="text-xs text-neutral-500">{item.category || "N/A"}</span>
-                                  <button 
-                                    onClick={() => openLedgerModal(item, item.id)}
-                                    className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
-                                  >
-                                    Edit
-                                  </button>
-                                  <button 
-                                    onClick={() => duplicateLedgerEntry(item)}
-                                    className="rounded-lg border border-neutral-300 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors"
-                                  >
-                                    Duplicate
-                                  </button>
-                                  <button 
-                                    onClick={() => deleteLedgerEntry(item.id)}
-                                    className="rounded-lg border border-red-300 bg-white px-2 py-0.5 text-[10px] font-bold text-red-700 shadow-sm hover:bg-red-50 transition-colors"
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                              </div>
-                              <div className="text-sm text-neutral-600 mb-2">Period: {item.period || "N/A"}</div>
-
-                              <div className="grid grid-cols-3 gap-2 text-sm mb-2">
-                                <div>Expected: {item.expectedAmount} {item.currency}</div>
-                                <div>Paid: {item.paidAmount} {item.currency}</div>
-                                <div>Difference: {item.differenceAmount} {item.currency}</div>
-                              </div>
-
-                              <div className="flex items-center justify-between text-xs">
-                                <div className="flex gap-2">
-                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${statusBadgeColor(item.status)}`}>
-                                    {item.status || "N/A"}
-                                  </span>
-                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${proofStatusBadgeColor(item.proofStatus)}`}>
-                                    {item.proofStatus || "N/A"}
-                                  </span>
-                                </div>
-                                <div className="text-neutral-500">
-                                  {item.paymentDate ? `Paid: ${item.paymentDate}` : item.dueDate ? `Due: ${item.dueDate}` : "No Date"}
-                                </div>
-                              </div>
-
-                              {item.counterparty && <div className="text-xs text-neutral-500 mt-2">Counterparty: {item.counterparty}</div>}
-                              {item.notes && <p className="text-xs text-neutral-500 mt-2 line-clamp-2">{item.notes}</p>}
-
-                              {item.linkedRecordIds && item.linkedRecordIds.length > 0 && (
-                                <div className="mt-3 pt-3 border-t border-neutral-100">
-                                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Linked Records</div>
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {item.linkedRecordIds.map((rid) => {
-                                      const found = findRecordById(rid);
-                                      if (!found) return null;
-                                      return (
-                                        <button
-                                          key={rid}
-                                          onClick={() => openLinkedRecord(rid)}
-                                          className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-neutral-300 bg-white text-[10px] font-medium text-neutral-700 shadow-sm hover:border-lime-500 hover:text-lime-600 transition-all text-left"
-                                        >
-                                          <span className="opacity-50 font-bold uppercase">{found.type === 'evidence' ? 'Evidence' : found.type.slice(0, -1)}</span>
-                                          <span className="truncate max-w-[120px]">{found.record.title}</span>
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                        )}
+                      <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                        No ledger entries yet.
                       </div>
                     );
-                  })}
-                </div>
-              );
-            })()}
-          </div>
-        )}
+                  }
 
-        {activeTab === "documents" && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Documents</h3>
-              <button
-                onClick={() => openDocumentModal({
-                  title: "New Tracking Record",
-                  textContent: `[TRACK RECORD]
+                  if (filteredLedger.length === 0) {
+                    return (
+                      <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                        No ledger entries match this filter.
+                      </div>
+                    );
+                  }
 
-meta:
-type:
-subject:
-period:
-status:
+                  return (
+                    <div className="space-y-8">
+                      {groupedLedger.map((group) => {
+                        const isCollapsed = collapsedLedgerGroups[group.batchLabel];
+                        return (
+                          <div key={group.batchLabel} className="space-y-3 border-b border-neutral-100 pb-3 last:border-b-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <button
+                                onClick={() => toggleLedgerGroup(group.batchLabel)}
+                                className="flex items-center gap-2 px-1 py-1 rounded-lg text-left hover:bg-neutral-50 transition-colors"
+                              >
+                                <span className="text-[10px] text-neutral-400 w-3">
+                                  {isCollapsed ? "▶" : "▼"}
+                                </span>
+                                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">
+                                  {group.batchLabel === "Ungrouped" ? "Ungrouped Entries" : group.batchLabel}
+                                </h4>
+                                <span className="text-[10px] font-medium text-neutral-400">{group.items.length} entries</span>
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openLedgerModal({
+                                    batchLabel: group.batchLabel
+                                  });
+                                }}
+                                className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                              >
+                                Add to Group
+                              </button>
+                            </div>
+                            {!isCollapsed && (
+                              <div className="space-y-3">
+                                {group.items.map((item) => {
+                              const statusBadgeColor = (status) => {
+                                switch (status) {
+                                  case "paid": return "bg-lime-100 text-lime-700 border-lime-300";
+                                  case "part-paid": return "bg-amber-100 text-amber-700 border-amber-300";
+                                  case "unpaid": return "bg-red-100 text-red-700 border-red-300";
+                                  case "disputed": return "bg-orange-100 text-orange-700 border-orange-300";
+                                  case "refunded": return "bg-blue-100 text-blue-700 border-blue-300";
+                                  default: return "bg-neutral-100 text-neutral-700 border-neutral-300";
+                                }
+                              };
 
---- TABLE ---
+                              const proofStatusBadgeColor = (proofStatus) => {
+                                switch (proofStatus) {
+                                  case "confirmed": return "bg-lime-100 text-lime-700 border-lime-300";
+                                  case "partial": return "bg-amber-100 text-amber-700 border-amber-300";
+                                  default: return "bg-red-100 text-red-700 border-red-300";
+                                }
+                              };
 
-| Date       | Amount € | Direction | Status    | Notes |
-|------------|----------|-----------|-----------|-------|
+                              return (
+                                <div key={item.id} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h4 className="font-semibold text-neutral-800">{item.label || "Untitled Ledger Entry"}</h4>
+                                    <div className="flex items-center gap-3">
+                                      {item.batchLabel && (
+                                        <span className="px-1.5 py-0.5 rounded bg-neutral-100 border border-neutral-200 text-[9px] font-bold uppercase tracking-tight text-neutral-500">
+                                          {item.batchLabel}
+                                        </span>
+                                      )}
+                                      <span className="text-xs text-neutral-500">{item.category || "N/A"}</span>
+                                      <button 
+                                        onClick={() => openLedgerModal(item, item.id)}
+                                        className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                                      >
+                                        Edit
+                                      </button>
+                                      <button 
+                                        onClick={() => duplicateLedgerEntry(item)}
+                                        className="rounded-lg border border-neutral-300 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors"
+                                      >
+                                        Duplicate
+                                      </button>
+                                      <button 
+                                        onClick={() => deleteLedgerEntry(item.id)}
+                                        className="rounded-lg border border-red-300 bg-white px-2 py-0.5 text-[10px] font-bold text-red-700 shadow-sm hover:bg-red-50 transition-colors"
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <div className="text-sm text-neutral-600 mb-2">Period: {item.period || "N/A"}</div>
 
---- SUMMARY (GPT READY) ---
+                                  <div className="grid grid-cols-3 gap-2 text-sm mb-2">
+                                    <div>Expected: {item.expectedAmount} {item.currency}</div>
+                                    <div>Paid: {item.paidAmount} {item.currency}</div>
+                                    <div>Difference: {item.differenceAmount} {item.currency}</div>
+                                  </div>
 
+                                  <div className="flex items-center justify-between text-xs">
+                                    <div className="flex gap-2">
+                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${statusBadgeColor(item.status)}`}>
+                                        {item.status || "N/A"}
+                                      </span>
+                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${proofStatusBadgeColor(item.proofStatus)}`}>
+                                        {item.proofStatus || "N/A"}
+                                      </span>
+                                    </div>
+                                    <div className="text-neutral-500">
+                                      {item.paymentDate ? `Paid: ${item.paymentDate}` : item.dueDate ? `Due: ${item.dueDate}` : "No Date"}
+                                    </div>
+                                  </div>
 
+                                  {item.counterparty && <div className="text-xs text-neutral-500 mt-2">Counterparty: {item.counterparty}</div>}
+                                  {item.notes && <p className="text-xs text-neutral-500 mt-2 line-clamp-2">{item.notes}</p>}
 
---- FILE LINKS ---
-
-
-
---- NOTES ---
-
-
-`
-                })}
-                className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
-              >
-                Add Tracking Record
-              </button>
-              <button
-                onClick={() => openDocumentModal()}
-                className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
-              >
-                + Add Document
-              </button>
-            </div>
-
-            {parsedTrackingRecords.length > 0 && (
-              <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4">
-                <div className="mb-2 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-blue-900">Tracking Records</h3>
-                  <span className="text-xs text-blue-700">
-                    {parsedTrackingRecords.length} tracking record{parsedTrackingRecords.length === 1 ? "" : "s"} · {derivedTrackingLedger.length} generated ledger entr{derivedTrackingLedger.length === 1 ? "y" : "ies"}
-                  </span>
-                </div>
-
-                <div className="space-y-3">
-                  {parsedTrackingRecords.map((record) => (
-                    <div key={record.id} className="rounded-xl border border-blue-100 bg-white p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-semibold text-neutral-900">{record.title}</span>
-                            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
-                              {record.meta.type || "unknown"}
-                            </span>
-                            {record.meta.status && (
-                              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-600">
-                                {record.meta.status}
-                              </span>
+                                  {item.linkedRecordIds && item.linkedRecordIds.length > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-neutral-100">
+                                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Linked Records</div>
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {item.linkedRecordIds.map((rid) => {
+                                          const found = findRecordById(rid);
+                                          if (!found) return null;
+                                          return (
+                                            <button
+                                              key={rid}
+                                              onClick={() => openLinkedRecord(rid)}
+                                              className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-neutral-300 bg-white text-[10px] font-medium text-neutral-700 shadow-sm hover:border-lime-500 hover:text-lime-600 transition-all text-left"
+                                            >
+                                              <span className="opacity-50 font-bold uppercase">{found.type === 'evidence' ? 'Evidence' : found.type.slice(0, -1)}</span>
+                                              <span className="truncate max-w-[120px]">{found.record.title}</span>
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
                             )}
                           </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
 
-                          <div className="mt-2 text-xs text-neutral-600">
-                            <div><span className="font-medium text-neutral-800">Subject:</span> {record.meta.subject || "—"}</div>
-                            <div><span className="font-medium text-neutral-800">Period:</span> {record.meta.period || "—"}</div>
-                            <div><span className="font-medium text-neutral-800">Rows:</span> {record.table.length}</div>
-                            <div><span className="font-medium text-neutral-800">File links:</span> {record.fileLinks.length}</div>
+            {activeTab === "documents" && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Documents</h3>
+                  <button
+                    onClick={() => openDocumentModal({
+                      title: "New Tracking Record",
+                      textContent: `[TRACK RECORD]
+
+    meta:
+    type:
+    subject:
+    period:
+    status:
+
+    --- TABLE ---
+
+    | Date       | Amount € | Direction | Status    | Notes |
+    |------------|----------|-----------|-----------|-------|
+
+    --- SUMMARY (GPT READY) ---
+
+
+
+    --- FILE LINKS ---
+
+
+
+    --- NOTES ---
+
+
+    `
+                    })}
+                    className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
+                  >
+                    Add Tracking Record
+                  </button>
+                  <button
+                    onClick={() => openDocumentModal()}
+                    className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
+                  >
+                    + Add Document
+                  </button>
+                </div>
+
+                {parsedTrackingRecords.length > 0 && (
+                  <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                    <div className="mb-2 flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-blue-900">Tracking Records</h3>
+                      <span className="text-xs text-blue-700">
+                        {parsedTrackingRecords.length} tracking record{parsedTrackingRecords.length === 1 ? "" : "s"} · {derivedTrackingLedger.length} generated ledger entr{derivedTrackingLedger.length === 1 ? "y" : "ies"}
+                      </span>
+                    </div>
+
+                    <div className="space-y-3">
+                      {parsedTrackingRecords.map((record) => (
+                        <div key={record.id} className="rounded-xl border border-blue-100 bg-white p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-sm font-semibold text-neutral-900">{record.title}</span>
+                                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
+                                  {record.meta.type || "unknown"}
+                                </span>
+                                {record.meta.status && (
+                                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-600">
+                                    {record.meta.status}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="mt-2 text-xs text-neutral-600">
+                                <div><span className="font-medium text-neutral-800">Subject:</span> {record.meta.subject || "—"}</div>
+                                <div><span className="font-medium text-neutral-800">Period:</span> {record.meta.period || "—"}</div>
+                                <div><span className="font-medium text-neutral-800">Rows:</span> {record.table.length}</div>
+                                <div><span className="font-medium text-neutral-800">File links:</span> {record.fileLinks.length}</div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button 
+                                onClick={() => setActiveLedgerRecord(record)}
+                                className="rounded-lg border border-blue-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-blue-50 transition-colors"
+                              >
+                                View Payments
+                              </button>
+                              <button 
+                                onClick={() => openDocumentModal(record.rawDocument, record.rawDocument.id)}
+                                className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                              >
+                                View
+                              </button>
+                              <button 
+                                onClick={() => openDocumentModal(record.rawDocument, record.rawDocument.id)}
+                                className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                              >
+                                Edit
+                              </button>
+                              <button 
+                                onClick={() => deleteDocumentEntry(record.rawDocument.id)}
+                                className="rounded-lg border border-red-300 bg-white px-2 py-0.5 text-[10px] font-bold text-red-700 shadow-sm hover:bg-red-50 transition-colors"
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </div>
-                        </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button 
-                            onClick={() => setActiveLedgerRecord(record)}
-                            className="rounded-lg border border-blue-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-blue-50 transition-colors"
-                          >
-                            View Payments
-                          </button>
-                          <button 
-                            onClick={() => openDocumentModal(record.rawDocument, record.rawDocument.id)}
-                            className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
-                          >
-                            View
-                          </button>
-                          <button 
-                            onClick={() => openDocumentModal(record.rawDocument, record.rawDocument.id)}
-                            className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
-                          >
-                            Edit
-                          </button>
-                          <button 
-                            onClick={() => deleteDocumentEntry(record.rawDocument.id)}
-                            className="rounded-lg border border-red-300 bg-white px-2 py-0.5 text-[10px] font-bold text-red-700 shadow-sm hover:bg-red-50 transition-colors"
+                          {record.summary && (
+                            <p className="mt-2 text-xs text-neutral-700 line-clamp-3">{record.summary}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500 mt-6">Other Documents</h3>
+
+                {(() => {
+                  const otherDocuments = (selectedCase?.documents || []).filter(doc => !isTrackingRecord(doc));
+
+                  if (otherDocuments.length === 0) {
+                    return (
+                      <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                        No other documents yet.
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="space-y-3">
+                      {otherDocuments.map((doc) => (
+                        <div key={doc.id} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-semibold text-neutral-900 truncate">{doc.title || "Untitled Document"}</h4>
+                              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                                <span className="text-neutral-600">{doc.documentDate || "No date"}</span>
+                                <span className="px-1.5 py-0.5 rounded border border-neutral-200 bg-neutral-100">{doc.category || "other"}</span>
+                                {doc.source && <span>Source: {doc.source}</span>}
+                              </div>
+                            </div>
+                            <div className="flex flex-col items-end gap-2">
+                              <div className="flex items-center gap-2">
+                                <button 
+                                  onClick={() => openDocumentModal(doc, doc.id)}
+                                  className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                                >
+                                  Edit
+                                </button>
+                                <button 
+                                  onClick={() => deleteDocumentEntry(doc.id)}
+                                  className="rounded-lg border border-red-300 bg-white px-2 py-0.5 text-[10px] font-bold text-red-700 shadow-sm hover:bg-red-50 transition-colors"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                              {doc.textContent && (
+                                <span className="shrink-0 px-1.5 py-0.5 rounded border border-blue-200 bg-blue-50 text-[9px] font-bold uppercase tracking-wider text-blue-600">
+                                  Has Text
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {doc.summary && (
+                            <p className="mt-3 text-sm text-neutral-600 line-clamp-2 italic border-l-2 border-neutral-200 pl-3">
+                              {doc.summary}
+                            </p>
+                          )}
+
+                          {doc.textContent && doc.textContent.trim() && (
+                            <div className="mt-4 pt-4 border-t border-neutral-100">
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Text Content</div>
+                              <div className="text-sm text-neutral-700 whitespace-pre-wrap">
+                                {expandedDocuments[doc.id] 
+                                  ? doc.textContent 
+                                  : doc.textContent.slice(0, 280) + (doc.textContent.length > 280 ? "..." : "")}
+                              </div>
+                              {doc.textContent.length > 280 && (
+                                <button
+                                  onClick={() => toggleDocumentExpanded(doc.id)}
+                                  className="mt-2 text-xs font-bold text-lime-600 hover:text-lime-700 transition-colors"
+                                >
+                                  {expandedDocuments[doc.id] ? "Show less" : "Show more"}
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          {doc.attachments && doc.attachments.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-neutral-100">
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Attachments</div>
+                              <div className="rounded-2xl border border-neutral-200 bg-neutral-50/50 p-4">
+                                <AttachmentPreview 
+                                  attachments={doc.attachments || []}
+                                  imageCache={imageCache}
+                                  onPreview={onPreviewFile}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {doc.linkedRecordIds && doc.linkedRecordIds.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-neutral-100">
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Linked Records</div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {doc.linkedRecordIds.map((rid) => {
+                                  const found = findRecordById(rid);
+                                  if (!found) return null;
+                                  return (
+                                    <button
+                                      key={rid}
+                                      onClick={() => openLinkedRecord(rid)}
+                                      className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-neutral-300 bg-white text-[10px] font-medium text-neutral-700 shadow-sm hover:border-lime-500 hover:text-lime-600 transition-all text-left"
+                                    >
+                                      <span className="opacity-50 font-bold uppercase">{found.type === 'evidence' ? 'Evidence' : found.type.slice(0, -1)}</span>
+                                      <span className="truncate max-w-[120px]">{found.record.title}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {activeTab === "ideas" && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Ideas</h3>
+                  <button
+                    onClick={() =>
+                    onUpdateCase({
+                      ...selectedCase,
+                      ideas: [
+                        ...(selectedCase.ideas || []),
+                        { id: Date.now().toString(), title: "New idea", description: "", status: "raw" }
+                      ]
+                    })
+                    }
+                    className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-sm font-medium text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                  >
+                    + Idea
+                  </button>
+                </div>
+
+                {ideas.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                    No ideas yet.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {ideas.map((idea) => (
+                      <div key={idea.id} className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+                        <input
+                          value={idea.title}
+                          onChange={(e) => {
+                            const updatedIdeas = ideas.map((item) =>
+                              item.id === idea.id ? { ...item, title: e.target.value } : item
+                            );
+                            setIdeas(updatedIdeas);
+                            onUpdateCase({ ...selectedCase, ideas: updatedIdeas });
+                          }}
+                          className="w-full font-bold text-neutral-900 bg-transparent border-none focus:ring-0 p-0"
+                        />
+                        <textarea
+                          value={idea.description}
+                          onChange={(e) => {
+                            const updatedIdeas = ideas.map((item) =>
+                              item.id === idea.id ? { ...item, description: e.target.value } : item
+                            );
+                            setIdeas(updatedIdeas);
+                            onUpdateCase({ ...selectedCase, ideas: updatedIdeas });
+                          }}
+                          className="w-full text-sm text-neutral-600 bg-transparent border-none focus:ring-0 p-0 resize-none"
+                          placeholder="Add a description..."
+                          rows={2}
+                        />
+                        <div className="flex items-center justify-between mt-2">
+                          <div className="text-[10px] font-bold uppercase text-neutral-400">Status: {idea.status}</div>
+                          <button
+                            onClick={() => {
+                              const updatedIdeas = ideas.filter((item) => item.id !== idea.id);
+                              setIdeas(updatedIdeas);
+                              onUpdateCase({ ...selectedCase, ideas: updatedIdeas });
+                            }}
+                            className="text-[10px] font-bold uppercase text-red-500 hover:text-red-700 transition-colors"
                           >
                             Delete
                           </button>
                         </div>
                       </div>
-
-                      {record.summary && (
-                        <p className="mt-2 text-xs text-neutral-700 line-clamp-3">{record.summary}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
-            <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500 mt-6">Other Documents</h3>
+            {activeTab === "timeline" && (
+              <div className="space-y-6">
+                {/* Timeline Filter Controls */}
+                <div className="flex flex-wrap gap-2 pb-2 overflow-x-auto">
+                  {["core", "master", "incidents", "evidence", "milestones"].map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setTimelineView(f)}
+                      className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-xl border transition-all ${
+                        timelineView === f
+                          ? "bg-lime-500 border-lime-600 text-white shadow-md"
+                          : "bg-white border-neutral-200 text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300"
+                      }`}
+                    >
+                      {timelineViewLabelMap[f] || f}
+                    </button>
+                  ))}
+                </div>
 
-            {(() => {
-              const otherDocuments = (selectedCase?.documents || []).filter(doc => !isTrackingRecord(doc));
+                <div className="mt-2 text-xs text-neutral-500">
+                  {timelineViewDescriptionMap[timelineView] || ""}
+                </div>
 
-              if (otherDocuments.length === 0) {
-                return (
-                  <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-                    No other documents yet.
+                {allTimelineTags.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {allTimelineTags.map((tag) => (
+                      <button
+                        key={tag}
+                        onClick={() => setTimelineTagFilter(timelineTagFilter === tag ? null : tag)}
+                        className={`px-2 py-1 rounded-full text-xs font-bold transition-all ${
+                          timelineTagFilter === tag
+                            ? "bg-lime-500 text-white shadow-sm"
+                            : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
                   </div>
-                );
-              }
-              return (
-                <div className="space-y-3">
-                  {otherDocuments.map((doc) => (
-                    <div key={doc.id} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-neutral-900 truncate">{doc.title || "Untitled Document"}</h4>
-                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                            <span className="text-neutral-600">{doc.documentDate || "No date"}</span>
-                            <span className="px-1.5 py-0.5 rounded border border-neutral-200 bg-neutral-100">{doc.category || "other"}</span>
-                            {doc.source && <span>Source: {doc.source}</span>}
-                          </div>
+                )}
+
+                {(() => {
+                  let filteredTimelineItems = timelineItems.filter((item) => {
+                    if (timelineView === "core") {
+                      return item._kind === "Incident" || item._kind === "Evidence";
+                    }
+                    if (timelineView === "master") {
+                      return true;
+                    }
+                    if (timelineView === "incidents") {
+                      return item._kind === "Incident";
+                    }
+                    if (timelineView === "evidence") {
+                      return item._kind === "Evidence";
+                    }
+                    if (timelineView === "milestones") {
+                      return item.importance === "critical" || item.isMilestone === true;
+                    }
+                    return true;
+                  });
+
+                  if (timelineTagFilter) {
+                    filteredTimelineItems = filteredTimelineItems.filter(
+                      (item) => Array.isArray(item.tags) && item.tags.includes(timelineTagFilter)
+                    );
+                  }
+
+                  if (filteredTimelineItems.length === 0) {
+                    return (
+                      <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                        {timelineTagFilter 
+                          ? `No items match the selected tag: ${timelineTagFilter}`
+                          : (timelineEmptyMessageMap[timelineView] || "No timeline records yet.")}
+                      </div>
+                    );
+                  }
+
+                    const groups = [];
+                    let lastDate = null;
+                    filteredTimelineItems.forEach(item => {
+                      const d = item.eventDate || item.date || "Unknown Date";
+                      if (d !== lastDate) {
+                        groups.push({ date: d, items: [item] });
+                        lastDate = d;
+                      } else {
+                        groups[groups.length - 1].items.push(item);
+                      }
+                    });
+
+                    return groups.map(group => (
+                      <div key={group.date} className="space-y-4">
+                        <div className="relative flex items-center py-2">
+                          <div className="flex-grow border-t border-neutral-200"></div>
+                          <span className="mx-4 flex-shrink text-xs font-bold uppercase tracking-widest text-neutral-400">
+                            {group.date}
+                          </span>
+                          <div className="flex-grow border-t border-neutral-200"></div>
                         </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <div className="flex items-center gap-2">
-                            <button 
-                              onClick={() => openDocumentModal(doc, doc.id)}
-                              className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
-                            >
-                              Edit
-                            </button>
-                            <button 
-                              onClick={() => deleteDocumentEntry(doc.id)}
-                              className="rounded-lg border border-red-300 bg-white px-2 py-0.5 text-[10px] font-bold text-red-700 shadow-sm hover:bg-red-50 transition-colors"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                          {doc.textContent && (
-                            <span className="shrink-0 px-1.5 py-0.5 rounded border border-blue-200 bg-blue-50 text-[9px] font-bold uppercase tracking-wider text-blue-600">
-                              Has Text
-                            </span>
-                          )}
+                        <div className="space-y-3">
+                          {group.items.map((item) => {
+                            const kindToTypeMap = {
+                              Evidence: "evidence",
+                              Incident: "incidents",
+                              Strategy: "strategy",
+                            };
+                            const recordType = kindToTypeMap[item._kind] || "evidence";
+
+                            return (
+                              <RecordCard
+                                key={`${item._kind}-${item.id}`}
+                                item={item}
+                                recordType={recordType}
+                                selectedCase={selectedCase}
+                                imageCache={imageCache}
+                                onPreviewFile={onPreviewFile}
+                                onViewRecord={onViewRecord}
+                                openEditRecordModal={openEditRecordModal}
+                                deleteRecord={deleteRecord}
+                                openLinkedRecord={openLinkedRecord}
+                                openRecordModal={openRecordModal}
+                                showTypeBadge={true}
+                                isTimeline={true}
+                                isMilestone={item.importance === "critical"}
+                                isActionItem={
+                                  Array.isArray(item.tags) &&
+                                  (
+                                    item.tags.includes("action") ||
+                                    item.tags.includes("follow-up") ||
+                                    item.tags.includes("pending")
+                                  )
+                                }
+                              />
+                            );
+                          })}
                         </div>
                       </div>
-                      {doc.summary && (
-                        <p className="mt-3 text-sm text-neutral-600 line-clamp-2 italic border-l-2 border-neutral-200 pl-3">
-                          {doc.summary}
-                        </p>
-                      )}
+                    ));
+                  })()}
+              </div>
+            )}
 
-                      {doc.textContent && doc.textContent.trim() && (
-                        <div className="mt-4 pt-4 border-t border-neutral-100">
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Text Content</div>
-                          <div className="text-sm text-neutral-700 whitespace-pre-wrap">
-                            {expandedDocuments[doc.id] 
-                              ? doc.textContent 
-                              : doc.textContent.slice(0, 280) + (doc.textContent.length > 280 ? "..." : "")}
-                          </div>
-                          {doc.textContent.length > 280 && (
-                            <button
-                              onClick={() => toggleDocumentExpanded(doc.id)}
-                              className="mt-2 text-xs font-bold text-lime-600 hover:text-lime-700 transition-colors"
-                            >
-                              {expandedDocuments[doc.id] ? "Show less" : "Show more"}
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      {doc.attachments && doc.attachments.length > 0 && (
-                        <div className="mt-4 pt-4 border-t border-neutral-100">
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Attachments</div>
-                          <div className="rounded-2xl border border-neutral-200 bg-neutral-50/50 p-4">
-                            <AttachmentPreview 
-                              attachments={doc.attachments || []}
-                              imageCache={imageCache}
-                              onPreview={onPreviewFile}
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {doc.linkedRecordIds && doc.linkedRecordIds.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-neutral-100">
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Linked Records</div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {doc.linkedRecordIds.map((rid) => {
-                              const found = findRecordById(rid);
-                              if (!found) return null;
-                              return (
-                                <button
-                                  key={rid}
-                                  onClick={() => openLinkedRecord(rid)}
-                                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-neutral-300 bg-white text-[10px] font-medium text-neutral-700 shadow-sm hover:border-lime-500 hover:text-lime-600 transition-all text-left"
-                                >
-                                  <span className="opacity-50 font-bold uppercase">{found.type === 'evidence' ? 'Evidence' : found.type.slice(0, -1)}</span>
-                                  <span className="truncate max-w-[120px]">{found.record.title}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+            {activeTab === "pack" && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Pack Preview</h3>
+                <p className="text-sm text-neutral-600">V1 pack will include evidence and incidents only.</p>
+                <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                  Pack preview placeholder. Later this view will assemble the selected evidence and incidents into a clean printable case file.
                 </div>
-              );
-            })()}
-          </div>
-        )}
-
-        {activeTab === "ideas" && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Ideas</h3>
-              <button
-                onClick={() =>
-                onUpdateCase({
-                  ...selectedCase,
-                  ideas: [
-                    ...(selectedCase.ideas || []),
-                    { id: Date.now().toString(), title: "New idea", description: "", status: "raw" }
-                  ]
-                })
-                }
-                className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-sm font-medium text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
-              >
-                + Idea
-              </button>
-            </div>
-
-            {ideas.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-                No ideas yet.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {ideas.map((idea) => (
-                  <div key={idea.id} className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
-                    <input
-                      value={idea.title}
-                      onChange={(e) => {
-                        const updatedIdeas = ideas.map((item) =>
-                          item.id === idea.id ? { ...item, title: e.target.value } : item
-                        );
-                        setIdeas(updatedIdeas);
-                        onUpdateCase({ ...selectedCase, ideas: updatedIdeas });
-                      }}
-                      className="w-full font-bold text-neutral-900 bg-transparent border-none focus:ring-0 p-0"
-                    />
-                    <textarea
-                      value={idea.description}
-                      onChange={(e) => {
-                        const updatedIdeas = ideas.map((item) =>
-                          item.id === idea.id ? { ...item, description: e.target.value } : item
-                        );
-                        setIdeas(updatedIdeas);
-                        onUpdateCase({ ...selectedCase, ideas: updatedIdeas });
-                      }}
-                      className="w-full text-sm text-neutral-600 bg-transparent border-none focus:ring-0 p-0 resize-none"
-                      placeholder="Add a description..."
-                      rows={2}
-                    />
-                    <div className="flex items-center justify-between mt-2">
-                      <div className="text-[10px] font-bold uppercase text-neutral-400">Status: {idea.status}</div>
-                      <button
-                        onClick={() => {
-                          const updatedIdeas = ideas.filter((item) => item.id !== idea.id);
-                          setIdeas(updatedIdeas);
-                          onUpdateCase({ ...selectedCase, ideas: updatedIdeas });
-                        }}
-                        className="text-[10px] font-bold uppercase text-red-500 hover:text-red-700 transition-colors"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
               </div>
             )}
           </div>
-        )}
-
-        {activeTab === "timeline" && (
-          <div className="space-y-6">
-            {/* Timeline Filter Controls */}
-            <div className="flex flex-wrap gap-2 pb-2 overflow-x-auto">
-              {["core", "master", "incidents", "evidence", "milestones"].map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setTimelineView(f)}
-                  className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-xl border transition-all ${
-                    timelineView === f
-                      ? "bg-lime-500 border-lime-600 text-white shadow-md"
-                      : "bg-white border-neutral-200 text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300"
-                  }`}
-                >
-                  {timelineViewLabelMap[f] || f}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-2 text-xs text-neutral-500">
-              {timelineViewDescriptionMap[timelineView] || ""}
-            </div>
-
-            {allTimelineTags.length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {allTimelineTags.map((tag) => (
-                  <button
-                    key={tag}
-                    onClick={() => setTimelineTagFilter(timelineTagFilter === tag ? null : tag)}
-                    className={`px-2 py-1 rounded-full text-xs font-bold transition-all ${
-                      timelineTagFilter === tag
-                        ? "bg-lime-500 text-white shadow-sm"
-                        : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
-                    }`}
-                  >
-                    {tag}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {(() => {
-              let filteredTimelineItems = timelineItems.filter((item) => {
-                if (timelineView === "core") {
-                  return item._kind === "Incident" || item._kind === "Evidence";
-                }
-                if (timelineView === "master") {
-                  return true;
-                }
-                if (timelineView === "incidents") {
-                  return item._kind === "Incident";
-                }
-                if (timelineView === "evidence") {
-                  return item._kind === "Evidence";
-                }
-                if (timelineView === "milestones") {
-                  return item.importance === "critical" || item.isMilestone === true;
-                }
-                return true;
-              });
-
-              if (timelineTagFilter) {
-                filteredTimelineItems = filteredTimelineItems.filter(
-                  (item) => Array.isArray(item.tags) && item.tags.includes(timelineTagFilter)
-                );
-              }
-
-              if (filteredTimelineItems.length === 0) {
-                return (
-                  <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-                    {timelineTagFilter 
-                      ? `No items match the selected tag: ${timelineTagFilter}`
-                      : (timelineEmptyMessageMap[timelineView] || "No timeline records yet.")}
-                  </div>
-                );
-              }
-
-                const groups = [];
-                let lastDate = null;
-                filteredTimelineItems.forEach(item => {
-                  const d = item.eventDate || item.date || "Unknown Date";
-                  if (d !== lastDate) {
-                    groups.push({ date: d, items: [item] });
-                    lastDate = d;
-                  } else {
-                    groups[groups.length - 1].items.push(item);
-                  }
-                });
-
-                return groups.map(group => (
-                  <div key={group.date} className="space-y-4">
-                    <div className="relative flex items-center py-2">
-                      <div className="flex-grow border-t border-neutral-200"></div>
-                      <span className="mx-4 flex-shrink text-xs font-bold uppercase tracking-widest text-neutral-400">
-                        {group.date}
-                      </span>
-                      <div className="flex-grow border-t border-neutral-200"></div>
-                    </div>
-                    <div className="space-y-3">
-                      {group.items.map((item) => {
-                        const kindToTypeMap = {
-                          Evidence: "evidence",
-                          Incident: "incidents",
-                          Strategy: "strategy",
-                        };
-                        const recordType = kindToTypeMap[item._kind] || "evidence";
-
-                        return (
-                          <RecordCard
-                            key={`${item._kind}-${item.id}`}
-                            item={item}
-                            recordType={recordType}
-                            selectedCase={selectedCase}
-                            imageCache={imageCache}
-                            onPreviewFile={onPreviewFile}
-                            onViewRecord={onViewRecord}
-                            openEditRecordModal={openEditRecordModal}
-                            deleteRecord={deleteRecord}
-                            openLinkedRecord={openLinkedRecord}
-                            openRecordModal={openRecordModal}
-                            showTypeBadge={true}
-                            isTimeline={true}
-                            isMilestone={item.importance === "critical"}
-                            isActionItem={
-                              Array.isArray(item.tags) &&
-                              (
-                                item.tags.includes("action") ||
-                                item.tags.includes("follow-up") ||
-                                item.tags.includes("pending")
-                              )
-                            }
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
-                ));
-              })()}
-          </div>
-        )}
-
-        {activeTab === "pack" && (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Pack Preview</h3>
-            <p className="text-sm text-neutral-600">V1 pack will include evidence and incidents only.</p>
-            <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-              Pack preview placeholder. Later this view will assemble the selected evidence and incidents into a clean printable case file.
-            </div>
-          </div>
-        )}
+        </div>
+        <aside className="lg:col-span-4 space-y-6">
+          {reviewQueueSection}
+        </aside>
       </div>
 
       {showScrollTop && (
@@ -1870,7 +1859,6 @@ status:
                 </div>
               ))}
             </div>
-
           </div>
         </div>
       )}

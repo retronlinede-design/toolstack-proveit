@@ -2285,6 +2285,14 @@ const handleRecordFiles = async (event) => {
                 <span className="rounded-full border border-neutral-300 bg-neutral-50 px-2 py-1">{c.tasks?.length || 0} Tasks</span>
               </div>
             </div>
+
+            <div className="hidden md:block flex-1 px-8 min-w-0 max-w-md">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1">Current Focus</div>
+              <div className="text-sm text-neutral-600 line-clamp-2 italic">
+                {c.actionSummary?.currentFocus || "Active case file management."}
+              </div>
+            </div>
+
             <div className="flex gap-2">
               <button onClick={(e) => { e.stopPropagation(); openCase(c.id); }} className="rounded-xl border border-lime-500 bg-white px-4 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
                 Open
@@ -2391,8 +2399,6 @@ const handleRecordFiles = async (event) => {
         ) : cases.length === 0 ? (
           renderEmptyState()
         ) : (
-          <div className="grid gap-6 lg:grid-cols-12">
-            <div className="lg:col-span-8">
               <CaseDetail
                 selectedCase={selectedCase}
                 reviewQueue={reviewQueue}
@@ -2423,23 +2429,21 @@ const handleRecordFiles = async (event) => {
                 duplicateLedgerEntry={duplicateLedgerEntry}
                 openDocumentModal={openDocumentModal}
                 deleteDocumentEntry={deleteDocumentEntry}
-              />
-            </div>
-            <aside className="lg:col-span-4 space-y-6">
-              <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <div>
-                    <h2 className="text-xl font-semibold">Review Queue</h2>
-                    <p className="mt-1 text-sm text-neutral-600">Quick captures waiting to be classified.</p>
+                reviewQueueSection={(
+                  <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
+                    <div className="mb-4 flex items-start justify-between gap-3">
+                      <div>
+                        <h2 className="text-xl font-semibold">Review Queue</h2>
+                        <p className="mt-1 text-sm text-neutral-600">Quick captures waiting to be classified.</p>
+                      </div>
+                      <span className="rounded-full border border-neutral-300 bg-neutral-50 px-3 py-1 text-xs font-medium text-neutral-700">
+                        {reviewQueue.length} Open
+                      </span>
+                    </div>
+                    {renderReviewQueue()}
                   </div>
-                  <span className="rounded-full border border-neutral-300 bg-neutral-50 px-3 py-1 text-xs font-medium text-neutral-700">
-                    {reviewQueue.length} Open
-                  </span>
-                </div>
-                {renderReviewQueue()}
-              </div>
-            </aside>
-          </div>
+                )}
+              />
         )}
 
         {showCreate && (
