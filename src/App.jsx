@@ -397,6 +397,356 @@ function normalizeRecord(item, recordType) {
   };
 }
 
+const STRUCTURED_PATCH_RECORD_TYPES = ["incidents", "strategy"];
+
+function isStructuredPatchRecordType(recordType) {
+  return STRUCTURED_PATCH_RECORD_TYPES.includes(recordType);
+}
+
+function normalizeRecordPatch(recordType, patch = {}) {
+  if (!isStructuredPatchRecordType(recordType) || !patch || typeof patch !== "object") {
+    return {};
+  }
+
+  const textFields = ["title", "date", "description", "notes", "status", "source", "eventDate", "createdAt", "updatedAt"];
+  const listFields = ["attachments", "tags", "linkedRecordIds"];
+  const patchableFields = recordType === "incidents"
+    ? [...textFields, ...listFields, "linkedEvidenceIds", "edited"]
+    : [...textFields, ...listFields, "edited"];
+
+  return patchableFields.reduce((normalized, field) => {
+    if (!Object.prototype.hasOwnProperty.call(patch, field)) return normalized;
+
+    if (listFields.includes(field) || field === "linkedEvidenceIds") {
+      normalized[field] = Array.isArray(patch[field]) ? patch[field] : [];
+      return normalized;
+    }
+
+    if (field === "edited") {
+      normalized[field] = !!patch[field];
+      return normalized;
+    }
+
+    normalized[field] = typeof patch[field] === "string" ? patch[field] : "";
+    return normalized;
+  }, {});
+}
+
+function applyRecordPatch(record, recordType, patch = {}) {
+  if (!record || !isStructuredPatchRecordType(recordType)) return record;
+
+  const normalizedPatch = normalizeRecordPatch(recordType, patch);
+  const patchedRecord = normalizeRecord({
+    ...record,
+    ...normalizedPatch,
+    id: record.id,
+    type: record.type || recordType,
+  }, recordType);
+
+  return {
+    ...patchedRecord,
+    id: record.id,
+    type: record.type || recordType,
+  };
+}
+
+function applyRecordPatchToCase(caseItem, recordType, recordId, patch = {}) {
+  if (!caseItem || !isStructuredPatchRecordType(recordType) || !recordId) return caseItem;
+
+  const records = Array.isArray(caseItem[recordType]) ? caseItem[recordType] : [];
+  let patchedRecord = null;
+  const updatedRecords = records.map((record) => {
+    if (record.id !== recordId) return record;
+    patchedRecord = applyRecordPatch(record, recordType, patch);
+    return patchedRecord;
+  });
+
+  if (!patchedRecord) return caseItem;
+
+  let updatedCase = {
+    ...caseItem,
+    [recordType]: isTimelineCapable(recordType) ? sortTimelineItems(updatedRecords) : updatedRecords,
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (recordType === "incidents") {
+    updatedCase = syncCaseLinks(updatedCase, patchedRecord, recordType);
+  }
+
+  return updatedCase;
+}
+
+function normalizeGptStrategyDelta(payload = {}) {
+  if (!payload || typeof payload !== "object") {
+    return { ok: false, reason: "Payload must be an object." };
+  }
+
+  if (payload.app !== "proveit" || payload.contractVersion !== "gpt-delta-1.0") {
+    return { ok: false, reason: "Unsupported GPT delta contract." };
+  }
+
+  const caseId = payload.target?.caseId;
+  if (!caseId || typeof caseId !== "string") {
+    return { ok: false, reason: "GPT delta target.caseId is required." };
+  }
+
+  const strategyPatches = payload.operations?.patch?.strategy;
+  if (!Array.isArray(strategyPatches)) {
+    return { ok: false, reason: "GPT delta strategy patch must be an array." };
+  }
+
+  const textFields = ["title", "date", "description", "notes", "status"];
+  const listFields = ["tags", "linkedRecordIds"];
+  const patchableFields = [...textFields, ...listFields];
+
+  const patches = [];
+
+  for (const item of strategyPatches) {
+    if (!item || typeof item !== "object" || typeof item.id !== "string" || !item.id) {
+      return { ok: false, reason: "Each strategy patch must include an id." };
+    }
+
+    if (!item.patch || typeof item.patch !== "object" || Array.isArray(item.patch)) {
+      return { ok: false, reason: "Each strategy patch must include a patch object." };
+    }
+
+    const patch = patchableFields.reduce((normalized, field) => {
+      if (!Object.prototype.hasOwnProperty.call(item.patch, field)) return normalized;
+
+      if (listFields.includes(field)) {
+        normalized[field] = Array.isArray(item.patch[field]) ? item.patch[field] : [];
+        return normalized;
+      }
+
+      normalized[field] = typeof item.patch[field] === "string" ? item.patch[field] : "";
+      return normalized;
+    }, {});
+
+    if (Object.keys(patch).length === 0) {
+      return { ok: false, reason: "Each strategy patch must include at least one supported field." };
+    }
+
+    patches.push({ id: item.id, patch });
+  }
+
+  return { ok: true, caseId, patches };
+}
+
+function ingestGptStrategyDelta(caseItem, payload) {
+  const normalized = normalizeGptStrategyDelta(payload);
+  if (!normalized.ok) {
+    return normalized;
+  }
+
+  if (!caseItem || String(normalized.caseId) !== String(caseItem.id || "")) {
+    return { ok: false, reason: "GPT delta target case does not match the provided case." };
+  }
+
+  const updatedAt = new Date().toISOString();
+  let updatedCase = caseItem;
+
+  for (const item of normalized.patches) {
+    const nextCase = applyRecordPatchToCase(
+      updatedCase,
+      "strategy",
+      item.id,
+      {
+        ...item.patch,
+        updatedAt,
+      }
+    );
+
+    if (nextCase === updatedCase) {
+      return { ok: false, reason: `Strategy record not found: ${item.id}` };
+    }
+
+    updatedCase = nextCase;
+  }
+
+  return { ok: true, case: updatedCase };
+}
+
+function validateGptDeltaTarget(caseItem, payload = {}) {
+  if (!caseItem || !payload || typeof payload !== "object") {
+    return { ok: false, reason: "GPT delta requires a case and payload object." };
+  }
+
+  if (payload.app !== "proveit" || payload.contractVersion !== "gpt-delta-1.0") {
+    return { ok: false, reason: "Unsupported GPT delta contract." };
+  }
+
+  const caseId = payload.target?.caseId;
+  if (!caseId || typeof caseId !== "string") {
+    return { ok: false, reason: "GPT delta target.caseId is required." };
+  }
+
+  if (String(caseId) !== String(caseItem.id || "")) {
+    return { ok: false, reason: "GPT delta target case does not match the provided case." };
+  }
+
+  return { ok: true, caseId };
+}
+
+function applyGptActionSummaryDeltaToCase(caseItem, actionSummaryPatch = {}) {
+  if (!actionSummaryPatch || typeof actionSummaryPatch !== "object" || Array.isArray(actionSummaryPatch)) {
+    return { ok: false, reason: "GPT delta actionSummary patch must be an object." };
+  }
+
+  const patchableFields = [
+    "currentFocus",
+    "nextActions",
+    "importantReminders",
+    "strategyFocus",
+    "criticalDeadlines",
+  ];
+
+  const patch = patchableFields.reduce((normalized, field) => {
+    if (Object.prototype.hasOwnProperty.call(actionSummaryPatch, field)) {
+      normalized[field] = actionSummaryPatch[field];
+    }
+    return normalized;
+  }, {});
+
+  if (Object.keys(patch).length === 0) {
+    return { ok: false, reason: "GPT delta actionSummary patch has no supported fields." };
+  }
+
+  return {
+    ok: true,
+    case: {
+      ...caseItem,
+      actionSummary: normalizeActionSummary({
+        ...(caseItem.actionSummary || {}),
+        ...patch,
+        updatedAt: new Date().toISOString(),
+      }),
+      updatedAt: new Date().toISOString(),
+    },
+  };
+}
+
+function ingestGptDelta(caseItem, payload) {
+  const target = validateGptDeltaTarget(caseItem, payload);
+  if (!target.ok) {
+    return target;
+  }
+
+  const patch = payload.operations?.patch;
+  if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+    return { ok: false, reason: "GPT delta operations.patch is required." };
+  }
+
+  let updatedCase = caseItem;
+  let appliedCount = 0;
+
+  if (Object.prototype.hasOwnProperty.call(patch, "actionSummary")) {
+    const actionSummaryResult = applyGptActionSummaryDeltaToCase(updatedCase, patch.actionSummary);
+    if (!actionSummaryResult.ok) {
+      return actionSummaryResult;
+    }
+    updatedCase = actionSummaryResult.case;
+    appliedCount += 1;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, "strategy")) {
+    const strategyResult = ingestGptStrategyDelta(updatedCase, {
+      app: payload.app,
+      contractVersion: payload.contractVersion,
+      target: payload.target,
+      operations: {
+        patch: {
+          strategy: patch.strategy,
+        },
+      },
+    });
+
+    if (!strategyResult.ok) {
+      return strategyResult;
+    }
+
+    updatedCase = strategyResult.case;
+    appliedCount += 1;
+  }
+
+  if (appliedCount === 0) {
+    return { ok: false, reason: "GPT delta has no supported patch sections." };
+  }
+
+  return { ok: true, case: updatedCase };
+}
+
+function buildGptDeltaPreview(payload, currentCase, updatedCase) {
+  const patch = payload?.operations?.patch || {};
+  const supportedSections = [];
+  const actionSummaryFields = [];
+
+  if (patch.actionSummary && typeof patch.actionSummary === "object" && !Array.isArray(patch.actionSummary)) {
+    ["currentFocus", "nextActions", "importantReminders", "strategyFocus", "criticalDeadlines"].forEach((field) => {
+      if (Object.prototype.hasOwnProperty.call(patch.actionSummary, field)) {
+        actionSummaryFields.push(field);
+      }
+    });
+
+    if (actionSummaryFields.length > 0) {
+      supportedSections.push("Action Summary");
+    }
+  }
+
+  const strategyItems = Array.isArray(patch.strategy)
+    ? patch.strategy
+        .map((item) => {
+          const recordId = typeof item?.id === "string" ? item.id : "";
+          const currentRecord = (currentCase?.strategy || []).find((record) => String(record.id) === String(recordId));
+          const updatedRecord = (updatedCase?.strategy || []).find((record) => String(record.id) === String(recordId));
+          return {
+            id: recordId,
+            title: updatedRecord?.title || currentRecord?.title || "Untitled strategy",
+          };
+        })
+        .filter((item) => item.id)
+    : [];
+
+  if (strategyItems.length > 0) {
+    supportedSections.push("Strategy");
+  }
+
+  return {
+    caseName: currentCase?.name || "Selected case",
+    caseId: String(currentCase?.id || ""),
+    contractVersion: payload?.contractVersion || "",
+    supportedSections,
+    actionSummaryFields,
+    strategyItems,
+  };
+}
+
+function prepareGptDeltaPayloadForSelectedCase(payload, selectedCaseId) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return payload;
+
+  const target = payload.target;
+  if (target != null && (typeof target !== "object" || Array.isArray(target))) {
+    return payload;
+  }
+
+  const currentCaseId = String(selectedCaseId || "");
+  const incomingCaseId = target?.caseId;
+  const shouldUseSelectedCaseId =
+    incomingCaseId == null ||
+    (typeof incomingCaseId === "string" && ["", "AUTO"].includes(incomingCaseId.trim().toUpperCase()));
+
+  if (!shouldUseSelectedCaseId || !currentCaseId) {
+    return payload;
+  }
+
+  return {
+    ...payload,
+    target: {
+      ...(target || {}),
+      caseId: currentCaseId,
+    },
+  };
+}
+
 function normalizeCase(caseItem) {
   const evidence = Array.isArray(caseItem?.evidence) ? caseItem.evidence.map(r => normalizeRecord(r, "evidence")) : [];
   const incidents = Array.isArray(caseItem?.incidents) ? caseItem.incidents.map(r => normalizeRecord(r, "incidents")) : [];
@@ -1034,6 +1384,12 @@ export default function ProveItApp() {
 
   const [fullCaseExportStatus, setFullCaseExportStatus] = useState("idle"); // idle, exporting, success, error
   const [fullCaseExportMessage, setFullCaseExportMessage] = useState("");
+  const [showGptDeltaModal, setShowGptDeltaModal] = useState(false);
+  const [gptDeltaText, setGptDeltaText] = useState("");
+  const [gptDeltaError, setGptDeltaError] = useState("");
+  const [gptDeltaPreview, setGptDeltaPreview] = useState(null);
+  const [gptDeltaValidatedCase, setGptDeltaValidatedCase] = useState(null);
+  const [gptDeltaApplying, setGptDeltaApplying] = useState(false);
 
   const [ledgerModalOpen, setLedgerModalOpen] = useState(false);
   const [ledgerForm, setLedgerForm] = useState(EMPTY_LEDGER_FORM);
@@ -1099,6 +1455,77 @@ export default function ProveItApp() {
       setCases((prev) => prev.map((c) => (c.id === updatedCase.id ? updatedCase : c)));
     } catch (error) {
       console.error("Failed to update case", error);
+    }
+  };
+
+  const resetGptDeltaModal = () => {
+    setShowGptDeltaModal(false);
+    setGptDeltaText("");
+    setGptDeltaError("");
+    setGptDeltaPreview(null);
+    setGptDeltaValidatedCase(null);
+    setGptDeltaApplying(false);
+  };
+
+  const openGptDeltaModal = () => {
+    setGptDeltaText("");
+    setGptDeltaError("");
+    setGptDeltaPreview(null);
+    setGptDeltaValidatedCase(null);
+    setGptDeltaApplying(false);
+    setShowGptDeltaModal(true);
+  };
+
+  const handleGptDeltaTextChange = (event) => {
+    setGptDeltaText(event.target.value);
+    setGptDeltaError("");
+    setGptDeltaPreview(null);
+    setGptDeltaValidatedCase(null);
+  };
+
+  const handleValidateGptDelta = () => {
+    setGptDeltaError("");
+    setGptDeltaPreview(null);
+    setGptDeltaValidatedCase(null);
+
+    if (!selectedCase) {
+      setGptDeltaError("Select a case before applying a GPT update.");
+      return;
+    }
+
+    let payload;
+    try {
+      payload = JSON.parse(gptDeltaText);
+    } catch {
+      setGptDeltaError("Invalid JSON.");
+      return;
+    }
+
+    const payloadForValidation = prepareGptDeltaPayloadForSelectedCase(payload, selectedCase.id);
+    const result = ingestGptDelta(selectedCase, payloadForValidation);
+    if (!result.ok) {
+      setGptDeltaError(result.reason || "GPT update validation failed.");
+      return;
+    }
+
+    setGptDeltaValidatedCase(result.case);
+    setGptDeltaPreview(buildGptDeltaPreview(payloadForValidation, selectedCase, result.case));
+  };
+
+  const handleApplyGptDelta = async () => {
+    if (!gptDeltaValidatedCase) return;
+
+    setGptDeltaApplying(true);
+    setGptDeltaError("");
+
+    try {
+      await saveCase(gptDeltaValidatedCase);
+      setCases((prev) => prev.map((c) => (c.id === gptDeltaValidatedCase.id ? gptDeltaValidatedCase : c)));
+      resetGptDeltaModal();
+    } catch (error) {
+      console.error("Failed to apply GPT update", error);
+      setGptDeltaError(error.message || "Failed to apply GPT update.");
+      setGptDeltaApplying(false);
     }
   };
 
@@ -2402,6 +2829,7 @@ const handleRecordFiles = async (event) => {
                 onSyncToSupabase={handleSyncToSupabase}
                 onExportFullCase={handleExportFullCase}
                 onExportFullBackup={handleFullBackup}
+                onOpenGptDeltaModal={openGptDeltaModal}
                 syncStatus={syncStatus}
                 syncMessage={syncMessage}
                 fullCaseExportStatus={fullCaseExportStatus}
@@ -2428,6 +2856,110 @@ const handleRecordFiles = async (event) => {
                   </div>
                 )}
               />
+        )}
+
+        {showGptDeltaModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-xl">
+              <div className="border-b border-neutral-200 p-5">
+                <h2 className="text-xl font-semibold text-neutral-900">GPT Update</h2>
+                <p className="mt-1 text-sm text-neutral-600">
+                  Paste a ProveIt GPT delta, validate it, then review the supported changes before applying.
+                </p>
+              </div>
+
+              <div className="flex-1 space-y-4 overflow-y-auto p-5">
+                <textarea
+                  value={gptDeltaText}
+                  onChange={handleGptDeltaTextChange}
+                  placeholder='{"app":"proveit","contractVersion":"gpt-delta-1.0","target":{"caseId":"..."},"operations":{"patch":{}}}'
+                  className="min-h-52 w-full rounded-lg border border-neutral-300 p-3 font-mono text-sm text-neutral-800 outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-100"
+                />
+
+                {gptDeltaError && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
+                    {gptDeltaError}
+                  </div>
+                )}
+
+                {gptDeltaPreview && (
+                  <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
+                    <h3 className="font-semibold text-neutral-900">Preview</h3>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <div>
+                        <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">Case</span>
+                        <span>{gptDeltaPreview.caseName}</span>
+                      </div>
+                      <div>
+                        <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">Case ID</span>
+                        <span className="break-all font-mono text-xs">{gptDeltaPreview.caseId}</span>
+                      </div>
+                      <div>
+                        <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">Contract</span>
+                        <span>{gptDeltaPreview.contractVersion}</span>
+                      </div>
+                      <div>
+                        <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">Supported Sections</span>
+                        <span>{gptDeltaPreview.supportedSections.join(", ")}</span>
+                      </div>
+                    </div>
+
+                    {gptDeltaPreview.actionSummaryFields.length > 0 && (
+                      <div className="mt-4">
+                        <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">
+                          Action Summary Fields
+                        </span>
+                        <span>{gptDeltaPreview.actionSummaryFields.join(", ")}</span>
+                      </div>
+                    )}
+
+                    {gptDeltaPreview.strategyItems.length > 0 && (
+                      <div className="mt-4">
+                        <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">
+                          Strategy Records Patched
+                        </span>
+                        <p>{gptDeltaPreview.strategyItems.length} record(s)</p>
+                        <ul className="mt-2 space-y-1">
+                          {gptDeltaPreview.strategyItems.map((item) => (
+                            <li key={item.id} className="rounded-md bg-white px-2 py-1">
+                              <span className="font-medium">{item.title}</span>
+                              <span className="ml-2 break-all font-mono text-xs text-neutral-500">{item.id}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs font-medium text-amber-800">
+                      Unsupported sections and fields are ignored.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-2 border-t border-neutral-200 p-5">
+                <button
+                  onClick={resetGptDeltaModal}
+                  className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleValidateGptDelta}
+                  className="rounded-md border border-lime-500 bg-white px-4 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/30"
+                >
+                  Validate
+                </button>
+                <button
+                  onClick={handleApplyGptDelta}
+                  disabled={!gptDeltaValidatedCase || gptDeltaApplying}
+                  className="rounded-md border border-lime-600 bg-lime-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-lime-600 disabled:cursor-not-allowed disabled:border-neutral-300 disabled:bg-neutral-200 disabled:text-neutral-500"
+                >
+                  {gptDeltaApplying ? "Applying..." : "Apply Update"}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {showCreate && (

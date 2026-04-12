@@ -4,6 +4,140 @@ import { AlertCircle, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, X 
 import { isTimelineCapable, getCaseHealthReport } from "../lib/caseHealth";
 import RecordCard from "./RecordCard";
 
+const emptyActionSummaryForm = {
+  currentFocus: "",
+  nextActions: "",
+  importantReminders: "",
+  strategyFocus: "",
+};
+
+const emptyActionSummary = {
+  currentFocus: "",
+  nextActions: [],
+  importantReminders: [],
+  strategyFocus: [],
+  criticalDeadlines: [],
+};
+
+function safeText(value) {
+  return typeof value === "string" ? value : "";
+}
+
+function safeTextList(value) {
+  return Array.isArray(value) ? value.filter(item => typeof item === "string") : [];
+}
+
+function normalizeActionSummary(actionSummary = {}) {
+  return {
+    ...emptyActionSummary,
+    ...actionSummary,
+    currentFocus: safeText(actionSummary.currentFocus),
+    nextActions: safeTextList(actionSummary.nextActions),
+    importantReminders: safeTextList(actionSummary.importantReminders),
+    strategyFocus: safeTextList(actionSummary.strategyFocus),
+    criticalDeadlines: safeTextList(actionSummary.criticalDeadlines),
+  };
+}
+
+function applyActionSummaryPatch(currentActionSummary = {}, patch = {}) {
+  const nextActionSummary = { ...currentActionSummary };
+  const patchableFields = [
+    "currentFocus",
+    "nextActions",
+    "importantReminders",
+    "strategyFocus",
+    "criticalDeadlines",
+    "updatedAt",
+  ];
+
+  patchableFields.forEach(field => {
+    if (Object.prototype.hasOwnProperty.call(patch, field)) {
+      nextActionSummary[field] = patch[field];
+    }
+  });
+
+  const normalized = normalizeActionSummary(nextActionSummary);
+  const patchedActionSummary = {
+    ...nextActionSummary,
+    currentFocus: normalized.currentFocus,
+    nextActions: normalized.nextActions,
+    importantReminders: normalized.importantReminders,
+    strategyFocus: normalized.strategyFocus,
+  };
+
+  if (Object.prototype.hasOwnProperty.call(nextActionSummary, "criticalDeadlines")) {
+    patchedActionSummary.criticalDeadlines = normalized.criticalDeadlines;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(nextActionSummary, "updatedAt")) {
+    patchedActionSummary.updatedAt = safeText(nextActionSummary.updatedAt);
+  }
+
+  return patchedActionSummary;
+}
+
+function actionSummaryToForm(actionSummary = {}) {
+  const normalized = normalizeActionSummary(actionSummary);
+
+  return {
+    currentFocus: normalized.currentFocus,
+    nextActions: normalized.nextActions.join("\n"),
+    importantReminders: normalized.importantReminders.join("\n"),
+    strategyFocus: normalized.strategyFocus.join("\n"),
+  };
+}
+
+function formToActionSummary(form) {
+  return {
+    currentFocus: safeText(form.currentFocus),
+    nextActions: safeText(form.nextActions).split("\n").filter(Boolean),
+    importantReminders: safeText(form.importantReminders).split("\n").filter(Boolean),
+    strategyFocus: safeText(form.strategyFocus).split("\n").filter(Boolean),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function normalizeGptActionSummaryDelta(payload = {}) {
+  if (!payload || typeof payload !== "object") {
+    return { ok: false, reason: "Payload must be an object." };
+  }
+
+  if (payload.app !== "proveit" || payload.contractVersion !== "gpt-delta-1.0") {
+    return { ok: false, reason: "Unsupported GPT delta contract." };
+  }
+
+  const caseId = payload.target?.caseId;
+  if (!caseId || typeof caseId !== "string") {
+    return { ok: false, reason: "GPT delta target.caseId is required." };
+  }
+
+  const actionSummaryPatch = payload.operations?.patch?.actionSummary;
+  if (!actionSummaryPatch || typeof actionSummaryPatch !== "object" || Array.isArray(actionSummaryPatch)) {
+    return { ok: false, reason: "GPT delta actionSummary patch is required." };
+  }
+
+  const patchableFields = [
+    "currentFocus",
+    "nextActions",
+    "importantReminders",
+    "strategyFocus",
+    "criticalDeadlines",
+  ];
+
+  const patch = patchableFields.reduce((normalized, field) => {
+    if (Object.prototype.hasOwnProperty.call(actionSummaryPatch, field)) {
+      normalized[field] = actionSummaryPatch[field];
+    }
+    return normalized;
+  }, {});
+
+  if (Object.keys(patch).length === 0) {
+    return { ok: false, reason: "GPT delta actionSummary patch has no supported fields." };
+  }
+
+  return { ok: true, caseId, patch };
+}
+
 export default function CaseDetail({
   selectedCase,
   reviewQueue,
@@ -23,6 +157,7 @@ export default function CaseDetail({
   onSyncToSupabase,
   onExportFullCase,
   onExportFullBackup,
+  onOpenGptDeltaModal,
   onViewRecord,
   onPreviewFile,
   openLedgerModal,
@@ -49,14 +184,9 @@ export default function CaseDetail({
   const [showVerifiedEvidence, setShowVerifiedEvidence] = useState(false);
   const [activeLedgerRecord, setActiveLedgerRecord] = useState(null);
   const [evidenceView, setEvidenceView] = useState("workflow");
-   const [actionSummaryEditOpen, setActionSummaryEditOpen] = useState(false);
+  const [actionSummaryEditOpen, setActionSummaryEditOpen] = useState(false);
   const [quickActionInput, setQuickActionInput] = useState("");
-  const [actionSummaryForm, setActionSummaryForm] = useState({
-    currentFocus: "",
-    nextActions: "",
-    importantReminders: "",
-    strategyFocus: "",
-  });
+  const [actionSummaryForm, setActionSummaryForm] = useState(emptyActionSummaryForm);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -256,37 +386,53 @@ export default function CaseDetail({
   }
 
   function openActionSummaryEdit() {
-    const s = selectedCase?.actionSummary || {};
-    setActionSummaryForm({
-      currentFocus: s.currentFocus || "",
-      nextActions: (s.nextActions || []).join("\n"),
-      importantReminders: (s.importantReminders || []).join("\n"),
-      strategyFocus: (s.strategyFocus || []).join("\n"),
-    });
+    setActionSummaryForm(actionSummaryToForm(selectedCase?.actionSummary || {}));
     setActionSummaryEditOpen(true);
+  }
+
+  function updateActionSummary(nextActionSummary) {
+    if (!selectedCase) return;
+
+    onUpdateCase({
+      ...selectedCase,
+      actionSummary: nextActionSummary,
+    });
+  }
+
+  function applyActionSummaryUpdate(patch) {
+    updateActionSummary(applyActionSummaryPatch(rawActionSummary, patch));
+  }
+
+  // eslint-disable-next-line no-unused-vars
+  function ingestGptActionSummaryDelta(payload) {
+    const normalized = normalizeGptActionSummaryDelta(payload);
+    if (!normalized.ok) {
+      return normalized;
+    }
+
+    if (String(normalized.caseId) !== String(selectedCase?.id || "")) {
+      return { ok: false, reason: "GPT delta target case does not match the selected case." };
+    }
+
+    applyActionSummaryUpdate({
+      ...normalized.patch,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return { ok: true };
   }
 
   function saveActionSummary() {
     if (!selectedCase) return;
 
-    const updated = {
-      ...selectedCase,
-      actionSummary: {
-        currentFocus: actionSummaryForm.currentFocus,
-        nextActions: actionSummaryForm.nextActions.split("\n").filter(Boolean),
-        importantReminders: actionSummaryForm.importantReminders.split("\n").filter(Boolean),
-        strategyFocus: actionSummaryForm.strategyFocus.split("\n").filter(Boolean),
-        updatedAt: new Date().toISOString(),
-      },
-    };
-
-    onUpdateCase(updated); // This already correctly calls the prop
+    updateActionSummary(formToActionSummary(actionSummaryForm));
     setActionSummaryEditOpen(false);
   }
 
   const health = selectedCase ? getCaseHealthReport(selectedCase) : null;
 
-  const actionSummary = selectedCase?.actionSummary || {};
+  const rawActionSummary = selectedCase?.actionSummary || {};
+  const actionSummary = normalizeActionSummary(rawActionSummary);
   const {
     currentFocus,
     nextActions = [],
@@ -313,30 +459,19 @@ ${strategyFocus.join("\n") || "—"}`;
       const val = quickActionInput.trim();
       if (!val) return;
 
-      const updated = {
-        ...selectedCase,
-        actionSummary: {
-          ...actionSummary,
-          nextActions: [...nextActions, val],
-          updatedAt: new Date().toISOString(),
-        },
-      };
-
-      onUpdateCase(updated);
+      applyActionSummaryUpdate({
+        nextActions: [...nextActions, val],
+        updatedAt: new Date().toISOString(),
+      });
       setQuickActionInput("");
     }
   };
 
   const handleRemoveNextAction = (index) => {
-    const updated = {
-      ...selectedCase,
-      actionSummary: {
-        ...actionSummary,
-        nextActions: nextActions.filter((_, i) => i !== index),
-        updatedAt: new Date().toISOString(),
-      },
-    };
-    onUpdateCase(updated);
+    applyActionSummaryUpdate({
+      nextActions: nextActions.filter((_, i) => i !== index),
+      updatedAt: new Date().toISOString(),
+    });
   };
 
   const overviewStrategies = [...(selectedCase?.strategy || [])]
@@ -710,6 +845,15 @@ ${strategyFocus.join("\n") || "—"}`;
             )}
           </div>
 
+          {onOpenGptDeltaModal && (
+            <button
+              onClick={onOpenGptDeltaModal}
+              className="px-3 py-1.5 text-sm rounded-md whitespace-nowrap border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
+            >
+              GPT Update
+            </button>
+          )}
+
           <div className="relative flex-1 min-w-max">
             <button 
               onClick={() => setShowExportMenu(!showExportMenu)}
@@ -758,53 +902,68 @@ ${strategyFocus.join("\n") || "—"}`;
       </div>
 
       {/* Action Summary Panel */}
-      <div className="w-full rounded-3xl border border-neutral-200 bg-neutral-50 p-5 shadow-md mb-6">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Action Summary</h3>
-        <p className="text-xs text-neutral-500 mb-4">Last updated: {actionSummary.updatedAt ? new Date(actionSummary.updatedAt).toLocaleString() : "Never"}</p>
-        <button
-          onClick={openActionSummaryEdit}
-          className="text-xs font-bold text-lime-600 hover:underline"
-        >
-          Edit
-        </button>
-        <button
-          onClick={copyActionSummaryToClipboard}
-          className="ml-4 text-xs font-bold text-neutral-400 hover:text-neutral-600 transition-colors"
-        >
-          Copy summary
-        </button>
-        <div className="space-y-5">
-          <div className="space-y-1.5">
-            <div className="text-[10px] font-semibold uppercase tracking-tight text-neutral-500">Current Focus (What matters now)</div>
-            <p className="text-[10px] text-neutral-500">Short statement of what this case is about right now.</p>
+      <div className="mb-6 w-full rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-neutral-900">Action Summary</h3>
+            <p className="text-sm text-neutral-600">Live case briefing for focus, actions, reminders, and deadlines.</p>
+            <p className="text-xs text-neutral-500">
+              Last updated: {actionSummary.updatedAt ? new Date(actionSummary.updatedAt).toLocaleString() : "Never"}
+            </p>
+          </div>
+          <div className="flex gap-4">
+            <button onClick={openActionSummaryEdit} className="text-xs font-bold text-lime-700 hover:underline">
+              Edit
+            </button>
+            <button onClick={copyActionSummaryToClipboard} className="text-xs font-bold text-neutral-500 hover:text-neutral-700 transition-colors">
+              Copy summary
+            </button>
+          </div>
+        </div>
+
+        <div className="mb-5 grid gap-3 md:grid-cols-3">
+          <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Current Focus</div>
+            <div className="mt-1 truncate text-sm font-semibold text-neutral-900">{currentFocus || "Not set"}</div>
+          </div>
+          <div className="rounded-lg border border-lime-200 bg-lime-50 p-3">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-lime-700">Top Next Action</div>
+            <div className="mt-1 truncate text-sm font-semibold text-neutral-900">{nextActions[0] || "No next action"}</div>
+          </div>
+          <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Remaining Actions</div>
+            <div className="mt-1 text-sm font-semibold text-neutral-900">{Math.max(nextActions.length - 1, 0)}</div>
+          </div>
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-12">
+          <section className="lg:col-span-5 space-y-2 border-l-4 border-lime-400 pl-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Current Focus</h4>
             <p className="text-base font-semibold text-neutral-900">
               {currentFocus || "No current focus set."}
             </p>
-          </div>
+          </section>
 
-          <div className="space-y-1.5 md:border-l border-neutral-200 md:pl-6">
-            <div className="mb-4 space-y-1">
-              <div className="text-[10px] font-semibold uppercase tracking-tight text-neutral-500">Top Priority</div>
-              <div className="rounded-xl border border-lime-200 bg-lime-50 px-3 py-2 text-sm font-semibold text-neutral-900">
-                {nextActions[0] || "No priority set"}
-              </div>
+          <section className="lg:col-span-7 space-y-3 rounded-lg border border-lime-200 bg-lime-50 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-600">Next Actions</h4>
+              {nextActions[0] && (
+                <span className="rounded-md bg-white px-2 py-1 text-[10px] font-bold uppercase text-lime-700 border border-lime-200">
+                  Priority
+                </span>
+              )}
             </div>
-            <div className="text-[10px] font-semibold uppercase tracking-tight text-neutral-500">Next Actions (Do these next, in order)</div>
-            <p className="text-[10px] text-neutral-500">Write 1 action per line. Keep it short and concrete.</p>
             {nextActions.length > 0 ? (
-              <ul className="space-y-1">
+              <ul className="space-y-2">
                 {nextActions.map((action, i) => (
-                  <li key={i} className="flex items-start justify-between gap-2 text-xs text-neutral-700 group py-0.5 leading-tight">
-                    <div className="flex items-start gap-2 min-w-0">
-                      <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-lime-600" />
-                      <span className={`break-words ${i === 0 ? "font-bold text-neutral-900" : ""}`}>
-                        {i === 0 && <span className="text-[10px] font-bold uppercase text-neutral-400 mr-1">Top priority:</span>}
-                        {action}
-                      </span>
-                    </div>
+                  <li key={i} className={`group flex items-start justify-between gap-3 rounded-lg border bg-white px-3 py-2 text-sm ${i === 0 ? "border-lime-300 font-semibold text-neutral-900 shadow-sm" : "border-neutral-200 text-neutral-700"}`}>
+                    <span className="min-w-0 break-words">
+                      {i === 0 && <span className="mr-2 text-[10px] font-bold uppercase text-lime-700">Top</span>}
+                      {action}
+                    </span>
                     <button
                       onClick={() => handleRemoveNextAction(i)}
-                      className="opacity-0 group-hover:opacity-100 p-0.5 rounded-md hover:bg-red-50 text-neutral-300 hover:text-red-500 transition-all shrink-0"
+                      className="shrink-0 rounded-md p-0.5 text-neutral-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
                       title="Remove"
                     >
                       <X className="h-3 w-3" />
@@ -813,7 +972,7 @@ ${strategyFocus.join("\n") || "—"}`;
                 ))}
               </ul>
             ) : (
-              <p className="text-xs text-neutral-500 italic">List the next steps to move this case forward.</p>
+              <p className="text-sm text-neutral-600 italic">List the next steps to move this case forward.</p>
             )}
             <input
               type="text"
@@ -821,42 +980,28 @@ ${strategyFocus.join("\n") || "—"}`;
               value={quickActionInput}
               onChange={(e) => setQuickActionInput(e.target.value)}
               onKeyDown={handleQuickActionKeyDown}
-              className="w-full mt-2 text-xs border-b border-neutral-200 bg-transparent py-1 focus:border-lime-500 focus:outline-none transition-colors"
+              className="w-full border-b border-lime-200 bg-transparent py-1 text-xs transition-colors focus:border-lime-600 focus:outline-none"
             />
-          </div>
+          </section>
 
-          <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-1.5 lg:border-l border-neutral-200 lg:pl-6">
-            <div className="text-[10px] font-semibold uppercase tracking-tight text-neutral-500">Important Reminders (Do not forget)</div>
-            <div className="text-[10px] text-neutral-500">Key facts, deadlines, or constraints to keep in mind.</div>
+          <section className="lg:col-span-6 space-y-2 border-t border-neutral-200 pt-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Important Reminders</h4>
             {importantReminders.length > 0 ? (
-              <ul className="space-y-1 list-disc list-inside marker:text-amber-500">
+              <ul className="space-y-1.5">
                 {importantReminders.map((reminder, i) => (
-                  <li key={i} className="text-xs text-neutral-600">{reminder}</li>
+                  <li key={i} className="text-sm text-neutral-700">- {reminder}</li>
                 ))}
               </ul>
             ) : (
-              <p className="text-xs text-neutral-500 italic">Add anything that must not be forgotten.</p>
+              <p className="text-sm text-neutral-500 italic">Add anything that must not be forgotten.</p>
             )}
-          </div>
+          </section>
 
-          <div className="space-y-1.5 md:border-l border-neutral-200 md:pl-6">
-            <div className="text-[10px] font-semibold uppercase tracking-tight text-neutral-500">Strategy Focus (Approach / leverage)</div>
-            <p className="text-[10px] text-neutral-500">High-level approach and leverage points.</p>
-            <div className="flex flex-wrap gap-1.5">
-              {strategyFocus.length > 0 ? (
-                strategyFocus.map((strat, i) => (
-                  <span key={i} className="px-2 py-0.5 rounded-lg bg-lime-50 border border-lime-100 text-[10px] font-bold text-lime-700">
-                    {strat}
-                  </span>
-                ))
-              ) : (
-                <p className="text-xs text-neutral-500 italic">Define your current approach.</p>
-              )}
-            </div>
-          </div>
+          <section className="lg:col-span-6 space-y-2 border-t border-neutral-200 pt-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Critical Deadlines</h4>
+            <p className="text-sm text-neutral-500 italic">No critical deadlines set.</p>
+          </section>
         </div>
-      </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-12">
@@ -1766,43 +1911,67 @@ ${strategyFocus.join("\n") || "—"}`;
       )}
 
       {actionSummaryEditOpen && (
-        <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg space-y-4">
-            <h3 className="text-lg font-semibold">Edit Action Summary</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-xl">
+            <div className="border-b border-neutral-100 p-5">
+              <h3 className="text-lg font-semibold text-neutral-900">Edit Action Summary</h3>
+              <p className="mt-1 text-xs text-neutral-500">Keep the next actions short. Put one item on each line.</p>
+            </div>
 
-            <textarea
-              placeholder="Current Focus"
-              value={actionSummaryForm.currentFocus}
-              onChange={(e) => setActionSummaryForm(f => ({ ...f, currentFocus: e.target.value }))}
-              className="w-full border p-2 rounded"
-            />
+            <div className="flex-1 space-y-5 overflow-y-auto p-5">
+              <section className="rounded-lg border border-lime-200 bg-lime-50 p-4">
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-neutral-600">
+                  Next Actions
+                </label>
+                <textarea
+                  placeholder={"Call housing office\nSend evidence pack\nCheck reply deadline"}
+                  value={actionSummaryForm.nextActions}
+                  onChange={(e) => setActionSummaryForm(f => ({ ...f, nextActions: e.target.value }))}
+                  className="min-h-36 w-full rounded-lg border border-lime-200 bg-white p-3 text-sm outline-none focus:border-lime-600"
+                />
+              </section>
 
-            <textarea
-              placeholder="Next Actions (one per line)"
-              value={actionSummaryForm.nextActions}
-              onChange={(e) => setActionSummaryForm(f => ({ ...f, nextActions: e.target.value }))}
-              className="w-full border p-2 rounded"
-            />
+              <section className="space-y-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-500">
+                  Current Focus
+                </label>
+                <textarea
+                  placeholder="What matters most right now?"
+                  value={actionSummaryForm.currentFocus}
+                  onChange={(e) => setActionSummaryForm(f => ({ ...f, currentFocus: e.target.value }))}
+                  className="min-h-24 w-full rounded-lg border border-neutral-300 p-3 text-sm outline-none focus:border-lime-600"
+                />
+              </section>
 
-            <textarea
-              placeholder="Important Reminders"
-              value={actionSummaryForm.importantReminders}
-              onChange={(e) => setActionSummaryForm(f => ({ ...f, importantReminders: e.target.value }))}
-              className="w-full border p-2 rounded"
-            />
+              <section className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-500">
+                    Important Reminders
+                  </label>
+                  <textarea
+                    placeholder={"One reminder per line\nKey facts\nConstraints"}
+                    value={actionSummaryForm.importantReminders}
+                    onChange={(e) => setActionSummaryForm(f => ({ ...f, importantReminders: e.target.value }))}
+                    className="min-h-32 w-full rounded-lg border border-neutral-300 p-3 text-sm outline-none focus:border-lime-600"
+                  />
+                </div>
 
-            <textarea
-              placeholder="Strategy Focus"
-              value={actionSummaryForm.strategyFocus}
-              onChange={(e) => setActionSummaryForm(f => ({ ...f, strategyFocus: e.target.value }))}
-              className="w-full border p-2 rounded"
-            />
+                <div className="space-y-2">
+                  <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">
+                    Critical Deadlines
+                  </div>
+                  <div className="min-h-32 rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-3 text-sm text-neutral-500">
+                    No dedicated deadline field yet. Keep deadline notes in Important Reminders until deadline storage is added.
+                  </div>
+                </div>
+              </section>
+            </div>
 
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setActionSummaryEditOpen(false)} className="px-3 py-1 border rounded">
+            <div className="flex justify-end gap-2 border-t border-neutral-100 p-5">
+              <button onClick={() => setActionSummaryEditOpen(false)} className="rounded-lg border border-neutral-300 px-3 py-2 text-sm font-medium text-neutral-600 hover:bg-neutral-50">
                 Cancel
               </button>
-              <button onClick={saveActionSummary} className="px-3 py-1 bg-lime-600 text-white rounded">
+              <button onClick={saveActionSummary} className="rounded-lg bg-lime-600 px-4 py-2 text-sm font-bold text-white hover:bg-lime-700">
                 Save
               </button>
             </div>
