@@ -726,33 +726,20 @@ ${strategyFocus.join("\n") || "—"}`;
                     onClick={() => { exportSelectedCase(); setShowExportMenu(false); }}
                     className="w-full text-left px-4 py-2.5 text-sm hover:bg-neutral-50 text-neutral-700 font-medium transition-colors"
                   >
-                    Backup Case (JSON)
-                  </button>
-                  <button 
-                    onClick={() => { onExportSnapshot(selectedCase.id, "compact"); setShowExportMenu(false); }}
-                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-neutral-50 text-neutral-700 font-medium border-t border-neutral-50 transition-colors"
-                  >
-                    Export Snapshot (Compact)
+                    Full Case Backup
                   </button>
                   <button 
                     onClick={() => { onExportSnapshot(selectedCase.id, "detailed"); setShowExportMenu(false); }}
-                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-neutral-50 text-neutral-700 font-medium transition-colors"
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-neutral-50 text-neutral-700 font-medium border-t border-neutral-50 transition-colors"
                   >
-                    Export Snapshot (Detailed)
-                  </button>
-                  <button 
-                    onClick={() => { onExportFullCase(); setShowExportMenu(false); }}
-                    disabled={fullCaseExportStatus === "exporting"}
-                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-neutral-50 text-neutral-700 font-medium border-t border-neutral-50 transition-colors disabled:opacity-50"
-                  >
-                    Export Reasoning Case
+                    Reasoning Export
                   </button>
                   <button 
                     onClick={() => { onSyncToSupabase(); setShowExportMenu(false); }}
                     disabled={syncStatus === "syncing"}
                     className="w-full text-left px-4 py-2.5 text-sm hover:bg-neutral-50 text-neutral-700 font-medium transition-colors disabled:opacity-50"
                   >
-                    Sync Snapshot
+                    Sync to Supabase
                   </button>
                 </div>
               </>

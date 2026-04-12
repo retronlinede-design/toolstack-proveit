@@ -438,7 +438,14 @@ function sanitizeCaseForExport(caseItem) {
     tasks: Array.isArray(caseItem.tasks) ? caseItem.tasks.map(sanitizeRecordForExport) : [],
     strategy: Array.isArray(caseItem.strategy) ? caseItem.strategy.map(sanitizeRecordForExport) : [],
     ledger: Array.isArray(caseItem.ledger) ? caseItem.ledger.map(item => ({ ...item })) : [],
-    documents: Array.isArray(caseItem.documents) ? caseItem.documents.map(item => ({ ...item })) : [],
+    documents: Array.isArray(caseItem.documents)
+      ? caseItem.documents.map(item => ({
+          ...item,
+          attachments: Array.isArray(item.attachments)
+            ? item.attachments.map(sanitizeAttachmentForExport)
+            : [],
+        }))
+      : [],
     actionSummary: caseItem?.actionSummary
       ? {
           currentFocus: caseItem.actionSummary.currentFocus || "",
@@ -720,6 +727,169 @@ async function restoreFullBackupQuickCapture(capture) {
   return cloned;
 }
 
+// eslint-disable-next-line no-unused-vars
+async function buildFullBackupAllPayload({
+  cases = [],
+  quickCaptures = [],
+  selectedCaseId = null,
+  activeTab = "overview",
+} = {}) {
+  return {
+    app: "proveit",
+    contractVersion: "2.0",
+    exportType: "FULL_BACKUP_ALL",
+    exportedAt: new Date().toISOString(),
+    importable: true,
+    includesBinaryData: true,
+    data: {
+      cases: await Promise.all((cases || []).map(buildFullBackupCase)),
+      quickCaptures: await Promise.all((quickCaptures || []).map(buildFullBackupQuickCapture)),
+      selectedCaseId,
+      activeTab,
+    },
+  };
+}
+
+// eslint-disable-next-line no-unused-vars
+async function buildFullBackupCasePayload({
+  caseItem,
+  selectedCaseId = null,
+  activeTab = "overview",
+} = {}) {
+  if (!caseItem) {
+    throw new Error("caseItem is required for FULL_BACKUP_CASE");
+  }
+
+  return {
+    app: "proveit",
+    contractVersion: "2.0",
+    exportType: "FULL_BACKUP_CASE",
+    exportedAt: new Date().toISOString(),
+    importable: true,
+    includesBinaryData: true,
+    data: {
+      cases: [await buildFullBackupCase(caseItem)],
+      selectedCaseId: selectedCaseId ?? caseItem.id,
+      activeTab,
+    },
+  };
+}
+
+function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
+  if (!caseItem) {
+    throw new Error("caseItem is required for CASE_REASONING_EXPORT");
+  }
+
+  const c = sanitizeCaseForExport(caseItem);
+  const limits = mode === "compact" ? { timeline: 5, facts: 8, tasks: 8 } : { timeline: 12, facts: 12, tasks: 12 };
+
+  const mapImportance = (val) => {
+    const v = String(val || "").toLowerCase();
+    if (v === "critical") return "high";
+    if (v === "strong") return "medium";
+    return "low";
+  };
+
+  const openTasks = (c.tasks || [])
+    .filter(t => t.status !== "done")
+    .slice(0, limits.tasks)
+    .map(t => ({
+      id: t.id,
+      title: t.title,
+      status: t.status,
+      priority: t.priority || "medium",
+      description: t.description || "",
+    }));
+
+  const activeIssues = [...(c.incidents || []), ...(c.evidence || [])]
+    .filter(i => (i.status !== "verified" && i.status !== "archived") || i.importance === "critical")
+    .slice(0, limits.facts)
+    .map(i => ({
+      id: i.id,
+      title: i.title,
+      status: i.status,
+      importance: mapImportance(i.importance),
+      summary: (i.description || i.notes || "").substring(0, 200),
+    }));
+
+  const recentTimeline = sortTimelineItems([...(c.incidents || []), ...(c.evidence || [])])
+    .reverse()
+    .slice(0, limits.timeline)
+    .map(t => ({
+      id: t.id,
+      type: t.type,
+      date: t.eventDate || t.date,
+      title: t.title,
+      description: t.description ? t.description.substring(0, 300) : "",
+    }));
+
+  return {
+    app: "proveit",
+    contractVersion: "2.0",
+    exportType: "CASE_REASONING_EXPORT",
+    exportedAt: new Date().toISOString(),
+    importable: false,
+    includesBinaryData: false,
+    data: {
+      case: {
+        id: c.id,
+        name: c.name,
+        category: c.category,
+        status: c.status,
+        lastUpdated: c.updatedAt || c.createdAt,
+      },
+      summary: {
+        oneParagraph: (c.description || c.notes || "Active case file management.").substring(0, 500),
+        currentPosition: [
+          `Case involves ${(c.incidents || []).length} documented incidents.`,
+          `Current collection includes ${(c.evidence || []).length} evidence items.`,
+          `${openTasks.length} tasks currently pending action.`,
+        ],
+      },
+      actionSummary: c.actionSummary || {
+        currentFocus: "",
+        nextActions: [],
+        importantReminders: [],
+        strategyFocus: [],
+        updatedAt: "",
+      },
+      keyFacts: (c.strategy || []).length > 0
+        ? c.strategy.slice(0, limits.facts).map(s => s.title).filter(Boolean)
+        : (c.incidents || []).slice(0, limits.facts).map(i => i.title).filter(Boolean),
+      activeIssues,
+      recentTimeline,
+      openTasks,
+      strategy: {
+        current: (c.strategy || []).map(s => s.title).filter(Boolean).slice(0, 5),
+        nextMoves: openTasks.map(t => t.title).filter(Boolean).slice(0, 3),
+      },
+      evidenceSummary: (c.evidence || []).map(e => ({
+        id: e.id,
+        title: e.title,
+        status: e.status,
+        importance: e.importance,
+        relevance: e.relevance,
+        sourceType: e.sourceType,
+        summary: (e.description || e.notes || "").substring(0, 300),
+        attachmentCount: Array.isArray(e.attachments) ? e.attachments.length : 0,
+      })),
+      documentSummary: (c.documents || []).map(d => ({
+        id: d.id,
+        title: d.title,
+        category: d.category,
+        documentDate: d.documentDate,
+        source: d.source,
+        summary: d.summary || "",
+        hasTextContent: !!d.textContent,
+        attachmentCount: Array.isArray(d.attachments) ? d.attachments.length : 0,
+        linkedRecordIds: Array.isArray(d.linkedRecordIds) ? d.linkedRecordIds : [],
+      })),
+      importantPeople: [],
+      openQuestions: [],
+    },
+  };
+}
+
 /**
  * Syncs bi-directional links between Incidents and Evidence items.
  */
@@ -756,46 +926,7 @@ function syncCaseLinks(caseData, record, type) {
 }
 
 async function syncCaseToSupabase(caseItem) {
-  const ledgerEntries = Array.isArray(caseItem.ledger) ? caseItem.ledger : [];
-  const totalExpected = ledgerEntries.reduce((sum, item) => sum + Number(item.expectedAmount || 0), 0);
-  const totalPaid = ledgerEntries.reduce((sum, item) => sum + Number(item.paidAmount || 0), 0);
-  const disputedCount = ledgerEntries.filter(item => item.status === "disputed").length;
-  const missingProofCount = ledgerEntries.filter(item => item.proofStatus === "missing").length;
-  const paidCount = ledgerEntries.filter(item => item.status === "paid").length;
-
-  const sortedRecent = [...ledgerEntries].sort((a, b) => {
-    const aPayment = a.paymentDate || "";
-    const bPayment = b.paymentDate || "";
-    if (aPayment !== bPayment) return bPayment.localeCompare(aPayment); // Descending
-
-    const aDue = a.dueDate || "";
-    const bDue = b.dueDate || "";
-    if (aDue !== bDue) return bDue.localeCompare(aDue); // Descending
-
-    const aPeriod = a.period || "";
-    const bPeriod = b.period || "";
-    if (aPeriod !== bPeriod) return bPeriod.localeCompare(aPeriod); // Descending
-
-    const aCreated = a.createdAt || "";
-    const bCreated = b.createdAt || "";
-    return bCreated.localeCompare(aCreated); // Descending
-  });
-
-  const recentEntries = sortedRecent.slice(0, 8).map((item) => ({
-    id: item.id,
-    category: item.category,
-    subType: item.subType,
-    label: item.label,
-    period: item.period,
-    expectedAmount: item.expectedAmount,
-    paidAmount: item.paidAmount,
-    differenceAmount: item.differenceAmount,
-    paymentDate: item.paymentDate,
-    dueDate: item.dueDate,
-    status: item.status,
-    proofStatus: item.proofStatus,
-    counterparty: item.counterparty,
-  }));
+  const reasoningPayload = buildCaseReasoningExportPayload(caseItem, "detailed");
 
   const payload = {
     id: caseItem.id,
@@ -803,67 +934,7 @@ async function syncCaseToSupabase(caseItem) {
     type: caseItem.category || "general",
     status: caseItem.status || "open",
     priority: caseItem.priority || "medium",
-    snapshot: {
-      case: {
-        id: caseItem.id,
-        name: caseItem.name || "",
-        type: caseItem.category || "general",
-        status: caseItem.status || "open",
-        priority: caseItem.priority || "medium",
-      },
-      summary: {
-        oneParagraph: caseItem.description || caseItem.notes || "Snapshot",
-      },
-      keyFacts: (caseItem.incidents || [])
-        .slice(0, 6)
-        .map((item) => item.title)
-        .filter(Boolean),
-      recentIncidents: (caseItem.incidents || [])
-        .slice()
-        .sort((a, b) => new Date(b.date || b.eventDate || 0) - new Date(a.date || a.eventDate || 0))
-        .slice(0, 8)
-        .map((item) => ({
-          id: item.id,
-          title: item.title || "",
-          date: item.date || item.eventDate || "",
-          description: item.description || "",
-          status: item.status || "open",
-        })),
-      openTasks: [],
-      strategy: (caseItem.strategy || [])
-        .slice(0, 10)
-        .map((item) => ({
-          id: item.id,
-          title: item.title || "",
-          description: item.description || "",
-          status: item.status || "open",
-        })),
-      evidenceSummary: (caseItem.evidence || [])
-        .slice(0, 12)
-        .map((item) => ({
-          id: item.id,
-          title: item.title || "",
-          description: item.description || "",
-          notes: item.notes || "",
-          status: item.status || "",
-          sourceType: item.sourceType || "",
-          importance: item.importance || "",
-          relevance: item.relevance || "",
-          attachmentCount: Array.isArray(item.attachments) ? item.attachments.length : 0,
-          digitalFileCount: Array.isArray(item?.availability?.digital?.files)
-            ? item.availability.digital.files.length
-            : 0,
-        })),
-      ledgerSummary: {
-        totalEntries: ledgerEntries.length,
-        paidCount,
-        disputedCount,
-        missingProofCount,
-        totalExpected,
-        totalPaid,
-        recentEntries
-      }
-    },
+    snapshot: reasoningPayload,
   };
 
   const response = await fetch(SUPABASE_SYNC_URL, {
@@ -886,44 +957,11 @@ async function syncCaseToSupabase(caseItem) {
 
 async function exportReasoningCaseToSupabase(caseItem) {
   try {
-    const lightCaseItem = {
-  ...caseItem,
-  attachments: Array.isArray(caseItem.attachments)
-    ? caseItem.attachments.map(att => ({
-        id: att.id,
-        name: att.name,
-        mimeType: att.mimeType,
-        size: att.size,
-        kind: att.kind,
-        createdAt: att.createdAt,
-        storage: att.storage
-      }))
-    : [],
-  files: [],
-  emails: [],
-  evidence: Array.isArray(caseItem.evidence)
-    ? caseItem.evidence.map((e) => ({
-        ...e,
-        attachments: Array.isArray(e.attachments)
-          ? e.attachments.map(att => ({
-              id: att.id,
-              name: att.name,
-              mimeType: att.mimeType,
-              size: att.size,
-              kind: att.kind,
-              createdAt: att.createdAt,
-              storage: att.storage
-            }))
-          : []
-      }))
-    : [],
-};
-    const sanitizedCase = sanitizeCaseForExport(caseItem);
+    const reasoningPayload = buildCaseReasoningExportPayload(caseItem, "detailed");
 
-    console.log("Full export sizes", {
+    console.log("Reasoning export size", {
       original: JSON.stringify(caseItem).length,
-      light: JSON.stringify(lightCaseItem).length,
-      sanitized: JSON.stringify(sanitizedCase).length,
+      reasoning: JSON.stringify(reasoningPayload).length,
     });
 
     const response = await fetch(
@@ -939,7 +977,7 @@ async function exportReasoningCaseToSupabase(caseItem) {
         body: JSON.stringify({
           case_id: caseItem.id,
           exported_at: new Date().toISOString(),
-          case_json: sanitizedCase,
+          case_json: reasoningPayload,
         }),
       }
     );
@@ -1023,24 +1061,12 @@ export default function ProveItApp() {
   const handleFullBackup = async () => {
     try {
       const allCases = await getAllCases();
-      const fullCases = await Promise.all(allCases.map(buildFullBackupCase));
-      const fullQuickCaptures = await Promise.all(
-        (quickCaptures || []).map(buildFullBackupQuickCapture)
-      );
-
-      const payload = {
-        version: "2.1-full-backup",
-        exportedAt: new Date().toISOString(),
-        app: "proveit",
-        type: "FULL_BACKUP",
-        includesBinaryData: true,
-        data: {
-          cases: fullCases,
-          quickCaptures: fullQuickCaptures,
-          selectedCaseId,
-          activeTab,
-        },
-      };
+      const payload = await buildFullBackupAllPayload({
+        cases: allCases,
+        quickCaptures,
+        selectedCaseId,
+        activeTab,
+      });
 
       const blob = new Blob([JSON.stringify(payload)], {
         type: "application/json",
@@ -1050,7 +1076,7 @@ export default function ProveItApp() {
 
       const a = document.createElement("a");
       a.href = url;
-      a.download = `proveit-full-backup-${new Date()
+      a.download = `proveit-full-backup-all-${new Date()
         .toISOString()
         .slice(0, 10)}.json`;
 
@@ -1515,29 +1541,22 @@ export default function ProveItApp() {
     }
   };
 
-  const exportSelectedCase = () => {
+  const exportSelectedCase = async () => {
     if (!selectedCase) return;
 
     try {
-      const payload = {
-        version: "1.0",
-        exportedAt: new Date().toISOString(),
-        app: "proveit",
-        storageKey: "toolstack.proveit.v1",
-        data: {
-          cases: [sanitizeCaseForExport(selectedCase)],
-          quickCaptures: [],
-          selectedCaseId: selectedCase.id,
-          activeTab: "overview",
-        },
-      };
+      const payload = await buildFullBackupCasePayload({
+        caseItem: selectedCase,
+        selectedCaseId: selectedCase.id,
+        activeTab,
+      });
       const safeName = selectedCase.name.toLowerCase().replace(/[^a-z0-9]/g, "-");
       const dateStr = new Date().toISOString().slice(0, 10);
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `proveit-case-${safeName}-${dateStr}.json`;
+      a.download = `proveit-full-backup-case-${safeName}-${dateStr}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1551,82 +1570,14 @@ export default function ProveItApp() {
     const c = cases.find((item) => item.id === caseId);
     if (!c) return;
 
-    const limits = mode === "compact" ? { timeline: 5, facts: 8, tasks: 8 } : { timeline: 12, facts: 12, tasks: 12 };
+    const payload = buildCaseReasoningExportPayload(c, mode);
 
-    const mapImportance = (val) => {
-      const v = String(val || "").toLowerCase();
-      if (v === "critical") return "high";
-      if (v === "strong") return "medium";
-      return "low";
-    };
-
-    const timeline = sortTimelineItems([...c.incidents, ...c.evidence])
-      .reverse()
-      .slice(0, limits.timeline)
-      .map(t => ({
-        date: t.eventDate || t.date,
-        title: t.title,
-        description: t.description ? t.description.substring(0, 300) : ""
-      }));
-
-    const openTasks = (c.tasks || [])
-      .filter(t => t.status !== "done")
-      .slice(0, limits.tasks)
-      .map(t => ({
-        title: t.title,
-        status: t.status,
-        priority: "medium"
-      }));
-
-    const activeIssues = [...c.incidents, ...c.evidence]
-      .filter(i => (i.status !== "verified" && i.status !== "archived") || i.importance === "critical")
-      .slice(0, limits.facts)
-      .map(i => ({
-        id: i.id,
-        title: i.title,
-        status: i.status,
-        importance: mapImportance(i.importance),
-        summary: (i.description || i.notes || "").substring(0, 200)
-      }));
-
-    const snapshot = {
-      format: "proveit-chatgpt-case-snapshot",
-      version: "1.0",
-      exportedAt: new Date().toISOString(),
-      case: {
-        id: c.id,
-        name: c.name,
-        type: c.category,
-        status: c.status,
-        priority: "medium",
-        lastUpdated: c.updatedAt || c.createdAt
-      },
-      summary: {
-        oneParagraph: (c.description || c.notes || "Active case file management.").substring(0, 500),
-        currentPosition: [
-          `Case involves ${c.incidents.length} documented incidents.`,
-          `Current collection includes ${c.evidence.length} evidence items.`,
-          `${openTasks.length} tasks currently pending action.`
-        ]
-      },
-      keyFacts: c.strategy.length > 0 ? c.strategy.slice(0, limits.facts).map(s => s.title) : c.incidents.slice(0, limits.facts).map(i => i.title),
-      activeIssues,
-      recentTimeline: timeline,
-      openTasks,
-      strategy: {
-        current: c.strategy.map(s => s.title).slice(0, 5),
-        nextMoves: openTasks.map(t => t.title).slice(0, 3)
-      },
-      evidenceSummary: c.evidence.map(e => e.title),
-      importantPeople: [],
-      openQuestions: []
-    };
-
-    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${c.name}-chatgpt-snapshot-${mode}.json`;
+    const safeName = c.name.toLowerCase().replace(/[^a-z0-9]/g, "-");
+    a.download = `proveit-case-reasoning-export-${safeName}-${mode}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1641,24 +1592,49 @@ export default function ProveItApp() {
       const text = await file.text();
       const parsed = JSON.parse(text);
       const imported = parsed?.data || parsed;
+      const exportType = parsed?.exportType;
 
-      if (!imported || !Array.isArray(imported.cases) || !Array.isArray(imported.quickCaptures)) {
+      if (exportType === "CASE_REASONING_EXPORT" || parsed?.importable === false) {
+        alert("This is a reasoning export and not an importable backup.");
+        event.target.value = "";
+        return;
+      }
+
+      if (exportType && !["FULL_BACKUP_ALL", "FULL_BACKUP_CASE"].includes(exportType)) {
+        alert("Unsupported ProveIt export type.");
+        event.target.value = "";
+        return;
+      }
+
+      if (!imported || !Array.isArray(imported.cases)) {
         alert("Invalid import file.");
         event.target.value = "";
         return;
       }
 
+      if (exportType === "FULL_BACKUP_CASE" && imported.cases.length !== 1) {
+        alert("Invalid full case backup. Expected exactly one case.");
+        event.target.value = "";
+        return;
+      }
+
       const isFullBackup =
+        exportType === "FULL_BACKUP_ALL" ||
+        exportType === "FULL_BACKUP_CASE" ||
         parsed?.type === "FULL_BACKUP" ||
         parsed?.includesBinaryData === true ||
         parsed?.version === "2.1-full-backup";
+      const shouldImportQuickCaptures = exportType !== "FULL_BACKUP_CASE";
 
       let incomingCases = imported.cases || [];
-      let incomingQuickCaptures = imported.quickCaptures || [];
+      const hasIncomingQuickCaptures = Array.isArray(imported.quickCaptures);
+      let incomingQuickCaptures = hasIncomingQuickCaptures ? imported.quickCaptures : [];
 
       if (isFullBackup) {
         incomingCases = await Promise.all(incomingCases.map(restoreFullBackupCase));
-        incomingQuickCaptures = await Promise.all(incomingQuickCaptures.map(restoreFullBackupQuickCapture));
+        if (shouldImportQuickCaptures) {
+          incomingQuickCaptures = await Promise.all(incomingQuickCaptures.map(restoreFullBackupQuickCapture));
+        }
       }
 
       const normalizedCases = incomingCases.map(normalizeCase);
@@ -1682,14 +1658,22 @@ export default function ProveItApp() {
       }
 
       setCases(mergedCases);
-      setQuickCaptures((incomingQuickCaptures || []).map(q => ({
-        ...q,
-        source: q.source || "manual",
-        updatedAt: q.updatedAt || q.createdAt || new Date().toISOString(),
-        status: normalizeQuickCaptureStatus(q.status),
-        convertedTo: q.convertedTo || null,
-        attachments: Array.isArray(q.attachments) ? q.attachments : [],
-      })));
+      if (hasIncomingQuickCaptures && shouldImportQuickCaptures) {
+        setQuickCaptures((prev) => {
+          const captureMap = new Map(prev.map(q => [q.id, q]));
+          for (const q of incomingQuickCaptures) {
+            captureMap.set(q.id, {
+              ...q,
+              source: q.source || "manual",
+              updatedAt: q.updatedAt || q.createdAt || new Date().toISOString(),
+              status: normalizeQuickCaptureStatus(q.status),
+              convertedTo: q.convertedTo || null,
+              attachments: Array.isArray(q.attachments) ? q.attachments : [],
+            });
+          }
+          return Array.from(captureMap.values());
+        });
+      }
       setSelectedCaseId(imported.selectedCaseId ?? null);
       setActiveTab(imported.activeTab || "overview");
     } catch (error) {
@@ -2383,7 +2367,7 @@ const handleRecordFiles = async (event) => {
                   onClick={handleFullBackup}
                   className="px-2 py-1 text-[10px] rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-sm hover:bg-lime-400/30 transition-all active:scale-95"
                 >
-                  Export
+                  Full App Backup
                 </button>
                 <label className="px-2 py-1 text-[10px] rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-sm hover:bg-lime-400/30 transition-all active:scale-95 cursor-pointer">
                   Import
