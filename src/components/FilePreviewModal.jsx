@@ -3,10 +3,9 @@ import { useEffect, useState } from "react";
 
 export default function FilePreviewModal({ file, onClose, imageCache = {} }) {
   const [url, setUrl] = useState(null);
-  if (!file) return null;
 
-  const type = file.type || file.mimeType || "";
-  const name = file.name || file.fileName || "file";
+  const type = file?.type || file?.mimeType || "";
+  const name = file?.name || file?.fileName || "file";
   const isImage = type.startsWith("image/");
   const isPDF = type === "application/pdf";
 
@@ -36,6 +35,8 @@ export default function FilePreviewModal({ file, onClose, imageCache = {} }) {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [file, imageCache]);
+
+  if (!file) return null;
 
   const handleDownload = () => {
     if (!url) return;

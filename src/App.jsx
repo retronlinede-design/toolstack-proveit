@@ -3004,6 +3004,10 @@ const handleRecordFiles = async (event) => {
             removeRecordAttachment={removeRecordAttachment}
             saveRecord={saveRecord}
             closeRecordModal={closeRecordModal}
+            onPreviewFile={setPreviewFile}
+            openEditRecordModal={openEditRecordModal}
+            onCreateEvidenceFromIncident={handleCreateEvidenceFromIncident}
+            onUnlinkEvidenceFromIncident={handleUnlinkEvidenceFromIncident}
           />
         )}
 

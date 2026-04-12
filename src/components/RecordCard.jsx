@@ -9,6 +9,7 @@ export default function RecordCard({
   onViewRecord,
   openEditRecordModal,
   deleteRecord,
+  openLinkedRecord,
   openRecordModal,
   showTypeBadge = false,
   isTimeline = false,
