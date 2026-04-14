@@ -802,6 +802,7 @@ function sanitizeCaseForExport(caseItem) {
           nextActions: Array.isArray(caseItem.actionSummary.nextActions) ? caseItem.actionSummary.nextActions : [],
           importantReminders: Array.isArray(caseItem.actionSummary.importantReminders) ? caseItem.actionSummary.importantReminders : [],
           strategyFocus: Array.isArray(caseItem.actionSummary.strategyFocus) ? caseItem.actionSummary.strategyFocus : [],
+          criticalDeadlines: Array.isArray(caseItem.actionSummary.criticalDeadlines) ? caseItem.actionSummary.criticalDeadlines : [],
           updatedAt: caseItem.actionSummary.updatedAt || "",
         }
       : {
@@ -809,6 +810,7 @@ function sanitizeCaseForExport(caseItem) {
           nextActions: [],
           importantReminders: [],
           strategyFocus: [],
+          criticalDeadlines: [],
           updatedAt: "",
         },
   };
@@ -1173,6 +1175,107 @@ function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
       description: t.description ? t.description.substring(0, 300) : "",
     }));
 
+  const incidentSummary = sortTimelineItems(c.incidents || [])
+    .reverse()
+    .slice(0, limits.timeline)
+    .map(i => ({
+      id: i.id,
+      title: i.title,
+      status: i.status,
+      importance: i.importance,
+      date: i.eventDate || i.date || "",
+      summary: (i.description || i.notes || "").substring(0, 300),
+      linkedEvidenceIds: Array.isArray(i.linkedEvidenceIds) ? i.linkedEvidenceIds : [],
+    }));
+
+  const normalizeLevel = (value) => {
+    const v = String(value || "").toLowerCase();
+    if (v === "high" || v === "critical") return "high";
+    if (v === "medium" || v === "strong") return "medium";
+    return "low";
+  };
+
+  const evidenceCount = (c.evidence || []).length;
+  const documentCount = (c.documents || []).length;
+  const currentRiskLevel = activeIssues.some(i => normalizeLevel(i.importance) === "high")
+    ? "high"
+    : activeIssues.length > 0 || openTasks.length > 3
+      ? "medium"
+      : "low";
+  const confidenceLevel = evidenceCount >= 5 || documentCount >= 5
+    ? "high"
+    : evidenceCount >= 2 || documentCount >= 2
+      ? "medium"
+      : "low";
+  const strategyCurrent = (c.strategy || [])
+    .filter(s => s && s.title)
+    .slice(0, 5)
+    .map(s => ({
+      id: s.id,
+      title: s.title,
+      status: s.status,
+      date: s.eventDate || s.date || "",
+      summary: (s.description || s.notes || "").substring(0, 300),
+      linkedRecordIds: Array.isArray(s.linkedRecordIds) ? s.linkedRecordIds : [],
+    }));
+  const caseState = {
+    currentSituation: `${c.status || "open"} case with ${(c.incidents || []).length} incidents, ${evidenceCount} evidence items, ${documentCount} documents, and ${openTasks.length} open tasks.`,
+    mainProblem: (
+      activeIssues[0]?.summary ||
+      activeIssues[0]?.title ||
+      incidentSummary[0]?.summary ||
+      incidentSummary[0]?.title ||
+      "Main problem not yet summarized."
+    ).substring(0, 220),
+    currentLeverage: (
+      strategyCurrent[0]?.title ||
+      activeIssues[0]?.title ||
+      "No clear leverage point identified yet."
+    ).substring(0, 180),
+    currentRiskLevel,
+    confidenceLevel,
+  };
+  const riskSummary = [
+    ...activeIssues.map(item => {
+      const severity = normalizeLevel(item.importance);
+      return {
+        type: item.status || "issue",
+        description: (item.summary || item.title || "").substring(0, 220),
+        severity,
+        urgency: severity === "high" ? "high" : severity === "medium" ? "medium" : "low",
+      };
+    }),
+    ...openTasks.map(task => {
+      const urgency = normalizeLevel(task.priority);
+      return {
+        type: "task",
+        description: (task.description || task.title || "").substring(0, 220),
+        severity: urgency,
+        urgency,
+      };
+    }),
+  ].slice(0, 5);
+  const leveragePoints = [
+    ...strategyCurrent.map(s => {
+      const hasLinkedRecords = Array.isArray(s.linkedRecordIds) && s.linkedRecordIds.length > 0;
+      const hasSummary = !!s.summary;
+      return {
+        title: s.title,
+        description: s.summary.substring(0, 220),
+        strength: hasLinkedRecords || hasSummary ? "high" : s.title ? "medium" : "low",
+        usableNow: s.status !== "archived",
+      };
+    }),
+    ...(strategyCurrent.length > 0
+      ? []
+      : (c.incidents || []).slice(0, limits.facts).map(i => ({
+          title: i.title,
+          description: (i.description || i.notes || "").substring(0, 220),
+          strength: i.title ? "medium" : "low",
+          usableNow: true,
+        }))),
+  ].slice(0, 5);
+
   return {
     app: "proveit",
     contractVersion: "2.0",
@@ -1196,6 +1299,9 @@ function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
           `${openTasks.length} tasks currently pending action.`,
         ],
       },
+      caseState,
+      riskSummary,
+      leveragePoints,
       actionSummary: c.actionSummary || {
         currentFocus: "",
         nextActions: [],
@@ -1208,9 +1314,10 @@ function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
         : (c.incidents || []).slice(0, limits.facts).map(i => i.title).filter(Boolean),
       activeIssues,
       recentTimeline,
+      incidentSummary,
       openTasks,
       strategy: {
-        current: (c.strategy || []).map(s => s.title).filter(Boolean).slice(0, 5),
+        current: strategyCurrent,
         nextMoves: openTasks.map(t => t.title).filter(Boolean).slice(0, 3),
       },
       evidenceSummary: (c.evidence || []).map(e => ({

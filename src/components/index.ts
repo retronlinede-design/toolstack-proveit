@@ -37,25 +37,43 @@ serve(async (req) => {
     }
 
     const { snapshot } = data;
+    const snapshotData = snapshot?.data || snapshot || {};
+    const today = new Date().toISOString().slice(0, 10);
+    const incidentSource = Array.isArray(snapshotData?.incidentSummary) && snapshotData.incidentSummary.length > 0
+      ? snapshotData.incidentSummary
+      : Array.isArray(snapshotData?.recentTimeline)
+        ? snapshotData.recentTimeline.filter((item: any) => String(item?.type || '').toLowerCase().includes('incident'))
+        : [];
+    const strategyCurrent = Array.isArray(snapshotData?.strategy?.current)
+      ? snapshotData.strategy.current
+      : Array.isArray(snapshotData?.strategy)
+        ? snapshotData.strategy
+        : [];
 
     const importableCase = {
-      id: snapshot?.case?.id || caseId,
-      name: snapshot?.case?.name || 'Imported Case',
-      category: snapshot?.case?.type || 'general',
-      status: snapshot?.case?.status || 'open',
-      notes: snapshot?.summary?.oneParagraph || '',
+      id: snapshotData?.case?.id || caseId,
+      name: snapshotData?.case?.name || 'Imported Case',
+      category: snapshotData?.case?.category || snapshotData?.case?.type || 'general',
+      status: snapshotData?.case?.status || 'open',
+      notes: snapshotData?.summary?.oneParagraph || '',
       description: '',
-      tags: Array.isArray(snapshot?.keyFacts) ? snapshot.keyFacts : [],
+      tags: Array.isArray(snapshotData?.keyFacts) ? snapshotData.keyFacts : [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      evidence: Array.isArray(snapshot?.evidenceSummary)
-        ? snapshot.evidenceSummary.map((item: any) => ({
+      actionSummary: snapshotData?.actionSummary || undefined,
+      caseState: snapshotData?.caseState || undefined,
+      riskSummary: Array.isArray(snapshotData?.riskSummary) ? snapshotData.riskSummary : [],
+      leveragePoints: Array.isArray(snapshotData?.leveragePoints) ? snapshotData.leveragePoints : [],
+      activeIssues: Array.isArray(snapshotData?.activeIssues) ? snapshotData.activeIssues : [],
+      recentTimeline: Array.isArray(snapshotData?.recentTimeline) ? snapshotData.recentTimeline : [],
+      evidence: Array.isArray(snapshotData?.evidenceSummary)
+        ? snapshotData.evidenceSummary.map((item: any) => ({
             id: item.id,
             type: 'evidence',
             title: item.title || '',
-            date: new Date().toISOString().slice(0, 10),
-            description: item.description || '',
-            notes: item.notes || '',
+            date: today,
+            description: item.summary || item.description || '',
+            notes: '',
             attachments: [],
             tags: [],
             linkedRecordIds: [],
@@ -76,30 +94,28 @@ serve(async (req) => {
             }
           }))
         : [],
-      incidents: Array.isArray(snapshot?.recentIncidents)
-        ? snapshot.recentIncidents.map((item: any) => ({
+      incidents: incidentSource.map((item: any) => ({
             id: item.id,
             type: 'incidents',
             title: item.title || '',
-            date: item.date || new Date().toISOString().slice(0, 10),
-            description: item.description || '',
+            date: item.date || today,
+            description: item.summary || item.description || '',
             notes: '',
             attachments: [],
             tags: [],
             linkedRecordIds: [],
             linkedIncidentIds: [],
-            linkedEvidenceIds: [],
+            linkedEvidenceIds: Array.isArray(item.linkedEvidenceIds) ? item.linkedEvidenceIds : [],
             status: item.status || 'open',
             source: 'manual',
             edited: false
-          }))
-        : [],
-      tasks: Array.isArray(snapshot?.openTasks)
-        ? snapshot.openTasks.map((item: any) => ({
+          })),
+      tasks: Array.isArray(snapshotData?.openTasks)
+        ? snapshotData.openTasks.map((item: any) => ({
             id: item.id,
             type: 'tasks',
             title: item.title || '',
-            date: new Date().toISOString().slice(0, 10),
+            date: today,
             description: item.description || '',
             notes: '',
             attachments: [],
@@ -113,22 +129,40 @@ serve(async (req) => {
             priority: item.priority || 'medium'
           }))
         : [],
-      strategy: Array.isArray(snapshot?.strategy)
-        ? snapshot.strategy.map((item: any) => ({
-            id: item.id,
+      strategy: strategyCurrent.map((item: any) => {
+            const strategyItem = item && typeof item === 'object' ? item : {};
+            const strategyTitle = typeof item === 'string' ? item : strategyItem.title || '';
+            return {
+            id: strategyItem.id || crypto.randomUUID(),
             type: 'strategy',
-            title: item.title || '',
-            date: new Date().toISOString().slice(0, 10),
-            description: item.description || '',
+            title: strategyTitle,
+            date: strategyItem.date || today,
+            description: strategyItem.summary || strategyItem.description || '',
             notes: '',
             attachments: [],
             tags: [],
-            linkedRecordIds: [],
+            linkedRecordIds: Array.isArray(strategyItem.linkedRecordIds) ? strategyItem.linkedRecordIds : [],
             linkedIncidentIds: [],
             linkedEvidenceIds: [],
-            status: item.status || 'open',
+            status: strategyItem.status || 'open',
             source: 'manual',
             edited: false
+          };
+          }),
+      documents: Array.isArray(snapshotData?.documentSummary)
+        ? snapshotData.documentSummary.map((item: any) => ({
+            id: item.id,
+            title: item.title || '',
+            category: item.category || 'other',
+            documentDate: item.documentDate || '',
+            source: item.source || '',
+            summary: item.summary || '',
+            textContent: '',
+            attachments: [],
+            linkedRecordIds: Array.isArray(item.linkedRecordIds) ? item.linkedRecordIds : [],
+            edited: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
           }))
         : [],
     };
