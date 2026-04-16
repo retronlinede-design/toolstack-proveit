@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import AttachmentPreview from "./AttachmentPreview";
-import { AlertCircle, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, ShieldCheck, X } from "lucide-react";
 import { isTimelineCapable, getCaseHealthReport } from "../lib/caseHealth";
 import RecordCard from "./RecordCard";
 
@@ -187,6 +187,7 @@ export default function CaseDetail({
   const [actionSummaryEditOpen, setActionSummaryEditOpen] = useState(false);
   const [quickActionInput, setQuickActionInput] = useState("");
   const [actionSummaryForm, setActionSummaryForm] = useState(emptyActionSummaryForm);
+  const [selectedPackType, setSelectedPackType] = useState("general");
 
   useEffect(() => {
     const handleScroll = () => {
@@ -430,6 +431,31 @@ export default function CaseDetail({
   }
 
   const health = selectedCase ? getCaseHealthReport(selectedCase) : null;
+  const readinessDisplayMap = {
+    Healthy: "Ready",
+    "Needs review": "Needs work",
+    "High risk": "Not ready",
+  };
+  const readinessLabel = readinessDisplayMap[health?.status] || health?.status || "Unknown";
+  const completenessPercent =
+    ((health?.totals.incidents || 0) > 0 ? 30 : 0) +
+    ((health?.totals.evidence || 0) > 0 ? 30 : 0) +
+    ((selectedCase?.documents || []).length > 0 ? 25 : 0) +
+    ((health?.totals.strategy || 0) > 0 ? 15 : 0);
+  const completenessLabel =
+    completenessPercent >= 80
+      ? "Strong"
+      : completenessPercent >= 50
+        ? "Usable"
+        : "Thin";
+  const issuesLabel = !health || health.totalIssues === 0
+    ? "Low"
+    : health.totalIssues <= 5
+      ? "Medium"
+      : "High";
+  const criticalBlockers = (health?.issues || [])
+    .flatMap(group => group.items)
+    .slice(0, 3);
 
   const rawActionSummary = selectedCase?.actionSummary || {};
   const actionSummary = normalizeActionSummary(rawActionSummary);
@@ -438,6 +464,7 @@ export default function CaseDetail({
     nextActions = [],
     importantReminders = [],
     strategyFocus = [],
+    criticalDeadlines = [],
   } = actionSummary;
 
   const copyActionSummaryToClipboard = () => {
@@ -477,6 +504,98 @@ ${strategyFocus.join("\n") || "—"}`;
   const overviewStrategies = [...(selectedCase?.strategy || [])]
     .sort((a, b) => new Date(b.eventDate || b.date || 0) - new Date(a.eventDate || a.date || 0))
     .slice(0, 5);
+  const toLocalDateKey = (value) => {
+    if (!value) return "";
+    if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "";
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+  const getRecordMatchReason = (record, dateFields = []) => {
+    for (const field of dateFields) {
+      const dateKey = toLocalDateKey(record?.[field]);
+      if (dateKey === todayKey) return "Dated today";
+    }
+    if (toLocalDateKey(record?.createdAt) === todayKey) return "Created today";
+    if (toLocalDateKey(record?.updatedAt) === todayKey) return "Updated today";
+    return null;
+  };
+  const getRecordTitle = (record, fallback) => {
+    if (typeof record?.title === "string" && record.title.trim()) return record.title.trim();
+    if (typeof record?.label === "string" && record.label.trim()) return record.label.trim();
+    return fallback;
+  };
+  const todayKey = toLocalDateKey(new Date());
+  const todayIncidents = (selectedCase?.incidents || [])
+    .map((record) => ({
+      record,
+      title: getRecordTitle(record, "Untitled incident"),
+      reason: getRecordMatchReason(record, ["eventDate", "date"]),
+    }))
+    .filter((item) => item.reason);
+  const todayEvidence = (selectedCase?.evidence || [])
+    .map((record) => ({
+      record,
+      title: getRecordTitle(record, "Untitled evidence"),
+      reason: getRecordMatchReason(record, ["eventDate", "date", "capturedAt"]),
+    }))
+    .filter((item) => item.reason);
+  const todayTasks = (selectedCase?.tasks || [])
+    .map((record) => ({
+      record,
+      title: getRecordTitle(record, "Untitled task"),
+      reason: getRecordMatchReason(record, ["date", "dueDate"]),
+    }))
+    .filter((item) => item.reason);
+  const todayDocuments = (selectedCase?.documents || [])
+    .map((record) => ({
+      record,
+      title: getRecordTitle(record, "Untitled document"),
+      reason: getRecordMatchReason(record, ["documentDate"]),
+    }))
+    .filter((item) => item.reason);
+  const hasTodayActivity = todayIncidents.length > 0 || todayEvidence.length > 0 || todayTasks.length > 0 || todayDocuments.length > 0;
+  const packDateValue = (item) => item?.eventDate || item?.date || item?.capturedAt || item?.documentDate || item?.createdAt || "";
+  const packText = (value, fallback = "") => (typeof value === "string" && value.trim()) ? value.trim() : fallback;
+  const packSummaryText = (item, max = 260) => {
+    const text = packText(item?.description) || packText(item?.notes) || packText(item?.summary);
+    return text.length > max ? `${text.slice(0, max)}...` : text;
+  };
+  const sortPackRecent = (items = []) => [...items].sort((a, b) => String(packDateValue(b)).localeCompare(String(packDateValue(a))));
+  const packIncidents = sortPackRecent(selectedCase?.incidents || []).slice(0, 8);
+  const packEvidence = sortPackRecent(selectedCase?.evidence || []).slice(0, 8);
+  const packDocuments = sortPackRecent(selectedCase?.documents || []).slice(0, 8);
+  const packStrategy = sortPackRecent(selectedCase?.strategy || []).slice(0, 5);
+  const packGaps = (health?.issues || [])
+    .flatMap((group) => group.items.map((item) => ({ category: group.category, item })))
+    .slice(0, 8);
+  const topBlockers = (health?.issues || [])
+    .flatMap((group) =>
+      (group.items || []).map((item) => ({
+        category: group.category,
+        title: item.title || "",
+        detail: item.detail || "",
+      }))
+    )
+    .slice(0, 3);
+  const packTimeline = sortPackRecent([
+    ...(selectedCase?.incidents || []).map((item) => ({ ...item, _kind: "Incident" })),
+    ...(selectedCase?.evidence || []).map((item) => ({ ...item, _kind: "Evidence" })),
+    ...(selectedCase?.strategy || []).map((item) => ({ ...item, _kind: "Strategy" })),
+    ...(selectedCase?.tasks || []).map((item) => ({ ...item, _kind: "Task" })),
+  ]).slice(0, 15);
+  const packExecutiveSummary = (
+    packText(currentFocus) ||
+    packText(selectedCase?.caseState?.currentSituation) ||
+    packText(selectedCase?.caseState?.mainProblem) ||
+    packText(selectedCase?.notes) ||
+    packText(selectedCase?.description) ||
+    "No executive summary available."
+  );
+  const isEscalationPack = selectedPackType === "escalation";
 
   const scrollTopTabLabelMap = {
     overview: "Home",
@@ -1026,40 +1145,128 @@ ${strategyFocus.join("\n") || "—"}`;
             {/* Tab content logic... */}
             {activeTab === "overview" && (
               <div className="space-y-5">
-                {/* Case Health Card */}
-                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                  <div className="mb-4 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-semibold">Case Health</h3>
-                      {health && (
-                        <div className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-bold ${statusConfig[health.status].color}`}>
-                          {(() => {
-                            const Icon = statusConfig[health.status].icon;
-                            return <Icon className="h-3 w-3" />;
-                          })()}
-                          {health.status}
-                        </div>
-                      )}
-                    </div>
-                    <div className="text-sm font-medium text-neutral-500">
-                      {health?.totalIssues} issue{health?.totalIssues !== 1 ? "s" : ""} found
+                <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 pb-3">
+                    <h3 className="text-lg font-semibold text-neutral-900">Today</h3>
+                    <div className="text-xs font-semibold text-neutral-500">
+                      {todayIncidents.length} incidents · {todayEvidence.length} evidence
+                      {todayTasks.length > 0 ? ` · ${todayTasks.length} tasks` : ""}
+                      {todayDocuments.length > 0 ? ` · ${todayDocuments.length} documents` : ""}
                     </div>
                   </div>
 
-                  <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
-                    {health &&
-                      Object.entries(health.totals).map(([label, count]) => (
-                        <div key={label} className="rounded-xl border border-neutral-200 bg-white p-2 text-center">
-                          <div className="text-xl font-bold text-neutral-800">{count}</div>
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{label}</div>
-                        </div>
-                      ))}
+                  {hasTodayActivity ? (
+                    <div className={`grid gap-3 ${todayTasks.length > 0 || todayDocuments.length > 0 ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+                      {todayIncidents.length > 0 && (
+                        <section className="rounded-xl border border-neutral-100 bg-neutral-50/70 p-3 shadow-sm">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-600">Incidents</h4>
+                          <ul className="mt-2 space-y-1 text-sm text-neutral-700">
+                            {todayIncidents.slice(0, 3).map((item) => (
+                              <li key={item.record.id || item.title} className="break-words">
+                                - {item.title} · {item.reason}
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                      )}
+
+                      {todayEvidence.length > 0 && (
+                        <section className="rounded-xl border border-neutral-100 bg-neutral-50/70 p-3 shadow-sm">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-600">Evidence</h4>
+                          <ul className="mt-2 space-y-1 text-sm text-neutral-700">
+                            {todayEvidence.slice(0, 3).map((item) => (
+                              <li key={item.record.id || item.title} className="break-words">
+                                - {item.title} · {item.reason}
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                      )}
+
+                      {todayTasks.length > 0 && (
+                        <section className="rounded-xl border border-neutral-100 bg-neutral-50/70 p-3 shadow-sm">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-600">Tasks</h4>
+                          <ul className="mt-2 space-y-1 text-sm text-neutral-700">
+                            {todayTasks.slice(0, 3).map((item) => (
+                              <li key={item.record.id || item.title} className="break-words">
+                                - {item.title} · {item.reason}
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                      )}
+
+                      {todayDocuments.length > 0 && (
+                        <section className="rounded-xl border border-neutral-100 bg-neutral-50/70 p-3 shadow-sm">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-600">Documents</h4>
+                          <ul className="mt-2 space-y-1 text-sm text-neutral-700">
+                            {todayDocuments.slice(0, 3).map((item) => (
+                              <li key={item.record.id || item.title} className="break-words">
+                                - {item.title} · {item.reason}
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-neutral-500">No activity logged today.</p>
+                  )}
+                </div>
+
+                {/* Case Readiness Card */}
+                <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-semibold">Case Readiness</h3>
+                      <p className="mt-1 text-sm text-neutral-500">Quick check of case completeness and cleanup needs</p>
+                    </div>
+                    {health && (
+                      <div className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusConfig[health.status].color}`}>
+                        {readinessLabel}
+                      </div>
+                    )}
                   </div>
+
+                  <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-lime-100 bg-lime-50/30 p-3">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-lime-700/80">Completeness</div>
+                      <div className="mt-1 flex items-center justify-between text-sm font-semibold text-neutral-900">
+                        <span>{completenessLabel}</span>
+                        <span className="text-xs text-neutral-500">{completenessPercent}%</span>
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-amber-100 bg-amber-50/30 p-3">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700/80">Issues</div>
+                      <div className="mt-1 text-sm font-semibold text-neutral-900">
+                        {health?.totalIssues || 0} · {issuesLabel}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-600">Readiness</div>
+                      <div className="mt-1 text-sm font-semibold text-neutral-900">{readinessLabel}</div>
+                    </div>
+                  </div>
+
+                  {criticalBlockers.length > 0 && (
+                    <div className="mb-4 rounded-xl border border-neutral-200 bg-neutral-50/70 p-3">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-600">
+                        Critical Blockers
+                      </div>
+                      <ul className="mt-2 space-y-1 text-sm text-neutral-700">
+                        {criticalBlockers.map((item, idx) => (
+                          <li key={idx} className="break-words">
+                            - {item.title || item.detail || "Issue"}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                   {health?.issues.length > 0 && (
                     <div className="space-y-2">
                       {health.issues.map((group) => (
-                        <div key={group.category} className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                        <div key={group.category} className="overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50/70">
                           <button onClick={() => toggleGroup(group.category)} className="flex w-full items-center justify-between p-3 transition-colors hover:bg-neutral-50">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-semibold text-neutral-700">{group.category}</span>
@@ -1097,11 +1304,11 @@ ${strategyFocus.join("\n") || "—"}`;
                 </div>
 
                 {/* Strategy Overview Section */}
-                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                  <div className="mb-4 flex items-center justify-between">
+                <div className="rounded-2xl border border-neutral-100 bg-white p-3 shadow-sm">
+                  <div className="mb-3 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-semibold">Strategies</h3>
-                      <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-[10px] font-bold text-neutral-600">
+                      <h3 className="text-base font-semibold text-neutral-800">Strategies</h3>
+                      <span className="rounded-md bg-neutral-50 px-2 py-0.5 text-[10px] font-semibold text-neutral-500">
                         {selectedCase.strategy?.length || 0}
                       </span>
                     </div>
@@ -1126,7 +1333,7 @@ ${strategyFocus.join("\n") || "—"}`;
                   ) : (
                     <div className="space-y-2">
                       {overviewStrategies.map((item) => (
-                        <div key={item.id} className="rounded-xl border border-neutral-200 bg-white p-3 shadow-sm">
+                        <div key={item.id} className="rounded-xl border border-neutral-100 bg-neutral-50/60 p-3">
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-start justify-between gap-2">
@@ -1886,17 +2093,281 @@ ${strategyFocus.join("\n") || "—"}`;
             )}
 
             {activeTab === "pack" && (
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Pack Preview</h3>
-                <p className="text-sm text-neutral-600">V1 pack will include evidence and incidents only.</p>
-                <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-                  Pack preview placeholder. Later this view will assemble the selected evidence and incidents into a clean printable case file.
+              <div className="space-y-4 text-neutral-800 print:bg-white print:text-black">
+                <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 print:hidden">
+                  <div className="inline-flex rounded-lg border border-neutral-200 bg-white p-1 shadow-sm">
+                    {[
+                      { id: "general", label: "General" },
+                      { id: "escalation", label: "Escalation" },
+                    ].map((packType) => (
+                      <button
+                        key={packType.id}
+                        type="button"
+                        onClick={() => setSelectedPackType(packType.id)}
+                        className={`rounded-md px-3 py-1.5 text-sm font-semibold transition-colors ${
+                          selectedPackType === packType.id
+                            ? "bg-lime-500 text-white shadow-sm"
+                            : "text-neutral-600 hover:bg-neutral-50"
+                        }`}
+                      >
+                        {packType.label}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => window.print()}
+                    className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-semibold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50"
+                  >
+                    Print / Save PDF
+                  </button>
                 </div>
+                <article className="mx-auto max-w-4xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
+                <header className="break-inside-avoid pb-7 print:pb-6">
+                  <div className="flex flex-col gap-5 border-b border-neutral-200 pb-6 sm:flex-row sm:items-center print:pb-5">
+                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-lime-500 text-white shadow-lg shadow-lime-100 print:h-14 print:w-14 print:rounded-xl print:shadow-none">
+                      <ShieldCheck className="h-9 w-9 print:h-8 print:w-8" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold uppercase tracking-[0.18em] text-lime-700">ProveIt Case Pack</div>
+                      <h1 className="mt-2 break-words text-3xl font-bold leading-tight text-neutral-950 print:text-2xl">
+                        {selectedCase.name || "Untitled Case"}
+                      </h1>
+                      <p className="mt-2 text-sm text-neutral-500">
+                        {selectedCase.category || "Uncategorized"} · {selectedCase.status || "No status"} · Updated {selectedCase.updatedAt || "unknown"}
+                      </p>
+                    </div>
+                  </div>
+                </header>
+                <section className="break-inside-avoid py-6 print:py-5">
+                  <div className="border-b border-neutral-100 pb-3">
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Executive Summary</h4>
+                  </div>
+                  <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-neutral-700">{packExecutiveSummary}</p>
+                  {selectedCase?.caseState?.currentSituation && (
+                    <p className="mt-3 text-sm leading-6 text-neutral-700">{selectedCase.caseState.currentSituation}</p>
+                  )}
+                  {selectedCase?.caseState?.mainProblem && (
+                    <p className="mt-2 text-sm leading-6 text-neutral-700">
+                      <span className="font-semibold text-neutral-800">Main problem: </span>
+                      {selectedCase.caseState.mainProblem}
+                    </p>
+                  )}
+                </section>
+
+                {!isEscalationPack && (
+                <section className="break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
+                  <div className="border-b border-neutral-100 pb-3">
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Top Blockers</h4>
+                  </div>
+                  {topBlockers.length > 0 ? (
+                    <ul className="mt-4 space-y-2.5 text-sm text-neutral-700">
+                      {topBlockers.map((item, idx) => (
+                        <li key={idx} className="flex flex-col gap-0.5 border-b border-neutral-100 pb-2 last:border-0 last:pb-0 sm:flex-row sm:gap-2">
+                          <span className="shrink-0 text-xs font-bold uppercase tracking-wider text-neutral-500">{item.category}</span>
+                          <span className="text-neutral-800">
+                            {item.title || item.detail || "Issue"}
+                            {item.title && item.detail ? <span className="text-neutral-500"> · {item.detail}</span> : null}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : <p className="mt-3 text-sm text-neutral-500">No major blockers identified.</p>}
+                </section>
+                )}
+
+                <section className="break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
+                  <div className="border-b border-neutral-100 pb-3">
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Key Deadlines & Actions</h4>
+                  </div>
+                  <div className="mt-4 grid gap-4 md:grid-cols-3">
+                    <div>
+                      <h5 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Critical Deadlines</h5>
+                      {criticalDeadlines.length > 0 ? (
+                        <ul className="mt-2 space-y-1 text-sm text-neutral-700">
+                          {criticalDeadlines.map((item, idx) => (
+                            <li key={idx}>- {typeof item === "string" ? item : item?.title || item?.label || item?.date || "Deadline"}</li>
+                          ))}
+                        </ul>
+                      ) : <p className="mt-2 text-sm text-neutral-500">None listed.</p>}
+                    </div>
+                    <div>
+                      <h5 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Next Actions</h5>
+                      {nextActions.length > 0 ? (
+                        <ul className="mt-2 space-y-1 text-sm text-neutral-700">
+                          {nextActions.map((item, idx) => <li key={idx}>- {item}</li>)}
+                        </ul>
+                      ) : <p className="mt-2 text-sm text-neutral-500">None listed.</p>}
+                    </div>
+                    <div>
+                      <h5 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Important Reminders</h5>
+                      {importantReminders.length > 0 ? (
+                        <ul className="mt-2 space-y-1 text-sm text-neutral-700">
+                          {importantReminders.map((item, idx) => <li key={idx}>- {item}</li>)}
+                        </ul>
+                      ) : <p className="mt-2 text-sm text-neutral-500">None listed.</p>}
+                    </div>
+                  </div>
+                </section>
+
+                <section className="break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
+                  <div className="border-b border-neutral-100 pb-3">
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Main Issues / Incidents</h4>
+                  </div>
+                  {packIncidents.length > 0 ? (
+                    <div className="mt-4 space-y-4">
+                      {packIncidents.map((item) => (
+                        <div key={item.id || item.title} className="border-b border-neutral-100 pb-4 last:border-0 last:pb-0">
+                          <div className="font-semibold leading-snug text-neutral-900">{item.title || "Untitled incident"}</div>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500">
+                            <span>{item.eventDate || item.date || "No date"}</span>
+                            {item.status && <span>Status: {item.status}</span>}
+                            {item.importance && <span>Importance: {item.importance}</span>}
+                          </div>
+                          {packSummaryText(item) && <p className="mt-2 text-sm leading-6 text-neutral-700">{packSummaryText(item)}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p className="mt-3 text-sm text-neutral-500">No incidents listed.</p>}
+                </section>
+
+                <section className="break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
+                  <div className="border-b border-neutral-100 pb-3">
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Evidence Summary</h4>
+                  </div>
+                  {packEvidence.length > 0 ? (
+                    <div className="mt-4 space-y-4">
+                      {packEvidence.map((item) => (
+                        <div key={item.id || item.title} className="border-b border-neutral-100 pb-4 last:border-0 last:pb-0">
+                          <div className="font-semibold leading-snug text-neutral-900">{item.title || "Untitled evidence"}</div>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500">
+                            <span>{item.eventDate || item.date || item.capturedAt || "No date"}</span>
+                            {item.sourceType && <span>Source: {item.sourceType}</span>}
+                            {item.status && <span>Status: {item.status}</span>}
+                            {item.importance && <span>Importance: {item.importance}</span>}
+                            {item.relevance && <span>Relevance: {item.relevance}</span>}
+                            {Array.isArray(item.attachments) && item.attachments.length > 0 && <span>Attachments: {item.attachments.length}</span>}
+                          </div>
+                          {packSummaryText(item) && <p className="mt-2 text-sm leading-6 text-neutral-700">{packSummaryText(item)}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p className="mt-3 text-sm text-neutral-500">No evidence listed.</p>}
+                </section>
+
+                <section className="break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
+                  <div className="border-b border-neutral-100 pb-3">
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Documents Summary</h4>
+                  </div>
+                  {packDocuments.length > 0 ? (
+                    <div className="mt-4 space-y-4">
+                      {packDocuments.map((item) => (
+                        <div key={item.id || item.title} className="border-b border-neutral-100 pb-4 last:border-0 last:pb-0">
+                          <div className="font-semibold leading-snug text-neutral-900">{item.title || "Untitled document"}</div>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500">
+                            <span>{item.documentDate || "No date"}</span>
+                            {item.category && <span>Category: {item.category}</span>}
+                            {item.source && <span>Source: {item.source}</span>}
+                            <span>Attachments: {Array.isArray(item.attachments) ? item.attachments.length : 0}</span>
+                          </div>
+                          {packText(item.summary) && <p className="mt-2 text-sm leading-6 text-neutral-700">{item.summary}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p className="mt-3 text-sm text-neutral-500">No documents listed.</p>}
+                </section>
+
+                {isEscalationPack && (
+                <section className="break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
+                  <div className="border-b border-neutral-100 pb-3">
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Top Blockers</h4>
+                  </div>
+                  {topBlockers.length > 0 ? (
+                    <ul className="mt-4 space-y-2.5 text-sm text-neutral-700">
+                      {topBlockers.map((item, idx) => (
+                        <li key={idx} className="flex flex-col gap-0.5 border-b border-neutral-100 pb-2 last:border-0 last:pb-0 sm:flex-row sm:gap-2">
+                          <span className="shrink-0 text-xs font-bold uppercase tracking-wider text-neutral-500">{item.category}</span>
+                          <span className="text-neutral-800">
+                            {item.title || item.detail || "Issue"}
+                            {item.title && item.detail ? <span className="text-neutral-500"> · {item.detail}</span> : null}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : <p className="mt-3 text-sm text-neutral-500">No major blockers identified.</p>}
+                </section>
+                )}
+
+                {!isEscalationPack && (
+                <section className="break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
+                  <div className="border-b border-neutral-100 pb-3">
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Strategy / Position</h4>
+                  </div>
+                  {strategyFocus.length > 0 && (
+                    <ul className="mt-4 space-y-1 text-sm text-neutral-700">
+                      {strategyFocus.map((item, idx) => <li key={idx}>- {item}</li>)}
+                    </ul>
+                  )}
+                  {packStrategy.length > 0 ? (
+                    <div className="mt-3 space-y-3">
+                      {packStrategy.map((item) => (
+                        <div key={item.id || item.title} className="border-b border-neutral-100 pb-3 last:border-0 last:pb-0">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500">
+                            <span>{item.eventDate || item.date || "No date"}</span>
+                            {item.status && <span>Status: {item.status}</span>}
+                          </div>
+                          <div className="mt-1 font-semibold text-neutral-900">{item.title || "Untitled strategy"}</div>
+                          {packSummaryText(item) && <p className="mt-1 text-sm text-neutral-700">{packSummaryText(item)}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p className="mt-3 text-sm text-neutral-500">No strategy records listed.</p>}
+                </section>
+                )}
+
+                {!isEscalationPack && (
+                <section className="break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
+                  <div className="border-b border-neutral-100 pb-3">
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Open Questions / Gaps</h4>
+                  </div>
+                  {packGaps.length > 0 ? (
+                    <ul className="mt-4 space-y-2 text-sm text-neutral-700">
+                      {packGaps.map(({ category, item }, idx) => (
+                        <li key={idx}>
+                          <span className="font-semibold text-neutral-900">{category}: </span>
+                          {item.detail || item.title || "Issue"}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : <p className="mt-3 text-sm text-neutral-500">No open gaps listed.</p>}
+                </section>
+                )}
+
+                {!isEscalationPack && (
+                <section className="break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
+                  <div className="border-b border-neutral-100 pb-3">
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Recent Timeline</h4>
+                  </div>
+                  {packTimeline.length > 0 ? (
+                    <div className="mt-4 space-y-2">
+                      {packTimeline.map((item) => (
+                        <div key={`${item._kind}-${item.id || item.title}`} className="flex flex-col gap-1 border-b border-neutral-100 pb-2 text-sm last:border-0 last:pb-0 sm:flex-row sm:items-start sm:gap-3">
+                          <span className="shrink-0 text-xs font-medium text-neutral-500">{packDateValue(item) || "No date"}</span>
+                          <div>
+                            <span className="text-xs font-bold uppercase tracking-wider text-neutral-400">{item._kind}</span>
+                            <span className="ml-2 font-semibold text-neutral-900">{item.title || "Untitled"}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p className="mt-3 text-sm text-neutral-500">No timeline items listed.</p>}
+                </section>
+                )}
+                </article>
               </div>
             )}
           </div>
         </div>
-        <aside className="lg:col-span-4 space-y-6">
+        <aside className={`lg:col-span-4 space-y-6 print:hidden ${activeTab === "pack" && isEscalationPack ? "hidden" : ""}`}>
           {reviewQueueSection}
         </aside>
       </div>
