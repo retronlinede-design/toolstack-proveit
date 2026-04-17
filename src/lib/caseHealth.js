@@ -31,11 +31,11 @@ export const getCaseHealthReport = (selectedCase) => {
     const missing = [];
     if (!(item.eventDate || item.date)) missing.push("date");
     if (!item.title?.trim()) missing.push("title");
-    if (!item.description?.trim()) missing.push("summary");
+    if (!item.description?.trim()) missing.push("description");
 
     const hasAtt = (item.attachments || []).length > 0;
     const hasEv = (item.linkedEvidenceIds || []).length > 0;
-    if (!hasAtt && !hasEv) missing.push("supporting evidence");
+    if (!hasAtt && !hasEv) missing.push("attachment or linked evidence");
 
     if (missing.length) {
       incidentIssues.push({
@@ -46,6 +46,7 @@ export const getCaseHealthReport = (selectedCase) => {
         record: item,
         type: "incidents",
         tab: "incidents",
+        severity: "blocking",
       });
     }
 
@@ -62,11 +63,12 @@ export const getCaseHealthReport = (selectedCase) => {
         incidentIssues.push({
           id: item.id,
           title: item.title || "Untitled Incident",
-          detail: `Duplicate title: "${title}"`,
+          detail: `Duplicate incident title: "${title}"`,
           date: item.eventDate || item.date,
           record: item,
           type: "incidents",
           tab: "incidents",
+          severity: "advisory",
         });
       });
     }
@@ -82,7 +84,7 @@ export const getCaseHealthReport = (selectedCase) => {
     if (!item.title?.trim()) missing.push("title");
 
     const links = Array.isArray(item.linkedIncidentIds) ? item.linkedIncidentIds : [];
-    if (links.length === 0) missing.push("linkedIncidentIds");
+    if (links.length === 0) missing.push("linked incident");
 
     const broken = links.filter((id) => !incidentIds.has(id));
 
@@ -91,7 +93,7 @@ export const getCaseHealthReport = (selectedCase) => {
       !!item.availability?.digital?.hasDigital || (item.attachments?.length > 0);
 
     if (!hasPhys && !hasDigi) {
-      missing.push("availability (no physical OR digital)");
+      missing.push("no physical or digital availability set");
     }
 
     if (missing.length || broken.length) {
@@ -100,7 +102,7 @@ export const getCaseHealthReport = (selectedCase) => {
         title: item.title || "Untitled Evidence",
         detail: [
           missing.length ? `Missing: ${missing.join(", ")}` : null,
-          broken.length ? `${broken.length} broken link(s)` : null,
+          broken.length ? `${broken.length} broken linked incident reference(s)` : null,
         ]
           .filter(Boolean)
           .join("; "),
@@ -108,6 +110,7 @@ export const getCaseHealthReport = (selectedCase) => {
         record: item,
         type: "evidence",
         tab: "evidence",
+        severity: "blocking",
       });
     }
 
@@ -115,10 +118,11 @@ export const getCaseHealthReport = (selectedCase) => {
       evidenceIssues.push({
         id: item.id,
         title: item.title || "Untitled Evidence",
-        detail: `Partial availability: ${hasPhys ? "Physical only" : "Digital only"}`,
+        detail: hasPhys ? "only physical availability set" : "only digital availability set",
         record: item,
         type: "evidence",
         tab: "evidence",
+        severity: "advisory",
       });
     }
 
@@ -135,11 +139,12 @@ export const getCaseHealthReport = (selectedCase) => {
         evidenceIssues.push({
           id: item.id,
           title: item.title || "Untitled Evidence",
-          detail: `Duplicate title: "${title}"`,
+          detail: `Duplicate evidence title: "${title}"`,
           date: item.eventDate || item.date,
           record: item,
           type: "evidence",
           tab: "evidence",
+          severity: "advisory",
         });
       });
     }
@@ -152,10 +157,11 @@ export const getCaseHealthReport = (selectedCase) => {
     .map((t) => ({
       id: t.id,
       title: "Untitled Task",
-      detail: "Missing title",
+      detail: "Missing task title",
       record: t,
       type: "tasks",
       tab: "tasks",
+      severity: "blocking",
     }));
 
   if (taskIssues.length) issues.push({ category: "Tasks", items: taskIssues });
@@ -165,10 +171,11 @@ export const getCaseHealthReport = (selectedCase) => {
     .map((s) => ({
       id: s.id,
       title: "Untitled Strategy",
-      detail: "Missing title",
+      detail: "Missing strategy title",
       record: s,
       type: "strategy",
       tab: "strategy",
+      severity: "blocking",
     }));
 
   if (strategyIssues.length) issues.push({ category: "Strategy", items: strategyIssues });
@@ -194,10 +201,11 @@ export const getCaseHealthReport = (selectedCase) => {
       timelineIssues.push({
         id: item.id,
         title: item.title || "Untitled",
-        detail: "Missing date",
+        detail: "Missing timeline date",
         record: item,
         type,
         tab: "timeline",
+        severity: "blocking",
       });
     }
 
@@ -207,10 +215,11 @@ export const getCaseHealthReport = (selectedCase) => {
         timelineIssues.push({
           id: item.id,
           title: item.title || "Untitled",
-          detail: "Missing linkedIncidentIds",
+          detail: "Missing linked incident",
           record: item,
           type,
           tab: "timeline",
+          severity: "blocking",
         });
       } else {
         const broken = links.filter((id) => !incidentIds.has(id));
@@ -222,6 +231,7 @@ export const getCaseHealthReport = (selectedCase) => {
             record: item,
             type,
             tab: "timeline",
+            severity: "blocking",
           });
         }
       }
@@ -239,6 +249,7 @@ export const getCaseHealthReport = (selectedCase) => {
           record: item,
           type,
           tab: "timeline",
+          severity: "advisory",
         });
       }
     }
@@ -246,7 +257,10 @@ export const getCaseHealthReport = (selectedCase) => {
 
   if (timelineIssues.length) issues.push({ category: "Timeline", items: timelineIssues });
 
-  const totalIssues = issues.reduce((acc, cat) => acc + cat.items.length, 0);
+  const totalIssues = issues.reduce(
+    (acc, cat) => acc + cat.items.filter((item) => item.severity !== "advisory").length,
+    0
+  );
   let status = "Healthy";
   if (totalIssues > 0) status = totalIssues <= 5 ? "Needs review" : "High risk";
 

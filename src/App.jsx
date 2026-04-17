@@ -4,6 +4,7 @@ import AttachmentPreview from "./components/AttachmentPreview";
 import RecordModal from "./components/RecordModal";
 import CaseDetail from "./components/CaseDetail";
 import FilePreviewModal from "./components/FilePreviewModal";
+import { getCaseHealthReport } from "./lib/caseHealth";
 import { ShieldCheck } from "lucide-react";
 const SUPABASE_SYNC_URL = "https://aftbtklrlkccngjiaacv.supabase.co/functions/v1/proveit-upsert-case";
 const SUPABASE_SYNC_API_KEY = "proveit-live-read-123456";
@@ -1133,6 +1134,7 @@ function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
   }
 
   const c = sanitizeCaseForExport(caseItem);
+  const health = getCaseHealthReport(c);
   const limits = mode === "compact" ? { timeline: 5, facts: 8, tasks: 8 } : { timeline: 12, facts: 12, tasks: 12 };
 
   const mapImportance = (val) => {
@@ -1275,6 +1277,63 @@ function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
           usableNow: true,
         }))),
   ].slice(0, 5);
+  const evidenceSummary = (c.evidence || []).map(e => ({
+    id: e.id,
+    title: e.title,
+    status: e.status,
+    importance: e.importance,
+    relevance: e.relevance,
+    sourceType: e.sourceType,
+    summary: (e.description || e.notes || "").substring(0, 300),
+    attachmentCount: Array.isArray(e.attachments) ? e.attachments.length : 0,
+  }));
+  const documentSummary = (c.documents || []).map(d => ({
+    id: d.id,
+    title: d.title,
+    category: d.category,
+    documentDate: d.documentDate,
+    source: d.source,
+    summary: d.summary || "",
+    hasTextContent: !!d.textContent,
+    attachmentCount: Array.isArray(d.attachments) ? d.attachments.length : 0,
+    linkedRecordIds: Array.isArray(d.linkedRecordIds) ? d.linkedRecordIds : [],
+  }));
+  const allHealthIssues = (health.issues || []).flatMap(group =>
+    (group.items || []).map(item => ({
+      id: item.id,
+      category: group.category,
+      title: item.title || "Issue",
+      detail: item.detail || "",
+      severity: item.severity || "blocking",
+      type: item.type || "",
+      tab: item.tab || "",
+      date: item.date || "",
+    }))
+  );
+  const advisoryIssueCount = allHealthIssues.filter(item => item.severity === "advisory").length;
+  const blockingIssues = allHealthIssues.filter(item => item.severity !== "advisory");
+  const topBlockers = blockingIssues.slice(0, 10);
+  const readiness = {
+    status: health.status,
+    blockingIssueCount: health.totalIssues,
+    advisoryIssueCount,
+    totals: health.totals,
+    summary:
+      health.totalIssues > 0
+        ? `${health.totalIssues} blocking readiness issue(s).`
+        : "No blocking readiness issues detected.",
+  };
+  const blockers = topBlockers;
+  const evidencePosture = {
+    confidenceLevel,
+    evidenceCount,
+    documentCount,
+    evidenceWithAttachments: (c.evidence || []).filter(e => Array.isArray(e.attachments) && e.attachments.length > 0).length,
+    documentsWithAttachments: (c.documents || []).filter(d => Array.isArray(d.attachments) && d.attachments.length > 0).length,
+    summary: `${evidenceCount} evidence item(s), ${documentCount} document(s), confidence ${confidenceLevel}.`,
+    evidence: evidenceSummary,
+    documents: documentSummary,
+  };
 
   return {
     app: "proveit",
@@ -1320,27 +1379,13 @@ function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
         current: strategyCurrent,
         nextMoves: openTasks.map(t => t.title).filter(Boolean).slice(0, 3),
       },
-      evidenceSummary: (c.evidence || []).map(e => ({
-        id: e.id,
-        title: e.title,
-        status: e.status,
-        importance: e.importance,
-        relevance: e.relevance,
-        sourceType: e.sourceType,
-        summary: (e.description || e.notes || "").substring(0, 300),
-        attachmentCount: Array.isArray(e.attachments) ? e.attachments.length : 0,
-      })),
-      documentSummary: (c.documents || []).map(d => ({
-        id: d.id,
-        title: d.title,
-        category: d.category,
-        documentDate: d.documentDate,
-        source: d.source,
-        summary: d.summary || "",
-        hasTextContent: !!d.textContent,
-        attachmentCount: Array.isArray(d.attachments) ? d.attachments.length : 0,
-        linkedRecordIds: Array.isArray(d.linkedRecordIds) ? d.linkedRecordIds : [],
-      })),
+      evidenceSummary,
+      documentSummary,
+      reasoningV2: {
+        readiness,
+        blockers,
+        evidencePosture,
+      },
       importantPeople: [],
       openQuestions: [],
     },
@@ -1485,6 +1530,10 @@ export default function ProveItApp() {
   const [recordType, setRecordType] = useState(null);
   const [recordForm, setRecordForm] = useState(EMPTY_RECORD_FORM);
   const [editingRecord, setEditingRecord] = useState(null);
+  const [recordFocusField, setRecordFocusField] = useState(null);
+  const [recordFocusHint, setRecordFocusHint] = useState("");
+  const [recordOpenedFromIssue, setRecordOpenedFromIssue] = useState(false);
+  const [recordIssueFeedback, setRecordIssueFeedback] = useState("");
   const [parentRecordForNewChild, setParentRecordForNewChild] = useState(null);
   const [syncStatus, setSyncStatus] = useState("idle"); // idle, syncing, success, error
   const [syncMessage, setSyncMessage] = useState("");
@@ -2366,13 +2415,16 @@ export default function ProveItApp() {
     });
   };
 
-  const openEditRecordModal = (type, item) => {
+  const openEditRecordModal = (type, item, options = {}) => {
   setRecordForm({
     ...EMPTY_RECORD_FORM,
     ...item,
     attachments: (item.attachments?.length ? item.attachments : null) || (item.files?.length ? item.files : null) || (type === "evidence" ? item.availability?.digital?.files : []) || [],
     files: (item.files?.length ? item.files : null) || (type === "evidence" ? item.availability?.digital?.files : []) || [],
   });
+  setRecordFocusField(options.focusField || null);
+  setRecordFocusHint(options.focusHint || "");
+  setRecordOpenedFromIssue(!!options.fromIssue);
   setRecordType(type);
   setEditingRecord(item);
   };
@@ -2380,6 +2432,9 @@ export default function ProveItApp() {
   const closeRecordModal = () => {
     setRecordType(null);
     setEditingRecord(null);
+    setRecordFocusField(null);
+    setRecordFocusHint("");
+    setRecordOpenedFromIssue(false);
     setRecordForm(EMPTY_RECORD_FORM);
     setParentRecordForNewChild(null);
   };
@@ -2533,6 +2588,7 @@ const handleRecordFiles = async (event) => {
     if (!selectedCase || !recordType || !recordForm.title.trim()) return;
     
     let updatedCase;
+    const shouldShowIssueFeedback = recordOpenedFromIssue;
 
     if (editingRecord) {
       // Attachments are already serialized via fileToSerializable
@@ -2635,6 +2691,10 @@ const handleRecordFiles = async (event) => {
 
     try {
       await saveCase(updatedCase);
+      if (shouldShowIssueFeedback) {
+        setRecordIssueFeedback("Issue fix saved");
+        setTimeout(() => setRecordIssueFeedback(""), 1800);
+      }
     } catch (error) {
       console.error("Failed to save updated case", error);
     }
@@ -2937,6 +2997,7 @@ const handleRecordFiles = async (event) => {
                 onExportFullCase={handleExportFullCase}
                 onExportFullBackup={handleFullBackup}
                 onOpenGptDeltaModal={openGptDeltaModal}
+                issueFixFeedback={recordIssueFeedback}
                 syncStatus={syncStatus}
                 syncMessage={syncMessage}
                 fullCaseExportStatus={fullCaseExportStatus}
@@ -3111,6 +3172,8 @@ const handleRecordFiles = async (event) => {
             removeRecordAttachment={removeRecordAttachment}
             saveRecord={saveRecord}
             closeRecordModal={closeRecordModal}
+            focusField={recordFocusField}
+            focusHint={recordFocusHint}
             onPreviewFile={setPreviewFile}
             openEditRecordModal={openEditRecordModal}
             onCreateEvidenceFromIncident={handleCreateEvidenceFromIncident}

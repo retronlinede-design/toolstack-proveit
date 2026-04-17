@@ -158,6 +158,7 @@ export default function CaseDetail({
   onExportFullCase,
   onExportFullBackup,
   onOpenGptDeltaModal,
+  issueFixFeedback = "",
   onViewRecord,
   onPreviewFile,
   openLedgerModal,
@@ -611,7 +612,23 @@ ${strategyFocus.join("\n") || "—"}`;
   const handleOpenIssue = (issue) => {
     if (issue.tab) setActiveTab(issue.tab);
     if (issue.record && issue.type) {
-      openEditRecordModal(issue.type, issue.record);
+      const detail = (issue.detail || "").toLowerCase();
+      const missingParts = detail.startsWith("missing:")
+        ? detail.replace(/^missing:\s*/, "").split(",").map(part => part.trim()).filter(Boolean)
+        : [];
+      const focusField = missingParts.find(part => ["title", "date", "description"].includes(part)) || (
+        detail.includes("title")
+          ? "title"
+          : detail.includes("date")
+            ? "date"
+            : detail.includes("description")
+              ? "description"
+              : null
+      );
+      const focusHint = missingParts.length > 1
+        ? missingParts.filter(part => part !== focusField).join(", ")
+        : "";
+      openEditRecordModal(issue.type, issue.record, { focusField, focusHint, fromIssue: true });
       setTimeout(() => {
         const el = document.getElementById(`record-${issue.id}`);
         if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -1220,6 +1237,9 @@ ${strategyFocus.join("\n") || "—"}`;
                     <div>
                       <h3 className="text-lg font-semibold">Case Readiness</h3>
                       <p className="mt-1 text-sm text-neutral-500">Quick check of case completeness and cleanup needs</p>
+                      {issueFixFeedback && (
+                        <p className="mt-2 text-xs font-medium text-lime-700">{issueFixFeedback}</p>
+                      )}
                     </div>
                     {health && (
                       <div className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusConfig[health.status].color}`}>
@@ -1277,14 +1297,27 @@ ${strategyFocus.join("\n") || "—"}`;
                           {expandedGroups[group.category] && (
                             <div className="space-y-2 border-t border-neutral-100 px-3 pb-3 pt-2">
                               {group.items.map((item, idx) => (
-                                <div key={idx} className="border-b border-neutral-50 pb-2 text-xs last:border-0 last:pb-0">
+                                <div key={idx} className={`rounded-lg border px-2 py-2 text-xs last:mb-0 ${
+                                  item.severity === "advisory"
+                                    ? "border-neutral-100 bg-white/50 text-neutral-500"
+                                    : "border-neutral-200 bg-white text-neutral-700"
+                                }`}>
                                   <div className="flex items-center justify-between gap-2">
                                     <div className="flex-1">
-                                      <div className="flex items-start justify-between">
-                                        <span className="font-semibold text-neutral-800">{item.title}</span>
+                                      <div className="flex flex-wrap items-start justify-between gap-2">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <span className={item.severity === "advisory" ? "font-medium text-neutral-600" : "font-semibold text-neutral-800"}>{item.title}</span>
+                                          <span className={`rounded-md border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                                            item.severity === "advisory"
+                                              ? "border-neutral-200 bg-neutral-50 text-neutral-400"
+                                              : "border-amber-200 bg-amber-50 text-amber-700"
+                                          }`}>
+                                            {item.severity === "advisory" ? "Advisory" : "Blocking"}
+                                          </span>
+                                        </div>
                                         {item.date && <span className="font-medium text-neutral-400">{item.date}</span>}
                                       </div>
-                                      <div className="mt-0.5 text-neutral-500">{item.detail}</div>
+                                      <div className={item.severity === "advisory" ? "mt-1 text-neutral-400" : "mt-1 text-neutral-600"}>{item.detail}</div>
                                     </div>
                                     <button
                                       onClick={() => handleOpenIssue(item)}

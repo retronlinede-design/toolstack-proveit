@@ -9,6 +9,8 @@ export default function RecordModal({
   removeRecordAttachment,
   saveRecord,
   closeRecordModal,
+  focusField,
+  focusHint,
   onPreviewFile,
   openEditRecordModal,
   onCreateEvidenceFromIncident,
@@ -16,6 +18,9 @@ export default function RecordModal({
 }) {
   const [isLinking, setIsLinking] = useState(false);
   const [tempSelection, setTempSelection] = useState([]);
+  const titleInputRef = useRef(null);
+  const dateInputRef = useRef(null);
+  const descriptionTextareaRef = useRef(null);
 
   // Follow-up task helper logic for new records
   const toggleEvidenceLink = (id) => {
@@ -62,6 +67,22 @@ export default function RecordModal({
 
   const typeLabel = typeLabelMap[recordType] || recordType;
 
+  useEffect(() => {
+    if (!focusField || isLinking) return;
+
+    const fieldRefs = {
+      title: titleInputRef,
+      date: dateInputRef,
+      description: descriptionTextareaRef,
+    };
+    const target = fieldRefs[focusField]?.current;
+
+    if (target) {
+      target.focus();
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [focusField, isLinking]);
+
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-lg rounded-3xl bg-white shadow-xl flex flex-col max-h-[90vh]">
@@ -70,6 +91,11 @@ export default function RecordModal({
             {isLinking ? "Link Existing Evidence" : `${isEdit ? "Edit" : "Add"} ${typeLabel}`}
           </h2>
           <p className="mb-4 text-sm text-neutral-600">Case: {selectedCase.name}</p>
+          {focusHint && !isLinking && (
+            <p className="mb-4 rounded-lg border border-lime-100 bg-lime-50 px-3 py-2 text-xs text-lime-800">
+              Also needed: {focusHint}
+            </p>
+          )}
         </div>
 
         <div className="p-6 pt-0 overflow-y-auto flex-1">
@@ -113,18 +139,21 @@ export default function RecordModal({
         ) : (
           <>
         <input
+          ref={titleInputRef}
           placeholder="Title"
           value={recordForm.title}
           onChange={(e) => setRecordForm({ ...recordForm, title: e.target.value })}
           className="mb-3 w-full rounded-xl border border-neutral-300 p-3"
         />
         <input
+          ref={dateInputRef}
           type="date"
           value={recordForm.date}
           onChange={(e) => setRecordForm({ ...recordForm, date: e.target.value })}
           className="mb-3 w-full rounded-xl border border-neutral-300 p-3"
         />
         <textarea
+          ref={descriptionTextareaRef}
           placeholder="Description"
           value={recordForm.description}
           onChange={(e) => setRecordForm({ ...recordForm, description: e.target.value })}
