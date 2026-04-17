@@ -4,20 +4,50 @@ import AttachmentPreview from "./components/AttachmentPreview";
 import RecordModal from "./components/RecordModal";
 import CaseDetail from "./components/CaseDetail";
 import FilePreviewModal from "./components/FilePreviewModal";
-import { getCaseHealthReport } from "./lib/caseHealth";
+import {
+  buildFullBackupAllPayload,
+  buildFullBackupCasePayload,
+  restoreFullBackupCase,
+  restoreFullBackupQuickCapture,
+} from "./backup/fullBackup";
+import { downloadJson } from "./browser/downloadJson";
+import {
+  buildCaseReasoningExportPayload,
+  sanitizeCaseForExport,
+} from "./export/caseExport";
+import {
+  buildGptDeltaPreview,
+  ingestGptDelta,
+  prepareGptDeltaPayloadForSelectedCase,
+} from "./gpt/gptDelta";
+import {
+  exportReasoningCaseToSupabase,
+  syncCaseToSupabase,
+} from "./integrations/supabaseCaseSync";
+import {
+  convertQuickCaptureToRecord,
+  deleteDocumentEntryFromCase,
+  deleteLedgerEntryFromCase,
+  deleteRecordFromCase,
+  generateId,
+  mergeCase,
+  normalizeCase,
+  normalizeCategory,
+  syncCaseLinks,
+  upsertDocumentEntryInCase,
+  upsertLedgerEntryInCase,
+  upsertRecordInCase,
+} from "./domain/caseDomain";
+import {
+  archiveQuickCapture,
+  createQuickCaptureFromForm,
+  markQuickCaptureConverted,
+  normalizeQuickCapture,
+} from "./domain/quickCaptureDomain";
+import { removeRecordAttachmentFromForm } from "./domain/recordFormDomain";
 import { ShieldCheck } from "lucide-react";
-const SUPABASE_SYNC_URL = "https://aftbtklrlkccngjiaacv.supabase.co/functions/v1/proveit-upsert-case";
-const SUPABASE_SYNC_API_KEY = "proveit-live-read-123456";
 
 const lastUsedGroupByType = {};
-
-/**
- * Safe UUID fallback for insecure contexts or older browsers.
- */
-function generateId() {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-}
 
 const EMPTY_RECORD_FORM = {
   title: "",
@@ -138,1370 +168,7 @@ async function fileToSerializable(file, recordId) {
   });
 }
 
-const normalizeCategory = (value) => {
-  const val = (value || "").toLowerCase().trim();
-  return val || "general";
-};
-
-const normalizeCaseStatus = (value) => {
-  const val = (value || "").toLowerCase().trim();
-  if (["open", "closed", "archived"].includes(val)) return val;
-  return "open";
-};
-
-const normalizeRecordStatus = (value) => {
-  const val = (value || "").toLowerCase().trim();
-  return val === "archived" ? "archived" : "open";
-};
-
-const normalizeQuickCaptureStatus = (value) => {
-  const val = (value || "").toLowerCase().trim();
-  if (["unreviewed", "converted", "archived"].includes(val)) return val;
-  return "unreviewed";
-};
-
-const normalizeCaseName = (value) => {
-  if (typeof value !== "string") return "Imported Case";
-  const trimmed = value.trim();
-  return trimmed || "Imported Case";
-};
-
-/**
- * Validates and normalizes a date string to YYYY-MM-DD.
- */
-function getSafeDate(val) {
-  if (!val || typeof val !== 'string') return null;
-  const d = new Date(val);
-  if (isNaN(d.getTime())) return null;
-  return d.toISOString().split('T')[0];
-}
-
-/**
- * Determines if a record type is timeline-capable (incident, evidence, strategy/note).
- */
-function isTimelineCapable(recordType) {
-  const type = (recordType || "").toLowerCase();
-  return ["evidence", "incidents", "strategy"].includes(type);
-}
-
-/**
- * Sanitizes an attachment object for export, removing binary data.
- */
-function sanitizeAttachmentForExport(att) {
-  if (!att) return att;
-  return {
-    id: att.id,
-    name: att.name,
-    type: att.type,
-    mimeType: att.mimeType,
-    size: att.size,
-    kind: att.kind,
-    createdAt: att.createdAt,
-    emailMeta: att.emailMeta ?? null,
-    storage: att.storage
-  };
-}
-
-/**
- * Sanitizes a record object for export, removing binary data from attachments.
- */
-function sanitizeRecordForExport(record) {
-  if (!record) return record;
-  const attachments = Array.isArray(record.attachments)
-    ? record.attachments.map(sanitizeAttachmentForExport)
-    : [];
-  return {
-    ...record,
-    attachments,
-    availability: record.availability
-      ? {
-          ...record.availability,
-          digital: record.availability.digital
-            ? {
-                ...record.availability.digital,
-                files: Array.isArray(record.availability.digital.files)
-                  ? record.availability.digital.files.map(sanitizeAttachmentForExport)
-                  : []
-              }
-            : record.availability.digital
-        }
-      : record.availability
-  };
-}
-
-/**
- * Normalizes timeline-specific fields with priority-based fallback logic.
- */
-function normalizeTimelineFields(item) {
-  const createdAt = item?.createdAt || new Date().toISOString();
-  const today = new Date().toISOString().split('T')[0];
-
-  // Priority: 1. eventDate, 2. date, 3. incidentDate, 4. createdAt part, 5. today
-  const eventDate = getSafeDate(item?.eventDate) ||
-                    getSafeDate(item?.date) ||
-                    getSafeDate(item?.incidentDate) ||
-                    (item?.createdAt ? item.createdAt.split('T')[0] : today);
-
-  return {
-    eventDate,
-    createdAt,
-    updatedAt: item?.updatedAt || createdAt
-  };
-}
-
-/**
- * TASK 1: Shared sorting helper for timeline-capable items.
- * Sorts ascending by: eventDate, createdAt, then id.
- */
-function sortTimelineItems(items) {
-  return [...items].sort((a, b) => {
-    const dateA = a.eventDate || "";
-    const dateB = b.eventDate || "";
-    if (dateA !== dateB) return dateA.localeCompare(dateB);
-
-    const createdA = a.createdAt || "";
-    const createdB = b.createdAt || "";
-    if (createdA !== createdB) return createdA.localeCompare(createdB);
-
-    return (a.id || "").localeCompare(b.id || "");
-  });
-}
-
-function normalizeLedgerEntry(item) {
-  const expectedAmount = Number(item?.expectedAmount || 0);
-  const paidAmount = Number(item?.paidAmount || 0);
-
-  const validLedgerCategories = [
-    "rent",
-    "installment",
-    "deposit",
-    "furniture",
-    "repair",
-    "utility",
-    "legal",
-    "other"
-  ];
-
-  return {
-    id: item?.id || generateId(),
-    category: validLedgerCategories.includes(item?.category)
-      ? item.category
-      : "other",
-    subType: item?.subType || "",
-    label: item?.label || "",
-    period: item?.period || "",
-    expectedAmount,
-    paidAmount,
-    differenceAmount: expectedAmount - paidAmount,
-    currency: item?.currency || "EUR",
-    dueDate: item?.dueDate || "",
-    paymentDate: item?.paymentDate || "",
-    status: ["planned", "paid", "part-paid", "unpaid", "disputed", "refunded"].includes(item?.status)
-      ? item.status
-      : "planned",
-    method: item?.method || "bank_transfer",
-    reference: item?.reference || "",
-    counterparty: item?.counterparty || "",
-    proofType: item?.proofType || "other",
-    proofStatus: ["missing", "partial", "confirmed"].includes(item?.proofStatus)
-      ? item.proofStatus
-      : "missing",
-    notes: item?.notes || "",
-    batchLabel: item?.batchLabel || "",
-    linkedRecordIds: Array.isArray(item?.linkedRecordIds) ? item.linkedRecordIds : [],
-    edited: !!item?.edited,
-    createdAt: item?.createdAt || new Date().toISOString(),
-    updatedAt: item?.updatedAt || item?.createdAt || new Date().toISOString(),
-  };
-}
-
-function normalizeActionSummary(summary) {
-  return {
-    currentFocus: summary?.currentFocus || "",
-    nextActions: Array.isArray(summary?.nextActions) ? summary.nextActions : [],
-    importantReminders: Array.isArray(summary?.importantReminders) ? summary.importantReminders : [],
-    strategyFocus: Array.isArray(summary?.strategyFocus) ? summary.strategyFocus : [],
-    updatedAt: summary?.updatedAt || "",
-  };
-}
-
-function normalizeDocumentEntry(item) {
-  return {
-    id: item?.id || generateId(),
-    title: item?.title || "",
-    category: item?.category || "other",
-    documentDate: item?.documentDate || "",
-    source: item?.source || "",
-    summary: item?.summary || "",
-    textContent: item?.textContent || "",
-    attachments: Array.isArray(item?.attachments) ? item.attachments : [],
-    linkedRecordIds: Array.isArray(item?.linkedRecordIds) ? item.linkedRecordIds : [],
-    edited: !!item?.edited,
-    createdAt: item?.createdAt || new Date().toISOString(),
-    updatedAt: item?.updatedAt || item?.createdAt || new Date().toISOString(),
-  };
-}
-
-function normalizeRecord(item, recordType) {
-  const base = {
-    id: item?.id || generateId(),
-    type: recordType || item?.type || "unknown",
-    title: item?.title || "",
-    date: item?.date || new Date().toISOString().slice(0, 10),
-    description: item?.description || "",
-    notes: item?.notes || "",
-    attachments: Array.isArray(item?.attachments) ? item.attachments : [],
-    tags: Array.isArray(item?.tags) ? item.tags : [],
-    linkedRecordIds: Array.isArray(item?.linkedRecordIds) ? item.linkedRecordIds : [],
-    linkedIncidentIds: Array.isArray(item?.linkedIncidentIds) ? item.linkedIncidentIds : [], // For evidence
-    linkedEvidenceIds: Array.isArray(item?.linkedEvidenceIds) ? item.linkedEvidenceIds : [], // For incidents
-    status: normalizeRecordStatus(item?.status, recordType),
-    source: item?.source || "manual",
-    edited: !!item?.edited,
-  };
-
-  if (recordType === "evidence") {
-    const avail = item?.availability || {};
-    return {
-      ...base,
-      sourceType: item?.sourceType || "other",
-      capturedAt: item?.capturedAt || item?.date || base.date,
-      importance: item?.importance || "unreviewed",
-      relevance: item?.relevance || "medium",
-      status: ["verified", "needs_review", "incomplete"].includes(item?.status) ? item.status : "needs_review",
-      usedIn: Array.isArray(item?.usedIn) ? item.usedIn : [],
-      reviewNotes: item?.reviewNotes || "",
-      // linkedIncidentIds is now handled in base, no need to re-add here
-      availability: { 
-        physical: {
-          hasOriginal: !!avail.physical?.hasOriginal,
-          location: avail.physical?.location || "",
-          notes: avail.physical?.notes || "",
-        },
-        digital: {
-          hasDigital: !!avail.digital?.hasDigital || base.attachments.length > 0,
-          files: Array.isArray(avail.digital?.files) ? avail.digital?.files : base.attachments,
-        }
-      }
-    };
-  }
-
-  if (isTimelineCapable(recordType)) {
-    const timelineData = normalizeTimelineFields(item);
-    return { ...base, ...timelineData };
-  }
-
-  return {
-    ...base,
-    createdAt: item?.createdAt || new Date().toISOString(),
-    updatedAt: item?.updatedAt || item?.createdAt || new Date().toISOString(),
-  };
-}
-
-const STRUCTURED_PATCH_RECORD_TYPES = ["incidents", "strategy"];
-
-function isStructuredPatchRecordType(recordType) {
-  return STRUCTURED_PATCH_RECORD_TYPES.includes(recordType);
-}
-
-function normalizeRecordPatch(recordType, patch = {}) {
-  if (!isStructuredPatchRecordType(recordType) || !patch || typeof patch !== "object") {
-    return {};
-  }
-
-  const textFields = ["title", "date", "description", "notes", "status", "source", "eventDate", "createdAt", "updatedAt"];
-  const listFields = ["attachments", "tags", "linkedRecordIds"];
-  const patchableFields = recordType === "incidents"
-    ? [...textFields, ...listFields, "linkedEvidenceIds", "edited"]
-    : [...textFields, ...listFields, "edited"];
-
-  return patchableFields.reduce((normalized, field) => {
-    if (!Object.prototype.hasOwnProperty.call(patch, field)) return normalized;
-
-    if (listFields.includes(field) || field === "linkedEvidenceIds") {
-      normalized[field] = Array.isArray(patch[field]) ? patch[field] : [];
-      return normalized;
-    }
-
-    if (field === "edited") {
-      normalized[field] = !!patch[field];
-      return normalized;
-    }
-
-    normalized[field] = typeof patch[field] === "string" ? patch[field] : "";
-    return normalized;
-  }, {});
-}
-
-function applyRecordPatch(record, recordType, patch = {}) {
-  if (!record || !isStructuredPatchRecordType(recordType)) return record;
-
-  const normalizedPatch = normalizeRecordPatch(recordType, patch);
-  const patchedRecord = normalizeRecord({
-    ...record,
-    ...normalizedPatch,
-    id: record.id,
-    type: record.type || recordType,
-  }, recordType);
-
-  return {
-    ...patchedRecord,
-    id: record.id,
-    type: record.type || recordType,
-  };
-}
-
-function applyRecordPatchToCase(caseItem, recordType, recordId, patch = {}) {
-  if (!caseItem || !isStructuredPatchRecordType(recordType) || !recordId) return caseItem;
-
-  const records = Array.isArray(caseItem[recordType]) ? caseItem[recordType] : [];
-  let patchedRecord = null;
-  const updatedRecords = records.map((record) => {
-    if (record.id !== recordId) return record;
-    patchedRecord = applyRecordPatch(record, recordType, patch);
-    return patchedRecord;
-  });
-
-  if (!patchedRecord) return caseItem;
-
-  let updatedCase = {
-    ...caseItem,
-    [recordType]: isTimelineCapable(recordType) ? sortTimelineItems(updatedRecords) : updatedRecords,
-    updatedAt: new Date().toISOString(),
-  };
-
-  if (recordType === "incidents") {
-    updatedCase = syncCaseLinks(updatedCase, patchedRecord, recordType);
-  }
-
-  return updatedCase;
-}
-
-function normalizeGptStrategyDelta(payload = {}) {
-  if (!payload || typeof payload !== "object") {
-    return { ok: false, reason: "Payload must be an object." };
-  }
-
-  if (payload.app !== "proveit" || payload.contractVersion !== "gpt-delta-1.0") {
-    return { ok: false, reason: "Unsupported GPT delta contract." };
-  }
-
-  const caseId = payload.target?.caseId;
-  if (!caseId || typeof caseId !== "string") {
-    return { ok: false, reason: "GPT delta target.caseId is required." };
-  }
-
-  const strategyPatches = payload.operations?.patch?.strategy;
-  if (!Array.isArray(strategyPatches)) {
-    return { ok: false, reason: "GPT delta strategy patch must be an array." };
-  }
-
-  const textFields = ["title", "date", "description", "notes", "status"];
-  const listFields = ["tags", "linkedRecordIds"];
-  const patchableFields = [...textFields, ...listFields];
-
-  const patches = [];
-
-  for (const item of strategyPatches) {
-    if (!item || typeof item !== "object" || typeof item.id !== "string" || !item.id) {
-      return { ok: false, reason: "Each strategy patch must include an id." };
-    }
-
-    if (!item.patch || typeof item.patch !== "object" || Array.isArray(item.patch)) {
-      return { ok: false, reason: "Each strategy patch must include a patch object." };
-    }
-
-    const patch = patchableFields.reduce((normalized, field) => {
-      if (!Object.prototype.hasOwnProperty.call(item.patch, field)) return normalized;
-
-      if (listFields.includes(field)) {
-        normalized[field] = Array.isArray(item.patch[field]) ? item.patch[field] : [];
-        return normalized;
-      }
-
-      normalized[field] = typeof item.patch[field] === "string" ? item.patch[field] : "";
-      return normalized;
-    }, {});
-
-    if (Object.keys(patch).length === 0) {
-      return { ok: false, reason: "Each strategy patch must include at least one supported field." };
-    }
-
-    patches.push({ id: item.id, patch });
-  }
-
-  return { ok: true, caseId, patches };
-}
-
-function ingestGptStrategyDelta(caseItem, payload) {
-  const normalized = normalizeGptStrategyDelta(payload);
-  if (!normalized.ok) {
-    return normalized;
-  }
-
-  if (!caseItem || String(normalized.caseId) !== String(caseItem.id || "")) {
-    return { ok: false, reason: "GPT delta target case does not match the provided case." };
-  }
-
-  const updatedAt = new Date().toISOString();
-  let updatedCase = caseItem;
-
-  for (const item of normalized.patches) {
-    const nextCase = applyRecordPatchToCase(
-      updatedCase,
-      "strategy",
-      item.id,
-      {
-        ...item.patch,
-        updatedAt,
-      }
-    );
-
-    if (nextCase === updatedCase) {
-      return { ok: false, reason: `Strategy record not found: ${item.id}` };
-    }
-
-    updatedCase = nextCase;
-  }
-
-  return { ok: true, case: updatedCase };
-}
-
-function validateGptDeltaTarget(caseItem, payload = {}) {
-  if (!caseItem || !payload || typeof payload !== "object") {
-    return { ok: false, reason: "GPT delta requires a case and payload object." };
-  }
-
-  if (payload.app !== "proveit" || payload.contractVersion !== "gpt-delta-1.0") {
-    return { ok: false, reason: "Unsupported GPT delta contract." };
-  }
-
-  const caseId = payload.target?.caseId;
-  if (!caseId || typeof caseId !== "string") {
-    return { ok: false, reason: "GPT delta target.caseId is required." };
-  }
-
-  if (String(caseId) !== String(caseItem.id || "")) {
-    return { ok: false, reason: "GPT delta target case does not match the provided case." };
-  }
-
-  return { ok: true, caseId };
-}
-
-function applyGptActionSummaryDeltaToCase(caseItem, actionSummaryPatch = {}) {
-  if (!actionSummaryPatch || typeof actionSummaryPatch !== "object" || Array.isArray(actionSummaryPatch)) {
-    return { ok: false, reason: "GPT delta actionSummary patch must be an object." };
-  }
-
-  const patchableFields = [
-    "currentFocus",
-    "nextActions",
-    "importantReminders",
-    "strategyFocus",
-    "criticalDeadlines",
-  ];
-
-  const patch = patchableFields.reduce((normalized, field) => {
-    if (Object.prototype.hasOwnProperty.call(actionSummaryPatch, field)) {
-      normalized[field] = actionSummaryPatch[field];
-    }
-    return normalized;
-  }, {});
-
-  if (Object.keys(patch).length === 0) {
-    return { ok: false, reason: "GPT delta actionSummary patch has no supported fields." };
-  }
-
-  return {
-    ok: true,
-    case: {
-      ...caseItem,
-      actionSummary: normalizeActionSummary({
-        ...(caseItem.actionSummary || {}),
-        ...patch,
-        updatedAt: new Date().toISOString(),
-      }),
-      updatedAt: new Date().toISOString(),
-    },
-  };
-}
-
-function ingestGptDelta(caseItem, payload) {
-  const target = validateGptDeltaTarget(caseItem, payload);
-  if (!target.ok) {
-    return target;
-  }
-
-  const patch = payload.operations?.patch;
-  if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
-    return { ok: false, reason: "GPT delta operations.patch is required." };
-  }
-
-  let updatedCase = caseItem;
-  let appliedCount = 0;
-
-  if (Object.prototype.hasOwnProperty.call(patch, "actionSummary")) {
-    const actionSummaryResult = applyGptActionSummaryDeltaToCase(updatedCase, patch.actionSummary);
-    if (!actionSummaryResult.ok) {
-      return actionSummaryResult;
-    }
-    updatedCase = actionSummaryResult.case;
-    appliedCount += 1;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(patch, "strategy")) {
-    const strategyResult = ingestGptStrategyDelta(updatedCase, {
-      app: payload.app,
-      contractVersion: payload.contractVersion,
-      target: payload.target,
-      operations: {
-        patch: {
-          strategy: patch.strategy,
-        },
-      },
-    });
-
-    if (!strategyResult.ok) {
-      return strategyResult;
-    }
-
-    updatedCase = strategyResult.case;
-    appliedCount += 1;
-  }
-
-  if (appliedCount === 0) {
-    return { ok: false, reason: "GPT delta has no supported patch sections." };
-  }
-
-  return { ok: true, case: updatedCase };
-}
-
-function buildGptDeltaPreview(payload, currentCase, updatedCase) {
-  const patch = payload?.operations?.patch || {};
-  const supportedSections = [];
-  const actionSummaryFields = [];
-
-  if (patch.actionSummary && typeof patch.actionSummary === "object" && !Array.isArray(patch.actionSummary)) {
-    ["currentFocus", "nextActions", "importantReminders", "strategyFocus", "criticalDeadlines"].forEach((field) => {
-      if (Object.prototype.hasOwnProperty.call(patch.actionSummary, field)) {
-        actionSummaryFields.push(field);
-      }
-    });
-
-    if (actionSummaryFields.length > 0) {
-      supportedSections.push("Action Summary");
-    }
-  }
-
-  const strategyItems = Array.isArray(patch.strategy)
-    ? patch.strategy
-        .map((item) => {
-          const recordId = typeof item?.id === "string" ? item.id : "";
-          const currentRecord = (currentCase?.strategy || []).find((record) => String(record.id) === String(recordId));
-          const updatedRecord = (updatedCase?.strategy || []).find((record) => String(record.id) === String(recordId));
-          return {
-            id: recordId,
-            title: updatedRecord?.title || currentRecord?.title || "Untitled strategy",
-          };
-        })
-        .filter((item) => item.id)
-    : [];
-
-  if (strategyItems.length > 0) {
-    supportedSections.push("Strategy");
-  }
-
-  return {
-    caseName: currentCase?.name || "Selected case",
-    caseId: String(currentCase?.id || ""),
-    contractVersion: payload?.contractVersion || "",
-    supportedSections,
-    actionSummaryFields,
-    strategyItems,
-  };
-}
-
-function prepareGptDeltaPayloadForSelectedCase(payload, selectedCaseId) {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return payload;
-
-  const target = payload.target;
-  if (target != null && (typeof target !== "object" || Array.isArray(target))) {
-    return payload;
-  }
-
-  const currentCaseId = String(selectedCaseId || "");
-  const incomingCaseId = target?.caseId;
-  const shouldUseSelectedCaseId =
-    incomingCaseId == null ||
-    (typeof incomingCaseId === "string" && ["", "AUTO"].includes(incomingCaseId.trim().toUpperCase()));
-
-  if (!shouldUseSelectedCaseId || !currentCaseId) {
-    return payload;
-  }
-
-  return {
-    ...payload,
-    target: {
-      ...(target || {}),
-      caseId: currentCaseId,
-    },
-  };
-}
-
-function normalizeCase(caseItem) {
-  const evidence = Array.isArray(caseItem?.evidence) ? caseItem.evidence.map(r => normalizeRecord(r, "evidence")) : [];
-  const incidents = Array.isArray(caseItem?.incidents) ? caseItem.incidents.map(r => normalizeRecord(r, "incidents")) : [];
-  const tasks = Array.isArray(caseItem?.tasks) ? caseItem.tasks.map(r => normalizeRecord(r, "tasks")) : [];
-  const strategy = Array.isArray(caseItem?.strategy) ? caseItem.strategy.map(r => normalizeRecord(r, "strategy")) : [];
-  const ledger = Array.isArray(caseItem?.ledger) ? caseItem.ledger.map(normalizeLedgerEntry) : [];
-  const documents = Array.isArray(caseItem?.documents) ? caseItem.documents.map(normalizeDocumentEntry) : [];
-  const actionSummary = normalizeActionSummary(caseItem?.actionSummary || {});
-
-  return {
-    id: caseItem?.id || generateId(),
-    name: normalizeCaseName(caseItem?.name),
-    category: normalizeCategory(caseItem?.category),
-    status: normalizeCaseStatus(caseItem?.status),
-    notes: caseItem?.notes || "",
-    description: caseItem?.description || "",
-    tags: Array.isArray(caseItem?.tags) ? caseItem.tags : [],
-    createdAt: caseItem?.createdAt || new Date().toISOString(),
-    updatedAt: caseItem?.updatedAt || new Date().toISOString(),
-    evidence: sortTimelineItems(evidence),
-    incidents: sortTimelineItems(incidents),
-    tasks: tasks,
-    strategy: sortTimelineItems(strategy),
-    ledger: ledger,
-    documents: documents,
-    actionSummary,
-  };
-}
-
-/**
- * Sanitizes a case object for export, removing binary data from all nested attachments.
- */
-function sanitizeCaseForExport(caseItem) {
-  if (!caseItem) return caseItem;
-  return {
-    ...caseItem,
-    evidence: Array.isArray(caseItem.evidence) ? caseItem.evidence.map(sanitizeRecordForExport) : [],
-    incidents: Array.isArray(caseItem.incidents) ? caseItem.incidents.map(sanitizeRecordForExport) : [],
-    tasks: Array.isArray(caseItem.tasks) ? caseItem.tasks.map(sanitizeRecordForExport) : [],
-    strategy: Array.isArray(caseItem.strategy) ? caseItem.strategy.map(sanitizeRecordForExport) : [],
-    ledger: Array.isArray(caseItem.ledger) ? caseItem.ledger.map(item => ({ ...item })) : [],
-    documents: Array.isArray(caseItem.documents)
-      ? caseItem.documents.map(item => ({
-          ...item,
-          attachments: Array.isArray(item.attachments)
-            ? item.attachments.map(sanitizeAttachmentForExport)
-            : [],
-        }))
-      : [],
-    actionSummary: caseItem?.actionSummary
-      ? {
-          currentFocus: caseItem.actionSummary.currentFocus || "",
-          nextActions: Array.isArray(caseItem.actionSummary.nextActions) ? caseItem.actionSummary.nextActions : [],
-          importantReminders: Array.isArray(caseItem.actionSummary.importantReminders) ? caseItem.actionSummary.importantReminders : [],
-          strategyFocus: Array.isArray(caseItem.actionSummary.strategyFocus) ? caseItem.actionSummary.strategyFocus : [],
-          criticalDeadlines: Array.isArray(caseItem.actionSummary.criticalDeadlines) ? caseItem.actionSummary.criticalDeadlines : [],
-          updatedAt: caseItem.actionSummary.updatedAt || "",
-        }
-      : {
-          currentFocus: "",
-          nextActions: [],
-          importantReminders: [],
-          strategyFocus: [],
-          criticalDeadlines: [],
-          updatedAt: "",
-        },
-  };
-}
-
-function mergeRecords(existingRecords = [], incomingRecords = [], recordType) {
-  const recordMap = new Map(existingRecords.map(r => [r.id, r]));
-  for (const incomingRecord of incomingRecords) {
-    if (recordMap.has(incomingRecord.id)) {
-      const existingRecord = recordMap.get(incomingRecord.id);
-      recordMap.set(incomingRecord.id, normalizeRecord({ ...existingRecord, ...incomingRecord }, recordType));
-    } else {
-      recordMap.set(incomingRecord.id, normalizeRecord(incomingRecord, recordType));
-    }
-  }
-  const merged = Array.from(recordMap.values());
-  return isTimelineCapable(recordType) ? sortTimelineItems(merged) : merged;
-}
-
-function mergeDocumentEntries(existingEntries = [], incomingEntries = []) {
-  const entryMap = new Map(existingEntries.map(e => [e.id, e]));
-  for (const incoming of incomingEntries) {
-    if (entryMap.has(incoming.id)) {
-      const existing = entryMap.get(incoming.id);
-      entryMap.set(incoming.id, normalizeDocumentEntry({ ...existing, ...incoming }));
-    } else {
-      entryMap.set(incoming.id, normalizeDocumentEntry(incoming));
-    }
-  }
-  return Array.from(entryMap.values());
-}
-
-function mergeLedgerEntries(existingEntries = [], incomingEntries = []) {
-  const entryMap = new Map(existingEntries.map(e => [e.id, e]));
-  for (const incoming of incomingEntries) {
-    if (entryMap.has(incoming.id)) {
-      const existing = entryMap.get(incoming.id);
-      entryMap.set(incoming.id, normalizeLedgerEntry({ ...existing, ...incoming }));
-    } else {
-      entryMap.set(incoming.id, normalizeLedgerEntry(incoming));
-    }
-  }
-  return Array.from(entryMap.values());
-}
-
-function mergeCase(existingCase, incomingCase) {
-  const nExisting = normalizeCase(existingCase);
-  const nIncoming = normalizeCase(incomingCase);
-
-  return {
-    ...nExisting,
-    ...nIncoming,
-    name: normalizeCaseName(
-      (typeof incomingCase?.name === "string" && incomingCase.name.trim())
-        ? incomingCase.name
-        : existingCase?.name
-    ),
-    category: normalizeCategory(nIncoming.category || nExisting.category),
-    status: normalizeCaseStatus(nIncoming.status || nExisting.status),
-    notes: nIncoming.notes || nExisting.notes || "",
-    description: nIncoming.description || nExisting.description || "",
-    tags: Array.from(new Set([...nExisting.tags, ...nIncoming.tags])),
-    createdAt: nExisting.createdAt || nIncoming.createdAt || new Date().toISOString(),
-    updatedAt: nIncoming.updatedAt || nExisting.updatedAt || new Date().toISOString(),
-    evidence: mergeRecords(nExisting.evidence, nIncoming.evidence, "evidence"),
-    incidents: mergeRecords(nExisting.incidents, nIncoming.incidents, "incidents"),
-    tasks: mergeRecords(nExisting.tasks, nIncoming.tasks, "tasks"),
-    strategy: mergeRecords(nExisting.strategy, nIncoming.strategy, "strategy"),
-    ledger: mergeLedgerEntries(nExisting.ledger, nIncoming.ledger),
-    documents: mergeDocumentEntries(nExisting.documents, nIncoming.documents),
-    actionSummary: normalizeActionSummary(
-      incomingCase?.actionSummary && (
-        incomingCase.actionSummary.currentFocus ||
-        (incomingCase.actionSummary.nextActions || []).length ||
-        (incomingCase.actionSummary.importantReminders || []).length ||
-        (incomingCase.actionSummary.strategyFocus || []).length ||
-        incomingCase.actionSummary.updatedAt
-      )
-        ? incomingCase.actionSummary
-        : existingCase?.actionSummary
-    ),
-  };
-}
-
-async function buildFullBackupAttachment(att) {
-  if (!att) return att;
-
-  const cloned = { ...att };
-
-  if (att.storage?.imageId) {
-    const stored = await getImageById(att.storage.imageId);
-    if (stored && stored.dataUrl) {
-      cloned.backupDataUrl = stored.dataUrl;
-    }
-  }
-
-  return cloned;
-}
-
-async function buildFullBackupRecord(record) {
-  if (!record) return record;
-
-  const cloned = { ...record };
-
-  cloned.attachments = await Promise.all(
-    (record.attachments || []).map(buildFullBackupAttachment)
-  );
-
-  if (record.availability?.digital?.files) {
-    cloned.availability = {
-      ...record.availability,
-      digital: {
-        ...record.availability.digital,
-        files: await Promise.all(
-          (record.availability.digital.files || []).map(buildFullBackupAttachment)
-        ),
-      },
-    };
-  }
-
-  return cloned;
-}
-
-async function buildFullBackupCase(caseItem) {
-  if (!caseItem) return caseItem;
-
-  const cloned = { ...caseItem };
-
-  cloned.evidence = await Promise.all(
-    (caseItem.evidence || []).map(buildFullBackupRecord)
-  );
-
-  cloned.incidents = await Promise.all(
-    (caseItem.incidents || []).map(buildFullBackupRecord)
-  );
-
-  cloned.tasks = await Promise.all(
-    (caseItem.tasks || []).map(buildFullBackupRecord)
-  );
-
-  cloned.strategy = await Promise.all(
-    (caseItem.strategy || []).map(buildFullBackupRecord)
-  );
-
-  cloned.documents = await Promise.all(
-    (caseItem.documents || []).map(async (doc) => ({
-      ...doc,
-      attachments: await Promise.all(
-        (doc.attachments || []).map(buildFullBackupAttachment)
-      ),
-    }))
-  );
-
-  return cloned;
-}
-
-async function buildFullBackupQuickCapture(capture) {
-  if (!capture) return capture;
-
-  const cloned = { ...capture };
-
-  cloned.attachments = await Promise.all(
-    (capture.attachments || []).map(buildFullBackupAttachment)
-  );
-
-  return cloned;
-}
-
-async function restoreFullBackupAttachment(att, ownerId) {
-  if (!att) return att;
-
-  const cloned = { ...att };
-
-  if (!att.backupDataUrl) {
-    return cloned;
-  }
-
-  let imageId = att.storage?.imageId || att.imageId || att.id || generateId();
-
-  try {
-    await saveImage({
-      id: imageId,
-      evidenceId: ownerId || null,
-      dataUrl: att.backupDataUrl,
-      createdAt: att.createdAt || new Date().toISOString(),
-    });
-
-    cloned.storage = {
-      ...(cloned.storage || {}),
-      type: "indexeddb",
-      imageId,
-    };
-    // Remove backupDataUrl after restoring to keep the attachment clean
-    delete cloned.backupDataUrl;
-  } catch (err) {
-    console.error("Failed to restore attachment to IndexedDB", att?.id, err);
-  }
-
-  return cloned;
-}
-
-async function restoreFullBackupRecord(record) {
-  if (!record) return record;
-
-  const cloned = { ...record };
-  const ownerId = record.id || generateId();
-
-  cloned.attachments = await Promise.all(
-    (record.attachments || []).map((att) => restoreFullBackupAttachment(att, ownerId))
-  );
-
-  if (record.availability?.digital?.files) {
-    cloned.availability = {
-      ...record.availability,
-      digital: {
-        ...record.availability.digital,
-        files: await Promise.all(
-          (record.availability.digital.files || []).map((att) =>
-            restoreFullBackupAttachment(att, ownerId)
-          )
-        ),
-      },
-    };
-  }
-
-  return cloned;
-}
-
-async function restoreFullBackupDocument(doc) {
-  if (!doc) return doc;
-
-  const cloned = { ...doc };
-  const ownerId = doc.id || generateId();
-
-  cloned.attachments = await Promise.all(
-    (doc.attachments || []).map((att) => restoreFullBackupAttachment(att, ownerId))
-  );
-
-  return cloned;
-}
-
-async function restoreFullBackupCase(caseItem) {
-  if (!caseItem) return caseItem;
-
-  const cloned = { ...caseItem };
-
-  cloned.evidence = await Promise.all((caseItem.evidence || []).map(restoreFullBackupRecord));
-  cloned.incidents = await Promise.all((caseItem.incidents || []).map(restoreFullBackupRecord));
-  cloned.tasks = await Promise.all((caseItem.tasks || []).map(restoreFullBackupRecord));
-  cloned.strategy = await Promise.all((caseItem.strategy || []).map(restoreFullBackupRecord));
-  cloned.documents = await Promise.all((caseItem.documents || []).map(restoreFullBackupDocument));
-
-  return cloned;
-}
-
-async function restoreFullBackupQuickCapture(capture) {
-  if (!capture) return capture;
-
-  const cloned = { ...capture };
-  const ownerId = capture.id || generateId();
-
-  cloned.attachments = await Promise.all(
-    (capture.attachments || []).map((att) => restoreFullBackupAttachment(att, ownerId))
-  );
-
-  return cloned;
-}
-
-// eslint-disable-next-line no-unused-vars
-async function buildFullBackupAllPayload({
-  cases = [],
-  quickCaptures = [],
-  selectedCaseId = null,
-  activeTab = "overview",
-} = {}) {
-  return {
-    app: "proveit",
-    contractVersion: "2.0",
-    exportType: "FULL_BACKUP_ALL",
-    exportedAt: new Date().toISOString(),
-    importable: true,
-    includesBinaryData: true,
-    data: {
-      cases: await Promise.all((cases || []).map(buildFullBackupCase)),
-      quickCaptures: await Promise.all((quickCaptures || []).map(buildFullBackupQuickCapture)),
-      selectedCaseId,
-      activeTab,
-    },
-  };
-}
-
-// eslint-disable-next-line no-unused-vars
-async function buildFullBackupCasePayload({
-  caseItem,
-  selectedCaseId = null,
-  activeTab = "overview",
-} = {}) {
-  if (!caseItem) {
-    throw new Error("caseItem is required for FULL_BACKUP_CASE");
-  }
-
-  return {
-    app: "proveit",
-    contractVersion: "2.0",
-    exportType: "FULL_BACKUP_CASE",
-    exportedAt: new Date().toISOString(),
-    importable: true,
-    includesBinaryData: true,
-    data: {
-      cases: [await buildFullBackupCase(caseItem)],
-      selectedCaseId: selectedCaseId ?? caseItem.id,
-      activeTab,
-    },
-  };
-}
-
-function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
-  if (!caseItem) {
-    throw new Error("caseItem is required for CASE_REASONING_EXPORT");
-  }
-
-  const c = sanitizeCaseForExport(caseItem);
-  const health = getCaseHealthReport(c);
-  const limits = mode === "compact" ? { timeline: 5, facts: 8, tasks: 8 } : { timeline: 12, facts: 12, tasks: 12 };
-
-  const mapImportance = (val) => {
-    const v = String(val || "").toLowerCase();
-    if (v === "critical") return "high";
-    if (v === "strong") return "medium";
-    return "low";
-  };
-
-  const openTasks = (c.tasks || [])
-    .filter(t => t.status !== "done")
-    .slice(0, limits.tasks)
-    .map(t => ({
-      id: t.id,
-      title: t.title,
-      status: t.status,
-      priority: t.priority || "medium",
-      description: t.description || "",
-    }));
-
-  const activeIssues = [...(c.incidents || []), ...(c.evidence || [])]
-    .filter(i => (i.status !== "verified" && i.status !== "archived") || i.importance === "critical")
-    .slice(0, limits.facts)
-    .map(i => ({
-      id: i.id,
-      title: i.title,
-      status: i.status,
-      importance: mapImportance(i.importance),
-      summary: (i.description || i.notes || "").substring(0, 200),
-    }));
-
-  const recentTimeline = sortTimelineItems([...(c.incidents || []), ...(c.evidence || [])])
-    .reverse()
-    .slice(0, limits.timeline)
-    .map(t => ({
-      id: t.id,
-      type: t.type,
-      date: t.eventDate || t.date,
-      title: t.title,
-      description: t.description ? t.description.substring(0, 300) : "",
-    }));
-
-  const incidentSummary = sortTimelineItems(c.incidents || [])
-    .reverse()
-    .slice(0, limits.timeline)
-    .map(i => ({
-      id: i.id,
-      title: i.title,
-      status: i.status,
-      importance: i.importance,
-      date: i.eventDate || i.date || "",
-      summary: (i.description || i.notes || "").substring(0, 300),
-      linkedEvidenceIds: Array.isArray(i.linkedEvidenceIds) ? i.linkedEvidenceIds : [],
-    }));
-
-  const normalizeLevel = (value) => {
-    const v = String(value || "").toLowerCase();
-    if (v === "high" || v === "critical") return "high";
-    if (v === "medium" || v === "strong") return "medium";
-    return "low";
-  };
-
-  const evidenceCount = (c.evidence || []).length;
-  const documentCount = (c.documents || []).length;
-  const currentRiskLevel = activeIssues.some(i => normalizeLevel(i.importance) === "high")
-    ? "high"
-    : activeIssues.length > 0 || openTasks.length > 3
-      ? "medium"
-      : "low";
-  const confidenceLevel = evidenceCount >= 5 || documentCount >= 5
-    ? "high"
-    : evidenceCount >= 2 || documentCount >= 2
-      ? "medium"
-      : "low";
-  const strategyCurrent = (c.strategy || [])
-    .filter(s => s && s.title)
-    .slice(0, 5)
-    .map(s => ({
-      id: s.id,
-      title: s.title,
-      status: s.status,
-      date: s.eventDate || s.date || "",
-      summary: (s.description || s.notes || "").substring(0, 300),
-      linkedRecordIds: Array.isArray(s.linkedRecordIds) ? s.linkedRecordIds : [],
-    }));
-  const caseState = {
-    currentSituation: `${c.status || "open"} case with ${(c.incidents || []).length} incidents, ${evidenceCount} evidence items, ${documentCount} documents, and ${openTasks.length} open tasks.`,
-    mainProblem: (
-      activeIssues[0]?.summary ||
-      activeIssues[0]?.title ||
-      incidentSummary[0]?.summary ||
-      incidentSummary[0]?.title ||
-      "Main problem not yet summarized."
-    ).substring(0, 220),
-    currentLeverage: (
-      strategyCurrent[0]?.title ||
-      activeIssues[0]?.title ||
-      "No clear leverage point identified yet."
-    ).substring(0, 180),
-    currentRiskLevel,
-    confidenceLevel,
-  };
-  const riskSummary = [
-    ...activeIssues.map(item => {
-      const severity = normalizeLevel(item.importance);
-      return {
-        type: item.status || "issue",
-        description: (item.summary || item.title || "").substring(0, 220),
-        severity,
-        urgency: severity === "high" ? "high" : severity === "medium" ? "medium" : "low",
-      };
-    }),
-    ...openTasks.map(task => {
-      const urgency = normalizeLevel(task.priority);
-      return {
-        type: "task",
-        description: (task.description || task.title || "").substring(0, 220),
-        severity: urgency,
-        urgency,
-      };
-    }),
-  ].slice(0, 5);
-  const leveragePoints = [
-    ...strategyCurrent.map(s => {
-      const hasLinkedRecords = Array.isArray(s.linkedRecordIds) && s.linkedRecordIds.length > 0;
-      const hasSummary = !!s.summary;
-      return {
-        title: s.title,
-        description: s.summary.substring(0, 220),
-        strength: hasLinkedRecords || hasSummary ? "high" : s.title ? "medium" : "low",
-        usableNow: s.status !== "archived",
-      };
-    }),
-    ...(strategyCurrent.length > 0
-      ? []
-      : (c.incidents || []).slice(0, limits.facts).map(i => ({
-          title: i.title,
-          description: (i.description || i.notes || "").substring(0, 220),
-          strength: i.title ? "medium" : "low",
-          usableNow: true,
-        }))),
-  ].slice(0, 5);
-  const evidenceSummary = (c.evidence || []).map(e => ({
-    id: e.id,
-    title: e.title,
-    status: e.status,
-    importance: e.importance,
-    relevance: e.relevance,
-    sourceType: e.sourceType,
-    summary: (e.description || e.notes || "").substring(0, 300),
-    attachmentCount: Array.isArray(e.attachments) ? e.attachments.length : 0,
-  }));
-  const documentSummary = (c.documents || []).map(d => ({
-    id: d.id,
-    title: d.title,
-    category: d.category,
-    documentDate: d.documentDate,
-    source: d.source,
-    summary: d.summary || "",
-    hasTextContent: !!d.textContent,
-    attachmentCount: Array.isArray(d.attachments) ? d.attachments.length : 0,
-    linkedRecordIds: Array.isArray(d.linkedRecordIds) ? d.linkedRecordIds : [],
-  }));
-  const allHealthIssues = (health.issues || []).flatMap(group =>
-    (group.items || []).map(item => ({
-      id: item.id,
-      category: group.category,
-      title: item.title || "Issue",
-      detail: item.detail || "",
-      severity: item.severity || "blocking",
-      type: item.type || "",
-      tab: item.tab || "",
-      date: item.date || "",
-    }))
-  );
-  const advisoryIssueCount = allHealthIssues.filter(item => item.severity === "advisory").length;
-  const blockingIssues = allHealthIssues.filter(item => item.severity !== "advisory");
-  const topBlockers = blockingIssues.slice(0, 10);
-  const readiness = {
-    status: health.status,
-    blockingIssueCount: health.totalIssues,
-    advisoryIssueCount,
-    totals: health.totals,
-    summary:
-      health.totalIssues > 0
-        ? `${health.totalIssues} blocking readiness issue(s).`
-        : "No blocking readiness issues detected.",
-  };
-  const blockers = topBlockers;
-  const evidencePosture = {
-    confidenceLevel,
-    evidenceCount,
-    documentCount,
-    evidenceWithAttachments: (c.evidence || []).filter(e => Array.isArray(e.attachments) && e.attachments.length > 0).length,
-    documentsWithAttachments: (c.documents || []).filter(d => Array.isArray(d.attachments) && d.attachments.length > 0).length,
-    summary: `${evidenceCount} evidence item(s), ${documentCount} document(s), confidence ${confidenceLevel}.`,
-    evidence: evidenceSummary,
-    documents: documentSummary,
-  };
-
-  return {
-    app: "proveit",
-    contractVersion: "2.0",
-    exportType: "CASE_REASONING_EXPORT",
-    exportedAt: new Date().toISOString(),
-    importable: false,
-    includesBinaryData: false,
-    data: {
-      case: {
-        id: c.id,
-        name: c.name,
-        category: c.category,
-        status: c.status,
-        lastUpdated: c.updatedAt || c.createdAt,
-      },
-      summary: {
-        oneParagraph: (c.description || c.notes || "Active case file management.").substring(0, 500),
-        currentPosition: [
-          `Case involves ${(c.incidents || []).length} documented incidents.`,
-          `Current collection includes ${(c.evidence || []).length} evidence items.`,
-          `${openTasks.length} tasks currently pending action.`,
-        ],
-      },
-      caseState,
-      riskSummary,
-      leveragePoints,
-      actionSummary: c.actionSummary || {
-        currentFocus: "",
-        nextActions: [],
-        importantReminders: [],
-        strategyFocus: [],
-        updatedAt: "",
-      },
-      keyFacts: (c.strategy || []).length > 0
-        ? c.strategy.slice(0, limits.facts).map(s => s.title).filter(Boolean)
-        : (c.incidents || []).slice(0, limits.facts).map(i => i.title).filter(Boolean),
-      activeIssues,
-      recentTimeline,
-      incidentSummary,
-      openTasks,
-      strategy: {
-        current: strategyCurrent,
-        nextMoves: openTasks.map(t => t.title).filter(Boolean).slice(0, 3),
-      },
-      evidenceSummary,
-      documentSummary,
-      reasoningV2: {
-        readiness,
-        blockers,
-        evidencePosture,
-      },
-      importantPeople: [],
-      openQuestions: [],
-    },
-  };
-}
-
-/**
- * Syncs bi-directional links between Incidents and Evidence items.
- */
-function syncCaseLinks(caseData, record, type) {
-  const updatedCase = { ...caseData };
-  if (!record.id) return updatedCase;
-
-  if (type === "incidents") {
-    updatedCase.evidence = sortTimelineItems((updatedCase.evidence || []).map(ev => {
-      const shouldBeLinked = (record.linkedEvidenceIds || []).includes(ev.id);
-      const isCurrentlyLinked = (ev.linkedIncidentIds || []).includes(record.id);
-
-      if (shouldBeLinked && !isCurrentlyLinked) {
-        return { ...ev, linkedIncidentIds: [...(ev.linkedIncidentIds || []), record.id], updatedAt: new Date().toISOString() };
-      } else if (!shouldBeLinked && isCurrentlyLinked) {
-        return { ...ev, linkedIncidentIds: (ev.linkedIncidentIds || []).filter(id => id !== record.id), updatedAt: new Date().toISOString() };
-      }
-      return ev;
-    }));
-  } else if (type === "evidence") {
-    updatedCase.incidents = sortTimelineItems((updatedCase.incidents || []).map(inc => {
-      const shouldBeLinked = (record.linkedIncidentIds || []).includes(inc.id);
-      const isCurrentlyLinked = (inc.linkedEvidenceIds || []).includes(record.id);
-
-      if (shouldBeLinked && !isCurrentlyLinked) {
-        return { ...inc, linkedEvidenceIds: [...(inc.linkedEvidenceIds || []), record.id], updatedAt: new Date().toISOString() };
-      } else if (!shouldBeLinked && isCurrentlyLinked) {
-        return { ...inc, linkedEvidenceIds: (inc.linkedEvidenceIds || []).filter(id => id !== record.id), updatedAt: new Date().toISOString() };
-      }
-      return inc;
-    }));
-  }
-  return updatedCase;
-}
-
-async function syncCaseToSupabase(caseItem) {
-  const reasoningPayload = buildCaseReasoningExportPayload(caseItem, "detailed");
-
-  const payload = {
-    id: caseItem.id,
-    name: caseItem.name || "",
-    type: caseItem.category || "general",
-    status: caseItem.status || "open",
-    priority: caseItem.priority || "medium",
-    snapshot: reasoningPayload,
-  };
-
-  const response = await fetch(SUPABASE_SYNC_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": SUPABASE_SYNC_API_KEY,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const returnedData = await response.json();
-  if (!response.ok) {
-    throw new Error(`Sync to Supabase failed: ${response.status} ${response.statusText}`);
-  }
-
-  console.log("sync success", returnedData);
-  return returnedData;
-}
-
-async function exportReasoningCaseToSupabase(caseItem) {
-  try {
-    const reasoningPayload = buildCaseReasoningExportPayload(caseItem, "detailed");
-
-    console.log("Reasoning export size", {
-      original: JSON.stringify(caseItem).length,
-      reasoning: JSON.stringify(reasoningPayload).length,
-    });
-
-    const response = await fetch(
-      "https://aftbtklrlkccngjiaacv.supabase.co/functions/v1/export-full-case",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer sb_publishable_jVKAQYEpeh1G5MY1yRvPJA_iYUUCPFy",
-          "apikey": "sb_publishable_jVKAQYEpeh1G5MY1yRvPJA_iYUUCPFy",
-          "x-api-key": SUPABASE_SYNC_API_KEY,
-        },
-        body: JSON.stringify({
-          case_id: caseItem.id,
-          exported_at: new Date().toISOString(),
-          case_json: reasoningPayload,
-        }),
-      }
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(`Full case export failed: ${response.status}`);
-    }
-
-    console.log("full case export success", data);
-    return data;
-
-  } catch (err) {
-    console.error("Full case export failed", err);
-    throw err;
-  }
-}
-
 export default function ProveItApp() {
-  const STORAGE_KEY = "toolstack.proveit.v1";
-  
   const [cases, setCases] = useState([]);
   const [loadingCases, setLoadingCases] = useState(true);
   const [editingCase, setEditingCase] = useState(null);
@@ -1526,7 +193,6 @@ export default function ProveItApp() {
       return "overview";
     }
   });
-  const [assignRecordType, setAssignRecordType] = useState(null);
   const [recordType, setRecordType] = useState(null);
   const [recordForm, setRecordForm] = useState(EMPTY_RECORD_FORM);
   const [editingRecord, setEditingRecord] = useState(null);
@@ -1578,25 +244,14 @@ export default function ProveItApp() {
         quickCaptures,
         selectedCaseId,
         activeTab,
-      });
+      }, { getImageById });
 
-      const blob = new Blob([JSON.stringify(payload)], {
-        type: "application/json",
-      });
-
-      const url = URL.createObjectURL(blob);
-
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `proveit-full-backup-all-${new Date()
-        .toISOString()
-        .slice(0, 10)}.json`;
-
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-
-      URL.revokeObjectURL(url);
+      downloadJson(
+        payload,
+        `proveit-full-backup-all-${new Date()
+          .toISOString()
+          .slice(0, 10)}.json`
+      );
 
       console.log("FULL BACKUP exported");
     } catch (err) {
@@ -1754,11 +409,7 @@ export default function ProveItApp() {
     const targetCase = cases.find(c => c.id === selectedCaseId);
     if (!targetCase) return;
 
-    const updatedCase = normalizeCase({
-      ...targetCase,
-      documents: (targetCase.documents || []).filter(item => item.id !== entryId),
-      updatedAt: new Date().toISOString(),
-    });
+    const updatedCase = deleteDocumentEntryFromCase(targetCase, entryId);
 
     saveCase(updatedCase);
     setCases(prev => prev.map(c => (c.id === updatedCase.id ? updatedCase : c)));
@@ -1773,11 +424,7 @@ export default function ProveItApp() {
     const targetCase = cases.find(c => c.id === selectedCaseId);
     if (!targetCase) return;
 
-    const updatedCase = normalizeCase({
-      ...targetCase,
-      ledger: (targetCase.ledger || []).filter(item => item.id !== entryId),
-      updatedAt: new Date().toISOString(),
-    });
+    const updatedCase = deleteLedgerEntryFromCase(targetCase, entryId);
 
     saveCase(updatedCase);
     setCases(prev => prev.map(c => (c.id === updatedCase.id ? updatedCase : c)));
@@ -1801,36 +448,7 @@ export default function ProveItApp() {
     const currentCase = cases.find(c => c.id === selectedCaseId);
     if (!currentCase) return;
 
-    let updatedDocuments;
-    if (editingDocumentId) {
-      updatedDocuments = (currentCase.documents || []).map(doc => {
-        if (doc.id === editingDocumentId) {
-          return normalizeDocumentEntry({
-            ...doc,
-            ...documentForm,
-            id: doc.id,
-            edited: true,
-            updatedAt: new Date().toISOString(),
-          });
-        }
-        return doc;
-      });
-    } else {
-      const newEntry = normalizeDocumentEntry({
-        ...documentForm,
-        id: generateId(),
-        edited: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-      updatedDocuments = [...(currentCase.documents || []), newEntry];
-    }
-
-    const updatedCase = {
-      ...currentCase,
-      documents: updatedDocuments,
-      updatedAt: new Date().toISOString(),
-    };
+    const updatedCase = upsertDocumentEntryInCase(currentCase, documentForm, editingDocumentId);
 
     setCases((prev) => prev.map((c) => (c.id === currentCase.id ? updatedCase : c)));
 
@@ -1887,36 +505,7 @@ export default function ProveItApp() {
     const currentCase = cases.find(c => c.id === selectedCaseId);
     if (!currentCase) return;
 
-    let updatedLedger;
-    if (editingLedgerId) {
-      updatedLedger = (currentCase.ledger || []).map(entry => {
-        if (entry.id === editingLedgerId) {
-          return normalizeLedgerEntry({
-            ...entry,
-            ...ledgerForm,
-            id: entry.id,
-            edited: true,
-            updatedAt: new Date().toISOString(),
-          });
-        }
-        return entry;
-      });
-    } else {
-      const newEntry = normalizeLedgerEntry({
-        ...ledgerForm,
-        id: generateId(),
-        edited: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-      updatedLedger = [...(currentCase.ledger || []), newEntry];
-    }
-
-    const updatedCase = {
-      ...currentCase,
-      ledger: updatedLedger,
-      updatedAt: new Date().toISOString(),
-    };
+    const updatedCase = upsertLedgerEntryInCase(currentCase, ledgerForm, editingLedgerId);
 
     setCases((prev) => prev.map((c) => (c.id === currentCase.id ? updatedCase : c)));
 
@@ -1959,13 +548,7 @@ export default function ProveItApp() {
     try {
       const saved = localStorage.getItem("toolstack.proveit.v1.captures");
       const parsed = saved ? JSON.parse(saved) : [];
-      return parsed.map((item) => ({
-        ...item,
-        source: item.source || "manual",
-        status: normalizeQuickCaptureStatus(item.status),
-        convertedTo: item.convertedTo || null,
-        updatedAt: item.updatedAt || item.createdAt || new Date().toISOString(),
-      }));
+      return parsed.map((item) => normalizeQuickCapture(item));
     } catch {
       return [];
     }
@@ -2110,15 +693,7 @@ export default function ProveItApp() {
           activeTab,
         },
       };
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `proveit-export-${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      downloadJson(payload, `proveit-export-${new Date().toISOString().slice(0, 10)}.json`, { space: 2 });
     } catch (error) {
       console.error("Export failed", error);
     }
@@ -2132,18 +707,10 @@ export default function ProveItApp() {
         caseItem: selectedCase,
         selectedCaseId: selectedCase.id,
         activeTab,
-      });
+      }, { getImageById });
       const safeName = selectedCase.name.toLowerCase().replace(/[^a-z0-9]/g, "-");
       const dateStr = new Date().toISOString().slice(0, 10);
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `proveit-full-backup-case-${safeName}-${dateStr}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      downloadJson(payload, `proveit-full-backup-case-${safeName}-${dateStr}.json`, { space: 2 });
     } catch (error) {
       console.error("Export case failed", error);
     }
@@ -2155,16 +722,8 @@ export default function ProveItApp() {
 
     const payload = buildCaseReasoningExportPayload(c, mode);
 
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
     const safeName = c.name.toLowerCase().replace(/[^a-z0-9]/g, "-");
-    a.download = `proveit-case-reasoning-export-${safeName}-${mode}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadJson(payload, `proveit-case-reasoning-export-${safeName}-${mode}.json`, { space: 2 });
   };
 
   const importData = async (event) => {
@@ -2214,9 +773,13 @@ export default function ProveItApp() {
       let incomingQuickCaptures = hasIncomingQuickCaptures ? imported.quickCaptures : [];
 
       if (isFullBackup) {
-        incomingCases = await Promise.all(incomingCases.map(restoreFullBackupCase));
+        incomingCases = await Promise.all(incomingCases.map((caseItem) =>
+          restoreFullBackupCase(caseItem, { saveImage, generateId })
+        ));
         if (shouldImportQuickCaptures) {
-          incomingQuickCaptures = await Promise.all(incomingQuickCaptures.map(restoreFullBackupQuickCapture));
+          incomingQuickCaptures = await Promise.all(incomingQuickCaptures.map((capture) =>
+            restoreFullBackupQuickCapture(capture, { saveImage, generateId })
+          ));
         }
       }
 
@@ -2245,14 +808,7 @@ export default function ProveItApp() {
         setQuickCaptures((prev) => {
           const captureMap = new Map(prev.map(q => [q.id, q]));
           for (const q of incomingQuickCaptures) {
-            captureMap.set(q.id, {
-              ...q,
-              source: q.source || "manual",
-              updatedAt: q.updatedAt || q.createdAt || new Date().toISOString(),
-              status: normalizeQuickCaptureStatus(q.status),
-              convertedTo: q.convertedTo || null,
-              attachments: Array.isArray(q.attachments) ? q.attachments : [],
-            });
+            captureMap.set(q.id, normalizeQuickCapture(q, { normalizeAttachments: true }));
           }
           return Array.from(captureMap.values());
         });
@@ -2361,11 +917,7 @@ export default function ProveItApp() {
     if (!selectedCase) return;
 
     if (window.confirm("Delete this record permanently?")) {
-      const updatedCase = {
-        ...selectedCase,
-        [recordType]: selectedCase[recordType].filter((r) => r.id !== recordId),
-        updatedAt: new Date().toISOString(),
-      };
+      const updatedCase = deleteRecordFromCase(selectedCase, recordType, recordId);
 
       setCases((prev) => prev.map((c) => (c.id === selectedCase.id ? updatedCase : c)));
       try {
@@ -2374,11 +926,6 @@ export default function ProveItApp() {
         console.error("Failed to save updated case", error);
       }
     }
-  };
-
-  const openStarterCase = (starter) => {
-    // Redirect starter cases to use handleAddCase directly for now
-    createDefaultCase();
   };
 
   const openCase = (caseId) => {
@@ -2506,26 +1053,18 @@ const handleRecordFiles = async (event) => {
   const removeRecordAttachment = (attachmentId) => {
     setRecordForm((prev) => {
       const updatedAttachments = prev.attachments.filter((file) => file.id !== attachmentId);
+      let allowLastEvidenceAttachmentRemoval = true;
       
       if (recordType === "evidence" && updatedAttachments.length === 0 && prev.availability?.digital?.hasDigital) {
         if (!window.confirm("Removing the last file. Mark digital copy as unavailable?")) {
-          return prev;
+          allowLastEvidenceAttachmentRemoval = false;
         }
       }
 
-      const newState = { ...prev, attachments: updatedAttachments };
-
-      if (recordType === "evidence") {
-        newState.availability = {
-          ...(prev.availability || EMPTY_RECORD_FORM.availability),
-          digital: {
-            ...(prev.availability?.digital || EMPTY_RECORD_FORM.availability.digital),
-            files: updatedAttachments,
-            hasDigital: updatedAttachments.length > 0
-          }
-        };
-      }
-      return newState;
+      return removeRecordAttachmentFromForm(prev, recordType, attachmentId, {
+        allowLastEvidenceAttachmentRemoval,
+        emptyAvailability: EMPTY_RECORD_FORM.availability,
+      });
     });
   };
 
@@ -2534,16 +1073,6 @@ const handleRecordFiles = async (event) => {
       ...prev,
       attachments: prev.attachments.filter((file) => file.id !== attachmentId),
     }));
-  };
-
-  const removeEvidenceFile = (attachmentId) => {
-    const currentFiles = recordForm.attachments.filter(a => a.id !== attachmentId);
-    const existingFilesCount = (editingRecord?.availability?.digital?.files?.length || 0);
-    if (currentFiles.length === 0 && existingFilesCount === 0 && recordForm.availability.digital.hasDigital) {
-      if (!window.confirm("Removing the last file. Mark digital copy as unavailable?")) return;
-      setRecordForm(prev => ({ ...prev, availability: { ...prev.availability, digital: { ...prev.digital, hasDigital: false } } }));
-    }
-    removeRecordAttachment(attachmentId);
   };
 
   const handleUnlinkEvidenceFromIncident = async (incidentId, evidenceIdToUnlink) => {
@@ -2590,98 +1119,7 @@ const handleRecordFiles = async (event) => {
     let updatedCase;
     const shouldShowIssueFeedback = recordOpenedFromIssue;
 
-    if (editingRecord) {
-      // Attachments are already serialized via fileToSerializable
-      let updatedAttachments = recordForm.attachments;
-      let updatedAvailability = { ...recordForm.availability };
-
-      if (recordType === "evidence") {
-        updatedAvailability.digital.files = updatedAttachments;
-        updatedAvailability.digital.hasDigital = updatedAttachments.length > 0;
-      }
-
-      const updatedRecord = normalizeRecord({
-        ...editingRecord,
-        title: recordForm.title.trim(),
-        date: recordForm.date || new Date().toISOString().slice(0, 10),
-        description: recordForm.description.trim(),
-        notes: recordForm.notes.trim(),
-        sourceType: recordForm.sourceType,
-        capturedAt: recordForm.capturedAt,
-        availability: updatedAvailability,
-        attachments: updatedAttachments,
-        importance: recordForm.importance,
-        relevance: recordForm.relevance,
-        status: recordForm.status,
-        usedIn: recordForm.usedIn,
-        reviewNotes: recordForm.reviewNotes,
-        linkedIncidentIds: recordForm.linkedIncidentIds, // Explicitly pass from form
-        linkedEvidenceIds: recordForm.linkedEvidenceIds, // Explicitly pass from form
-        updatedAt: new Date().toISOString(),
-        edited: true,
-      }, recordType);
-
-      const updatedList = selectedCase[recordType].map((rec) =>
-        rec.id === editingRecord.id ? updatedRecord : rec
-      );
-
-      updatedCase = {
-        ...selectedCase,
-        [recordType]: isTimelineCapable(recordType) ? sortTimelineItems(updatedList) : updatedList,
-        updatedAt: new Date().toISOString(),
-      };
-
-      updatedCase = syncCaseLinks(updatedCase, updatedRecord, recordType);
-
-      if (recordType === "evidence") {
-        // logic removed
-      }
-    } else {
-      const newRecordId = recordForm.id || generateId();
-      // Attachments are already serialized via fileToSerializable
-      let attachmentObjects = recordForm.attachments;
-      let availability = { ...recordForm.availability };
-
-      if (recordType === "evidence") {
-        availability.digital.files = attachmentObjects;
-        availability.digital.hasDigital = attachmentObjects.length > 0;
-      }
-
-      const newRecord = normalizeRecord({
-        id: newRecordId,
-        title: recordForm.title.trim(),
-        date: recordForm.date || new Date().toISOString().slice(0, 10),
-        description: recordForm.description.trim(),
-        notes: recordForm.notes.trim(),
-        sourceType: recordForm.sourceType,
-        capturedAt: recordForm.capturedAt,
-        availability: availability,
-        attachments: attachmentObjects,
-        importance: recordForm.importance,
-        relevance: recordForm.relevance,
-        status: recordForm.status,
-        usedIn: recordForm.usedIn,
-        reviewNotes: recordForm.reviewNotes,
-        linkedIncidentIds: recordForm.linkedIncidentIds,
-        linkedEvidenceIds: recordForm.linkedEvidenceIds,
-        linkedRecordIds: recordForm.linkedRecordIds || [],
-        createdAt: new Date().toISOString(),
-      }, recordType);
-
-      const updatedList = [newRecord, ...selectedCase[recordType]];
-
-      updatedCase = {
-        ...selectedCase,
-        [recordType]: isTimelineCapable(recordType) ? sortTimelineItems(updatedList) : updatedList,
-        updatedAt: new Date().toISOString(),
-      };
-
-      updatedCase = syncCaseLinks(updatedCase, newRecord, recordType);
-
-      if (recordType === "evidence") {
-        // logic removed
-      }
-    }
+    updatedCase = upsertRecordInCase(selectedCase, recordType, recordForm, editingRecord);
 
     setCases((prev) =>
       prev.map((c) =>
@@ -2721,21 +1159,7 @@ const handleRecordFiles = async (event) => {
     const selectedCaptureCase = cases.find((c) => String(c.id) === String(captureForm.caseId));
     if (!selectedCaptureCase) return;
 
-    const newCaptureId = crypto.randomUUID();
-    const newCapture = {
-      id: newCaptureId,
-      caseId: selectedCaptureCase.id,
-      caseName: selectedCaptureCase.name,
-      title: captureForm.title.trim(),
-      date: captureForm.date || new Date().toISOString().slice(0, 10),
-      note: captureForm.note.trim(),
-      attachments: captureForm.attachments,
-      status: "unreviewed",
-      convertedTo: null,
-      source: "manual",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    const newCapture = createQuickCaptureFromForm(captureForm, selectedCaptureCase);
 
     setQuickCaptures((prev) => [newCapture, ...prev]);
     closeQuickCapture();
@@ -2745,28 +1169,13 @@ const handleRecordFiles = async (event) => {
     const capture = quickCaptures.find((item) => item.id === captureId);
     if (!capture) return;
 
-    const newRecordId = crypto.randomUUID();
-
-    const newRecord = normalizeRecord({
-      id: newRecordId,
-      title: capture.title,
-      date: capture.date,
-      description: capture.note,
-      notes: `Converted from Quick Capture on ${new Date().toLocaleDateString()}`,
-      attachments: capture.attachments || [],
-      createdAt: new Date().toISOString(),
-    }, targetType);
-
     const caseToUpdate = cases.find(c => c.id === capture.caseId);
+    let updatedCapture = markQuickCaptureConverted(capture, targetType);
     
     if (caseToUpdate) {
-      const updatedList = [newRecord, ...caseToUpdate[targetType]];
-      
-      const updatedCase = {
-        ...caseToUpdate,
-        [targetType]: isTimelineCapable(targetType) ? sortTimelineItems(updatedList) : updatedList,
-        updatedAt: new Date().toISOString(),
-      };
+      const result = convertQuickCaptureToRecord(caseToUpdate, capture, targetType);
+      const updatedCase = result.case;
+      updatedCapture = result.capture;
 
       setCases((prev) =>
         prev.map((c) =>
@@ -2783,14 +1192,14 @@ const handleRecordFiles = async (event) => {
 
     setQuickCaptures((prev) =>
       prev.map((item) =>
-        item.id === captureId ? { ...item, status: "converted", convertedTo: targetType, updatedAt: new Date().toISOString() } : item
+        item.id === captureId ? updatedCapture : item
       )
     );
   };
 
   const archiveCapture = (captureId) => {
     setQuickCaptures((prev) =>
-      prev.map((item) => (item.id === captureId ? { ...item, status: "archived", updatedAt: new Date().toISOString() } : item))
+      prev.map((item) => (item.id === captureId ? archiveQuickCapture(item) : item))
     );
   };
 
@@ -3179,45 +1588,6 @@ const handleRecordFiles = async (event) => {
             onCreateEvidenceFromIncident={handleCreateEvidenceFromIncident}
             onUnlinkEvidenceFromIncident={handleUnlinkEvidenceFromIncident}
           />
-        )}
-
-        {assignRecordType && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl">
-              <h2 className="mb-4 text-xl font-semibold capitalize">Assign {assignRecordType.slice(0, -1)}</h2>
-              <p className="mb-4 text-sm text-neutral-600">Select a case file to add this {assignRecordType.slice(0, -1)} to:</p>
-              
-              <div className="max-h-60 overflow-y-auto space-y-2 mb-4 pr-1">
-                {cases.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => {
-                      setSelectedCaseId(c.id);
-                      openRecordModal(assignRecordType);
-                      setAssignRecordType(null);
-                    }}
-                    className="w-full text-left rounded-xl border border-neutral-200 p-3 hover:bg-neutral-50 hover:border-neutral-300 transition-colors"
-                  >
-                    <div className="font-medium">{c.name}</div>
-                    <div className="text-xs text-neutral-500 truncate">{c.category}</div>
-                  </button>
-                ))}
-                <button
-                  onClick={() => {
-                    setAssignRecordType(null);
-                    openCreateCaseModal();
-                  }}
-                  className="w-full text-left rounded-xl border border-dashed border-lime-500 p-3 hover:bg-lime-50 transition-colors text-lime-700 font-medium"
-                >
-                  + Create New Case
-                </button>
-              </div>
-
-              <button onClick={() => setAssignRecordType(null)} className="w-full rounded-xl bg-neutral-100 py-2 text-sm font-medium text-neutral-600 hover:bg-neutral-200">
-                Cancel
-              </button>
-            </div>
-          </div>
         )}
 
         {showQuickCapture && (

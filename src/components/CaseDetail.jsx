@@ -97,47 +97,6 @@ function formToActionSummary(form) {
   };
 }
 
-function normalizeGptActionSummaryDelta(payload = {}) {
-  if (!payload || typeof payload !== "object") {
-    return { ok: false, reason: "Payload must be an object." };
-  }
-
-  if (payload.app !== "proveit" || payload.contractVersion !== "gpt-delta-1.0") {
-    return { ok: false, reason: "Unsupported GPT delta contract." };
-  }
-
-  const caseId = payload.target?.caseId;
-  if (!caseId || typeof caseId !== "string") {
-    return { ok: false, reason: "GPT delta target.caseId is required." };
-  }
-
-  const actionSummaryPatch = payload.operations?.patch?.actionSummary;
-  if (!actionSummaryPatch || typeof actionSummaryPatch !== "object" || Array.isArray(actionSummaryPatch)) {
-    return { ok: false, reason: "GPT delta actionSummary patch is required." };
-  }
-
-  const patchableFields = [
-    "currentFocus",
-    "nextActions",
-    "importantReminders",
-    "strategyFocus",
-    "criticalDeadlines",
-  ];
-
-  const patch = patchableFields.reduce((normalized, field) => {
-    if (Object.prototype.hasOwnProperty.call(actionSummaryPatch, field)) {
-      normalized[field] = actionSummaryPatch[field];
-    }
-    return normalized;
-  }, {});
-
-  if (Object.keys(patch).length === 0) {
-    return { ok: false, reason: "GPT delta actionSummary patch has no supported fields." };
-  }
-
-  return { ok: true, caseId, patch };
-}
-
 export default function CaseDetail({
   selectedCase,
   reviewQueue,
@@ -403,25 +362,6 @@ export default function CaseDetail({
 
   function applyActionSummaryUpdate(patch) {
     updateActionSummary(applyActionSummaryPatch(rawActionSummary, patch));
-  }
-
-  // eslint-disable-next-line no-unused-vars
-  function ingestGptActionSummaryDelta(payload) {
-    const normalized = normalizeGptActionSummaryDelta(payload);
-    if (!normalized.ok) {
-      return normalized;
-    }
-
-    if (String(normalized.caseId) !== String(selectedCase?.id || "")) {
-      return { ok: false, reason: "GPT delta target case does not match the selected case." };
-    }
-
-    applyActionSummaryUpdate({
-      ...normalized.patch,
-      updatedAt: new Date().toISOString(),
-    });
-
-    return { ok: true };
   }
 
   function saveActionSummary() {

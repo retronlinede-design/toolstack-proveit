@@ -1,0 +1,688 @@
+/**
+ * Safe UUID fallback for insecure contexts or older browsers.
+ */
+export function generateId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
+export const normalizeCategory = (value) => {
+  const val = (value || "").toLowerCase().trim();
+  return val || "general";
+};
+
+export const normalizeCaseStatus = (value) => {
+  const val = (value || "").toLowerCase().trim();
+  if (["open", "closed", "archived"].includes(val)) return val;
+  return "open";
+};
+
+export const normalizeRecordStatus = (value) => {
+  const val = (value || "").toLowerCase().trim();
+  return val === "archived" ? "archived" : "open";
+};
+
+export const normalizeQuickCaptureStatus = (value) => {
+  const val = (value || "").toLowerCase().trim();
+  if (["unreviewed", "converted", "archived"].includes(val)) return val;
+  return "unreviewed";
+};
+
+export const normalizeCaseName = (value) => {
+  if (typeof value !== "string") return "Imported Case";
+  const trimmed = value.trim();
+  return trimmed || "Imported Case";
+};
+
+/**
+ * Validates and normalizes a date string to YYYY-MM-DD.
+ */
+export function getSafeDate(val) {
+  if (!val || typeof val !== 'string') return null;
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString().split('T')[0];
+}
+
+/**
+ * Determines if a record type is timeline-capable (incident, evidence, strategy/note).
+ */
+export function isTimelineCapable(recordType) {
+  const type = (recordType || "").toLowerCase();
+  return ["evidence", "incidents", "strategy"].includes(type);
+}
+
+/**
+ * Normalizes timeline-specific fields with priority-based fallback logic.
+ */
+export function normalizeTimelineFields(item) {
+  const createdAt = item?.createdAt || new Date().toISOString();
+  const today = new Date().toISOString().split('T')[0];
+
+  // Priority: 1. eventDate, 2. date, 3. incidentDate, 4. createdAt part, 5. today
+  const eventDate = getSafeDate(item?.eventDate) ||
+                    getSafeDate(item?.date) ||
+                    getSafeDate(item?.incidentDate) ||
+                    (item?.createdAt ? item.createdAt.split('T')[0] : today);
+
+  return {
+    eventDate,
+    createdAt,
+    updatedAt: item?.updatedAt || createdAt
+  };
+}
+
+/**
+ * TASK 1: Shared sorting helper for timeline-capable items.
+ * Sorts ascending by: eventDate, createdAt, then id.
+ */
+export function sortTimelineItems(items) {
+  return [...items].sort((a, b) => {
+    const dateA = a.eventDate || "";
+    const dateB = b.eventDate || "";
+    if (dateA !== dateB) return dateA.localeCompare(dateB);
+
+    const createdA = a.createdAt || "";
+    const createdB = b.createdAt || "";
+    if (createdA !== createdB) return createdA.localeCompare(createdB);
+
+    return (a.id || "").localeCompare(b.id || "");
+  });
+}
+
+export function normalizeLedgerEntry(item) {
+  const expectedAmount = Number(item?.expectedAmount || 0);
+  const paidAmount = Number(item?.paidAmount || 0);
+
+  const validLedgerCategories = [
+    "rent",
+    "installment",
+    "deposit",
+    "furniture",
+    "repair",
+    "utility",
+    "legal",
+    "other"
+  ];
+
+  return {
+    id: item?.id || generateId(),
+    category: validLedgerCategories.includes(item?.category)
+      ? item.category
+      : "other",
+    subType: item?.subType || "",
+    label: item?.label || "",
+    period: item?.period || "",
+    expectedAmount,
+    paidAmount,
+    differenceAmount: expectedAmount - paidAmount,
+    currency: item?.currency || "EUR",
+    dueDate: item?.dueDate || "",
+    paymentDate: item?.paymentDate || "",
+    status: ["planned", "paid", "part-paid", "unpaid", "disputed", "refunded"].includes(item?.status)
+      ? item.status
+      : "planned",
+    method: item?.method || "bank_transfer",
+    reference: item?.reference || "",
+    counterparty: item?.counterparty || "",
+    proofType: item?.proofType || "other",
+    proofStatus: ["missing", "partial", "confirmed"].includes(item?.proofStatus)
+      ? item.proofStatus
+      : "missing",
+    notes: item?.notes || "",
+    batchLabel: item?.batchLabel || "",
+    linkedRecordIds: Array.isArray(item?.linkedRecordIds) ? item.linkedRecordIds : [],
+    edited: !!item?.edited,
+    createdAt: item?.createdAt || new Date().toISOString(),
+    updatedAt: item?.updatedAt || item?.createdAt || new Date().toISOString(),
+  };
+}
+
+export function normalizeActionSummary(summary) {
+  return {
+    currentFocus: summary?.currentFocus || "",
+    nextActions: Array.isArray(summary?.nextActions) ? summary.nextActions : [],
+    importantReminders: Array.isArray(summary?.importantReminders) ? summary.importantReminders : [],
+    strategyFocus: Array.isArray(summary?.strategyFocus) ? summary.strategyFocus : [],
+    criticalDeadlines: Array.isArray(summary?.criticalDeadlines) ? summary.criticalDeadlines : [],
+    updatedAt: summary?.updatedAt || "",
+  };
+}
+
+export function normalizeDocumentEntry(item) {
+  return {
+    id: item?.id || generateId(),
+    title: item?.title || "",
+    category: item?.category || "other",
+    documentDate: item?.documentDate || "",
+    source: item?.source || "",
+    summary: item?.summary || "",
+    textContent: item?.textContent || "",
+    attachments: Array.isArray(item?.attachments) ? item.attachments : [],
+    linkedRecordIds: Array.isArray(item?.linkedRecordIds) ? item.linkedRecordIds : [],
+    edited: !!item?.edited,
+    createdAt: item?.createdAt || new Date().toISOString(),
+    updatedAt: item?.updatedAt || item?.createdAt || new Date().toISOString(),
+  };
+}
+
+export function normalizeRecord(item, recordType) {
+  const base = {
+    id: item?.id || generateId(),
+    type: recordType || item?.type || "unknown",
+    title: item?.title || "",
+    date: item?.date || new Date().toISOString().slice(0, 10),
+    description: item?.description || "",
+    notes: item?.notes || "",
+    attachments: Array.isArray(item?.attachments) ? item.attachments : [],
+    tags: Array.isArray(item?.tags) ? item.tags : [],
+    linkedRecordIds: Array.isArray(item?.linkedRecordIds) ? item.linkedRecordIds : [],
+    linkedIncidentIds: Array.isArray(item?.linkedIncidentIds) ? item.linkedIncidentIds : [], // For evidence
+    linkedEvidenceIds: Array.isArray(item?.linkedEvidenceIds) ? item.linkedEvidenceIds : [], // For incidents
+    status: normalizeRecordStatus(item?.status, recordType),
+    source: item?.source || "manual",
+    edited: !!item?.edited,
+  };
+
+  if (recordType === "evidence") {
+    const avail = item?.availability || {};
+    const timelineData = normalizeTimelineFields(item);
+    return {
+      ...base,
+      ...timelineData,
+      sourceType: item?.sourceType || "other",
+      capturedAt: item?.capturedAt || item?.date || base.date,
+      importance: item?.importance || "unreviewed",
+      relevance: item?.relevance || "medium",
+      status: ["verified", "needs_review", "incomplete"].includes(item?.status) ? item.status : "needs_review",
+      usedIn: Array.isArray(item?.usedIn) ? item.usedIn : [],
+      reviewNotes: item?.reviewNotes || "",
+      // linkedIncidentIds is now handled in base, no need to re-add here
+      availability: { 
+        physical: {
+          hasOriginal: !!avail.physical?.hasOriginal,
+          location: avail.physical?.location || "",
+          notes: avail.physical?.notes || "",
+        },
+        digital: {
+          hasDigital: !!avail.digital?.hasDigital || base.attachments.length > 0,
+          files: Array.isArray(avail.digital?.files) ? avail.digital?.files : base.attachments,
+        }
+      }
+    };
+  }
+
+  if (isTimelineCapable(recordType)) {
+    const timelineData = normalizeTimelineFields(item);
+    return { ...base, ...timelineData };
+  }
+
+  return {
+    ...base,
+    createdAt: item?.createdAt || new Date().toISOString(),
+    updatedAt: item?.updatedAt || item?.createdAt || new Date().toISOString(),
+  };
+}
+
+const STRUCTURED_PATCH_RECORD_TYPES = ["incidents", "strategy"];
+
+export function isStructuredPatchRecordType(recordType) {
+  return STRUCTURED_PATCH_RECORD_TYPES.includes(recordType);
+}
+
+export function normalizeRecordPatch(recordType, patch = {}) {
+  if (!isStructuredPatchRecordType(recordType) || !patch || typeof patch !== "object") {
+    return {};
+  }
+
+  const textFields = ["title", "date", "description", "notes", "status", "source", "eventDate", "createdAt", "updatedAt"];
+  const listFields = ["attachments", "tags", "linkedRecordIds"];
+  const patchableFields = recordType === "incidents"
+    ? [...textFields, ...listFields, "linkedEvidenceIds", "edited"]
+    : [...textFields, ...listFields, "edited"];
+
+  return patchableFields.reduce((normalized, field) => {
+    if (!Object.prototype.hasOwnProperty.call(patch, field)) return normalized;
+
+    if (listFields.includes(field) || field === "linkedEvidenceIds") {
+      normalized[field] = Array.isArray(patch[field]) ? patch[field] : [];
+      return normalized;
+    }
+
+    if (field === "edited") {
+      normalized[field] = !!patch[field];
+      return normalized;
+    }
+
+    normalized[field] = typeof patch[field] === "string" ? patch[field] : "";
+    return normalized;
+  }, {});
+}
+
+export function applyRecordPatch(record, recordType, patch = {}) {
+  if (!record || !isStructuredPatchRecordType(recordType)) return record;
+
+  const normalizedPatch = normalizeRecordPatch(recordType, patch);
+  const patchedRecord = normalizeRecord({
+    ...record,
+    ...normalizedPatch,
+    id: record.id,
+    type: record.type || recordType,
+  }, recordType);
+
+  return {
+    ...patchedRecord,
+    id: record.id,
+    type: record.type || recordType,
+  };
+}
+
+export function applyRecordPatchToCase(caseItem, recordType, recordId, patch = {}) {
+  if (!caseItem || !isStructuredPatchRecordType(recordType) || !recordId) return caseItem;
+
+  const records = Array.isArray(caseItem[recordType]) ? caseItem[recordType] : [];
+  let patchedRecord = null;
+  const updatedRecords = records.map((record) => {
+    if (record.id !== recordId) return record;
+    patchedRecord = applyRecordPatch(record, recordType, patch);
+    return patchedRecord;
+  });
+
+  if (!patchedRecord) return caseItem;
+
+  let updatedCase = {
+    ...caseItem,
+    [recordType]: isTimelineCapable(recordType) ? sortTimelineItems(updatedRecords) : updatedRecords,
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (recordType === "incidents") {
+    updatedCase = syncCaseLinks(updatedCase, patchedRecord, recordType);
+  }
+
+  return updatedCase;
+}
+
+export function normalizeCase(caseItem) {
+  const evidence = Array.isArray(caseItem?.evidence) ? caseItem.evidence.map(r => normalizeRecord(r, "evidence")) : [];
+  const incidents = Array.isArray(caseItem?.incidents) ? caseItem.incidents.map(r => normalizeRecord(r, "incidents")) : [];
+  const tasks = Array.isArray(caseItem?.tasks) ? caseItem.tasks.map(r => normalizeRecord(r, "tasks")) : [];
+  const strategy = Array.isArray(caseItem?.strategy) ? caseItem.strategy.map(r => normalizeRecord(r, "strategy")) : [];
+  const ledger = Array.isArray(caseItem?.ledger) ? caseItem.ledger.map(normalizeLedgerEntry) : [];
+  const documents = Array.isArray(caseItem?.documents) ? caseItem.documents.map(normalizeDocumentEntry) : [];
+  const actionSummary = normalizeActionSummary(caseItem?.actionSummary || {});
+
+  return {
+    id: caseItem?.id || generateId(),
+    name: normalizeCaseName(caseItem?.name),
+    category: normalizeCategory(caseItem?.category),
+    status: normalizeCaseStatus(caseItem?.status),
+    notes: caseItem?.notes || "",
+    description: caseItem?.description || "",
+    tags: Array.isArray(caseItem?.tags) ? caseItem.tags : [],
+    createdAt: caseItem?.createdAt || new Date().toISOString(),
+    updatedAt: caseItem?.updatedAt || new Date().toISOString(),
+    evidence: sortTimelineItems(evidence),
+    incidents: sortTimelineItems(incidents),
+    tasks: tasks,
+    strategy: sortTimelineItems(strategy),
+    ledger: ledger,
+    documents: documents,
+    actionSummary,
+  };
+}
+
+/**
+ * Syncs bi-directional links between Incidents and Evidence items.
+ */
+export function syncCaseLinks(caseData, record, type) {
+  const updatedCase = { ...caseData };
+  if (!record.id) return updatedCase;
+
+  if (type === "incidents") {
+    updatedCase.evidence = sortTimelineItems((updatedCase.evidence || []).map(ev => {
+      const shouldBeLinked = (record.linkedEvidenceIds || []).includes(ev.id);
+      const isCurrentlyLinked = (ev.linkedIncidentIds || []).includes(record.id);
+
+      if (shouldBeLinked && !isCurrentlyLinked) {
+        return { ...ev, linkedIncidentIds: [...(ev.linkedIncidentIds || []), record.id], updatedAt: new Date().toISOString() };
+      } else if (!shouldBeLinked && isCurrentlyLinked) {
+        return { ...ev, linkedIncidentIds: (ev.linkedIncidentIds || []).filter(id => id !== record.id), updatedAt: new Date().toISOString() };
+      }
+      return ev;
+    }));
+  } else if (type === "evidence") {
+    updatedCase.incidents = sortTimelineItems((updatedCase.incidents || []).map(inc => {
+      const shouldBeLinked = (record.linkedIncidentIds || []).includes(inc.id);
+      const isCurrentlyLinked = (inc.linkedEvidenceIds || []).includes(record.id);
+
+      if (shouldBeLinked && !isCurrentlyLinked) {
+        return { ...inc, linkedEvidenceIds: [...(inc.linkedEvidenceIds || []), record.id], updatedAt: new Date().toISOString() };
+      } else if (!shouldBeLinked && isCurrentlyLinked) {
+        return { ...inc, linkedEvidenceIds: (inc.linkedEvidenceIds || []).filter(id => id !== record.id), updatedAt: new Date().toISOString() };
+      }
+      return inc;
+    }));
+  }
+  return updatedCase;
+}
+
+export function deleteRecordFromCase(caseItem, recordType, recordId) {
+  const updatedCase = {
+    ...caseItem,
+    [recordType]: caseItem[recordType].filter((r) => r.id !== recordId),
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (recordType === "incidents") {
+    updatedCase.evidence = sortTimelineItems((updatedCase.evidence || []).map(ev => {
+      const isCurrentlyLinked = (ev.linkedIncidentIds || []).includes(recordId);
+
+      if (isCurrentlyLinked) {
+        return { ...ev, linkedIncidentIds: (ev.linkedIncidentIds || []).filter(id => id !== recordId), updatedAt: new Date().toISOString() };
+      }
+      return ev;
+    }));
+  } else if (recordType === "evidence") {
+    updatedCase.incidents = sortTimelineItems((updatedCase.incidents || []).map(inc => {
+      const isCurrentlyLinked = (inc.linkedEvidenceIds || []).includes(recordId);
+
+      if (isCurrentlyLinked) {
+        return { ...inc, linkedEvidenceIds: (inc.linkedEvidenceIds || []).filter(id => id !== recordId), updatedAt: new Date().toISOString() };
+      }
+      return inc;
+    }));
+  }
+
+  return updatedCase;
+}
+
+export function deleteLedgerEntryFromCase(caseItem, entryId) {
+  return {
+    ...caseItem,
+    ledger: (caseItem.ledger || []).filter(item => item.id !== entryId),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function deleteDocumentEntryFromCase(caseItem, entryId) {
+  return {
+    ...caseItem,
+    documents: (caseItem.documents || []).filter(item => item.id !== entryId),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function upsertLedgerEntryInCase(caseItem, ledgerInput, editingLedgerId = null) {
+  let updatedLedger;
+  if (editingLedgerId) {
+    updatedLedger = (caseItem.ledger || []).map(entry => {
+      if (entry.id === editingLedgerId) {
+        return normalizeLedgerEntry({
+          ...entry,
+          ...ledgerInput,
+          id: entry.id,
+          edited: true,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      return entry;
+    });
+  } else {
+    const newEntry = normalizeLedgerEntry({
+      ...ledgerInput,
+      id: generateId(),
+      edited: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    updatedLedger = [...(caseItem.ledger || []), newEntry];
+  }
+
+  const updatedCase = {
+    ...caseItem,
+    ledger: updatedLedger,
+    updatedAt: new Date().toISOString(),
+  };
+
+  return updatedCase;
+}
+
+export function upsertDocumentEntryInCase(caseItem, documentInput, editingDocumentId = null) {
+  let updatedDocuments;
+  if (editingDocumentId) {
+    updatedDocuments = (caseItem.documents || []).map(doc => {
+      if (doc.id === editingDocumentId) {
+        return normalizeDocumentEntry({
+          ...doc,
+          ...documentInput,
+          id: doc.id,
+          edited: true,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      return doc;
+    });
+  } else {
+    const newEntry = normalizeDocumentEntry({
+      ...documentInput,
+      id: generateId(),
+      edited: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    updatedDocuments = [...(caseItem.documents || []), newEntry];
+  }
+
+  const updatedCase = {
+    ...caseItem,
+    documents: updatedDocuments,
+    updatedAt: new Date().toISOString(),
+  };
+
+  return updatedCase;
+}
+
+export function upsertRecordInCase(caseItem, recordType, recordInput, editingRecord = null) {
+  let updatedCase;
+
+  if (editingRecord) {
+    // Attachments are already serialized via fileToSerializable
+    let updatedAttachments = recordInput.attachments;
+    let updatedAvailability = { ...recordInput.availability };
+
+    if (recordType === "evidence") {
+      updatedAvailability.digital.files = updatedAttachments;
+      updatedAvailability.digital.hasDigital = updatedAttachments.length > 0;
+    }
+
+    const updatedRecord = normalizeRecord({
+      ...editingRecord,
+      title: recordInput.title.trim(),
+      date: recordInput.date || new Date().toISOString().slice(0, 10),
+      description: recordInput.description.trim(),
+      notes: recordInput.notes.trim(),
+      sourceType: recordInput.sourceType,
+      capturedAt: recordInput.capturedAt,
+      availability: updatedAvailability,
+      attachments: updatedAttachments,
+      importance: recordInput.importance,
+      relevance: recordInput.relevance,
+      status: recordInput.status,
+      usedIn: recordInput.usedIn,
+      reviewNotes: recordInput.reviewNotes,
+      linkedIncidentIds: recordInput.linkedIncidentIds, // Explicitly pass from form
+      linkedEvidenceIds: recordInput.linkedEvidenceIds, // Explicitly pass from form
+      updatedAt: new Date().toISOString(),
+      edited: true,
+    }, recordType);
+
+    const updatedList = caseItem[recordType].map((rec) =>
+      rec.id === editingRecord.id ? updatedRecord : rec
+    );
+
+    updatedCase = {
+      ...caseItem,
+      [recordType]: isTimelineCapable(recordType) ? sortTimelineItems(updatedList) : updatedList,
+      updatedAt: new Date().toISOString(),
+    };
+
+    updatedCase = syncCaseLinks(updatedCase, updatedRecord, recordType);
+
+    if (recordType === "evidence") {
+      // logic removed
+    }
+  } else {
+    const newRecordId = recordInput.id || generateId();
+    // Attachments are already serialized via fileToSerializable
+    let attachmentObjects = recordInput.attachments;
+    let availability = { ...recordInput.availability };
+
+    if (recordType === "evidence") {
+      availability.digital.files = attachmentObjects;
+      availability.digital.hasDigital = attachmentObjects.length > 0;
+    }
+
+    const newRecord = normalizeRecord({
+      id: newRecordId,
+      title: recordInput.title.trim(),
+      date: recordInput.date || new Date().toISOString().slice(0, 10),
+      description: recordInput.description.trim(),
+      notes: recordInput.notes.trim(),
+      sourceType: recordInput.sourceType,
+      capturedAt: recordInput.capturedAt,
+      availability: availability,
+      attachments: attachmentObjects,
+      importance: recordInput.importance,
+      relevance: recordInput.relevance,
+      status: recordInput.status,
+      usedIn: recordInput.usedIn,
+      reviewNotes: recordInput.reviewNotes,
+      linkedIncidentIds: recordInput.linkedIncidentIds,
+      linkedEvidenceIds: recordInput.linkedEvidenceIds,
+      linkedRecordIds: recordInput.linkedRecordIds || [],
+      createdAt: new Date().toISOString(),
+    }, recordType);
+
+    const updatedList = [newRecord, ...caseItem[recordType]];
+
+    updatedCase = {
+      ...caseItem,
+      [recordType]: isTimelineCapable(recordType) ? sortTimelineItems(updatedList) : updatedList,
+      updatedAt: new Date().toISOString(),
+    };
+
+    updatedCase = syncCaseLinks(updatedCase, newRecord, recordType);
+
+    if (recordType === "evidence") {
+      // logic removed
+    }
+  }
+
+  return updatedCase;
+}
+
+export function convertQuickCaptureToRecord(caseItem, capture, targetType) {
+  const newRecordId = crypto.randomUUID();
+
+  const newRecord = normalizeRecord({
+    id: newRecordId,
+    title: capture.title,
+    date: capture.date,
+    description: capture.note,
+    notes: `Converted from Quick Capture on ${new Date().toLocaleDateString()}`,
+    attachments: capture.attachments || [],
+    createdAt: new Date().toISOString(),
+  }, targetType);
+
+  const updatedList = [newRecord, ...caseItem[targetType]];
+
+  const updatedCase = {
+    ...caseItem,
+    [targetType]: isTimelineCapable(targetType) ? sortTimelineItems(updatedList) : updatedList,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const updatedCapture = { ...capture, status: "converted", convertedTo: targetType, updatedAt: new Date().toISOString() };
+
+  return { case: updatedCase, record: newRecord, capture: updatedCapture };
+}
+
+export function mergeRecords(existingRecords = [], incomingRecords = [], recordType) {
+  const recordMap = new Map(existingRecords.map(r => [r.id, r]));
+  for (const incomingRecord of incomingRecords) {
+    if (recordMap.has(incomingRecord.id)) {
+      const existingRecord = recordMap.get(incomingRecord.id);
+      recordMap.set(incomingRecord.id, normalizeRecord({ ...existingRecord, ...incomingRecord }, recordType));
+    } else {
+      recordMap.set(incomingRecord.id, normalizeRecord(incomingRecord, recordType));
+    }
+  }
+  const merged = Array.from(recordMap.values());
+  return isTimelineCapable(recordType) ? sortTimelineItems(merged) : merged;
+}
+
+export function mergeDocumentEntries(existingEntries = [], incomingEntries = []) {
+  const entryMap = new Map(existingEntries.map(e => [e.id, e]));
+  for (const incoming of incomingEntries) {
+    if (entryMap.has(incoming.id)) {
+      const existing = entryMap.get(incoming.id);
+      entryMap.set(incoming.id, normalizeDocumentEntry({ ...existing, ...incoming }));
+    } else {
+      entryMap.set(incoming.id, normalizeDocumentEntry(incoming));
+    }
+  }
+  return Array.from(entryMap.values());
+}
+
+export function mergeLedgerEntries(existingEntries = [], incomingEntries = []) {
+  const entryMap = new Map(existingEntries.map(e => [e.id, e]));
+  for (const incoming of incomingEntries) {
+    if (entryMap.has(incoming.id)) {
+      const existing = entryMap.get(incoming.id);
+      entryMap.set(incoming.id, normalizeLedgerEntry({ ...existing, ...incoming }));
+    } else {
+      entryMap.set(incoming.id, normalizeLedgerEntry(incoming));
+    }
+  }
+  return Array.from(entryMap.values());
+}
+
+export function mergeCase(existingCase, incomingCase) {
+  const nExisting = normalizeCase(existingCase);
+  const nIncoming = normalizeCase(incomingCase);
+
+  return {
+    ...nExisting,
+    ...nIncoming,
+    name: normalizeCaseName(
+      (typeof incomingCase?.name === "string" && incomingCase.name.trim())
+        ? incomingCase.name
+        : existingCase?.name
+    ),
+    category: normalizeCategory(nIncoming.category || nExisting.category),
+    status: normalizeCaseStatus(nIncoming.status || nExisting.status),
+    notes: nIncoming.notes || nExisting.notes || "",
+    description: nIncoming.description || nExisting.description || "",
+    tags: Array.from(new Set([...nExisting.tags, ...nIncoming.tags])),
+    createdAt: nExisting.createdAt || nIncoming.createdAt || new Date().toISOString(),
+    updatedAt: nIncoming.updatedAt || nExisting.updatedAt || new Date().toISOString(),
+    evidence: mergeRecords(nExisting.evidence, nIncoming.evidence, "evidence"),
+    incidents: mergeRecords(nExisting.incidents, nIncoming.incidents, "incidents"),
+    tasks: mergeRecords(nExisting.tasks, nIncoming.tasks, "tasks"),
+    strategy: mergeRecords(nExisting.strategy, nIncoming.strategy, "strategy"),
+    ledger: mergeLedgerEntries(nExisting.ledger, nIncoming.ledger),
+    documents: mergeDocumentEntries(nExisting.documents, nIncoming.documents),
+    actionSummary: normalizeActionSummary(
+      incomingCase?.actionSummary && (
+        incomingCase.actionSummary.currentFocus ||
+        (incomingCase.actionSummary.nextActions || []).length ||
+        (incomingCase.actionSummary.importantReminders || []).length ||
+        (incomingCase.actionSummary.strategyFocus || []).length ||
+        incomingCase.actionSummary.updatedAt
+      )
+        ? incomingCase.actionSummary
+        : existingCase?.actionSummary
+    ),
+  };
+}
