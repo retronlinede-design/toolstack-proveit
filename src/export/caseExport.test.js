@@ -227,6 +227,125 @@ test("buildCaseReasoningExportPayload recentTimeline includes incidents and evid
   );
 });
 
+test("buildCaseReasoningExportPayload incidentSummary includes derived incidentLinks", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.incidents = [
+    {
+      id: "inc-current",
+      type: "incidents",
+      title: "Current incident",
+      eventDate: "2024-01-04",
+      date: "2024-01-04",
+      description: "Current description",
+      linkedEvidenceIds: [],
+      linkedIncidentRefs: [{ incidentId: "inc-outcome", type: "CAUSES" }],
+    },
+    {
+      id: "inc-cause",
+      type: "incidents",
+      title: "Cause incident",
+      eventDate: "2024-01-03",
+      date: "2024-01-03",
+      description: "Cause description",
+      linkedIncidentRefs: [{ incidentId: "inc-current", type: "CAUSES" }],
+    },
+    {
+      id: "inc-related",
+      type: "incidents",
+      title: "Related incident",
+      eventDate: "2024-01-02",
+      date: "2024-01-02",
+      description: "Related description",
+      linkedIncidentRefs: [{ incidentId: "inc-current", type: "RELATED_TO" }],
+    },
+    {
+      id: "inc-outcome",
+      type: "incidents",
+      title: "Outcome incident",
+      eventDate: "2024-01-01",
+      date: "2024-01-01",
+      description: "Outcome description",
+    },
+  ];
+
+  const payload = buildCaseReasoningExportPayload(caseItem, "detailed");
+  const current = payload.data.incidentSummary.find((item) => item.id === "inc-current");
+
+  assert.deepEqual(current.incidentLinks, {
+    causes: [{ id: "inc-cause", title: "Cause incident", date: "2024-01-03" }],
+    outcomes: [{ id: "inc-outcome", title: "Outcome incident", date: "2024-01-01" }],
+    related: [{ id: "inc-related", title: "Related incident", date: "2024-01-02" }],
+  });
+  assert.deepEqual(current.linkedEvidenceIds, []);
+});
+
+test("buildCaseReasoningExportPayload omits missing linked incident targets safely", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.incidents = [
+    {
+      id: "inc-current",
+      type: "incidents",
+      title: "Current incident",
+      eventDate: "2024-01-02",
+      date: "2024-01-02",
+      description: "Current description",
+      linkedIncidentRefs: [
+        { incidentId: "inc-missing-outcome", type: "CAUSES" },
+        { incidentId: "inc-missing-related", type: "RELATED_TO" },
+      ],
+    },
+    {
+      id: "inc-cause",
+      type: "incidents",
+      title: "Cause incident",
+      eventDate: "2024-01-01",
+      date: "2024-01-01",
+      linkedIncidentRefs: [{ incidentId: "inc-current", type: "CAUSES" }],
+    },
+  ];
+
+  const payload = buildCaseReasoningExportPayload(caseItem);
+  const current = payload.data.incidentSummary.find((item) => item.id === "inc-current");
+
+  assert.deepEqual(current.incidentLinks, {
+    causes: [{ id: "inc-cause", title: "Cause incident", date: "2024-01-01" }],
+    outcomes: [],
+    related: [],
+  });
+});
+
+test("buildCaseReasoningExportPayload linked incident entries remain compact", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.incidents = [
+    {
+      id: "inc-current",
+      type: "incidents",
+      title: "Current incident",
+      eventDate: "2024-01-02",
+      date: "2024-01-02",
+      linkedIncidentRefs: [{ incidentId: "inc-related", type: "RELATED_TO" }],
+    },
+    {
+      id: "inc-related",
+      type: "incidents",
+      title: "Related incident",
+      eventDate: "2024-01-01",
+      date: "2024-01-01",
+      description: "This should not be exported in incidentLinks.",
+      linkedEvidenceIds: ["ev-1"],
+      linkedIncidentRefs: [{ incidentId: "inc-current", type: "RELATED_TO" }],
+    },
+  ];
+
+  const payload = buildCaseReasoningExportPayload(caseItem);
+  const current = payload.data.incidentSummary.find((item) => item.id === "inc-current");
+
+  assert.deepEqual(Object.keys(current.incidentLinks.related[0]).sort(), ["date", "id", "title"]);
+  assert.deepEqual(current.incidentLinks.related, [
+    { id: "inc-related", title: "Related incident", date: "2024-01-01" },
+  ]);
+});
+
 test("buildCaseReasoningExportPayload locks compact and detailed limits", () => {
   const compact = buildCaseReasoningExportPayload(buildReasoningCase(), "compact");
   const detailed = buildCaseReasoningExportPayload(buildReasoningCase(), "detailed");
@@ -238,4 +357,3 @@ test("buildCaseReasoningExportPayload locks compact and detailed limits", () => 
   assert.equal(compact.data.incidentSummary.length, 2);
   assert.equal(detailed.data.incidentSummary.length, 2);
 });
-

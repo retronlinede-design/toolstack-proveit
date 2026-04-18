@@ -7,6 +7,7 @@ import {
   deleteDocumentEntryFromCase,
   deleteLedgerEntryFromCase,
   deleteRecordFromCase,
+  getIncidentLinkGroups,
   mergeCase,
   normalizeCase,
   normalizeRecord,
@@ -88,6 +89,90 @@ test("normalizeRecord normalizes timeline-capable incident records", () => {
   assert.equal(record.eventDate, "2024-04-01");
   assert.equal(record.createdAt, createdAt);
   assert.equal(record.updatedAt, createdAt);
+});
+
+test("normalizeRecord preserves valid linkedIncidentRefs on incidents", () => {
+  const record = normalizeRecord({
+    id: "inc-1",
+    title: "Incident",
+    date: "2024-04-01",
+    linkedIncidentRefs: [
+      { incidentId: "inc-2", type: "CAUSES" },
+      { incidentId: "inc-3", type: "RELATED_TO" },
+    ],
+  }, "incidents");
+
+  assert.deepEqual(record.linkedIncidentRefs, [
+    { incidentId: "inc-2", type: "CAUSES" },
+    { incidentId: "inc-3", type: "RELATED_TO" },
+  ]);
+});
+
+test("normalizeRecord drops invalid incident link refs", () => {
+  const record = normalizeRecord({
+    id: "inc-1",
+    title: "Incident",
+    date: "2024-04-01",
+    linkedIncidentRefs: [
+      { incidentId: "inc-2", type: "CAUSES" },
+      { incidentId: "inc-3", type: "causes" },
+      { incidentId: "", type: "RELATED_TO" },
+      { incidentId: "inc-4", type: "BLOCKS" },
+      null,
+      "inc-5",
+    ],
+  }, "incidents");
+
+  assert.deepEqual(record.linkedIncidentRefs, [
+    { incidentId: "inc-2", type: "CAUSES" },
+  ]);
+});
+
+test("normalizeRecord drops self incident links", () => {
+  const record = normalizeRecord({
+    id: "inc-1",
+    title: "Incident",
+    date: "2024-04-01",
+    linkedIncidentRefs: [
+      { incidentId: "inc-1", type: "CAUSES" },
+      { incidentId: "inc-2", type: "RELATED_TO" },
+    ],
+  }, "incidents");
+
+  assert.deepEqual(record.linkedIncidentRefs, [
+    { incidentId: "inc-2", type: "RELATED_TO" },
+  ]);
+});
+
+test("normalizeRecord dedupes incident link refs by target incident id", () => {
+  const record = normalizeRecord({
+    id: "inc-1",
+    title: "Incident",
+    date: "2024-04-01",
+    linkedIncidentRefs: [
+      { incidentId: "inc-2", type: "CAUSES" },
+      { incidentId: "inc-2", type: "RELATED_TO" },
+      { incidentId: "inc-3", type: "RELATED_TO" },
+    ],
+  }, "incidents");
+
+  assert.deepEqual(record.linkedIncidentRefs, [
+    { incidentId: "inc-2", type: "CAUSES" },
+    { incidentId: "inc-3", type: "RELATED_TO" },
+  ]);
+});
+
+test("normalizeRecord keeps incident linkedEvidenceIds unchanged with linkedIncidentRefs", () => {
+  const record = normalizeRecord({
+    id: "inc-1",
+    title: "Incident",
+    date: "2024-04-01",
+    linkedEvidenceIds: ["ev-1"],
+    linkedIncidentRefs: [{ incidentId: "inc-2", type: "CAUSES" }],
+  }, "incidents");
+
+  assert.deepEqual(record.linkedEvidenceIds, ["ev-1"]);
+  assert.deepEqual(record.linkedIncidentRefs, [{ incidentId: "inc-2", type: "CAUSES" }]);
 });
 
 test("normalizeCase builds the current canonical shape and sorts timeline arrays", () => {
@@ -260,6 +345,180 @@ test("deleteRecordFromCase removes deleted incident id from linked evidence only
   assert.match(linkedEvidence.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.deepEqual(updated.evidence.find((item) => item.id === "ev-unchanged"), unchangedEvidence);
   assert.match(updated.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
+});
+
+test("deleteRecordFromCase removes dangling incident refs and preserves unrelated incidents", () => {
+  const unchangedIncident = {
+    id: "inc-unchanged",
+    title: "Unchanged incident",
+    linkedIncidentRefs: [{ incidentId: "inc-other", type: "RELATED_TO" }],
+    updatedAt: iso("2024-01-01T09:00:00Z"),
+  };
+  const caseItem = {
+    id: "case-1",
+    updatedAt: iso("2024-01-01T08:00:00Z"),
+    incidents: [
+      { id: "inc-delete", title: "Delete me" },
+      {
+        id: "inc-changed",
+        title: "Changed incident",
+        linkedIncidentRefs: [
+          { incidentId: "inc-delete", type: "CAUSES" },
+          { incidentId: "inc-other", type: "RELATED_TO" },
+        ],
+        updatedAt: iso("2024-01-01T09:30:00Z"),
+      },
+      unchangedIncident,
+    ],
+    evidence: [
+      { id: "ev-linked", title: "Linked evidence", linkedIncidentIds: ["inc-delete", "inc-other"] },
+    ],
+  };
+
+  const updated = deleteRecordFromCase(caseItem, "incidents", "inc-delete");
+  const changedIncident = updated.incidents.find((item) => item.id === "inc-changed");
+  const linkedEvidence = updated.evidence.find((item) => item.id === "ev-linked");
+
+  assert.deepEqual(updated.incidents.map((item) => item.id), ["inc-changed", "inc-unchanged"]);
+  assert.deepEqual(changedIncident.linkedIncidentRefs, [
+    { incidentId: "inc-other", type: "RELATED_TO" },
+  ]);
+  assert.match(changedIncident.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.notEqual(changedIncident.updatedAt, "2024-01-01T09:30:00.000Z");
+  assert.equal(updated.incidents.find((item) => item.id === "inc-unchanged"), unchangedIncident);
+  assert.deepEqual(linkedEvidence.linkedIncidentIds, ["inc-other"]);
+  assert.match(linkedEvidence.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
+});
+
+test("getIncidentLinkGroups puts outgoing CAUSES in outcomes", () => {
+  const outcome = { id: "inc-outcome", title: "Outcome" };
+  const caseItem = {
+    incidents: [
+      {
+        id: "inc-current",
+        title: "Current",
+        linkedIncidentRefs: [{ incidentId: "inc-outcome", type: "CAUSES" }],
+      },
+      outcome,
+    ],
+  };
+
+  const groups = getIncidentLinkGroups(caseItem, "inc-current");
+
+  assert.deepEqual(groups.outcomes, [
+    { ref: { incidentId: "inc-outcome", type: "CAUSES" }, incident: outcome },
+  ]);
+  assert.deepEqual(groups.causes, []);
+  assert.deepEqual(groups.related, []);
+});
+
+test("getIncidentLinkGroups puts incoming CAUSES in causes", () => {
+  const cause = {
+    id: "inc-cause",
+    title: "Cause",
+    linkedIncidentRefs: [{ incidentId: "inc-current", type: "CAUSES" }],
+  };
+  const caseItem = {
+    incidents: [
+      { id: "inc-current", title: "Current" },
+      cause,
+    ],
+  };
+
+  const groups = getIncidentLinkGroups(caseItem, "inc-current");
+
+  assert.deepEqual(groups.outcomes, []);
+  assert.deepEqual(groups.causes, [
+    { ref: { incidentId: "inc-current", type: "CAUSES" }, incident: cause },
+  ]);
+  assert.deepEqual(groups.related, []);
+});
+
+test("getIncidentLinkGroups shows RELATED_TO symmetrically in related", () => {
+  const outgoingRelated = { id: "inc-outgoing", title: "Outgoing related" };
+  const incomingRelated = {
+    id: "inc-incoming",
+    title: "Incoming related",
+    linkedIncidentRefs: [{ incidentId: "inc-current", type: "RELATED_TO" }],
+  };
+  const caseItem = {
+    incidents: [
+      {
+        id: "inc-current",
+        title: "Current",
+        linkedIncidentRefs: [{ incidentId: "inc-outgoing", type: "RELATED_TO" }],
+      },
+      outgoingRelated,
+      incomingRelated,
+    ],
+  };
+
+  const groups = getIncidentLinkGroups(caseItem, "inc-current");
+
+  assert.deepEqual(groups.related, [
+    { ref: { incidentId: "inc-outgoing", type: "RELATED_TO" }, incident: outgoingRelated },
+    { ref: { incidentId: "inc-current", type: "RELATED_TO" }, incident: incomingRelated },
+  ]);
+});
+
+test("getIncidentLinkGroups ignores missing target incidents safely", () => {
+  const caseItem = {
+    incidents: [
+      {
+        id: "inc-current",
+        title: "Current",
+        linkedIncidentRefs: [
+          { incidentId: "inc-missing-outcome", type: "CAUSES" },
+          { incidentId: "inc-missing-related", type: "RELATED_TO" },
+        ],
+      },
+      {
+        id: "inc-cause",
+        title: "Cause",
+        linkedIncidentRefs: [{ incidentId: "inc-current", type: "CAUSES" }],
+      },
+    ],
+  };
+
+  const groups = getIncidentLinkGroups(caseItem, "inc-current");
+
+  assert.deepEqual(groups.outcomes, []);
+  assert.deepEqual(groups.causes, [
+    {
+      ref: { incidentId: "inc-current", type: "CAUSES" },
+      incident: caseItem.incidents[1],
+    },
+  ]);
+  assert.deepEqual(groups.related, []);
+  assert.deepEqual(getIncidentLinkGroups(caseItem, "missing"), {
+    outcomes: [],
+    causes: [],
+    related: [],
+  });
+});
+
+test("getIncidentLinkGroups dedupes related results", () => {
+  const related = {
+    id: "inc-related",
+    title: "Related",
+    linkedIncidentRefs: [{ incidentId: "inc-current", type: "RELATED_TO" }],
+  };
+  const caseItem = {
+    incidents: [
+      {
+        id: "inc-current",
+        title: "Current",
+        linkedIncidentRefs: [{ incidentId: "inc-related", type: "RELATED_TO" }],
+      },
+      related,
+    ],
+  };
+
+  const groups = getIncidentLinkGroups(caseItem, "inc-current");
+
+  assert.deepEqual(groups.related, [
+    { ref: { incidentId: "inc-related", type: "RELATED_TO" }, incident: related },
+  ]);
 });
 
 test("deleteRecordFromCase removes deleted evidence id from linked incidents only", () => {
@@ -570,6 +829,92 @@ test("upsertRecordInCase sorts timeline-capable records after upsert and syncs i
   assert.match(updated.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.notEqual(updated.updatedAt, caseItem.updatedAt);
   assert.equal(updated.documents, documents);
+});
+
+test("upsertRecordInCase persists linkedIncidentRefs on incident create", () => {
+  const caseItem = {
+    id: "case-1",
+    updatedAt: iso("2024-01-01T08:00:00Z"),
+    incidents: [
+      { id: "inc-existing", title: "Existing", date: "2024-03-03", eventDate: "2024-03-03", createdAt: iso("2024-03-03T09:00:00Z"), linkedEvidenceIds: [] },
+    ],
+    evidence: [
+      { id: "ev-1", title: "Evidence", date: "2024-03-02", eventDate: "2024-03-02", linkedIncidentIds: [] },
+    ],
+  };
+
+  const updated = upsertRecordInCase(caseItem, "incidents", {
+    id: "inc-new",
+    title: "New incident",
+    date: "2024-03-01",
+    description: "",
+    notes: "",
+    attachments: [],
+    availability: { digital: { files: [], hasDigital: false } },
+    linkedIncidentIds: [],
+    linkedEvidenceIds: ["ev-1"],
+    linkedIncidentRefs: [
+      { incidentId: "inc-existing", type: "CAUSES" },
+      { incidentId: "inc-new", type: "RELATED_TO" },
+    ],
+    linkedRecordIds: [],
+  });
+
+  const created = updated.incidents.find((item) => item.id === "inc-new");
+  assert.deepEqual(created.linkedIncidentRefs, [
+    { incidentId: "inc-existing", type: "CAUSES" },
+  ]);
+  assert.deepEqual(created.linkedEvidenceIds, ["ev-1"]);
+  assert.deepEqual(updated.evidence[0].linkedIncidentIds, ["inc-new"]);
+});
+
+test("upsertRecordInCase persists linkedIncidentRefs on incident edit", () => {
+  const editingRecord = {
+    id: "inc-1",
+    title: "Old incident",
+    date: "2024-03-01",
+    description: "Old",
+    notes: "",
+    linkedEvidenceIds: ["ev-old"],
+    linkedIncidentRefs: [{ incidentId: "inc-old", type: "RELATED_TO" }],
+    createdAt: iso("2024-03-01T09:00:00Z"),
+  };
+  const caseItem = {
+    id: "case-1",
+    updatedAt: iso("2024-01-01T08:00:00Z"),
+    incidents: [
+      editingRecord,
+      { id: "inc-2", title: "Second", date: "2024-03-02", eventDate: "2024-03-02", createdAt: iso("2024-03-02T09:00:00Z"), linkedEvidenceIds: [] },
+    ],
+    evidence: [
+      { id: "ev-1", title: "Evidence", date: "2024-03-02", eventDate: "2024-03-02", linkedIncidentIds: [] },
+      { id: "ev-old", title: "Old Evidence", date: "2024-03-02", eventDate: "2024-03-02", linkedIncidentIds: ["inc-1"] },
+    ],
+  };
+
+  const updated = upsertRecordInCase(caseItem, "incidents", {
+    title: "Updated incident",
+    date: "2024-03-01",
+    description: "Updated",
+    notes: "",
+    attachments: [],
+    availability: { digital: { files: [], hasDigital: false } },
+    linkedIncidentIds: [],
+    linkedEvidenceIds: ["ev-1"],
+    linkedIncidentRefs: [
+      { incidentId: "inc-2", type: "RELATED_TO" },
+      { incidentId: "inc-2", type: "CAUSES" },
+    ],
+  }, editingRecord);
+
+  const edited = updated.incidents.find((item) => item.id === "inc-1");
+  assert.equal(edited.title, "Updated incident");
+  assert.deepEqual(edited.linkedIncidentRefs, [
+    { incidentId: "inc-2", type: "RELATED_TO" },
+  ]);
+  assert.deepEqual(edited.linkedEvidenceIds, ["ev-1"]);
+  assert.deepEqual(updated.evidence.find((item) => item.id === "ev-1").linkedIncidentIds, ["inc-1"]);
+  assert.deepEqual(updated.evidence.find((item) => item.id === "ev-old").linkedIncidentIds, []);
 });
 
 test("convertQuickCaptureToRecord creates a record, prepends non-timeline targets, and marks capture converted", () => {

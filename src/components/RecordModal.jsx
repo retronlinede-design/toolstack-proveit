@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { INCIDENT_LINK_TYPES } from "../domain/caseDomain.js";
 
 export default function RecordModal({
   recordType,
@@ -21,6 +22,8 @@ export default function RecordModal({
   const titleInputRef = useRef(null);
   const dateInputRef = useRef(null);
   const descriptionTextareaRef = useRef(null);
+  const incidentLinkRefs = Array.isArray(recordForm.linkedIncidentRefs) ? recordForm.linkedIncidentRefs : [];
+  const incidentOptions = (selectedCase.incidents || []).filter((incident) => incident.id !== recordForm.id);
 
   // Follow-up task helper logic for new records
   const toggleEvidenceLink = (id) => {
@@ -37,6 +40,55 @@ export default function RecordModal({
     });
     setIsLinking(false);
     setTempSelection([]);
+  };
+
+  const getIncidentOptionsForLinkRow = (rowIndex) => {
+    const selectedIncidentIds = new Set(
+      incidentLinkRefs
+        .filter((_, index) => index !== rowIndex)
+        .map((ref) => ref.incidentId)
+    );
+
+    return incidentOptions.filter((incident) => !selectedIncidentIds.has(incident.id));
+  };
+
+  const addIncidentLinkRef = () => {
+    const selectedIncidentIds = new Set(incidentLinkRefs.map((ref) => ref.incidentId));
+    const nextIncident = incidentOptions.find((incident) => !selectedIncidentIds.has(incident.id));
+
+    if (!nextIncident) return;
+
+    setRecordForm({
+      ...recordForm,
+      linkedIncidentRefs: [
+        ...incidentLinkRefs,
+        { incidentId: nextIncident.id, type: "RELATED_TO" },
+      ],
+    });
+  };
+
+  const updateIncidentLinkRef = (index, patch) => {
+    const nextRefs = incidentLinkRefs.map((ref, refIndex) => {
+      if (refIndex !== index) return ref;
+      return { ...ref, ...patch };
+    });
+
+    const seenIncidentIds = new Set();
+    setRecordForm({
+      ...recordForm,
+      linkedIncidentRefs: nextRefs.filter((ref) => {
+        if (!ref.incidentId || seenIncidentIds.has(ref.incidentId)) return false;
+        seenIncidentIds.add(ref.incidentId);
+        return true;
+      }),
+    });
+  };
+
+  const removeIncidentLinkRef = (index) => {
+    setRecordForm({
+      ...recordForm,
+      linkedIncidentRefs: incidentLinkRefs.filter((_, refIndex) => refIndex !== index),
+    });
   };
 
   const isEdit = !!recordForm.id;
@@ -336,6 +388,64 @@ export default function RecordModal({
 
         {recordType === "incidents" ? (
           <div className="space-y-4">
+          <div className="mb-4 space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Linked Incidents</h3>
+                <p className="mt-1 text-xs text-neutral-500">Connect this incident to related events or outcomes.</p>
+              </div>
+              <button
+                onClick={addIncidentLinkRef}
+                disabled={incidentLinkRefs.length >= incidentOptions.length}
+                className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-xs font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:bg-neutral-100 disabled:text-neutral-400 disabled:shadow-none transition-colors"
+              >
+                + Add Link
+              </button>
+            </div>
+
+            {incidentLinkRefs.length > 0 ? (
+              <div className="space-y-2">
+                {incidentLinkRefs.map((ref, index) => {
+                  const options = getIncidentOptionsForLinkRow(index);
+                  return (
+                    <div key={`${ref.incidentId || "incident"}-${index}`} className="grid gap-2 rounded-xl border border-neutral-200 bg-white p-3 sm:grid-cols-[1fr_auto_auto]">
+                      <select
+                        value={ref.incidentId || ""}
+                        onChange={(e) => updateIncidentLinkRef(index, { incidentId: e.target.value })}
+                        className="w-full rounded-lg border border-neutral-300 p-2 text-sm"
+                      >
+                        {options.map((incident) => (
+                          <option key={incident.id} value={incident.id}>
+                            {incident.title || "Untitled incident"}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={ref.type || "RELATED_TO"}
+                        onChange={(e) => updateIncidentLinkRef(index, { type: e.target.value })}
+                        className="rounded-lg border border-neutral-300 p-2 text-sm"
+                      >
+                        {INCIDENT_LINK_TYPES.map((type) => (
+                          <option key={type} value={type}>
+                            {type === "CAUSES" ? "Causes" : "Related to"}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => removeIncidentLinkRef(index)}
+                        className="rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-bold text-red-700 shadow-sm hover:bg-red-50 transition-colors"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-neutral-500 italic">No incidents linked yet.</p>
+            )}
+          </div>
+
           <div className="mb-4 space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
             <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Linked Evidence</h3>
             {recordForm.linkedEvidenceIds && recordForm.linkedEvidenceIds.length > 0 ? (

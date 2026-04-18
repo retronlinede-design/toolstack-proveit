@@ -1,5 +1,5 @@
 import { getCaseHealthReport } from "../lib/caseHealth.js";
-import { sortTimelineItems } from "../domain/caseDomain.js";
+import { getIncidentLinkGroups, sortTimelineItems } from "../domain/caseDomain.js";
 
 /**
  * Sanitizes an attachment object for export, removing binary data.
@@ -138,15 +138,29 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
   const incidentSummary = sortTimelineItems(c.incidents || [])
     .reverse()
     .slice(0, limits.timeline)
-    .map(i => ({
-      id: i.id,
-      title: i.title,
-      status: i.status,
-      importance: i.importance,
-      date: i.eventDate || i.date || "",
-      summary: (i.description || i.notes || "").substring(0, 300),
-      linkedEvidenceIds: Array.isArray(i.linkedEvidenceIds) ? i.linkedEvidenceIds : [],
-    }));
+    .map(i => {
+      const incidentLinks = getIncidentLinkGroups(c, i.id);
+      const mapLinkedIncident = ({ incident }) => ({
+        id: incident.id,
+        title: incident.title || "",
+        date: incident.eventDate || incident.date || "",
+      });
+
+      return {
+        id: i.id,
+        title: i.title,
+        status: i.status,
+        importance: i.importance,
+        date: i.eventDate || i.date || "",
+        summary: (i.description || i.notes || "").substring(0, 300),
+        linkedEvidenceIds: Array.isArray(i.linkedEvidenceIds) ? i.linkedEvidenceIds : [],
+        incidentLinks: {
+          causes: incidentLinks.causes.map(mapLinkedIncident),
+          outcomes: incidentLinks.outcomes.map(mapLinkedIncident),
+          related: incidentLinks.related.map(mapLinkedIncident),
+        },
+      };
+    });
 
   const normalizeLevel = (value) => {
     const v = String(value || "").toLowerCase();

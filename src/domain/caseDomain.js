@@ -52,6 +52,37 @@ export function isTimelineCapable(recordType) {
   return ["evidence", "incidents", "strategy"].includes(type);
 }
 
+export const INCIDENT_LINK_TYPES = ["CAUSES", "RELATED_TO"];
+
+export function normalizeIncidentLinkRef(ref) {
+  if (!ref || typeof ref !== "object" || Array.isArray(ref)) return null;
+  if (typeof ref.incidentId !== "string") return null;
+
+  const incidentId = ref.incidentId.trim();
+  if (!incidentId || !INCIDENT_LINK_TYPES.includes(ref.type)) return null;
+
+  return {
+    incidentId,
+    type: ref.type,
+  };
+}
+
+export function normalizeIncidentLinkRefs(refs, currentIncidentId = null) {
+  if (!Array.isArray(refs)) return [];
+
+  const seenIncidentIds = new Set();
+  return refs.reduce((normalized, ref) => {
+    const normalizedRef = normalizeIncidentLinkRef(ref);
+    if (!normalizedRef) return normalized;
+    if (currentIncidentId && normalizedRef.incidentId === currentIncidentId) return normalized;
+    if (seenIncidentIds.has(normalizedRef.incidentId)) return normalized;
+
+    seenIncidentIds.add(normalizedRef.incidentId);
+    normalized.push(normalizedRef);
+    return normalized;
+  }, []);
+}
+
 /**
  * Normalizes timeline-specific fields with priority-based fallback logic.
  */
@@ -212,6 +243,15 @@ export function normalizeRecord(item, recordType) {
     };
   }
 
+  if (recordType === "incidents") {
+    const timelineData = normalizeTimelineFields(item);
+    return {
+      ...base,
+      ...timelineData,
+      linkedIncidentRefs: normalizeIncidentLinkRefs(item?.linkedIncidentRefs, base.id),
+    };
+  }
+
   if (isTimelineCapable(recordType)) {
     const timelineData = normalizeTimelineFields(item);
     return { ...base, ...timelineData };
@@ -367,14 +407,88 @@ export function syncCaseLinks(caseData, record, type) {
   return updatedCase;
 }
 
+export function removeIncidentRefsToIncident(caseItem, deletedIncidentId) {
+  return {
+    ...caseItem,
+    incidents: (caseItem.incidents || []).map((incident) => {
+      const refs = Array.isArray(incident.linkedIncidentRefs) ? incident.linkedIncidentRefs : [];
+      const updatedRefs = refs.filter((ref) => ref?.incidentId !== deletedIncidentId);
+
+      if (updatedRefs.length !== refs.length) {
+        return {
+          ...incident,
+          linkedIncidentRefs: updatedRefs,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+
+      return incident;
+    }),
+  };
+}
+
+export function getIncidentLinkGroups(caseItem, incidentId) {
+  const incidents = Array.isArray(caseItem?.incidents) ? caseItem.incidents : [];
+  const incidentMap = new Map(incidents.map((incident) => [incident.id, incident]));
+  const currentIncident = incidentMap.get(incidentId);
+
+  if (!currentIncident) {
+    return {
+      outcomes: [],
+      causes: [],
+      related: [],
+    };
+  }
+
+  const outcomes = [];
+  const causes = [];
+  const related = [];
+  const relatedIncidentIds = new Set();
+
+  for (const ref of currentIncident.linkedIncidentRefs || []) {
+    if (ref?.type === "CAUSES") {
+      const incident = incidentMap.get(ref.incidentId);
+      if (incident) outcomes.push({ ref, incident });
+    } else if (ref?.type === "RELATED_TO") {
+      const incident = incidentMap.get(ref.incidentId);
+      if (incident && !relatedIncidentIds.has(incident.id)) {
+        relatedIncidentIds.add(incident.id);
+        related.push({ ref, incident });
+      }
+    }
+  }
+
+  for (const incident of incidents) {
+    if (incident.id === incidentId) continue;
+
+    for (const ref of incident.linkedIncidentRefs || []) {
+      if (ref?.incidentId !== incidentId) continue;
+
+      if (ref.type === "CAUSES") {
+        causes.push({ ref, incident });
+      } else if (ref.type === "RELATED_TO" && !relatedIncidentIds.has(incident.id)) {
+        relatedIncidentIds.add(incident.id);
+        related.push({ ref, incident });
+      }
+    }
+  }
+
+  return {
+    outcomes,
+    causes,
+    related,
+  };
+}
+
 export function deleteRecordFromCase(caseItem, recordType, recordId) {
-  const updatedCase = {
+  let updatedCase = {
     ...caseItem,
     [recordType]: caseItem[recordType].filter((r) => r.id !== recordId),
     updatedAt: new Date().toISOString(),
   };
 
   if (recordType === "incidents") {
+    updatedCase = removeIncidentRefsToIncident(updatedCase, recordId);
     updatedCase.evidence = sortTimelineItems((updatedCase.evidence || []).map(ev => {
       const isCurrentlyLinked = (ev.linkedIncidentIds || []).includes(recordId);
 
@@ -513,6 +627,7 @@ export function upsertRecordInCase(caseItem, recordType, recordInput, editingRec
       reviewNotes: recordInput.reviewNotes,
       linkedIncidentIds: recordInput.linkedIncidentIds, // Explicitly pass from form
       linkedEvidenceIds: recordInput.linkedEvidenceIds, // Explicitly pass from form
+      linkedIncidentRefs: recordInput.linkedIncidentRefs,
       updatedAt: new Date().toISOString(),
       edited: true,
     }, recordType);
@@ -560,6 +675,7 @@ export function upsertRecordInCase(caseItem, recordType, recordInput, editingRec
       reviewNotes: recordInput.reviewNotes,
       linkedIncidentIds: recordInput.linkedIncidentIds,
       linkedEvidenceIds: recordInput.linkedEvidenceIds,
+      linkedIncidentRefs: recordInput.linkedIncidentRefs,
       linkedRecordIds: recordInput.linkedRecordIds || [],
       createdAt: new Date().toISOString(),
     }, recordType);

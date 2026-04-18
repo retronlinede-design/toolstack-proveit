@@ -1,4 +1,5 @@
 import AttachmentPreview from "./AttachmentPreview";
+import { getIncidentLinkGroups } from "../domain/caseDomain.js";
 
 export default function RecordCard({
   item,
@@ -17,6 +18,7 @@ export default function RecordCard({
   isActionItem = false,
 }) {
   const isEvidence = recordType === "evidence";
+  const incidentLinkGroups = recordType === "incidents" ? getIncidentLinkGroups(selectedCase, item.id) : null;
   const canCreateTask = ["evidence", "incidents", "strategy"].includes(recordType);
   const isNewRecord =
     (recordType === "evidence" || recordType === "incidents") &&
@@ -26,6 +28,30 @@ export default function RecordCard({
     evidence: "bg-purple-50 text-purple-700 border-purple-200",
     incidents: "bg-amber-50 text-amber-700 border-amber-200",
     strategy: "bg-blue-50 text-blue-700 border-blue-200",
+  };
+
+  const renderIncidentLinkSection = (title, links) => {
+    if (!links || links.length === 0) return null;
+
+    return (
+      <div className="mt-4 pt-4 border-t border-neutral-100">
+        <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">{title}</h4>
+        <div className="flex flex-wrap gap-2">
+          {links.map(({ ref, incident }) => (
+            <button
+              key={`${title}-${incident.id}-${ref.type}`}
+              onClick={() => openLinkedRecord?.(incident.id)}
+              className="rounded-lg border border-neutral-200 bg-white px-2 py-1 text-left text-xs text-neutral-700 shadow-sm hover:border-lime-500 hover:bg-lime-50 transition-colors"
+            >
+              <span className="font-semibold">{incident.title || "Untitled incident"}</span>
+              {(incident.eventDate || incident.date) && (
+                <span className="ml-2 text-[10px] text-neutral-400">{incident.eventDate || incident.date}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -292,6 +318,9 @@ export default function RecordCard({
           </div>
         </div>
       )}
+      {recordType === "incidents" && renderIncidentLinkSection("Causes", incidentLinkGroups.causes)}
+      {recordType === "incidents" && renderIncidentLinkSection("Outcomes", incidentLinkGroups.outcomes)}
+      {recordType === "incidents" && renderIncidentLinkSection("Related", incidentLinkGroups.related)}
     </div>
   );
 }

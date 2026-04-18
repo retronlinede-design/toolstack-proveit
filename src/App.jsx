@@ -58,6 +58,7 @@ const EMPTY_RECORD_FORM = {
   linkedRecordIds: [],
   linkedIncidentIds: [], // Added for evidence
   linkedEvidenceIds: [], // Added for incidents
+  linkedIncidentRefs: [],
   importance: "unreviewed",
   relevance: "medium",
   status: "needs_review",
