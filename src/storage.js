@@ -73,21 +73,6 @@ export async function deleteImage(imageId) {
 }
 
 export async function getImageById(id) {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open("proveit-db");
-
-    request.onerror = () => reject("DB open failed");
-
-    request.onsuccess = () => {
-      const db = request.result;
-
-      const transaction = db.transaction(["images"], "readonly");
-      const store = transaction.objectStore("images");
-
-      const getReq = store.get(id);
-
-      getReq.onsuccess = () => resolve(getReq.result || null);
-      getReq.onerror = () => reject("getImageById failed");
-    };
-  });
+  const db = await dbPromise;
+  return db.get("images", id);
 }

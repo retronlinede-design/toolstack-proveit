@@ -1325,7 +1325,8 @@ const handleRecordFiles = async (event) => {
               </span>
             </div>
             <AttachmentPreview 
-              attachments={(item.attachments || []).map(att => att.file || imageCache[att.storageRef]).filter(Boolean)} 
+              attachments={item.attachments || []}
+              imageCache={imageCache}
               onPreview={setPreviewFile}
             />
             <div className="mt-4 flex flex-wrap gap-2">

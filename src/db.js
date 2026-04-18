@@ -1,19 +1,34 @@
 import { openDB } from "idb";
 
-export const dbPromise = openDB("proveit-db", 1, {
+export const dbPromise = openDB("proveit-db", 2, {
   upgrade(db) {
     if (!db.objectStoreNames.contains("cases")) {
       db.createObjectStore("cases", { keyPath: "id" });
     }
 
+    let evidenceStore;
     if (!db.objectStoreNames.contains("evidence")) {
-      const evidenceStore = db.createObjectStore("evidence", { keyPath: "id" });
+      evidenceStore = db.createObjectStore("evidence", { keyPath: "id" });
+    } else {
+      evidenceStore = db.transaction.objectStore("evidence");
+    }
+
+    if (!evidenceStore.indexNames.contains("caseId")) {
       evidenceStore.createIndex("caseId", "caseId");
     }
 
+    let imageStore;
     if (!db.objectStoreNames.contains("images")) {
-      const imageStore = db.createObjectStore("images", { keyPath: "id" });
+      imageStore = db.createObjectStore("images", { keyPath: "id" });
+    } else {
+      imageStore = db.transaction.objectStore("images");
+    }
+
+    if (!imageStore.indexNames.contains("caseId")) {
       imageStore.createIndex("caseId", "caseId");
+    }
+
+    if (!imageStore.indexNames.contains("evidenceId")) {
       imageStore.createIndex("evidenceId", "evidenceId");
     }
   },
