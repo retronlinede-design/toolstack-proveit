@@ -1,7 +1,7 @@
 import { openDB } from "idb";
 
 export const dbPromise = openDB("proveit-db", 2, {
-  upgrade(db) {
+  upgrade(db, oldVersion, newVersion, transaction) {
     if (!db.objectStoreNames.contains("cases")) {
       db.createObjectStore("cases", { keyPath: "id" });
     }
@@ -10,7 +10,7 @@ export const dbPromise = openDB("proveit-db", 2, {
     if (!db.objectStoreNames.contains("evidence")) {
       evidenceStore = db.createObjectStore("evidence", { keyPath: "id" });
     } else {
-      evidenceStore = db.transaction.objectStore("evidence");
+      evidenceStore = transaction.objectStore("evidence");
     }
 
     if (!evidenceStore.indexNames.contains("caseId")) {
@@ -21,7 +21,7 @@ export const dbPromise = openDB("proveit-db", 2, {
     if (!db.objectStoreNames.contains("images")) {
       imageStore = db.createObjectStore("images", { keyPath: "id" });
     } else {
-      imageStore = db.transaction.objectStore("images");
+      imageStore = transaction.objectStore("images");
     }
 
     if (!imageStore.indexNames.contains("caseId")) {
