@@ -1,6 +1,17 @@
 import AttachmentPreview from "./AttachmentPreview";
 import { getIncidentLinkGroups } from "../domain/caseDomain.js";
 
+const EVIDENCE_ROLE_LABELS = {
+  ANCHOR_EVIDENCE: "Anchor Evidence",
+  SUPPORTING_EVIDENCE: "Supporting Evidence",
+  TIMELINE_EVIDENCE: "Timeline Evidence",
+  MEDICAL_EVIDENCE: "Medical Evidence",
+  COMMUNICATION_EVIDENCE: "Communication Evidence",
+  OPERATIONAL_EVIDENCE: "Operational Evidence",
+  CORROBORATING_EVIDENCE: "Corroborating Evidence",
+  OTHER: "Other",
+};
+
 export default function RecordCard({
   item,
   recordType,
@@ -146,6 +157,26 @@ export default function RecordCard({
               </div>
             )}
 
+            {isEvidence && (
+              <div className="mt-2 space-y-2">
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="inline-block rounded border border-lime-200 bg-lime-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-lime-700">
+                    {EVIDENCE_ROLE_LABELS[item.evidenceRole] || EVIDENCE_ROLE_LABELS.OTHER}
+                  </span>
+                  {item.sequenceGroup && (
+                    <span className="inline-block rounded border border-neutral-200 bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-600">
+                      {item.sequenceGroup}
+                    </span>
+                  )}
+                </div>
+                {item.functionSummary && (
+                  <div className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-700">
+                    <span className="font-semibold text-neutral-900">Function:</span> {item.functionSummary}
+                  </div>
+                )}
+              </div>
+            )}
+
             {isEvidence && item.attachments?.length > 0 && (
               <div className="mt-3 space-y-3">
                 <div className="flex flex-wrap gap-1.5">
@@ -212,7 +243,7 @@ export default function RecordCard({
               if (allLinkIds.length === 0) return null;
               return (
                 <div className="mt-2 space-y-1">
-                  <div className="text-[10px] font-bold uppercase tracking-tight text-neutral-500">{isEvidence ? "Linked To" : "Linked:"}</div>
+                  <div className="text-[10px] font-bold uppercase tracking-tight text-neutral-500">{isEvidence ? "Linked Incidents" : "Linked:"}</div>
                   <div className="flex flex-wrap gap-1">
                     {allLinkIds.map(linkedId => (
                       <button

@@ -249,6 +249,7 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
           usableNow: true,
         }))),
   ].slice(0, 5);
+  const incidentMap = new Map((c.incidents || []).map((incident) => [incident.id, incident]));
   const evidenceSummary = (c.evidence || []).map(e => ({
     id: e.id,
     title: e.title,
@@ -258,6 +259,17 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
     sourceType: e.sourceType,
     summary: (e.description || e.notes || "").substring(0, 300),
     attachmentCount: Array.isArray(e.attachments) ? e.attachments.length : 0,
+    evidenceRole: e.evidenceRole,
+    sequenceGroup: e.sequenceGroup || "",
+    functionSummary: e.functionSummary || "",
+    linkedIncidents: (Array.isArray(e.linkedIncidentIds) ? e.linkedIncidentIds : [])
+      .map((incidentId) => incidentMap.get(incidentId))
+      .filter(Boolean)
+      .map((incident) => ({
+        id: incident.id,
+        title: incident.title || "",
+        date: incident.eventDate || incident.date || "",
+      })),
   }));
   const documentSummary = (c.documents || []).map(d => ({
     id: d.id,

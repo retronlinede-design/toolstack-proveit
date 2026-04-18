@@ -227,6 +227,72 @@ test("buildCaseReasoningExportPayload recentTimeline includes incidents and evid
   );
 });
 
+test("buildCaseReasoningExportPayload evidenceSummary includes structured evidence metadata", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.evidence[0] = {
+    ...caseItem.evidence[0],
+    evidenceRole: "ANCHOR_EVIDENCE",
+    sequenceGroup: "Repair sequence",
+    functionSummary: "Shows when the repair issue first became documented.",
+  };
+
+  const payload = buildCaseReasoningExportPayload(caseItem);
+  const evidence = payload.data.evidenceSummary.find((item) => item.id === "ev-1");
+
+  assert.equal(evidence.evidenceRole, "ANCHOR_EVIDENCE");
+  assert.equal(evidence.sequenceGroup, "Repair sequence");
+  assert.equal(evidence.functionSummary, "Shows when the repair issue first became documented.");
+  assert.equal(evidence.title, "Middle evidence");
+  assert.equal(evidence.attachmentCount, 1);
+});
+
+test("buildCaseReasoningExportPayload evidenceSummary includes compact linkedIncidents from linkedIncidentIds", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.evidence[0] = {
+    ...caseItem.evidence[0],
+    linkedIncidentIds: ["inc-1", "inc-2"],
+  };
+
+  const payload = buildCaseReasoningExportPayload(caseItem);
+  const evidence = payload.data.evidenceSummary.find((item) => item.id === "ev-1");
+
+  assert.deepEqual(evidence.linkedIncidents, [
+    { id: "inc-1", title: "Early incident", date: "2024-01-01" },
+    { id: "inc-2", title: "Late incident", date: "2024-01-03" },
+  ]);
+});
+
+test("buildCaseReasoningExportPayload evidenceSummary omits missing linked incident targets safely", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.evidence[0] = {
+    ...caseItem.evidence[0],
+    linkedIncidentIds: ["inc-1", "inc-missing"],
+  };
+
+  const payload = buildCaseReasoningExportPayload(caseItem);
+  const evidence = payload.data.evidenceSummary.find((item) => item.id === "ev-1");
+
+  assert.deepEqual(evidence.linkedIncidents, [
+    { id: "inc-1", title: "Early incident", date: "2024-01-01" },
+  ]);
+});
+
+test("buildCaseReasoningExportPayload evidence linked incident entries remain compact", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.evidence[0] = {
+    ...caseItem.evidence[0],
+    linkedIncidentIds: ["inc-1"],
+  };
+
+  const payload = buildCaseReasoningExportPayload(caseItem);
+  const evidence = payload.data.evidenceSummary.find((item) => item.id === "ev-1");
+
+  assert.deepEqual(Object.keys(evidence.linkedIncidents[0]).sort(), ["date", "id", "title"]);
+  assert.deepEqual(evidence.linkedIncidents, [
+    { id: "inc-1", title: "Early incident", date: "2024-01-01" },
+  ]);
+});
+
 test("buildCaseReasoningExportPayload incidentSummary includes derived incidentLinks", () => {
   const caseItem = buildReasoningCase();
   caseItem.incidents = [
@@ -356,4 +422,6 @@ test("buildCaseReasoningExportPayload locks compact and detailed limits", () => 
   assert.equal(detailed.data.recentTimeline.length, 4);
   assert.equal(compact.data.incidentSummary.length, 2);
   assert.equal(detailed.data.incidentSummary.length, 2);
+  assert.equal(compact.data.evidenceSummary.length, 2);
+  assert.equal(detailed.data.evidenceSummary.length, 2);
 });

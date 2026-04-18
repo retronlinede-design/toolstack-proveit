@@ -46,6 +46,9 @@ test("normalizeRecord applies shared timeline fields to evidence and preserves c
   assert.equal(record.capturedAt, "2024-02-03");
   assert.equal(record.importance, "unreviewed");
   assert.equal(record.relevance, "medium");
+  assert.equal(record.evidenceRole, "OTHER");
+  assert.equal(record.sequenceGroup, "");
+  assert.equal(record.functionSummary, "");
   assert.deepEqual(record.availability.physical, {
     hasOriginal: true,
     location: "Box A",
@@ -56,6 +59,38 @@ test("normalizeRecord applies shared timeline fields to evidence and preserves c
   assert.equal(record.eventDate, "2024-02-03");
   assert.equal(record.createdAt, createdAt);
   assert.equal(record.updatedAt, updatedAt);
+});
+
+test("normalizeRecord preserves valid evidence structural fields", () => {
+  const record = normalizeRecord({
+    id: "ev-1",
+    title: "Evidence",
+    date: "2024-02-03",
+    evidenceRole: "ANCHOR_EVIDENCE",
+    sequenceGroup: "  Notice sequence  ",
+    functionSummary: "  Shows the first written warning.  ",
+    usedIn: ["Legacy use"],
+  }, "evidence");
+
+  assert.equal(record.evidenceRole, "ANCHOR_EVIDENCE");
+  assert.equal(record.sequenceGroup, "Notice sequence");
+  assert.equal(record.functionSummary, "Shows the first written warning.");
+  assert.deepEqual(record.usedIn, ["Legacy use"]);
+});
+
+test("normalizeRecord defaults invalid evidenceRole to OTHER", () => {
+  const record = normalizeRecord({
+    id: "ev-1",
+    title: "Evidence",
+    date: "2024-02-03",
+    evidenceRole: "anchor_evidence",
+    sequenceGroup: 123,
+    functionSummary: ["not-string"],
+  }, "evidence");
+
+  assert.equal(record.evidenceRole, "OTHER");
+  assert.equal(record.sequenceGroup, "");
+  assert.equal(record.functionSummary, "");
 });
 
 test("normalizeRecord keeps evidence capturedAt independent from eventDate", () => {
@@ -755,6 +790,97 @@ test("upsertRecordInCase mirrors evidence attachments into availability and sync
   assert.match(updated.incidents[0].updatedAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.match(updated.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(updated.ledger, ledger);
+});
+
+test("upsertRecordInCase persists evidence structural fields on create", () => {
+  const caseItem = {
+    id: "case-1",
+    updatedAt: iso("2024-01-01T08:00:00Z"),
+    evidence: [],
+    incidents: [
+      { id: "inc-1", title: "Incident", linkedEvidenceIds: [] },
+    ],
+  };
+
+  const updated = upsertRecordInCase(caseItem, "evidence", {
+    id: "ev-1",
+    title: "Evidence",
+    date: "2024-02-01",
+    description: "",
+    notes: "",
+    attachments: [],
+    availability: {
+      physical: { hasOriginal: false, location: "", notes: "" },
+      digital: { hasDigital: false, files: [] },
+    },
+    importance: "critical",
+    relevance: "high",
+    status: "verified",
+    usedIn: ["Legacy"],
+    reviewNotes: "Review note",
+    evidenceRole: "TIMELINE_EVIDENCE",
+    sequenceGroup: "  Repair sequence  ",
+    functionSummary: "  Places the repair request in sequence.  ",
+    linkedIncidentIds: ["inc-1"],
+    linkedEvidenceIds: [],
+    linkedRecordIds: [],
+  });
+
+  assert.equal(updated.evidence[0].evidenceRole, "TIMELINE_EVIDENCE");
+  assert.equal(updated.evidence[0].sequenceGroup, "Repair sequence");
+  assert.equal(updated.evidence[0].functionSummary, "Places the repair request in sequence.");
+  assert.deepEqual(updated.evidence[0].usedIn, ["Legacy"]);
+  assert.deepEqual(updated.evidence[0].linkedIncidentIds, ["inc-1"]);
+  assert.deepEqual(updated.incidents[0].linkedEvidenceIds, ["ev-1"]);
+});
+
+test("upsertRecordInCase persists evidence structural fields on edit", () => {
+  const editingRecord = {
+    id: "ev-1",
+    title: "Old evidence",
+    date: "2024-02-01",
+    attachments: [],
+    availability: {
+      physical: { hasOriginal: false, location: "", notes: "" },
+      digital: { hasDigital: false, files: [] },
+    },
+    evidenceRole: "OTHER",
+    sequenceGroup: "Old sequence",
+    functionSummary: "Old function",
+    linkedIncidentIds: [],
+  };
+  const caseItem = {
+    id: "case-1",
+    updatedAt: iso("2024-01-01T08:00:00Z"),
+    evidence: [editingRecord],
+    incidents: [
+      { id: "inc-1", title: "Incident", linkedEvidenceIds: [] },
+    ],
+  };
+
+  const updated = upsertRecordInCase(caseItem, "evidence", {
+    title: "Updated evidence",
+    date: "2024-02-02",
+    description: "",
+    notes: "",
+    attachments: [],
+    availability: {
+      physical: { hasOriginal: false, location: "", notes: "" },
+      digital: { hasDigital: false, files: [] },
+    },
+    evidenceRole: "CORROBORATING_EVIDENCE",
+    sequenceGroup: "  Updated sequence  ",
+    functionSummary: "  Corroborates the incident report.  ",
+    linkedIncidentIds: ["inc-1"],
+    linkedEvidenceIds: [],
+  }, editingRecord);
+
+  assert.equal(updated.evidence[0].evidenceRole, "CORROBORATING_EVIDENCE");
+  assert.equal(updated.evidence[0].sequenceGroup, "Updated sequence");
+  assert.equal(updated.evidence[0].functionSummary, "Corroborates the incident report.");
+  assert.deepEqual(updated.evidence[0].linkedIncidentIds, ["inc-1"]);
+  assert.deepEqual(updated.incidents[0].linkedEvidenceIds, ["ev-1"]);
+  assert.equal(updated.evidence[0].edited, true);
 });
 
 test("upsertRecordInCase forces evidence digital availability false when attachments are empty", () => {

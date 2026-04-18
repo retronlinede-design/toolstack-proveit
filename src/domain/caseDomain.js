@@ -54,6 +54,21 @@ export function isTimelineCapable(recordType) {
 
 export const INCIDENT_LINK_TYPES = ["CAUSES", "RELATED_TO"];
 
+export const EVIDENCE_ROLES = [
+  "ANCHOR_EVIDENCE",
+  "SUPPORTING_EVIDENCE",
+  "TIMELINE_EVIDENCE",
+  "MEDICAL_EVIDENCE",
+  "COMMUNICATION_EVIDENCE",
+  "OPERATIONAL_EVIDENCE",
+  "CORROBORATING_EVIDENCE",
+  "OTHER",
+];
+
+export function normalizeEvidenceRole(value) {
+  return EVIDENCE_ROLES.includes(value) ? value : "OTHER";
+}
+
 export function normalizeIncidentLinkRef(ref) {
   if (!ref || typeof ref !== "object" || Array.isArray(ref)) return null;
   if (typeof ref.incidentId !== "string") return null;
@@ -228,6 +243,9 @@ export function normalizeRecord(item, recordType) {
       status: ["verified", "needs_review", "incomplete"].includes(item?.status) ? item.status : "needs_review",
       usedIn: Array.isArray(item?.usedIn) ? item.usedIn : [],
       reviewNotes: item?.reviewNotes || "",
+      evidenceRole: normalizeEvidenceRole(item?.evidenceRole),
+      sequenceGroup: typeof item?.sequenceGroup === "string" ? item.sequenceGroup.trim() : "",
+      functionSummary: typeof item?.functionSummary === "string" ? item.functionSummary.trim() : "",
       // linkedIncidentIds is now handled in base, no need to re-add here
       availability: { 
         physical: {
@@ -625,6 +643,9 @@ export function upsertRecordInCase(caseItem, recordType, recordInput, editingRec
       status: recordInput.status,
       usedIn: recordInput.usedIn,
       reviewNotes: recordInput.reviewNotes,
+      evidenceRole: recordInput.evidenceRole,
+      sequenceGroup: recordInput.sequenceGroup,
+      functionSummary: recordInput.functionSummary,
       linkedIncidentIds: recordInput.linkedIncidentIds, // Explicitly pass from form
       linkedEvidenceIds: recordInput.linkedEvidenceIds, // Explicitly pass from form
       linkedIncidentRefs: recordInput.linkedIncidentRefs,
@@ -673,6 +694,9 @@ export function upsertRecordInCase(caseItem, recordType, recordInput, editingRec
       status: recordInput.status,
       usedIn: recordInput.usedIn,
       reviewNotes: recordInput.reviewNotes,
+      evidenceRole: recordInput.evidenceRole,
+      sequenceGroup: recordInput.sequenceGroup,
+      functionSummary: recordInput.functionSummary,
       linkedIncidentIds: recordInput.linkedIncidentIds,
       linkedEvidenceIds: recordInput.linkedEvidenceIds,
       linkedIncidentRefs: recordInput.linkedIncidentRefs,

@@ -1,5 +1,16 @@
 import { useState, useEffect, useRef } from "react";
-import { INCIDENT_LINK_TYPES } from "../domain/caseDomain.js";
+import { EVIDENCE_ROLES, INCIDENT_LINK_TYPES } from "../domain/caseDomain.js";
+
+const EVIDENCE_ROLE_LABELS = {
+  ANCHOR_EVIDENCE: "Anchor Evidence",
+  SUPPORTING_EVIDENCE: "Supporting Evidence",
+  TIMELINE_EVIDENCE: "Timeline Evidence",
+  MEDICAL_EVIDENCE: "Medical Evidence",
+  COMMUNICATION_EVIDENCE: "Communication Evidence",
+  OPERATIONAL_EVIDENCE: "Operational Evidence",
+  CORROBORATING_EVIDENCE: "Corroborating Evidence",
+  OTHER: "Other",
+};
 
 export default function RecordModal({
   recordType,
@@ -24,6 +35,7 @@ export default function RecordModal({
   const descriptionTextareaRef = useRef(null);
   const incidentLinkRefs = Array.isArray(recordForm.linkedIncidentRefs) ? recordForm.linkedIncidentRefs : [];
   const incidentOptions = (selectedCase.incidents || []).filter((incident) => incident.id !== recordForm.id);
+  const linkedEvidenceIncidentIds = Array.isArray(recordForm.linkedIncidentIds) ? recordForm.linkedIncidentIds : [];
 
   // Follow-up task helper logic for new records
   const toggleEvidenceLink = (id) => {
@@ -88,6 +100,15 @@ export default function RecordModal({
     setRecordForm({
       ...recordForm,
       linkedIncidentRefs: incidentLinkRefs.filter((_, refIndex) => refIndex !== index),
+    });
+  };
+
+  const toggleLinkedEvidenceIncident = (incidentId) => {
+    setRecordForm({
+      ...recordForm,
+      linkedIncidentIds: linkedEvidenceIncidentIds.includes(incidentId)
+        ? linkedEvidenceIncidentIds.filter((id) => id !== incidentId)
+        : [...linkedEvidenceIncidentIds, incidentId],
     });
   };
 
@@ -267,17 +288,70 @@ export default function RecordModal({
               </div>
             </div>
 
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-semibold text-neutral-600">Evidence Role</label>
+                <select
+                  value={recordForm.evidenceRole || "OTHER"}
+                  onChange={(e) => setRecordForm({ ...recordForm, evidenceRole: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm"
+                >
+                  {EVIDENCE_ROLES.map((role) => (
+                    <option key={role} value={role}>
+                      {EVIDENCE_ROLE_LABELS[role] || role}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-neutral-600">Sequence Group</label>
+                <input
+                  placeholder="e.g. Repair timeline"
+                  value={recordForm.sequenceGroup || ""}
+                  onChange={(e) => setRecordForm({ ...recordForm, sequenceGroup: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm"
+                />
+              </div>
+            </div>
+
             <div>
-              <label className="text-xs font-semibold text-neutral-600">Used In (Comma separated)</label>
-              <input 
-                placeholder="e.g. Complaint, Hearing, Timeline"
-                value={recordForm.usedIn?.join(", ") || ""}
-                onChange={(e) => setRecordForm({
-                  ...recordForm, 
-                  usedIn: e.target.value.split(",").map(s => s.trim()).filter(Boolean)
-                })}
+              <label className="text-xs font-semibold text-neutral-600">Function Summary</label>
+              <textarea
+                placeholder="What this evidence helps establish..."
+                value={recordForm.functionSummary || ""}
+                onChange={(e) => setRecordForm({ ...recordForm, functionSummary: e.target.value })}
                 className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm"
+                rows={2}
               />
+            </div>
+
+            <div className="space-y-2">
+              <div>
+                <label className="text-xs font-semibold text-neutral-600">Linked Incidents</label>
+                <p className="mt-1 text-xs text-neutral-500">Connect this evidence to the incident records it supports.</p>
+              </div>
+              {(selectedCase.incidents || []).length > 0 ? (
+                <div className="max-h-40 space-y-2 overflow-y-auto rounded-lg border border-neutral-200 bg-white p-2">
+                  {(selectedCase.incidents || []).map((incident) => (
+                    <label key={incident.id} className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2 text-sm hover:border-lime-300 hover:bg-lime-50/40">
+                      <span className="min-w-0 flex-1 truncate text-neutral-800">{incident.title || "Untitled incident"}</span>
+                      {(incident.eventDate || incident.date) && (
+                        <span className="shrink-0 text-[10px] font-bold uppercase text-neutral-400">{incident.eventDate || incident.date}</span>
+                      )}
+                      <input
+                        type="checkbox"
+                        checked={linkedEvidenceIncidentIds.includes(incident.id)}
+                        onChange={() => toggleLinkedEvidenceIncident(incident.id)}
+                        className="h-4 w-4 rounded border-neutral-300 text-lime-600 focus:ring-lime-500"
+                      />
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-lg border border-dashed border-neutral-200 bg-white p-3 text-xs text-neutral-500 italic">
+                  No incidents available to link yet.
+                </p>
+              )}
             </div>
 
             <div>

@@ -64,6 +64,9 @@ const EMPTY_RECORD_FORM = {
   status: "needs_review",
   usedIn: [],
   reviewNotes: "",
+  evidenceRole: "OTHER",
+  sequenceGroup: "",
+  functionSummary: "",
   sourceType: "other",
   capturedAt: "",
   availability: {
