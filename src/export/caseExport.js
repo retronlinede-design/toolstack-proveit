@@ -93,7 +93,9 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
 
   const c = sanitizeCaseForExport(caseItem);
   const health = getCaseHealthReport(c);
-  const limits = mode === "compact" ? { timeline: 5, facts: 8, tasks: 8 } : { timeline: 12, facts: 12, tasks: 12 };
+  const limits = mode === "compact"
+    ? { timeline: 5, facts: 8, tasks: 8, ledger: 10, chronology: 20 }
+    : { timeline: 12, facts: 12, tasks: 12, ledger: 25, chronology: 50 };
 
   const mapImportance = (val) => {
     const v = String(val || "").toLowerCase();
@@ -113,15 +115,19 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
       description: t.description || "",
     }));
 
-  const activeIssues = [...(c.incidents || []), ...(c.evidence || [])]
-    .filter(i => (i.status !== "verified" && i.status !== "archived") || i.importance === "critical")
+  const activeIssues = [
+    ...(c.incidents || []).map(item => ({ item, recordType: "incident" })),
+    ...(c.evidence || []).map(item => ({ item, recordType: "evidence" })),
+  ]
+    .filter(({ item }) => (item.status !== "verified" && item.status !== "archived") || item.importance === "critical")
     .slice(0, limits.facts)
-    .map(i => ({
-      id: i.id,
-      title: i.title,
-      status: i.status,
-      importance: mapImportance(i.importance),
-      summary: (i.description || i.notes || "").substring(0, 200),
+    .map(({ item, recordType }) => ({
+      id: item.id,
+      recordType,
+      title: item.title,
+      status: item.status,
+      importance: mapImportance(item.importance),
+      summary: (item.description || item.notes || "").substring(0, 200),
     }));
 
   const recentTimeline = sortTimelineItems([...(c.incidents || []), ...(c.evidence || [])])
@@ -135,11 +141,14 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
       description: t.description ? t.description.substring(0, 300) : "",
     }));
 
+  const evidenceMap = new Map((c.evidence || []).map((evidence) => [evidence.id, evidence]));
+
   const incidentSummary = sortTimelineItems(c.incidents || [])
     .reverse()
     .slice(0, limits.timeline)
     .map(i => {
       const incidentLinks = getIncidentLinkGroups(c, i.id);
+      const linkedEvidenceIds = Array.isArray(i.linkedEvidenceIds) ? i.linkedEvidenceIds : [];
       const mapLinkedIncident = ({ incident }) => ({
         id: incident.id,
         title: incident.title || "",
@@ -153,7 +162,20 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
         importance: i.importance,
         date: i.eventDate || i.date || "",
         summary: (i.description || i.notes || "").substring(0, 300),
-        linkedEvidenceIds: Array.isArray(i.linkedEvidenceIds) ? i.linkedEvidenceIds : [],
+        linkedEvidenceIds,
+        linkedEvidence: linkedEvidenceIds
+          .map((evidenceId) => evidenceMap.get(evidenceId))
+          .filter(Boolean)
+          .map((evidence) => ({
+            id: evidence.id,
+            title: evidence.title || "",
+            date: evidence.eventDate || evidence.date || evidence.capturedAt || "",
+            status: evidence.status,
+            importance: evidence.importance,
+            relevance: evidence.relevance,
+            evidenceRole: evidence.evidenceRole,
+            summary: (evidence.description || evidence.notes || "").substring(0, 300),
+          })),
         incidentLinks: {
           causes: incidentLinks.causes.map(mapLinkedIncident),
           outcomes: incidentLinks.outcomes.map(mapLinkedIncident),
@@ -271,6 +293,146 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
         date: incident.eventDate || incident.date || "",
       })),
   }));
+  const linkedRecordMap = new Map([
+    ...(c.incidents || []).map((record) => [record.id, { record, recordType: "incident" }]),
+    ...(c.evidence || []).map((record) => [record.id, { record, recordType: "evidence" }]),
+    ...(c.tasks || []).map((record) => [record.id, { record, recordType: "task" }]),
+    ...(c.strategy || []).map((record) => [record.id, { record, recordType: "strategy" }]),
+    ...(c.documents || []).map((record) => [record.id, { record, recordType: "document" }]),
+  ]);
+  const mapLinkedRecord = ({ record, recordType }) => ({
+    id: record.id,
+    recordType,
+    title: record.title || record.label || "",
+    date: record.eventDate || record.date || record.documentDate || record.dueDate || record.createdAt || "",
+  });
+  const resolveLinkedRecords = (linkedRecordIds) => (Array.isArray(linkedRecordIds) ? linkedRecordIds : [])
+    .map((recordId) => linkedRecordMap.get(recordId))
+    .filter(Boolean)
+    .map(mapLinkedRecord);
+  const toLedgerNumber = (value) => {
+    const parsed = Number(value || 0);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  const ledgerEntries = Array.isArray(c.ledger) ? c.ledger : [];
+  const normalizeLinkedRecordIds = (value) => Array.isArray(value) ? value : [];
+  const buildChronologyItem = (record, recordType, date, title, summary, linkedRecordIds) => ({
+    id: record?.id,
+    recordType,
+    date: date || "",
+    title: title || "",
+    summary: (summary || "").substring(0, 300),
+    linkedRecordIds: normalizeLinkedRecordIds(linkedRecordIds),
+  });
+  const chronologySourceItems = [
+    ...(c.incidents || []).map((item) => buildChronologyItem(
+      item,
+      "incident",
+      item.eventDate || item.date,
+      item.title,
+      item.description || item.notes,
+      item.linkedRecordIds
+    )),
+    ...(c.evidence || []).map((item) => buildChronologyItem(
+      item,
+      "evidence",
+      item.eventDate || item.date || item.capturedAt,
+      item.title,
+      item.description || item.notes,
+      item.linkedRecordIds
+    )),
+    ...(c.documents || []).map((item) => buildChronologyItem(
+      item,
+      "document",
+      item.documentDate || item.createdAt,
+      item.title,
+      item.summary || item.textContent,
+      item.linkedRecordIds
+    )),
+    ...(c.strategy || []).map((item) => buildChronologyItem(
+      item,
+      "strategy",
+      item.eventDate || item.date,
+      item.title,
+      item.description || item.notes,
+      item.linkedRecordIds
+    )),
+    ...(c.tasks || []).map((item) => buildChronologyItem(
+      item,
+      "task",
+      item.dueDate || item.date || item.createdAt,
+      item.title,
+      item.description || item.notes,
+      item.linkedRecordIds
+    )),
+    ...ledgerEntries.map((item) => buildChronologyItem(
+      item,
+      "ledger",
+      item.paymentDate || item.dueDate || item.period || item.createdAt,
+      item.label,
+      item.notes,
+      item.linkedRecordIds
+    )),
+  ];
+  const chronology = {
+    totalItems: chronologySourceItems.length,
+    items: [...chronologySourceItems]
+      .sort((a, b) => {
+        const dateCompare = String(b.date || "").localeCompare(String(a.date || ""));
+        if (dateCompare !== 0) return dateCompare;
+        return String(a.id || "").localeCompare(String(b.id || ""));
+      })
+      .slice(0, limits.chronology),
+  };
+  const ledgerSummary = {
+    totals: ledgerEntries.reduce((totals, entry) => {
+      const expectedAmount = toLedgerNumber(entry?.expectedAmount);
+      const paidAmount = toLedgerNumber(entry?.paidAmount);
+      const differenceAmount = Object.prototype.hasOwnProperty.call(entry || {}, "differenceAmount")
+        ? toLedgerNumber(entry?.differenceAmount)
+        : expectedAmount - paidAmount;
+      const currency = entry?.currency || "";
+
+      totals.expectedTotal += expectedAmount;
+      totals.paidTotal += paidAmount;
+      totals.differenceTotal += differenceAmount;
+      if (currency && !totals.currencies.includes(currency)) totals.currencies.push(currency);
+
+      return totals;
+    }, {
+      entryCount: ledgerEntries.length,
+      expectedTotal: 0,
+      paidTotal: 0,
+      differenceTotal: 0,
+      currencies: [],
+    }),
+    entries: ledgerEntries.slice(0, limits.ledger).map((entry) => {
+      const expectedAmount = toLedgerNumber(entry?.expectedAmount);
+      const paidAmount = toLedgerNumber(entry?.paidAmount);
+      const differenceAmount = Object.prototype.hasOwnProperty.call(entry || {}, "differenceAmount")
+        ? toLedgerNumber(entry?.differenceAmount)
+        : expectedAmount - paidAmount;
+
+      return {
+        id: entry?.id,
+        category: entry?.category,
+        label: entry?.label,
+        period: entry?.period,
+        expectedAmount,
+        paidAmount,
+        differenceAmount,
+        currency: entry?.currency,
+        dueDate: entry?.dueDate,
+        paymentDate: entry?.paymentDate,
+        status: entry?.status,
+        proofStatus: entry?.proofStatus,
+        counterparty: entry?.counterparty,
+        notes: entry?.notes,
+        linkedRecordIds: Array.isArray(entry?.linkedRecordIds) ? entry.linkedRecordIds : [],
+        linkedRecords: resolveLinkedRecords(entry?.linkedRecordIds),
+      };
+    }),
+  };
   const documentSummary = (c.documents || []).map(d => ({
     id: d.id,
     title: d.title,
@@ -279,8 +441,13 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
     source: d.source,
     summary: d.summary || "",
     hasTextContent: !!d.textContent,
+    textExcerpt: typeof d.textContent === "string" ? d.textContent.substring(0, 1000) : "",
     attachmentCount: Array.isArray(d.attachments) ? d.attachments.length : 0,
+    attachmentNames: Array.isArray(d.attachments)
+      ? d.attachments.map((att) => att?.name || att?.fileName || "").filter(Boolean)
+      : [],
     linkedRecordIds: Array.isArray(d.linkedRecordIds) ? d.linkedRecordIds : [],
+    linkedRecords: resolveLinkedRecords(d.linkedRecordIds),
   }));
   const allHealthIssues = (health.issues || []).flatMap(group =>
     (group.items || []).map(item => ({
@@ -365,6 +532,8 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
       },
       evidenceSummary,
       documentSummary,
+      ledgerSummary,
+      chronology,
       reasoningV2: {
         readiness,
         blockers,

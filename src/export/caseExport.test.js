@@ -227,6 +227,33 @@ test("buildCaseReasoningExportPayload recentTimeline includes incidents and evid
   );
 });
 
+test("buildCaseReasoningExportPayload activeIssues includes additive recordType without changing existing fields", () => {
+  const payload = buildCaseReasoningExportPayload(buildReasoningCase());
+
+  const earlyIncident = payload.data.activeIssues.find((item) => item.id === "inc-1");
+  const middleEvidence = payload.data.activeIssues.find((item) => item.id === "ev-1");
+
+  assert.equal(earlyIncident.recordType, "incident");
+  assert.deepEqual(earlyIncident, {
+    id: "inc-1",
+    recordType: "incident",
+    title: "Early incident",
+    status: "open",
+    importance: "low",
+    summary: "Early incident description",
+  });
+
+  assert.equal(middleEvidence.recordType, "evidence");
+  assert.deepEqual(middleEvidence, {
+    id: "ev-1",
+    recordType: "evidence",
+    title: "Middle evidence",
+    status: "needs_review",
+    importance: "high",
+    summary: "Middle evidence description",
+  });
+});
+
 test("buildCaseReasoningExportPayload evidenceSummary includes structured evidence metadata", () => {
   const caseItem = buildReasoningCase();
   caseItem.evidence[0] = {
@@ -293,6 +320,295 @@ test("buildCaseReasoningExportPayload evidence linked incident entries remain co
   ]);
 });
 
+test("buildCaseReasoningExportPayload documentSummary includes bounded textExcerpt and readable linkedRecords", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.documents[0] = {
+    ...caseItem.documents[0],
+    textContent: "A".repeat(1200),
+    linkedRecordIds: ["ev-1", "inc-2", "task-1", "str-1", "missing"],
+  };
+
+  const payload = buildCaseReasoningExportPayload(caseItem, "detailed");
+  const document = payload.data.documentSummary.find((item) => item.id === "doc-1");
+
+  assert.equal(document.hasTextContent, true);
+  assert.equal(document.textExcerpt, "A".repeat(1000));
+  assert.equal(document.textExcerpt.length, 1000);
+  assert.deepEqual(document.linkedRecordIds, ["ev-1", "inc-2", "task-1", "str-1", "missing"]);
+  assert.deepEqual(document.linkedRecords, [
+    { id: "ev-1", recordType: "evidence", title: "Middle evidence", date: "2024-01-02" },
+    { id: "inc-2", recordType: "incident", title: "Late incident", date: "2024-01-03" },
+    { id: "task-1", recordType: "task", title: "Task 1", date: "" },
+    { id: "str-1", recordType: "strategy", title: "Main strategy", date: "2024-01-05" },
+  ]);
+});
+
+test("buildCaseReasoningExportPayload documentSummary uses empty textExcerpt when textContent is missing", () => {
+  const caseItem = buildReasoningCase();
+  delete caseItem.documents[0].textContent;
+
+  const payload = buildCaseReasoningExportPayload(caseItem);
+  const document = payload.data.documentSummary.find((item) => item.id === "doc-1");
+
+  assert.equal(document.hasTextContent, false);
+  assert.equal(document.textExcerpt, "");
+});
+
+test("buildCaseReasoningExportPayload documentSummary includes attachmentNames only without payload data", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.documents[0] = {
+    ...caseItem.documents[0],
+    attachments: [
+      fixtureAttachment,
+      {
+        id: "att-2",
+        name: "lease.pdf",
+        storage: { type: "indexeddb", imageId: "img-2" },
+        dataUrl: "data:application/pdf;base64,abc",
+      },
+    ],
+  };
+
+  const payload = buildCaseReasoningExportPayload(caseItem);
+  const document = payload.data.documentSummary.find((item) => item.id === "doc-1");
+
+  assert.equal(document.attachmentCount, 2);
+  assert.deepEqual(document.attachmentNames, ["photo.png", "lease.pdf"]);
+  assert.equal(document.attachments, undefined);
+  assert.equal(document.storage, undefined);
+  assert.equal(document.dataUrl, undefined);
+  assert.equal(document.backupDataUrl, undefined);
+});
+
+test("buildCaseReasoningExportPayload ledgerSummary includes totals and readable entries", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.ledger = [
+    {
+      id: "ledger-1",
+      category: "rent",
+      label: "January rent",
+      period: "2024-01",
+      expectedAmount: 1000,
+      paidAmount: 750,
+      differenceAmount: 250,
+      currency: "EUR",
+      dueDate: "2024-01-05",
+      paymentDate: "2024-01-06",
+      status: "part-paid",
+      proofStatus: "partial",
+      counterparty: "Landlord",
+      notes: "Part payment with evidence link",
+      linkedRecordIds: ["ev-1", "inc-1", "doc-1", "missing"],
+    },
+    {
+      id: "ledger-2",
+      category: "deposit",
+      label: "Deposit refund",
+      period: "2024",
+      expectedAmount: "500",
+      paidAmount: "100",
+      currency: "EUR",
+      dueDate: "2024-02-01",
+      paymentDate: "",
+      status: "disputed",
+      proofStatus: "missing",
+      counterparty: "Landlord",
+      notes: "Missing refund",
+      linkedRecordIds: [],
+    },
+  ];
+
+  const payload = buildCaseReasoningExportPayload(caseItem, "detailed");
+
+  assert.deepEqual(payload.data.ledgerSummary.totals, {
+    entryCount: 2,
+    expectedTotal: 1500,
+    paidTotal: 850,
+    differenceTotal: 650,
+    currencies: ["EUR"],
+  });
+  assert.deepEqual(payload.data.ledgerSummary.entries[0], {
+    id: "ledger-1",
+    category: "rent",
+    label: "January rent",
+    period: "2024-01",
+    expectedAmount: 1000,
+    paidAmount: 750,
+    differenceAmount: 250,
+    currency: "EUR",
+    dueDate: "2024-01-05",
+    paymentDate: "2024-01-06",
+    status: "part-paid",
+    proofStatus: "partial",
+    counterparty: "Landlord",
+    notes: "Part payment with evidence link",
+    linkedRecordIds: ["ev-1", "inc-1", "doc-1", "missing"],
+    linkedRecords: [
+      { id: "ev-1", recordType: "evidence", title: "Middle evidence", date: "2024-01-02" },
+      { id: "inc-1", recordType: "incident", title: "Early incident", date: "2024-01-01" },
+      { id: "doc-1", recordType: "document", title: "Document", date: "2024-01-06" },
+    ],
+  });
+  assert.deepEqual(payload.data.ledgerSummary.entries[1].linkedRecords, []);
+});
+
+test("buildCaseReasoningExportPayload ledgerSummary entries are bounded by mode while totals cover all entries", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.ledger = Array.from({ length: 30 }, (_, index) => ({
+    id: `ledger-${index + 1}`,
+    category: "rent",
+    label: `Ledger ${index + 1}`,
+    expectedAmount: 10,
+    paidAmount: 4,
+    differenceAmount: 6,
+    currency: index === 29 ? "USD" : "EUR",
+    status: "planned",
+    proofStatus: "missing",
+    linkedRecordIds: [],
+  }));
+
+  const compact = buildCaseReasoningExportPayload(caseItem, "compact");
+  const detailed = buildCaseReasoningExportPayload(caseItem, "detailed");
+
+  assert.equal(compact.data.ledgerSummary.entries.length, 10);
+  assert.equal(detailed.data.ledgerSummary.entries.length, 25);
+  assert.equal(compact.data.ledgerSummary.totals.entryCount, 30);
+  assert.equal(detailed.data.ledgerSummary.totals.entryCount, 30);
+  assert.equal(compact.data.ledgerSummary.totals.expectedTotal, 300);
+  assert.equal(compact.data.ledgerSummary.totals.paidTotal, 120);
+  assert.equal(compact.data.ledgerSummary.totals.differenceTotal, 180);
+  assert.deepEqual(compact.data.ledgerSummary.totals.currencies, ["EUR", "USD"]);
+});
+
+test("buildCaseReasoningExportPayload ledgerSummary does not include attachment or binary payload fields", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.ledger = [
+    {
+      id: "ledger-1",
+      category: "other",
+      label: "Ledger with unrelated payload-shaped fields",
+      expectedAmount: 1,
+      paidAmount: 0,
+      currency: "EUR",
+      linkedRecordIds: ["ev-1"],
+      attachments: [fixtureAttachment],
+      dataUrl: "data:text/plain;base64,abc",
+      backupDataUrl: "data:text/plain;base64,backup",
+      storage: { type: "indexeddb", imageId: "img-ledger" },
+    },
+  ];
+
+  const payload = buildCaseReasoningExportPayload(caseItem);
+  const ledgerEntry = payload.data.ledgerSummary.entries[0];
+
+  assert.equal(ledgerEntry.attachments, undefined);
+  assert.equal(ledgerEntry.dataUrl, undefined);
+  assert.equal(ledgerEntry.backupDataUrl, undefined);
+  assert.equal(ledgerEntry.storage, undefined);
+  assert.deepEqual(ledgerEntry.linkedRecords, [
+    { id: "ev-1", recordType: "evidence", title: "Middle evidence", date: "2024-01-02" },
+  ]);
+});
+
+test("buildCaseReasoningExportPayload chronology includes date-sorted cross-subsystem items", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.ledger = [
+    {
+      id: "ledger-1",
+      label: "February payment",
+      paymentDate: "2024-02-02",
+      dueDate: "2024-02-01",
+      notes: "Ledger payment note",
+      linkedRecordIds: ["ev-1"],
+    },
+  ];
+  caseItem.tasks[0] = {
+    ...caseItem.tasks[0],
+    date: "2024-01-07",
+    description: "Task chronology description",
+    linkedRecordIds: ["inc-1"],
+  };
+
+  const payload = buildCaseReasoningExportPayload(caseItem, "detailed");
+
+  assert.equal(payload.data.chronology.totalItems, 17);
+  assert.deepEqual(
+    payload.data.chronology.items.slice(0, 6).map((item) => ({
+      id: item.id,
+      recordType: item.recordType,
+      date: item.date,
+      title: item.title,
+    })),
+    [
+      { id: "ledger-1", recordType: "ledger", date: "2024-02-02", title: "February payment" },
+      { id: "task-1", recordType: "task", date: "2024-01-07", title: "Task 1" },
+      { id: "doc-1", recordType: "document", date: "2024-01-06", title: "Document" },
+      { id: "str-1", recordType: "strategy", date: "2024-01-05", title: "Main strategy" },
+      { id: "ev-2", recordType: "evidence", date: "2024-01-04", title: "Latest evidence" },
+      { id: "inc-2", recordType: "incident", date: "2024-01-03", title: "Late incident" },
+    ]
+  );
+  assert.deepEqual(payload.data.chronology.items[0].linkedRecordIds, ["ev-1"]);
+  assert.deepEqual(payload.data.chronology.items[1].linkedRecordIds, ["inc-1"]);
+});
+
+test("buildCaseReasoningExportPayload chronology entries are bounded by mode while totalItems covers all sources", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.ledger = Array.from({ length: 60 }, (_, index) => ({
+    id: `ledger-${index + 1}`,
+    label: `Ledger ${index + 1}`,
+    dueDate: `2024-03-${String((index % 28) + 1).padStart(2, "0")}`,
+    linkedRecordIds: [],
+  }));
+
+  const compact = buildCaseReasoningExportPayload(caseItem, "compact");
+  const detailed = buildCaseReasoningExportPayload(caseItem, "detailed");
+
+  assert.equal(compact.data.chronology.totalItems, 76);
+  assert.equal(detailed.data.chronology.totalItems, 76);
+  assert.equal(compact.data.chronology.items.length, 20);
+  assert.equal(detailed.data.chronology.items.length, 50);
+});
+
+test("buildCaseReasoningExportPayload chronology does not change recentTimeline", () => {
+  const payload = buildCaseReasoningExportPayload(buildReasoningCase());
+
+  assert.deepEqual(
+    payload.data.recentTimeline.map((item) => item.id),
+    ["ev-2", "inc-2", "ev-1", "inc-1"]
+  );
+  assert.deepEqual(
+    payload.data.chronology.items.map((item) => item.recordType).slice(0, 4),
+    ["document", "strategy", "evidence", "incident"]
+  );
+});
+
+test("buildCaseReasoningExportPayload chronology omits attachment and binary payload fields", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.documents[0] = {
+    ...caseItem.documents[0],
+    attachments: [fixtureAttachment],
+    dataUrl: "data:text/plain;base64,abc",
+    backupDataUrl: "data:text/plain;base64,backup",
+  };
+
+  const payload = buildCaseReasoningExportPayload(caseItem);
+  const documentItem = payload.data.chronology.items.find((item) => item.id === "doc-1");
+
+  assert.deepEqual(Object.keys(documentItem).sort(), [
+    "date",
+    "id",
+    "linkedRecordIds",
+    "recordType",
+    "summary",
+    "title",
+  ]);
+  assert.equal(documentItem.attachments, undefined);
+  assert.equal(documentItem.dataUrl, undefined);
+  assert.equal(documentItem.backupDataUrl, undefined);
+  assert.equal(documentItem.storage, undefined);
+});
+
 test("buildCaseReasoningExportPayload incidentSummary includes derived incidentLinks", () => {
   const caseItem = buildReasoningCase();
   caseItem.incidents = [
@@ -343,6 +659,54 @@ test("buildCaseReasoningExportPayload incidentSummary includes derived incidentL
     related: [{ id: "inc-related", title: "Related incident", date: "2024-01-02" }],
   });
   assert.deepEqual(current.linkedEvidenceIds, []);
+});
+
+test("buildCaseReasoningExportPayload incidentSummary includes readable linkedEvidence without changing linkedEvidenceIds", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.incidents[0] = {
+    ...caseItem.incidents[0],
+    linkedEvidenceIds: ["ev-1", "ev-missing"],
+  };
+  caseItem.evidence[0] = {
+    ...caseItem.evidence[0],
+    evidenceRole: "ANCHOR_EVIDENCE",
+  };
+
+  const payload = buildCaseReasoningExportPayload(caseItem, "detailed");
+  const incident = payload.data.incidentSummary.find((item) => item.id === "inc-1");
+
+  assert.deepEqual(incident.linkedEvidenceIds, ["ev-1", "ev-missing"]);
+  assert.deepEqual(incident.linkedEvidence, [
+    {
+      id: "ev-1",
+      title: "Middle evidence",
+      date: "2024-01-02",
+      status: "needs_review",
+      importance: "critical",
+      relevance: "high",
+      evidenceRole: "ANCHOR_EVIDENCE",
+      summary: "Middle evidence description",
+    },
+  ]);
+});
+
+test("buildCaseReasoningExportPayload linkedEvidence omits binary attachment data", () => {
+  const payload = buildCaseReasoningExportPayload(buildReasoningCase(), "detailed");
+  const incident = payload.data.incidentSummary.find((item) => item.id === "inc-1");
+
+  assert.deepEqual(Object.keys(incident.linkedEvidence[0]).sort(), [
+    "date",
+    "evidenceRole",
+    "id",
+    "importance",
+    "relevance",
+    "status",
+    "summary",
+    "title",
+  ]);
+  assert.equal(incident.linkedEvidence[0].dataUrl, undefined);
+  assert.equal(incident.linkedEvidence[0].backupDataUrl, undefined);
+  assert.equal(incident.linkedEvidence[0].attachments, undefined);
 });
 
 test("buildCaseReasoningExportPayload omits missing linked incident targets safely", () => {
