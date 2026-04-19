@@ -113,8 +113,8 @@ export default function CaseDetail({
   exportSelectedCase,
   onUpdateCase,
   onExportSnapshot,
-  onSyncToSupabase,
-  onExportFullCase,
+  onSendReasoningSnapshotToSupabase,
+  onSendReasoningExportToSupabase,
   onExportFullBackup,
   onOpenGptDeltaModal,
   issueFixFeedback = "",
@@ -128,8 +128,8 @@ export default function CaseDetail({
   reviewQueueSection,
   syncStatus = "idle",
   syncMessage = "",
-  fullCaseExportStatus = "idle",
-  fullCaseExportMessage = "",
+  supabaseReasoningExportStatus = "idle",
+  supabaseReasoningExportMessage = "",
 }) {
   const [expandedGroups, setExpandedGroups] = useState({});
   const [ideas, setIdeas] = useState([]);
@@ -941,25 +941,34 @@ ${strategyFocus.join("\n") || "—"}`;
             {showExportMenu && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
-                <div className="absolute right-0 mt-2 w-56 rounded-xl border border-neutral-200 bg-white shadow-xl z-50 py-1 overflow-hidden animate-in fade-in zoom-in duration-100">
+                <div className="absolute right-0 z-50 mt-2 w-72 overflow-hidden rounded-xl border border-neutral-200 bg-white p-2 shadow-xl animate-in fade-in zoom-in duration-100">
+                  <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    Backup
+                  </div>
                   <button 
                     onClick={() => { exportSelectedCase(); setShowExportMenu(false); }}
-                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-neutral-50 text-neutral-700 font-medium transition-colors"
+                    className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50"
                   >
-                    Full Case Backup
+                    Full Case Backup (Importable)
                   </button>
+                  <div className="mt-2 border-t border-neutral-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    GPT
+                  </div>
                   <button 
                     onClick={() => { onExportSnapshot(selectedCase.id, "detailed"); setShowExportMenu(false); }}
-                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-neutral-50 text-neutral-700 font-medium border-t border-neutral-50 transition-colors"
+                    className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50"
                   >
-                    Reasoning Export
+                    GPT Reasoning Export (Not Backup)
                   </button>
+                  <div className="mt-2 border-t border-neutral-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    Supabase
+                  </div>
                   <button 
-                    onClick={() => { onSyncToSupabase(); setShowExportMenu(false); }}
+                    onClick={() => { onSendReasoningSnapshotToSupabase(); setShowExportMenu(false); }}
                     disabled={syncStatus === "syncing"}
-                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-neutral-50 text-neutral-700 font-medium transition-colors disabled:opacity-50"
+                    className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
                   >
-                    Sync to Supabase
+                    Send Reasoning Snapshot to Supabase
                   </button>
                 </div>
               </>
@@ -969,8 +978,8 @@ ${strategyFocus.join("\n") || "—"}`;
               {syncMessage && (
                 <span className={`text-[10px] font-bold uppercase tracking-tight text-center ${syncStatus === 'error' ? 'text-red-500' : 'text-lime-600'}`}>{syncMessage}</span>
               )}
-              {fullCaseExportMessage && (
-                <span className={`text-[10px] font-bold uppercase tracking-tight text-center ${fullCaseExportStatus === 'error' ? 'text-red-500' : 'text-lime-600'}`}>{fullCaseExportMessage}</span>
+              {supabaseReasoningExportMessage && (
+                <span className={`text-[10px] font-bold uppercase tracking-tight text-center ${supabaseReasoningExportStatus === 'error' ? 'text-red-500' : 'text-lime-600'}`}>{supabaseReasoningExportMessage}</span>
               )}
             </div>
           </div>

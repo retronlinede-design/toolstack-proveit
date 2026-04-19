@@ -2,12 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  SUPABASE_FULL_CASE_EXPORT_KEY,
-  SUPABASE_FULL_CASE_EXPORT_URL,
-  SUPABASE_SYNC_API_KEY,
-  SUPABASE_SYNC_URL,
+  SUPABASE_REASONING_EXPORT_KEY,
+  SUPABASE_REASONING_EXPORT_URL,
+  SUPABASE_REASONING_SNAPSHOT_API_KEY,
+  SUPABASE_REASONING_SNAPSHOT_URL,
   exportReasoningCaseToSupabase,
-  syncCaseToSupabase,
+  sendReasoningSnapshotToSupabase,
 } from "./supabaseCaseSync.js";
 
 const baseCase = () => ({
@@ -53,7 +53,7 @@ function withConsoleStubs(fn) {
   };
 }
 
-test("syncCaseToSupabase posts the current sync payload shape and returns response JSON", withConsoleStubs(async ({ logs }) => {
+test("sendReasoningSnapshotToSupabase posts the current snapshot payload shape and returns response JSON", withConsoleStubs(async ({ logs }) => {
   const fetchCalls = [];
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (...args) => {
@@ -67,15 +67,15 @@ test("syncCaseToSupabase posts the current sync payload shape and returns respon
   };
 
   try {
-    const result = await syncCaseToSupabase(baseCase());
+    const result = await sendReasoningSnapshotToSupabase(baseCase());
 
     assert.deepEqual(result, { ok: true, id: "remote-1" });
     assert.equal(fetchCalls.length, 1);
-    assert.equal(fetchCalls[0][0], SUPABASE_SYNC_URL);
+    assert.equal(fetchCalls[0][0], SUPABASE_REASONING_SNAPSHOT_URL);
     assert.equal(fetchCalls[0][1].method, "POST");
     assert.deepEqual(fetchCalls[0][1].headers, {
       "Content-Type": "application/json",
-      "x-api-key": SUPABASE_SYNC_API_KEY,
+      "x-api-key": SUPABASE_REASONING_SNAPSHOT_API_KEY,
     });
 
     const body = JSON.parse(fetchCalls[0][1].body);
@@ -93,7 +93,7 @@ test("syncCaseToSupabase posts the current sync payload shape and returns respon
   }
 }));
 
-test("syncCaseToSupabase preserves current error handling after reading response JSON", async () => {
+test("sendReasoningSnapshotToSupabase preserves current error handling after reading response JSON", async () => {
   const originalFetch = globalThis.fetch;
   let jsonRead = false;
   globalThis.fetch = async () => ({
@@ -108,7 +108,7 @@ test("syncCaseToSupabase preserves current error handling after reading response
 
   try {
     await assert.rejects(
-      syncCaseToSupabase(baseCase()),
+      sendReasoningSnapshotToSupabase(baseCase()),
       /Sync to Supabase failed: 500 Server Error/
     );
     assert.equal(jsonRead, true);
@@ -135,13 +135,13 @@ test("exportReasoningCaseToSupabase posts current export payload shape headers a
 
     assert.deepEqual(result, { exported: true });
     assert.equal(fetchCalls.length, 1);
-    assert.equal(fetchCalls[0][0], SUPABASE_FULL_CASE_EXPORT_URL);
+    assert.equal(fetchCalls[0][0], SUPABASE_REASONING_EXPORT_URL);
     assert.equal(fetchCalls[0][1].method, "POST");
     assert.deepEqual(fetchCalls[0][1].headers, {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${SUPABASE_FULL_CASE_EXPORT_KEY}`,
-      "apikey": SUPABASE_FULL_CASE_EXPORT_KEY,
-      "x-api-key": SUPABASE_SYNC_API_KEY,
+      "Authorization": `Bearer ${SUPABASE_REASONING_EXPORT_KEY}`,
+      "apikey": SUPABASE_REASONING_EXPORT_KEY,
+      "x-api-key": SUPABASE_REASONING_SNAPSHOT_API_KEY,
     });
 
     const body = JSON.parse(fetchCalls[0][1].body);

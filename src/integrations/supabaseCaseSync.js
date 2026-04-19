@@ -1,11 +1,11 @@
 import { buildCaseReasoningExportPayload } from "../export/caseExport.js";
 
-export const SUPABASE_SYNC_URL = "https://aftbtklrlkccngjiaacv.supabase.co/functions/v1/proveit-upsert-case";
-export const SUPABASE_SYNC_API_KEY = "proveit-live-read-123456";
-export const SUPABASE_FULL_CASE_EXPORT_URL = "https://aftbtklrlkccngjiaacv.supabase.co/functions/v1/export-full-case";
-export const SUPABASE_FULL_CASE_EXPORT_KEY = "sb_publishable_jVKAQYEpeh1G5MY1yRvPJA_iYUUCPFy";
+export const SUPABASE_REASONING_SNAPSHOT_URL = "https://aftbtklrlkccngjiaacv.supabase.co/functions/v1/proveit-upsert-case";
+export const SUPABASE_REASONING_SNAPSHOT_API_KEY = "proveit-live-read-123456";
+export const SUPABASE_REASONING_EXPORT_URL = "https://aftbtklrlkccngjiaacv.supabase.co/functions/v1/export-full-case";
+export const SUPABASE_REASONING_EXPORT_KEY = "sb_publishable_jVKAQYEpeh1G5MY1yRvPJA_iYUUCPFy";
 
-export async function syncCaseToSupabase(caseItem) {
+export async function sendReasoningSnapshotToSupabase(caseItem) {
   const reasoningPayload = buildCaseReasoningExportPayload(caseItem, "detailed");
 
   const payload = {
@@ -17,11 +17,11 @@ export async function syncCaseToSupabase(caseItem) {
     snapshot: reasoningPayload,
   };
 
-  const response = await fetch(SUPABASE_SYNC_URL, {
+  const response = await fetch(SUPABASE_REASONING_SNAPSHOT_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": SUPABASE_SYNC_API_KEY,
+      "x-api-key": SUPABASE_REASONING_SNAPSHOT_API_KEY,
     },
     body: JSON.stringify(payload),
   });
@@ -45,14 +45,14 @@ export async function exportReasoningCaseToSupabase(caseItem) {
     });
 
     const response = await fetch(
-      SUPABASE_FULL_CASE_EXPORT_URL,
+      SUPABASE_REASONING_EXPORT_URL,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${SUPABASE_FULL_CASE_EXPORT_KEY}`,
-          "apikey": SUPABASE_FULL_CASE_EXPORT_KEY,
-          "x-api-key": SUPABASE_SYNC_API_KEY,
+          "Authorization": `Bearer ${SUPABASE_REASONING_EXPORT_KEY}`,
+          "apikey": SUPABASE_REASONING_EXPORT_KEY,
+          "x-api-key": SUPABASE_REASONING_SNAPSHOT_API_KEY,
         },
         body: JSON.stringify({
           case_id: caseItem.id,

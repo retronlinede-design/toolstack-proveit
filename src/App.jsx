@@ -22,7 +22,7 @@ import {
 } from "./gpt/gptDelta";
 import {
   exportReasoningCaseToSupabase,
-  syncCaseToSupabase,
+  sendReasoningSnapshotToSupabase,
 } from "./integrations/supabaseCaseSync";
 import {
   convertQuickCaptureToRecord,
@@ -208,8 +208,8 @@ export default function ProveItApp() {
   const [syncStatus, setSyncStatus] = useState("idle"); // idle, syncing, success, error
   const [syncMessage, setSyncMessage] = useState("");
 
-  const [fullCaseExportStatus, setFullCaseExportStatus] = useState("idle"); // idle, exporting, success, error
-  const [fullCaseExportMessage, setFullCaseExportMessage] = useState("");
+  const [supabaseReasoningExportStatus, setSupabaseReasoningExportStatus] = useState("idle"); // idle, exporting, success, error
+  const [supabaseReasoningExportMessage, setSupabaseReasoningExportMessage] = useState("");
   const [showGptDeltaModal, setShowGptDeltaModal] = useState(false);
   const [gptDeltaText, setGptDeltaText] = useState("");
   const [gptDeltaError, setGptDeltaError] = useState("");
@@ -225,18 +225,18 @@ export default function ProveItApp() {
   const [documentForm, setDocumentForm] = useState(EMPTY_DOCUMENT_FORM);
   const [editingDocumentId, setEditingDocumentId] = useState(null);
 
-  const handleExportFullCase = async () => {
+  const handleSendReasoningExportToSupabase = async () => {
     if (!selectedCase) return;
-    setFullCaseExportStatus("exporting");
-    setFullCaseExportMessage("Preparing reasoning case export...");
+    setSupabaseReasoningExportStatus("exporting");
+    setSupabaseReasoningExportMessage("Preparing Supabase reasoning export...");
     try {
       await exportReasoningCaseToSupabase(selectedCase);
-      setFullCaseExportStatus("success");
-      setFullCaseExportMessage("Reasoning case exported successfully");
+      setSupabaseReasoningExportStatus("success");
+      setSupabaseReasoningExportMessage("Reasoning export sent to Supabase");
     } catch (error) {
-      console.error("Full case export failed", error);
-      setFullCaseExportStatus("error");
-      setFullCaseExportMessage(error.message || "Reasoning case export failed");
+      console.error("Supabase reasoning export failed", error);
+      setSupabaseReasoningExportStatus("error");
+      setSupabaseReasoningExportMessage(error.message || "Reasoning case export failed");
     }
   };
 
@@ -522,26 +522,26 @@ export default function ProveItApp() {
     closeLedgerModal();
   };
 
-  const handleSyncToSupabase = async () => {
+  const handleSendReasoningSnapshotToSupabase = async () => {
     if (!selectedCase) return;
     setSyncStatus("syncing");
-    setSyncMessage("Syncing snapshot...");
+    setSyncMessage("Sending reasoning snapshot...");
     try {
-      await syncCaseToSupabase(selectedCase);
+      await sendReasoningSnapshotToSupabase(selectedCase);
       setSyncStatus("success");
-      setSyncMessage("Snapshot synced successfully");
+      setSyncMessage("Reasoning snapshot sent");
     } catch (error) {
       console.error("Sync failed", error);
       setSyncStatus("error");
-      setSyncMessage(error.message || "Snapshot sync failed");
+      setSyncMessage(error.message || "Reasoning snapshot send failed");
     }
   };
 
   useEffect(() => {
     setSyncStatus("idle");
     setSyncMessage("");
-    setFullCaseExportStatus("idle");
-    setFullCaseExportMessage("");
+    setSupabaseReasoningExportStatus("idle");
+    setSupabaseReasoningExportMessage("");
   }, [selectedCaseId]);
 
   const relatedTasksForViewing = viewingRecord ? (selectedCase?.tasks || []).filter(t => 
@@ -703,7 +703,7 @@ export default function ProveItApp() {
     }
   };
 
-  const exportSelectedCase = async () => {
+  const exportSelectedCaseBackup = async () => {
     if (!selectedCase) return;
 
     try {
@@ -720,7 +720,7 @@ export default function ProveItApp() {
     }
   };
 
-  const exportCaseSnapshot = (caseId, mode = "compact") => {
+  const exportCaseReasoningExport = (caseId, mode = "compact") => {
     const c = cases.find((item) => item.id === caseId);
     if (!c) return;
 
@@ -1375,7 +1375,7 @@ const handleRecordFiles = async (event) => {
                   onClick={handleFullBackup}
                   className="px-2 py-1 text-[10px] rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-sm hover:bg-lime-400/30 transition-all active:scale-95"
                 >
-                  Full App Backup
+                  Full App Backup (Importable)
                 </button>
                 <label className="px-2 py-1 text-[10px] rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-sm hover:bg-lime-400/30 transition-all active:scale-95 cursor-pointer">
                   Import
@@ -1405,17 +1405,17 @@ const handleRecordFiles = async (event) => {
                 openEditCaseModal={openEditCaseModal}
                 onUpdateCase={handleUpdateCase} // Pass the new handler
                 deleteRecord={deleteRecord}
-                exportSelectedCase={exportSelectedCase}
-                onExportSnapshot={exportCaseSnapshot}
-                onSyncToSupabase={handleSyncToSupabase}
-                onExportFullCase={handleExportFullCase}
+                exportSelectedCase={exportSelectedCaseBackup}
+                onExportSnapshot={exportCaseReasoningExport}
+                onSendReasoningSnapshotToSupabase={handleSendReasoningSnapshotToSupabase}
+                onSendReasoningExportToSupabase={handleSendReasoningExportToSupabase}
                 onExportFullBackup={handleFullBackup}
                 onOpenGptDeltaModal={openGptDeltaModal}
                 issueFixFeedback={recordIssueFeedback}
                 syncStatus={syncStatus}
                 syncMessage={syncMessage}
-                fullCaseExportStatus={fullCaseExportStatus}
-                fullCaseExportMessage={fullCaseExportMessage}
+                supabaseReasoningExportStatus={supabaseReasoningExportStatus}
+                supabaseReasoningExportMessage={supabaseReasoningExportMessage}
                 onViewRecord={setViewingRecord}
                 onPreviewFile={setPreviewFile}
                 openLedgerModal={openLedgerModal}
