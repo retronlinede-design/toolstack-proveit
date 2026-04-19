@@ -135,15 +135,13 @@ export default function CaseDetail({
   const [ideas, setIdeas] = useState([]);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [timelineView, setTimelineView] = useState("core");
-  const [timelineTagFilter, setTimelineTagFilter] = useState(null);
+  const [timelineView, setTimelineView] = useState("all");
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [ledgerFilter, setLedgerFilter] = useState("all");
   const [expandedDocuments, setExpandedDocuments] = useState({});
   const [collapsedLedgerGroups, setCollapsedLedgerGroups] = useState({});
   const [showVerifiedEvidence, setShowVerifiedEvidence] = useState(false);
   const [activeLedgerRecord, setActiveLedgerRecord] = useState(null);
-  const [evidenceView, setEvidenceView] = useState("workflow");
   const [actionSummaryEditOpen, setActionSummaryEditOpen] = useState(false);
   const [quickActionInput, setQuickActionInput] = useState("");
   const [actionSummaryForm, setActionSummaryForm] = useState(emptyActionSummaryForm);
@@ -442,63 +440,6 @@ ${strategyFocus.join("\n") || "—"}`;
     });
   };
 
-  const overviewStrategies = [...(selectedCase?.strategy || [])]
-    .sort((a, b) => new Date(b.eventDate || b.date || 0) - new Date(a.eventDate || a.date || 0))
-    .slice(0, 5);
-  const toLocalDateKey = (value) => {
-    if (!value) return "";
-    if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return "";
-    const year = parsed.getFullYear();
-    const month = String(parsed.getMonth() + 1).padStart(2, "0");
-    const day = String(parsed.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
-  const getRecordMatchReason = (record, dateFields = []) => {
-    for (const field of dateFields) {
-      const dateKey = toLocalDateKey(record?.[field]);
-      if (dateKey === todayKey) return "Dated today";
-    }
-    if (toLocalDateKey(record?.createdAt) === todayKey) return "Created today";
-    if (toLocalDateKey(record?.updatedAt) === todayKey) return "Updated today";
-    return null;
-  };
-  const getRecordTitle = (record, fallback) => {
-    if (typeof record?.title === "string" && record.title.trim()) return record.title.trim();
-    if (typeof record?.label === "string" && record.label.trim()) return record.label.trim();
-    return fallback;
-  };
-  const todayKey = toLocalDateKey(new Date());
-  const todayIncidents = (selectedCase?.incidents || [])
-    .map((record) => ({
-      record,
-      title: getRecordTitle(record, "Untitled incident"),
-      reason: getRecordMatchReason(record, ["eventDate", "date"]),
-    }))
-    .filter((item) => item.reason);
-  const todayEvidence = (selectedCase?.evidence || [])
-    .map((record) => ({
-      record,
-      title: getRecordTitle(record, "Untitled evidence"),
-      reason: getRecordMatchReason(record, ["eventDate", "date", "capturedAt"]),
-    }))
-    .filter((item) => item.reason);
-  const todayTasks = (selectedCase?.tasks || [])
-    .map((record) => ({
-      record,
-      title: getRecordTitle(record, "Untitled task"),
-      reason: getRecordMatchReason(record, ["date", "dueDate"]),
-    }))
-    .filter((item) => item.reason);
-  const todayDocuments = (selectedCase?.documents || [])
-    .map((record) => ({
-      record,
-      title: getRecordTitle(record, "Untitled document"),
-      reason: getRecordMatchReason(record, ["documentDate"]),
-    }))
-    .filter((item) => item.reason);
-  const hasTodayActivity = todayIncidents.length > 0 || todayEvidence.length > 0 || todayTasks.length > 0 || todayDocuments.length > 0;
   const packDateValue = (item) => item?.eventDate || item?.date || item?.capturedAt || item?.documentDate || item?.createdAt || "";
   const packText = (value, fallback = "") => (typeof value === "string" && value.trim()) ? value.trim() : fallback;
   const packSummaryText = (item, max = 260) => {
@@ -510,24 +451,6 @@ ${strategyFocus.join("\n") || "—"}`;
   const packEvidence = sortPackRecent(selectedCase?.evidence || []).slice(0, 8);
   const packDocuments = sortPackRecent(selectedCase?.documents || []).slice(0, 8);
   const packStrategy = sortPackRecent(selectedCase?.strategy || []).slice(0, 5);
-  const packGaps = (health?.issues || [])
-    .flatMap((group) => group.items.map((item) => ({ category: group.category, item })))
-    .slice(0, 8);
-  const topBlockers = (health?.issues || [])
-    .flatMap((group) =>
-      (group.items || []).map((item) => ({
-        category: group.category,
-        title: item.title || "",
-        detail: item.detail || "",
-      }))
-    )
-    .slice(0, 3);
-  const packTimeline = sortPackRecent([
-    ...(selectedCase?.incidents || []).map((item) => ({ ...item, _kind: "Incident" })),
-    ...(selectedCase?.evidence || []).map((item) => ({ ...item, _kind: "Evidence" })),
-    ...(selectedCase?.strategy || []).map((item) => ({ ...item, _kind: "Strategy" })),
-    ...(selectedCase?.tasks || []).map((item) => ({ ...item, _kind: "Task" })),
-  ]).slice(0, 15);
   const packExecutiveSummary = (
     packText(currentFocus) ||
     packText(selectedCase?.caseState?.currentSituation) ||
@@ -610,29 +533,15 @@ ${strategyFocus.join("\n") || "—"}`;
     "High risk": { color: "text-red-600 bg-red-50 border-red-200", icon: AlertCircle },
   };
 
-  const timelineViewLabelMap = {
-    core: "Core",
-    master: "Master",
-    incidents: "Incidents",
-    evidence: "Evidence",
-    milestones: "Milestones",
-  };
-
-  const timelineViewDescriptionMap = {
-    core: "Key case chronology using incidents and evidence only.",
-    master: "Complete chronological stream of all timeline-relevant records.",
-    incidents: "Incident records only.",
-    evidence: "Evidence records only.",
-    milestones: "Critical turning points and major events.",
-  };
-
-  const timelineEmptyMessageMap = {
-    core: "No incident or evidence records yet.",
-    master: "No timeline records yet.",
-    incidents: "No incidents recorded yet.",
-    evidence: "No evidence records yet.",
-    milestones: "No milestone items yet.",
-  };
+  const timelineFilterOptions = [
+    { id: "all", label: "All" },
+    { id: "incident", label: "Incidents" },
+    { id: "evidence", label: "Evidence" },
+    { id: "document", label: "Documents" },
+    { id: "payment", label: "Payments" },
+    { id: "task", label: "Tasks" },
+    { id: "strategy", label: "Strategy" },
+  ];
 
   const trackingDocuments = useMemo(() => {
     return (selectedCase?.documents || []).filter(isTrackingRecord);
@@ -838,24 +747,75 @@ ${strategyFocus.join("\n") || "—"}`;
   const incompleteEvidence = allEvidence.filter(item => item.status === "incomplete");
   const verifiedEvidence = allEvidence.filter(item => item.status === "verified");
 
-  const evidenceTimelineItems = sortChronological(
-    (selectedCase?.evidence || []).map((item) => ({
-      ...item,
-      _kind: "Evidence",
-    }))
-  );
+  const truncateTimelineText = (value, max = 180) => {
+    const text = safeText(value).trim();
+    if (!text) return "";
+    return text.length > max ? `${text.slice(0, max).trim()}...` : text;
+  };
 
-  const timelineItems = sortChronological([
-    ...selectedCase.evidence.map((item) => ({ ...item, _kind: "Evidence" })),
-    ...selectedCase.incidents.map((item) => ({ ...item, _kind: "Incident" })),
-    ...selectedCase.strategy.map((item) => ({ ...item, _kind: "Strategy" })),
-  ]);
+  const getTimelineTypeDetail = (recordType, item) => {
+    const text = `${safeText(item?.title)} ${safeText(item?.description)} ${safeText(item?.summary)} ${safeText(item?.notes)} ${safeText(item?.category)}`.toLowerCase();
+    if (recordType === "ledger") return "payment";
+    if (["email", "whatsapp", "message", "letter", "reply", "notice", "sms"].some((word) => text.includes(word))) {
+      return "communication";
+    }
+    return recordType;
+  };
 
-  const milestones = timelineItems.filter(item => item.importance === "critical");
+  const getTimelineDate = (recordType, item) => {
+    if (recordType === "document") return item.documentDate || item.date || item.createdAt || "";
+    if (recordType === "ledger") return item.paymentDate || item.dueDate || item.period || item.createdAt || "";
+    if (recordType === "task") return item.dueDate || item.date || item.createdAt || "";
+    return item.eventDate || item.date || item.capturedAt || item.createdAt || "";
+  };
 
-  const allTimelineTags = Array.from(
-    new Set(timelineItems.flatMap((item) => item.tags || []))
-  ).sort();
+  const getTimelineTitle = (recordType, item) => {
+    if (recordType === "ledger") return item.label || item.category || "Untitled ledger entry";
+    if (recordType === "document") return item.title || "Untitled document";
+    if (recordType === "task") return item.title || "Untitled task";
+    if (recordType === "strategy") return item.title || "Untitled strategy";
+    if (recordType === "incident") return item.title || "Untitled incident";
+    return item.title || "Untitled evidence";
+  };
+
+  const getTimelineSummary = (recordType, item) => {
+    if (recordType === "ledger") {
+      const amounts = [
+        item.expectedAmount !== undefined && item.expectedAmount !== "" ? `Expected ${item.expectedAmount} ${item.currency || ""}`.trim() : "",
+        item.paidAmount !== undefined && item.paidAmount !== "" ? `Paid ${item.paidAmount} ${item.currency || ""}`.trim() : "",
+        item.differenceAmount ? `Difference ${item.differenceAmount} ${item.currency || ""}`.trim() : "",
+      ].filter(Boolean).join(" · ");
+      return truncateTimelineText([amounts, item.status, item.proofStatus, item.notes].filter(Boolean).join(" · "));
+    }
+    if (recordType === "document") return truncateTimelineText(item.summary || item.textContent || item.notes);
+    if (recordType === "task") return truncateTimelineText([item.status, item.description || item.notes].filter(Boolean).join(" · "));
+    if (recordType === "evidence") return truncateTimelineText(item.functionSummary || item.description || item.notes || item.reviewNotes);
+    return truncateTimelineText(item.summary || item.description || item.notes);
+  };
+
+  const toTimelineItems = (items, recordType) => (items || []).map((item) => ({
+    id: item.id || `${recordType}-${getTimelineTitle(recordType, item)}`,
+    recordType,
+    typeDetail: getTimelineTypeDetail(recordType, item),
+    date: getTimelineDate(recordType, item),
+    title: getTimelineTitle(recordType, item),
+    summary: getTimelineSummary(recordType, item),
+    source: item,
+  }));
+
+  const timelineItems = [
+    ...toTimelineItems(selectedCase?.incidents, "incident"),
+    ...toTimelineItems(selectedCase?.evidence, "evidence"),
+    ...toTimelineItems(selectedCase?.documents, "document"),
+    ...toTimelineItems(selectedCase?.ledger, "ledger"),
+    ...toTimelineItems(selectedCase?.tasks, "task"),
+    ...toTimelineItems(selectedCase?.strategy, "strategy"),
+  ].sort((a, b) => {
+    if (!a.date && b.date) return 1;
+    if (a.date && !b.date) return -1;
+    if (a.date !== b.date) return String(a.date).localeCompare(String(b.date));
+    return String(a.title || "").localeCompare(String(b.title || ""));
+  });
 
   return (
     <div className="space-y-6">
@@ -1111,75 +1071,6 @@ ${strategyFocus.join("\n") || "—"}`;
             {/* Tab content logic... */}
             {activeTab === "overview" && (
               <div className="space-y-5">
-                <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 pb-3">
-                    <h3 className="text-lg font-semibold text-neutral-900">Today</h3>
-                    <div className="text-xs font-semibold text-neutral-500">
-                      {todayIncidents.length} incidents · {todayEvidence.length} evidence
-                      {todayTasks.length > 0 ? ` · ${todayTasks.length} tasks` : ""}
-                      {todayDocuments.length > 0 ? ` · ${todayDocuments.length} documents` : ""}
-                    </div>
-                  </div>
-
-                  {hasTodayActivity ? (
-                    <div className={`grid gap-3 ${todayTasks.length > 0 || todayDocuments.length > 0 ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
-                      {todayIncidents.length > 0 && (
-                        <section className="rounded-xl border border-neutral-100 bg-neutral-50/70 p-3 shadow-sm">
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-600">Incidents</h4>
-                          <ul className="mt-2 space-y-1 text-sm text-neutral-700">
-                            {todayIncidents.slice(0, 3).map((item) => (
-                              <li key={item.record.id || item.title} className="break-words">
-                                - {item.title} · {item.reason}
-                              </li>
-                            ))}
-                          </ul>
-                        </section>
-                      )}
-
-                      {todayEvidence.length > 0 && (
-                        <section className="rounded-xl border border-neutral-100 bg-neutral-50/70 p-3 shadow-sm">
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-600">Evidence</h4>
-                          <ul className="mt-2 space-y-1 text-sm text-neutral-700">
-                            {todayEvidence.slice(0, 3).map((item) => (
-                              <li key={item.record.id || item.title} className="break-words">
-                                - {item.title} · {item.reason}
-                              </li>
-                            ))}
-                          </ul>
-                        </section>
-                      )}
-
-                      {todayTasks.length > 0 && (
-                        <section className="rounded-xl border border-neutral-100 bg-neutral-50/70 p-3 shadow-sm">
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-600">Tasks</h4>
-                          <ul className="mt-2 space-y-1 text-sm text-neutral-700">
-                            {todayTasks.slice(0, 3).map((item) => (
-                              <li key={item.record.id || item.title} className="break-words">
-                                - {item.title} · {item.reason}
-                              </li>
-                            ))}
-                          </ul>
-                        </section>
-                      )}
-
-                      {todayDocuments.length > 0 && (
-                        <section className="rounded-xl border border-neutral-100 bg-neutral-50/70 p-3 shadow-sm">
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-600">Documents</h4>
-                          <ul className="mt-2 space-y-1 text-sm text-neutral-700">
-                            {todayDocuments.slice(0, 3).map((item) => (
-                              <li key={item.record.id || item.title} className="break-words">
-                                - {item.title} · {item.reason}
-                              </li>
-                            ))}
-                          </ul>
-                        </section>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-neutral-500">No activity logged today.</p>
-                  )}
-                </div>
-
                 {/* Case Readiness Card */}
                 <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                   <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -1285,86 +1176,12 @@ ${strategyFocus.join("\n") || "—"}`;
                   )}
                 </div>
 
-                {/* Strategy Overview Section */}
-                <div className="rounded-2xl border border-neutral-100 bg-white p-3 shadow-sm">
-                  <div className="mb-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-base font-semibold text-neutral-800">Strategies</h3>
-                      <span className="rounded-md bg-neutral-50 px-2 py-0.5 text-[10px] font-semibold text-neutral-500">
-                        {selectedCase.strategy?.length || 0}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => openRecordModal("strategy")}
-                        className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
-                      >
-                        + Add Strategy
-                      </button>
-                      <button 
-                        onClick={() => setActiveTab("strategy")}
-                        className="rounded-lg border border-neutral-300 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors"
-                      >
-                        View All
-                      </button>
-                    </div>
-                  </div>
-
-                  {overviewStrategies.length === 0 ? (
-                    <p className="text-sm italic text-neutral-500">No strategy records yet.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {overviewStrategies.map((item) => (
-                        <div key={item.id} className="rounded-xl border border-neutral-100 bg-neutral-50/60 p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between gap-2">
-                                <span className="font-bold text-neutral-800 truncate">{item.title}</span>
-                                <span className="shrink-0 text-[10px] font-medium text-neutral-400">{item.eventDate || item.date}</span>
-                              </div>
-                              <div className="mt-0.5 text-xs text-neutral-500 line-clamp-1">{item.description || item.notes || "No description provided."}</div>
-                            </div>
-                            <button onClick={() => openEditRecordModal("strategy", item)} className="shrink-0 rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors">Open</button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                    <div className="font-semibold">Suggested next step</div>
-                    <p className="mt-2 text-sm text-neutral-600">Use Quick Capture when something happens fast, then review and convert it into evidence, incidents, tasks, or strategy.</p>
-                  </div>
-                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                    <div className="font-semibold">Pack readiness</div>
-                    <p className="mt-2 text-sm text-neutral-600">Later, this case will generate a clean evidence and incident pack for print/export.</p>
-                  </div>
-                </div>
               </div>
             )}
             
             {activeTab === "evidence" && (
               <div className="space-y-6">
-                <div className="flex gap-2">
-                  {["workflow", "timeline"].map((v) => (
-                    <button
-                      key={v}
-                      onClick={() => setEvidenceView(v)}
-                      className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border transition-all ${
-                        evidenceView === v
-                          ? "bg-lime-500 border-lime-600 text-white shadow-sm"
-                          : "bg-white border-neutral-300 text-neutral-500 hover:bg-neutral-50"
-                      }`}
-                    >
-                      {v}
-                    </button>
-                  ))}
-                </div>
-
-                {evidenceView === "workflow" && (
-                  <div className="space-y-8">
+                <div className="space-y-8">
                     <div className="grid gap-3 md:grid-cols-3">
                       <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
                         <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Needs Review</div>
@@ -1408,9 +1225,6 @@ ${strategyFocus.join("\n") || "—"}`;
                       {showVerifiedEvidence && renderListBlock(verifiedEvidence, "No verified evidence yet.", "evidence")}
                     </div>
                   </div>
-                )}
-
-                {evidenceView === "timeline" && renderListBlock(evidenceTimelineItems, "No evidence records yet.", "evidence")}
               </div>
             )}
             {activeTab === "incidents" && renderListBlock(selectedCase.incidents, "No incidents yet. Add your first incident to start the case timeline.", "incidents")}
@@ -1934,143 +1748,108 @@ ${strategyFocus.join("\n") || "—"}`;
             )}
 
             {activeTab === "timeline" && (
-              <div className="space-y-6">
-                {/* Timeline Filter Controls */}
-                <div className="flex flex-wrap gap-2 pb-2 overflow-x-auto">
-                  {["core", "master", "incidents", "evidence", "milestones"].map((f) => (
-                    <button
-                      key={f}
-                      onClick={() => setTimelineView(f)}
-                      className={`px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-xl border transition-all ${
-                        timelineView === f
-                          ? "bg-lime-500 border-lime-600 text-white shadow-md"
-                          : "bg-white border-neutral-200 text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300"
-                      }`}
-                    >
-                      {timelineViewLabelMap[f] || f}
-                    </button>
-                  ))}
-                </div>
+              <div className="space-y-5">
+                <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Case Timeline</h3>
+                      <p className="mt-1 text-sm text-neutral-600">
+                        Incidents, evidence, documents, payments, tasks, and strategy in one chronological view.
+                      </p>
+                    </div>
+                    <div className="text-xs font-medium text-neutral-500">
+                      {timelineItems.length} item{timelineItems.length === 1 ? "" : "s"}
+                    </div>
+                  </div>
 
-                <div className="mt-2 text-xs text-neutral-500">
-                  {timelineViewDescriptionMap[timelineView] || ""}
-                </div>
-
-                {allTimelineTags.length > 0 && (
                   <div className="mt-4 flex flex-wrap gap-2">
-                    {allTimelineTags.map((tag) => (
+                    {timelineFilterOptions.map((filter) => (
                       <button
-                        key={tag}
-                        onClick={() => setTimelineTagFilter(timelineTagFilter === tag ? null : tag)}
-                        className={`px-2 py-1 rounded-full text-xs font-bold transition-all ${
-                          timelineTagFilter === tag
-                            ? "bg-lime-500 text-white shadow-sm"
-                            : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                        key={filter.id}
+                        onClick={() => setTimelineView(filter.id)}
+                        className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                          timelineView === filter.id
+                            ? "border-lime-500 bg-lime-50 text-lime-800"
+                            : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
                         }`}
                       >
-                        {tag}
+                        {filter.label}
                       </button>
                     ))}
                   </div>
-                )}
+                </div>
 
                 {(() => {
-                  let filteredTimelineItems = timelineItems.filter((item) => {
-                    if (timelineView === "core") {
-                      return item._kind === "Incident" || item._kind === "Evidence";
-                    }
-                    if (timelineView === "master") {
-                      return true;
-                    }
-                    if (timelineView === "incidents") {
-                      return item._kind === "Incident";
-                    }
-                    if (timelineView === "evidence") {
-                      return item._kind === "Evidence";
-                    }
-                    if (timelineView === "milestones") {
-                      return item.importance === "critical" || item.isMilestone === true;
-                    }
-                    return true;
+                  const filteredTimelineItems = timelineItems.filter((item) => {
+                    if (timelineView === "all") return true;
+                    if (timelineView === "payment") return item.recordType === "ledger";
+                    return item.recordType === timelineView;
                   });
-
-                  if (timelineTagFilter) {
-                    filteredTimelineItems = filteredTimelineItems.filter(
-                      (item) => Array.isArray(item.tags) && item.tags.includes(timelineTagFilter)
-                    );
-                  }
 
                   if (filteredTimelineItems.length === 0) {
                     return (
                       <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-                        {timelineTagFilter 
-                          ? `No items match the selected tag: ${timelineTagFilter}`
-                          : (timelineEmptyMessageMap[timelineView] || "No timeline records yet.")}
+                        No timeline records match this view.
                       </div>
                     );
                   }
 
-                    const groups = [];
-                    let lastDate = null;
-                    filteredTimelineItems.forEach(item => {
-                      const d = item.eventDate || item.date || "Unknown Date";
-                      if (d !== lastDate) {
-                        groups.push({ date: d, items: [item] });
-                        lastDate = d;
-                      } else {
-                        groups[groups.length - 1].items.push(item);
-                      }
-                    });
+                  const badgeClassMap = {
+                    incident: "border-red-200 bg-red-50 text-red-700",
+                    evidence: "border-lime-200 bg-lime-50 text-lime-700",
+                    document: "border-sky-200 bg-sky-50 text-sky-700",
+                    ledger: "border-amber-200 bg-amber-50 text-amber-700",
+                    task: "border-violet-200 bg-violet-50 text-violet-700",
+                    strategy: "border-neutral-300 bg-neutral-100 text-neutral-700",
+                  };
+                  const labelMap = {
+                    incident: "Incident",
+                    evidence: "Evidence",
+                    document: "Document",
+                    ledger: "Payment",
+                    task: "Task",
+                    strategy: "Strategy",
+                  };
+                  const detailLabelMap = {
+                    communication: "Communication",
+                    payment: "Payment",
+                  };
 
-                    return groups.map(group => (
-                      <div key={group.date} className="space-y-4">
-                        <div className="relative flex items-center py-2">
-                          <div className="flex-grow border-t border-neutral-200"></div>
-                          <span className="mx-4 flex-shrink text-xs font-bold uppercase tracking-widest text-neutral-400">
-                            {group.date}
-                          </span>
-                          <div className="flex-grow border-t border-neutral-200"></div>
+                  return (
+                    <div className="space-y-2">
+                      {filteredTimelineItems.map((item) => (
+                        <div
+                          key={`${item.recordType}-${item.id}`}
+                          className="grid gap-3 rounded-xl border border-neutral-200 bg-white p-3 shadow-sm sm:grid-cols-[7.5rem_1fr]"
+                        >
+                          <div className="text-xs font-semibold text-neutral-500">
+                            {item.date || "No date"}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className={`rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${badgeClassMap[item.recordType] || "border-neutral-200 bg-neutral-50 text-neutral-600"}`}>
+                                {labelMap[item.recordType] || item.recordType}
+                              </span>
+                              {detailLabelMap[item.typeDetail] && detailLabelMap[item.typeDetail] !== labelMap[item.recordType] && (
+                                <span className="rounded-md border border-neutral-200 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                                  {detailLabelMap[item.typeDetail]}
+                                </span>
+                              )}
+                              <h4 className="min-w-0 flex-1 truncate text-sm font-semibold text-neutral-900">
+                                {item.title}
+                              </h4>
+                            </div>
+                            {item.summary ? (
+                              <p className="mt-1 text-sm leading-5 text-neutral-600">{item.summary}</p>
+                            ) : (
+                              <p className="mt-1 text-sm text-neutral-400">No summary yet.</p>
+                            )}
+                          </div>
                         </div>
-                        <div className="space-y-3">
-                          {group.items.map((item) => {
-                            const kindToTypeMap = {
-                              Evidence: "evidence",
-                              Incident: "incidents",
-                              Strategy: "strategy",
-                            };
-                            const recordType = kindToTypeMap[item._kind] || "evidence";
-
-                            return (
-                              <RecordCard
-                                key={`${item._kind}-${item.id}`}
-                                item={item}
-                                recordType={recordType}
-                                selectedCase={selectedCase}
-                                imageCache={imageCache}
-                                onPreviewFile={onPreviewFile}
-                                onViewRecord={onViewRecord}
-                                openEditRecordModal={openEditRecordModal}
-                                deleteRecord={deleteRecord}
-                                openLinkedRecord={openLinkedRecord}
-                                openRecordModal={openRecordModal}
-                                showTypeBadge={true}
-                                isTimeline={true}
-                                isMilestone={item.importance === "critical"}
-                                isActionItem={
-                                  Array.isArray(item.tags) &&
-                                  (
-                                    item.tags.includes("action") ||
-                                    item.tags.includes("follow-up") ||
-                                    item.tags.includes("pending")
-                                  )
-                                }
-                              />
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ));
-                  })()}
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
@@ -2135,27 +1914,6 @@ ${strategyFocus.join("\n") || "—"}`;
                     </p>
                   )}
                 </section>
-
-                {!isEscalationPack && (
-                <section className="break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
-                  <div className="border-b border-neutral-100 pb-3">
-                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Top Blockers</h4>
-                  </div>
-                  {topBlockers.length > 0 ? (
-                    <ul className="mt-4 space-y-2.5 text-sm text-neutral-700">
-                      {topBlockers.map((item, idx) => (
-                        <li key={idx} className="flex flex-col gap-0.5 border-b border-neutral-100 pb-2 last:border-0 last:pb-0 sm:flex-row sm:gap-2">
-                          <span className="shrink-0 text-xs font-bold uppercase tracking-wider text-neutral-500">{item.category}</span>
-                          <span className="text-neutral-800">
-                            {item.title || item.detail || "Issue"}
-                            {item.title && item.detail ? <span className="text-neutral-500"> · {item.detail}</span> : null}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : <p className="mt-3 text-sm text-neutral-500">No major blockers identified.</p>}
-                </section>
-                )}
 
                 <section className="break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
                   <div className="border-b border-neutral-100 pb-3">
@@ -2258,28 +2016,6 @@ ${strategyFocus.join("\n") || "—"}`;
                   ) : <p className="mt-3 text-sm text-neutral-500">No documents listed.</p>}
                 </section>
 
-                {isEscalationPack && (
-                <section className="break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
-                  <div className="border-b border-neutral-100 pb-3">
-                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Top Blockers</h4>
-                  </div>
-                  {topBlockers.length > 0 ? (
-                    <ul className="mt-4 space-y-2.5 text-sm text-neutral-700">
-                      {topBlockers.map((item, idx) => (
-                        <li key={idx} className="flex flex-col gap-0.5 border-b border-neutral-100 pb-2 last:border-0 last:pb-0 sm:flex-row sm:gap-2">
-                          <span className="shrink-0 text-xs font-bold uppercase tracking-wider text-neutral-500">{item.category}</span>
-                          <span className="text-neutral-800">
-                            {item.title || item.detail || "Issue"}
-                            {item.title && item.detail ? <span className="text-neutral-500"> · {item.detail}</span> : null}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : <p className="mt-3 text-sm text-neutral-500">No major blockers identified.</p>}
-                </section>
-                )}
-
-                {!isEscalationPack && (
                 <section className="break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
                   <div className="border-b border-neutral-100 pb-3">
                     <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Strategy / Position</h4>
@@ -2304,46 +2040,6 @@ ${strategyFocus.join("\n") || "—"}`;
                     </div>
                   ) : <p className="mt-3 text-sm text-neutral-500">No strategy records listed.</p>}
                 </section>
-                )}
-
-                {!isEscalationPack && (
-                <section className="break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
-                  <div className="border-b border-neutral-100 pb-3">
-                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Open Questions / Gaps</h4>
-                  </div>
-                  {packGaps.length > 0 ? (
-                    <ul className="mt-4 space-y-2 text-sm text-neutral-700">
-                      {packGaps.map(({ category, item }, idx) => (
-                        <li key={idx}>
-                          <span className="font-semibold text-neutral-900">{category}: </span>
-                          {item.detail || item.title || "Issue"}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : <p className="mt-3 text-sm text-neutral-500">No open gaps listed.</p>}
-                </section>
-                )}
-
-                {!isEscalationPack && (
-                <section className="break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
-                  <div className="border-b border-neutral-100 pb-3">
-                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Recent Timeline</h4>
-                  </div>
-                  {packTimeline.length > 0 ? (
-                    <div className="mt-4 space-y-2">
-                      {packTimeline.map((item) => (
-                        <div key={`${item._kind}-${item.id || item.title}`} className="flex flex-col gap-1 border-b border-neutral-100 pb-2 text-sm last:border-0 last:pb-0 sm:flex-row sm:items-start sm:gap-3">
-                          <span className="shrink-0 text-xs font-medium text-neutral-500">{packDateValue(item) || "No date"}</span>
-                          <div>
-                            <span className="text-xs font-bold uppercase tracking-wider text-neutral-400">{item._kind}</span>
-                            <span className="ml-2 font-semibold text-neutral-900">{item.title || "Untitled"}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : <p className="mt-3 text-sm text-neutral-500">No timeline items listed.</p>}
-                </section>
-                )}
                 </article>
               </div>
             )}
