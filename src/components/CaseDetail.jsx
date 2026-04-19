@@ -177,6 +177,67 @@ export default function CaseDetail({
     return typeof doc?.textContent === "string" && doc.textContent.includes("[TRACK RECORD]");
   }
 
+  function getDocumentTextStatus(doc) {
+    const text = typeof doc?.textContent === "string" ? doc.textContent.trim() : "";
+    const attachmentCount = Array.isArray(doc?.attachments) ? doc.attachments.length : 0;
+    const charCount = text.length;
+    const wordCount = text ? text.split(/\s+/).filter(Boolean).length : 0;
+
+    if (charCount > 1000) {
+      return {
+        label: "Excerpt Only",
+        detail: "GPT gets the first 1,000 characters.",
+        tone: "amber",
+        charCount,
+        wordCount,
+      };
+    }
+
+    if (charCount >= 80) {
+      return {
+        label: "GPT Ready",
+        detail: "Usable text is captured for reasoning.",
+        tone: "green",
+        charCount,
+        wordCount,
+      };
+    }
+
+    if (attachmentCount > 0 && charCount === 0) {
+      return {
+        label: "Attachment Only",
+        detail: "GPT sees file names, not file contents.",
+        tone: "red",
+        charCount,
+        wordCount,
+      };
+    }
+
+    if (charCount > 0) {
+      return {
+        label: "Text Weak",
+        detail: "Text is present but likely too short.",
+        tone: "amber",
+        charCount,
+        wordCount,
+      };
+    }
+
+    return {
+      label: "Text Missing",
+      detail: "Add document text for GPT reasoning.",
+      tone: "red",
+      charCount,
+      wordCount,
+    };
+  }
+
+  function getDocumentStatusClasses(tone) {
+    if (tone === "green") return "border-lime-200 bg-lime-50 text-lime-700";
+    if (tone === "amber") return "border-amber-200 bg-amber-50 text-amber-700";
+    return "border-red-200 bg-red-50 text-red-700";
+  }
+
   function getSection(text, startMarker, endMarker = null) {
     if (!text || !startMarker) return "";
     const start = text.indexOf(startMarker);
@@ -1446,13 +1507,19 @@ ${strategyFocus.join("\n") || "—"}`;
             )}
 
             {activeTab === "documents" && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">Documents</h3>
-                  <button
-                    onClick={() => openDocumentModal({
-                      title: "New Tracking Record",
-                      textContent: `[TRACK RECORD]
+              <div className="space-y-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold">Documents</h3>
+                    <p className="mt-1 text-sm text-neutral-500">
+                      Normal documents are checked for GPT-ready text. Tracking records stay separate.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => openDocumentModal({
+                        title: "New Tracking Record",
+                        textContent: `[TRACK RECORD]
 
     meta:
     type:
@@ -1477,24 +1544,30 @@ ${strategyFocus.join("\n") || "—"}`;
 
 
     `
-                    })}
-                    className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
-                  >
-                    Add Tracking Record
-                  </button>
-                  <button
-                    onClick={() => openDocumentModal()}
-                    className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
-                  >
-                    + Add Document
-                  </button>
+                      })}
+                      className="rounded-lg border border-blue-400 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md hover:bg-blue-50 transition-all active:scale-95"
+                    >
+                      Add Tracking Record
+                    </button>
+                    <button
+                      onClick={() => openDocumentModal()}
+                      className="rounded-lg border border-lime-500 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
+                    >
+                      + Add Document
+                    </button>
+                  </div>
                 </div>
 
                 {parsedTrackingRecords.length > 0 && (
-                  <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4">
-                    <div className="mb-2 flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-blue-900">Tracking Records</h3>
-                      <span className="text-xs text-blue-700">
+                  <section className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                    <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-blue-900">Tracking Records</h3>
+                        <p className="mt-1 text-xs text-blue-800">
+                          Structured trackers parsed from document text. Payment rows are previewed separately from normal documents.
+                        </p>
+                      </div>
+                      <span className="shrink-0 rounded-lg border border-blue-200 bg-white px-2 py-1 text-xs font-semibold text-blue-700">
                         {parsedTrackingRecords.length} tracking record{parsedTrackingRecords.length === 1 ? "" : "s"} · {derivedTrackingLedger.length} generated ledger entr{derivedTrackingLedger.length === 1 ? "y" : "ies"}
                       </span>
                     </div>
@@ -1524,7 +1597,7 @@ ${strategyFocus.join("\n") || "—"}`;
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-2 shrink-0">
+                            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                               <button 
                                 onClick={() => setActiveLedgerRecord(record)}
                                 className="rounded-lg border border-blue-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-blue-50 transition-colors"
@@ -1535,13 +1608,7 @@ ${strategyFocus.join("\n") || "—"}`;
                                 onClick={() => openDocumentModal(record.rawDocument, record.rawDocument.id)}
                                 className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
                               >
-                                View
-                              </button>
-                              <button 
-                                onClick={() => openDocumentModal(record.rawDocument, record.rawDocument.id)}
-                                className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
-                              >
-                                Edit
+                                Open / Edit
                               </button>
                               <button 
                                 onClick={() => deleteDocumentEntry(record.rawDocument.id)}
@@ -1558,36 +1625,51 @@ ${strategyFocus.join("\n") || "—"}`;
                         </div>
                       ))}
                     </div>
-                  </div>
+                  </section>
                 )}
 
-                <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500 mt-6">Other Documents</h3>
+                <section className="space-y-3">
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Normal Documents</h3>
+                    <p className="mt-1 text-xs text-neutral-500">
+                      GPT reasoning depends on captured text, not just attached files.
+                    </p>
+                  </div>
 
-                {(() => {
-                  const otherDocuments = (selectedCase?.documents || []).filter(doc => !isTrackingRecord(doc));
+                  {(() => {
+                    const otherDocuments = (selectedCase?.documents || []).filter(doc => !isTrackingRecord(doc));
 
-                  if (otherDocuments.length === 0) {
+                    if (otherDocuments.length === 0) {
+                      return (
+                        <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                          No normal documents yet.
+                        </div>
+                      );
+                    }
                     return (
-                      <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-                        No other documents yet.
-                      </div>
-                    );
-                  }
-                  return (
-                    <div className="space-y-3">
-                      {otherDocuments.map((doc) => (
-                        <div key={doc.id} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-semibold text-neutral-900 truncate">{doc.title || "Untitled Document"}</h4>
-                              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                                <span className="text-neutral-600">{doc.documentDate || "No date"}</span>
-                                <span className="px-1.5 py-0.5 rounded border border-neutral-200 bg-neutral-100">{doc.category || "other"}</span>
-                                {doc.source && <span>Source: {doc.source}</span>}
+                      <div className="space-y-3">
+                        {otherDocuments.map((doc) => {
+                          const textStatus = getDocumentTextStatus(doc);
+                          const attachmentCount = Array.isArray(doc.attachments) ? doc.attachments.length : 0;
+                          const linkedCount = Array.isArray(doc.linkedRecordIds) ? doc.linkedRecordIds.length : 0;
+
+                          return (
+                          <div key={doc.id} className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h4 className="min-w-0 flex-1 truncate font-semibold text-neutral-900">{doc.title || "Untitled Document"}</h4>
+                                  <span className={`shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${getDocumentStatusClasses(textStatus.tone)}`}>
+                                    {textStatus.label}
+                                  </span>
+                                </div>
+                                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                                  <span className="text-neutral-600">{doc.documentDate || "No date"}</span>
+                                  <span className="rounded border border-neutral-200 bg-neutral-100 px-1.5 py-0.5">{doc.category || "other"}</span>
+                                  {doc.source && <span>Source: {doc.source}</span>}
+                                </div>
                               </div>
-                            </div>
-                            <div className="flex flex-col items-end gap-2">
-                              <div className="flex items-center gap-2">
+                              <div className="flex shrink-0 items-center gap-2">
                                 <button 
                                   onClick={() => openDocumentModal(doc, doc.id)}
                                   className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
@@ -1601,22 +1683,50 @@ ${strategyFocus.join("\n") || "—"}`;
                                   Delete
                                 </button>
                               </div>
-                              {doc.textContent && (
-                                <span className="shrink-0 px-1.5 py-0.5 rounded border border-blue-200 bg-blue-50 text-[9px] font-bold uppercase tracking-wider text-blue-600">
-                                  Has Text
-                                </span>
-                              )}
                             </div>
-                          </div>
-                          {doc.summary && (
-                            <p className="mt-3 text-sm text-neutral-600 line-clamp-2 italic border-l-2 border-neutral-200 pl-3">
-                              {doc.summary}
-                            </p>
-                          )}
+
+                            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                              <div className={`rounded-xl border p-3 ${getDocumentStatusClasses(textStatus.tone)}`}>
+                                <div className="text-[10px] font-bold uppercase tracking-wider">GPT Text Status</div>
+                                <div className="mt-1 text-sm font-semibold">{textStatus.label}</div>
+                                <div className="mt-1 text-xs opacity-80">{textStatus.detail}</div>
+                              </div>
+                              <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Text Size</div>
+                                <div className="mt-1 text-sm font-semibold text-neutral-900">
+                                  {textStatus.charCount > 0 ? `${textStatus.charCount.toLocaleString()} chars` : "No text"}
+                                </div>
+                                <div className="mt-1 text-xs text-neutral-500">
+                                  {textStatus.wordCount > 0 ? `About ${textStatus.wordCount.toLocaleString()} words` : "Nothing for GPT to read yet"}
+                                </div>
+                              </div>
+                              <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Context</div>
+                                <div className="mt-1 text-sm font-semibold text-neutral-900">
+                                  {attachmentCount} attachment{attachmentCount === 1 ? "" : "s"} · {linkedCount} linked record{linkedCount === 1 ? "" : "s"}
+                                </div>
+                                <div className="mt-1 text-xs text-neutral-500">
+                                  {attachmentCount > 0 && textStatus.charCount === 0 ? "Attachments need captured text for reasoning." : "Links and files support the document context."}
+                                </div>
+                              </div>
+                            </div>
+
+                            {doc.summary && (
+                              <p className="mt-3 border-l-2 border-neutral-200 pl-3 text-sm italic text-neutral-600 line-clamp-2">
+                                {doc.summary}
+                              </p>
+                            )}
 
                           {doc.textContent && doc.textContent.trim() && (
                             <div className="mt-4 pt-4 border-t border-neutral-100">
-                              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Text Content</div>
+                              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Captured Text For GPT</div>
+                                {textStatus.charCount > 1000 && (
+                                  <span className="rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                                    Export excerpt is capped
+                                  </span>
+                                )}
+                              </div>
                               <div className="text-sm text-neutral-700 whitespace-pre-wrap">
                                 {expandedDocuments[doc.id] 
                                   ? doc.textContent 
@@ -1635,7 +1745,12 @@ ${strategyFocus.join("\n") || "—"}`;
 
                           {doc.attachments && doc.attachments.length > 0 && (
                             <div className="mt-4 pt-4 border-t border-neutral-100">
-                              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Attachments</div>
+                              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Attachments</div>
+                                {!doc.textContent?.trim() && (
+                                  <span className="text-[10px] font-semibold text-red-600">File names only for GPT</span>
+                                )}
+                              </div>
                               <div className="rounded-2xl border border-neutral-200 bg-neutral-50/50 p-4">
                                 <AttachmentPreview 
                                   attachments={doc.attachments || []}
@@ -1648,7 +1763,7 @@ ${strategyFocus.join("\n") || "—"}`;
 
                           {doc.linkedRecordIds && doc.linkedRecordIds.length > 0 && (
                             <div className="mt-3 pt-3 border-t border-neutral-100">
-                              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Linked Records</div>
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Supports / Linked To</div>
                               <div className="flex flex-wrap gap-1.5">
                                 {doc.linkedRecordIds.map((rid) => {
                                   const found = findRecordById(rid);
@@ -1668,10 +1783,12 @@ ${strategyFocus.join("\n") || "—"}`;
                             </div>
                           )}
                         </div>
-                      ))}
-                    </div>
-                  );
-                })()}
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </section>
               </div>
             )}
 
