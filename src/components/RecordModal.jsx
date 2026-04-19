@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { EVIDENCE_ROLES, INCIDENT_LINK_TYPES } from "../domain/caseDomain.js";
+import { suggestEvidenceMetadataForForm } from "../domain/recordFormDomain.js";
 
 const EVIDENCE_ROLE_LABELS = {
   ANCHOR_EVIDENCE: "Anchor Evidence",
@@ -11,6 +12,50 @@ const EVIDENCE_ROLE_LABELS = {
   CORROBORATING_EVIDENCE: "Corroborating Evidence",
   OTHER: "Other",
 };
+
+const EVIDENCE_SUGGESTION_FIELDS = [
+  "evidenceRole",
+  "functionSummary",
+  "sequenceGroup",
+  "relevance",
+  "importance",
+];
+
+const AUTO_SUGGEST_DESCRIPTION_THRESHOLD = 20;
+
+function getEvidenceAttachmentCount(recordForm) {
+  const attachments = [
+    ...(Array.isArray(recordForm?.attachments) ? recordForm.attachments : []),
+    ...(Array.isArray(recordForm?.availability?.digital?.files) ? recordForm.availability.digital.files : []),
+  ];
+  const seen = new Set();
+
+  for (const attachment of attachments) {
+    const key = attachment?.id || attachment?.name || attachment?.storage?.imageId;
+    seen.add(key || attachment);
+  }
+
+  return seen.size;
+}
+
+function hasMeaningfulEvidenceMetadataValue(field, value) {
+  if (field === "evidenceRole") return Boolean(value && value !== "OTHER");
+  if (field === "relevance") return Boolean(value && value !== "medium");
+  if (field === "importance") return Boolean(value && value !== "unreviewed");
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function applySafeAutoEvidenceSuggestions(recordForm, selectedCase, userEditedFields) {
+  const suggestedForm = suggestEvidenceMetadataForForm(recordForm, selectedCase);
+
+  return EVIDENCE_SUGGESTION_FIELDS.reduce((nextForm, field) => {
+    if (userEditedFields[field] || hasMeaningfulEvidenceMetadataValue(field, recordForm[field])) {
+      return nextForm;
+    }
+
+    return { ...nextForm, [field]: suggestedForm[field] };
+  }, recordForm);
+}
 
 export default function RecordModal({
   recordType,
@@ -30,12 +75,21 @@ export default function RecordModal({
 }) {
   const [isLinking, setIsLinking] = useState(false);
   const [tempSelection, setTempSelection] = useState([]);
+  const [hasAutoSuggested, setHasAutoSuggested] = useState(false);
+  const [showAutoSuggestedIndicator, setShowAutoSuggestedIndicator] = useState(false);
+  const [showAdvancedEvidenceDetails, setShowAdvancedEvidenceDetails] = useState(false);
+  const [userEditedSuggestionFields, setUserEditedSuggestionFields] = useState({});
   const titleInputRef = useRef(null);
   const dateInputRef = useRef(null);
   const descriptionTextareaRef = useRef(null);
+  const initialAutoSuggestInputsRef = useRef({
+    attachmentCount: getEvidenceAttachmentCount(recordForm),
+    descriptionLength: (recordForm.description || "").trim().length,
+  });
   const incidentLinkRefs = Array.isArray(recordForm.linkedIncidentRefs) ? recordForm.linkedIncidentRefs : [];
   const incidentOptions = (selectedCase.incidents || []).filter((incident) => incident.id !== recordForm.id);
   const linkedEvidenceIncidentIds = Array.isArray(recordForm.linkedIncidentIds) ? recordForm.linkedIncidentIds : [];
+  const evidenceAttachmentCount = getEvidenceAttachmentCount(recordForm);
 
   // Follow-up task helper logic for new records
   const toggleEvidenceLink = (id) => {
@@ -112,6 +166,15 @@ export default function RecordModal({
     });
   };
 
+  const handleSuggestEvidenceMetadata = () => {
+    setRecordForm(suggestEvidenceMetadataForForm(recordForm, selectedCase));
+  };
+
+  const updateSuggestedMetadataField = (field, value) => {
+    setUserEditedSuggestionFields((prev) => ({ ...prev, [field]: true }));
+    setRecordForm({ ...recordForm, [field]: value });
+  };
+
   const isEdit = !!recordForm.id;
   const typeLabelMap = {
     evidence: "Evidence",
@@ -155,6 +218,33 @@ export default function RecordModal({
       target.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }, [focusField, isLinking]);
+
+  useEffect(() => {
+    if (recordType !== "evidence" || hasAutoSuggested) return;
+
+    const initialInputs = initialAutoSuggestInputsRef.current;
+    const descriptionLength = (recordForm.description || "").trim().length;
+    const attachmentWasAdded = evidenceAttachmentCount > initialInputs.attachmentCount;
+    const descriptionCrossedThreshold =
+      initialInputs.descriptionLength <= AUTO_SUGGEST_DESCRIPTION_THRESHOLD &&
+      descriptionLength > AUTO_SUGGEST_DESCRIPTION_THRESHOLD;
+
+    if (!attachmentWasAdded && !descriptionCrossedThreshold) return;
+
+    setHasAutoSuggested(true);
+    setShowAutoSuggestedIndicator(true);
+    setRecordForm((currentForm) =>
+      applySafeAutoEvidenceSuggestions(currentForm, selectedCase, userEditedSuggestionFields)
+    );
+  }, [
+    evidenceAttachmentCount,
+    hasAutoSuggested,
+    recordForm.description,
+    recordType,
+    selectedCase,
+    setRecordForm,
+    userEditedSuggestionFields,
+  ]);
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
@@ -233,26 +323,49 @@ export default function RecordModal({
           className="mb-3 w-full rounded-xl border border-neutral-300 p-3"
           rows={4}
         />
-        <textarea
-          placeholder="Notes"
-          value={recordForm.notes}
-          onChange={(e) => setRecordForm({ ...recordForm, notes: e.target.value })}
-          className="mb-3 w-full rounded-xl border border-neutral-300 p-3"
-          rows={3}
-        />
+        {recordType !== "evidence" && (
+          <textarea
+            placeholder="Notes"
+            value={recordForm.notes}
+            onChange={(e) => setRecordForm({ ...recordForm, notes: e.target.value })}
+            className="mb-3 w-full rounded-xl border border-neutral-300 p-3"
+            rows={3}
+          />
+        )}
 
         <div />
 
         {recordType === "evidence" && (
           <div className="mb-4 space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Evidence Assessment</h3>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Evidence Assessment</h3>
+              <button
+                onClick={handleSuggestEvidenceMetadata}
+                className="shrink-0 rounded-lg border border-lime-500 bg-white px-3 py-2 text-xs font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
+              >
+                Suggest Metadata
+              </button>
+            </div>
+            {showAutoSuggestedIndicator && (
+              <p className="text-xs font-medium text-lime-700">Metadata suggested</p>
+            )}
             
+            <button
+              type="button"
+              onClick={() => setShowAdvancedEvidenceDetails((prev) => !prev)}
+              className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-left text-sm font-medium text-neutral-800 shadow-sm hover:bg-neutral-50 transition-colors"
+            >
+              {showAdvancedEvidenceDetails ? "Hide advanced details" : "Advanced details"}
+            </button>
+
+            {showAdvancedEvidenceDetails && (
+              <>
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="text-xs font-semibold text-neutral-600">Importance</label>
                 <select 
                   value={recordForm.importance} 
-                  onChange={(e) => setRecordForm({...recordForm, importance: e.target.value})}
+                  onChange={(e) => updateSuggestedMetadataField("importance", e.target.value)}
                   className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-xs"
                 >
                   <option value="unreviewed">Unreviewed</option>
@@ -266,7 +379,7 @@ export default function RecordModal({
                 <label className="text-xs font-semibold text-neutral-600">Relevance</label>
                 <select 
                   value={recordForm.relevance} 
-                  onChange={(e) => setRecordForm({...recordForm, relevance: e.target.value})}
+                  onChange={(e) => updateSuggestedMetadataField("relevance", e.target.value)}
                   className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-xs"
                 >
                   <option value="high">High</option>
@@ -293,7 +406,7 @@ export default function RecordModal({
                 <label className="text-xs font-semibold text-neutral-600">Evidence Role</label>
                 <select
                   value={recordForm.evidenceRole || "OTHER"}
-                  onChange={(e) => setRecordForm({ ...recordForm, evidenceRole: e.target.value })}
+                  onChange={(e) => updateSuggestedMetadataField("evidenceRole", e.target.value)}
                   className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm"
                 >
                   {EVIDENCE_ROLES.map((role) => (
@@ -308,7 +421,7 @@ export default function RecordModal({
                 <input
                   placeholder="e.g. Repair timeline"
                   value={recordForm.sequenceGroup || ""}
-                  onChange={(e) => setRecordForm({ ...recordForm, sequenceGroup: e.target.value })}
+                  onChange={(e) => updateSuggestedMetadataField("sequenceGroup", e.target.value)}
                   className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm"
                 />
               </div>
@@ -319,11 +432,13 @@ export default function RecordModal({
               <textarea
                 placeholder="What this evidence helps establish..."
                 value={recordForm.functionSummary || ""}
-                onChange={(e) => setRecordForm({ ...recordForm, functionSummary: e.target.value })}
+                onChange={(e) => updateSuggestedMetadataField("functionSummary", e.target.value)}
                 className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm"
                 rows={2}
               />
             </div>
+              </>
+            )}
 
             <div className="space-y-2">
               <div>
@@ -354,20 +469,22 @@ export default function RecordModal({
               )}
             </div>
 
-            <div>
-              <label className="text-xs font-semibold text-neutral-600">Review Notes</label>
-              <textarea 
-                placeholder="Internal assessment notes..."
-                value={recordForm.reviewNotes}
-                onChange={(e) => setRecordForm({...recordForm, reviewNotes: e.target.value})}
-                className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm"
-                rows={2}
-              />
-            </div>
+            {showAdvancedEvidenceDetails && (
+              <div>
+                <label className="text-xs font-semibold text-neutral-600">Review Notes</label>
+                <textarea 
+                  placeholder="Internal assessment notes..."
+                  value={recordForm.reviewNotes}
+                  onChange={(e) => setRecordForm({...recordForm, reviewNotes: e.target.value})}
+                  className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm"
+                  rows={2}
+                />
+              </div>
+            )}
           </div>
         )}
 
-        {recordType === "evidence" && (
+        {recordType === "evidence" && showAdvancedEvidenceDetails && (
           <div className="mb-4 space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
             <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Evidence Availability</h3>
             

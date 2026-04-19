@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { removeRecordAttachmentFromForm } from "./recordFormDomain.js";
+import {
+  removeRecordAttachmentFromForm,
+  suggestEvidenceMetadataForForm,
+} from "./recordFormDomain.js";
 
 const emptyAvailability = {
   physical: { hasOriginal: false, location: "", notes: "" },
@@ -88,4 +91,85 @@ test("non-evidence attachment removal only updates attachments", () => {
 
   assert.deepEqual(updated.attachments, [fileB]);
   assert.equal(updated.availability, availability);
+});
+
+test("suggestEvidenceMetadataForForm biases image attachments toward visual corroboration", () => {
+  const form = {
+    title: "Kitchen mould photo",
+    description: "Shows the wall condition",
+    attachments: [{ id: "file-a", name: "mould-photo.jpg", mimeType: "image/jpeg" }],
+  };
+
+  const updated = suggestEvidenceMetadataForForm(form, { incidents: [] });
+
+  assert.equal(updated.evidenceRole, "CORROBORATING_EVIDENCE");
+  assert.equal(updated.sequenceGroup, "Visual condition record");
+  assert.equal(updated.relevance, "medium");
+  assert.equal(updated.importance, "supporting");
+  assert.match(updated.functionSummary, /Visually documents/);
+});
+
+test("suggestEvidenceMetadataForForm biases financial wording toward anchor evidence", () => {
+  const form = {
+    title: "Bank transfer receipt",
+    description: "Rent payment amount in euro",
+    attachments: [{ id: "file-a", name: "receipt.pdf", mimeType: "application/pdf" }],
+  };
+
+  const updated = suggestEvidenceMetadataForForm(form, { incidents: [] });
+
+  assert.equal(updated.evidenceRole, "ANCHOR_EVIDENCE");
+  assert.equal(updated.sequenceGroup, "Payment / financial record");
+  assert.equal(updated.relevance, "high");
+  assert.equal(updated.importance, "strong");
+  assert.match(updated.functionSummary, /payment/i);
+});
+
+test("suggestEvidenceMetadataForForm biases message wording toward communication evidence", () => {
+  const form = {
+    title: "WhatsApp reply from landlord",
+    description: "Message confirming notice was received",
+    attachments: [],
+  };
+
+  const updated = suggestEvidenceMetadataForForm(form, { incidents: [] });
+
+  assert.equal(updated.evidenceRole, "COMMUNICATION_EVIDENCE");
+  assert.equal(updated.sequenceGroup, "Communication / notice sequence");
+  assert.equal(updated.relevance, "high");
+  assert.equal(updated.importance, "strong");
+  assert.match(updated.functionSummary, /communicated|noticed|replied/);
+});
+
+test("suggestEvidenceMetadataForForm uses linked incident context for sequence and summary", () => {
+  const form = {
+    title: "Invoice for repair",
+    description: "Amount charged",
+    linkedIncidentIds: ["inc-1"],
+    attachments: [],
+  };
+
+  const updated = suggestEvidenceMetadataForForm(form, {
+    incidents: [{ id: "inc-1", title: "Emergency repair dispute" }],
+  });
+
+  assert.equal(updated.evidenceRole, "ANCHOR_EVIDENCE");
+  assert.equal(updated.sequenceGroup, "Emergency repair dispute");
+  assert.match(updated.functionSummary, /Linked to incident: Emergency repair dispute/);
+});
+
+test("suggestEvidenceMetadataForForm keeps low-confidence suggestions conservative", () => {
+  const form = {
+    title: "Loose note",
+    description: "Needs review",
+    attachments: [],
+  };
+
+  const updated = suggestEvidenceMetadataForForm(form, { incidents: [] });
+
+  assert.equal(updated.evidenceRole, "OTHER");
+  assert.equal(updated.sequenceGroup, "Evidence review");
+  assert.equal(updated.relevance, "medium");
+  assert.equal(updated.importance, "supporting");
+  assert.match(updated.functionSummary, /supporting context/i);
 });
