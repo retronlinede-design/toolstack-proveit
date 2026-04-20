@@ -213,8 +213,7 @@ function getRecordFormPurpose(form = {}) {
 
 function getRecordTableText(form = {}) {
   const tableText = getTrackingSection(form.textContent, "--- TABLE ---", "--- SUMMARY (GPT READY) ---");
-  return tableText || `| Date       | Amount € | Direction | Status    | Notes |
-|------------|----------|-----------|-----------|-------|`;
+  return tableText;
 }
 
 function getRecordNotes(form = {}) {
@@ -568,18 +567,23 @@ export default function ProveItApp() {
   const openDocumentModal = (preset = {}, documentId = null, mode = "document") => {
     const nextForm = { ...EMPTY_DOCUMENT_FORM, ...preset };
     if (mode === "record") {
+      if (!documentId) {
+        nextForm.textContent = "";
+      }
       const recordType = getRecordFormType(nextForm);
       const purpose = getRecordFormPurpose(nextForm);
       const notes = getRecordNotes(nextForm);
       nextForm.category = recordType;
       nextForm.source = purpose;
       nextForm.summary = notes;
-      nextForm.textContent = buildTrackingRecordText({
-        recordType,
-        purpose,
-        tableText: getRecordTableText(nextForm),
-        notes,
-      });
+      if (documentId) {
+        nextForm.textContent = buildTrackingRecordText({
+          recordType,
+          purpose,
+          tableText: getRecordTableText(nextForm),
+          notes,
+        });
+      }
     }
     setDocumentForm(nextForm);
     setEditingDocumentId(documentId);
@@ -1777,6 +1781,7 @@ const handleRecordFiles = async (event) => {
             focusHint={recordFocusHint}
             onPreviewFile={setPreviewFile}
             openEditRecordModal={openEditRecordModal}
+            openDocumentModal={openDocumentModal}
             onCreateEvidenceFromIncident={handleCreateEvidenceFromIncident}
             onUnlinkEvidenceFromIncident={handleUnlinkEvidenceFromIncident}
           />
