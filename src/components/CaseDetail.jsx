@@ -753,6 +753,28 @@ ${strategyFocus.join("\n") || "—"}`;
     openEditRecordModal(type, record);
   };
 
+  const getLinkedRecordDisplay = (recordId) => {
+    const trackingRecord = parsedTrackingRecords.find((record) => record.id === recordId);
+    if (trackingRecord) {
+      return {
+        id: trackingRecord.id,
+        typeLabel: getRecordTypeLabel(trackingRecord.meta?.type),
+        title: trackingRecord.title || "Untitled tracking record",
+        summary: trackingRecord.meta?.subject || trackingRecord.summary || trackingRecord.notes || trackingRecord.source || "",
+      };
+    }
+
+    const found = findRecordById(recordId);
+    if (!found) return null;
+
+    return {
+      id: recordId,
+      typeLabel: found.type === "evidence" ? "Evidence" : found.type.slice(0, -1),
+      title: found.record.title || found.record.label || "Untitled record",
+      summary: found.record.summary || found.record.description || found.record.notes || found.record.source || "",
+    };
+  };
+
   const statusConfig = {
     Healthy: { color: "text-lime-600 bg-lime-50 border-lime-200", icon: CheckCircle2 },
     "Needs review": { color: "text-amber-600 bg-amber-50 border-amber-200", icon: AlertTriangle },
@@ -1658,16 +1680,21 @@ ${strategyFocus.join("\n") || "—"}`;
                                       <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Linked Records</div>
                                       <div className="flex flex-wrap gap-1.5">
                                         {item.linkedRecordIds.map((rid) => {
-                                          const found = findRecordById(rid);
-                                          if (!found) return null;
+                                          const linkedRecord = getLinkedRecordDisplay(rid);
+                                          if (!linkedRecord) return null;
                                           return (
                                             <button
                                               key={rid}
                                               onClick={() => openLinkedRecord(rid)}
-                                              className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-neutral-300 bg-white text-[10px] font-medium text-neutral-700 shadow-sm hover:border-lime-500 hover:text-lime-600 transition-all text-left"
+                                              className="flex max-w-full items-start gap-2 rounded-lg border border-neutral-300 bg-white px-2 py-1 text-left text-[10px] font-medium text-neutral-700 shadow-sm transition-all hover:border-lime-500 hover:text-lime-600"
                                             >
-                                              <span className="opacity-50 font-bold uppercase">{found.type === 'evidence' ? 'Evidence' : found.type.slice(0, -1)}</span>
-                                              <span className="truncate max-w-[120px]">{found.record.title}</span>
+                                              <span className="shrink-0 font-bold uppercase opacity-50">{linkedRecord.typeLabel}</span>
+                                              <span className="min-w-0">
+                                                <span className="block max-w-[160px] truncate">{linkedRecord.title}</span>
+                                                {linkedRecord.summary && (
+                                                  <span className="block max-w-[220px] truncate text-neutral-400">{linkedRecord.summary}</span>
+                                                )}
+                                              </span>
                                             </button>
                                           );
                                         })}
