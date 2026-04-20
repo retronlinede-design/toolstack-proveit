@@ -316,6 +316,61 @@ export default function CaseDetail({
       });
   }
 
+  function getRecordTypeLabel(metaType = "") {
+    const value = String(metaType || "").toLowerCase();
+    if (value === "payment_tracker") return "Financial";
+    if (value === "work_time") return "Work Time";
+    if (value === "compliance") return "Compliance";
+    if (value === "custom") return "Custom";
+    return metaType || "Unknown";
+  }
+
+  function legacyEuroSymbol() {
+    return String.fromCharCode(0x00e2, 0x201a, 0x00ac);
+  }
+
+  function formatRecordTableHeader(header = "") {
+    return String(header || "").replaceAll(legacyEuroSymbol(), "€");
+  }
+
+  function getRecordTableHeaders(rows = []) {
+    const headers = Array.from(new Set(rows.flatMap((row) => Object.keys(row || {}))));
+    const preferred = ["Period/Date", "Date", "Expected", "Amount €", "Actual", "Difference", "Unit", "Direction", "Status", "Notes"];
+    return headers.sort((a, b) => {
+      const aIndex = preferred.indexOf(a);
+      const bIndex = preferred.indexOf(b);
+      if (aIndex !== -1 || bIndex !== -1) {
+        return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+      }
+      return a.localeCompare(b);
+    });
+  }
+
+  function getRecordStatusClasses(status = "") {
+    const value = String(status || "").toLowerCase();
+    if (["paid", "confirmed", "complete", "completed", "compliant", "ok", "done"].includes(value)) {
+      return "border-lime-200 bg-lime-50 text-lime-700";
+    }
+    if (["pending", "partial", "part-paid", "disputed", "review", "in_progress"].includes(value)) {
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    }
+    if (["unpaid", "missing", "late", "failed", "violation", "not_paid", "noncompliant"].includes(value)) {
+      return "border-red-200 bg-red-50 text-red-700";
+    }
+    return "border-neutral-200 bg-neutral-50 text-neutral-600";
+  }
+
+  function getDifferenceClasses(value = "") {
+    const normalized = String(value || "").replace("€", "").replace(legacyEuroSymbol(), "").replace(",", ".").trim();
+    const parsed = Number(normalized);
+    if (Number.isFinite(parsed)) {
+      if (parsed > 0) return "text-lime-700";
+      if (parsed < 0) return "text-red-700";
+    }
+    if (/owed|missing|short|late|unpaid|negative|under/i.test(String(value))) return "text-red-700";
+    return "text-neutral-700";
+  }
+
   function parseFileLinks(sectionText) {
     if (!sectionText) return [];
     return sectionText
@@ -362,7 +417,7 @@ export default function CaseDetail({
 
   function parseAmount(value) {
     if (typeof value !== "string") return 0;
-    const normalized = value.replace("€", "").replace(",", ".").trim();
+    const normalized = value.replace("€", "").replace(legacyEuroSymbol(), "").replace(",", ".").trim();
     const parsed = Number(normalized);
     return Number.isFinite(parsed) ? parsed : 0;
   }
@@ -375,7 +430,7 @@ export default function CaseDetail({
 
       record.table.forEach((row, index) => {
         const date = row["Date"] || "";
-        const amount = parseAmount(row["Amount €"]);
+        const amount = parseAmount(row["Amount €"] ?? row[`Amount ${legacyEuroSymbol()}`]);
         const directionRaw = (row["Direction"] || "").trim().toLowerCase();
         const status = (row["Status"] || "").trim().toLowerCase();
         const note = row["Notes"] || "";
@@ -1576,17 +1631,22 @@ ${strategyFocus.join("\n") || "—"}`;
                     </div>
 
                     <div className="space-y-3">
-                      {parsedTrackingRecords.map((record) => (
-                        <div key={record.id} className="rounded-xl border border-blue-100 bg-white p-3">
+                      {parsedTrackingRecords.map((record) => {
+                        const tableRows = record.table || [];
+                        const tableHeaders = getRecordTableHeaders(tableRows);
+                        const previewRows = tableRows.slice(0, 5);
+
+                        return (
+                        <div key={record.id} className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-sm font-semibold text-neutral-900">{record.title}</span>
-                                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
-                                  {record.meta.type || "unknown"}
+                                <span className="text-base font-semibold text-neutral-900">{record.title}</span>
+                                <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
+                                  {getRecordTypeLabel(record.meta.type)}
                                 </span>
                                 {record.meta.status && (
-                                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-600">
+                                  <span className={`rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${getRecordStatusClasses(record.meta.status)}`}>
                                     {record.meta.status}
                                   </span>
                                 )}
@@ -1595,7 +1655,7 @@ ${strategyFocus.join("\n") || "—"}`;
                               <div className="mt-2 text-xs text-neutral-600">
                                 <div><span className="font-medium text-neutral-800">Subject:</span> {record.meta.subject || "—"}</div>
                                 <div><span className="font-medium text-neutral-800">Period:</span> {record.meta.period || "—"}</div>
-                                <div><span className="font-medium text-neutral-800">Rows:</span> {record.table.length}</div>
+                                <div><span className="font-medium text-neutral-800">Rows:</span> {tableRows.length}</div>
                                 <div><span className="font-medium text-neutral-800">File links:</span> {record.fileLinks.length}</div>
                               </div>
                             </div>
@@ -1623,10 +1683,60 @@ ${strategyFocus.join("\n") || "—"}`;
                           </div>
 
                           {record.summary && (
-                            <p className="mt-2 text-xs text-neutral-700 line-clamp-3">{record.summary}</p>
+                            <p className="mt-3 border-l-2 border-blue-100 pl-3 text-sm text-neutral-700 line-clamp-3">{record.summary}</p>
+                          )}
+
+                          {previewRows.length > 0 ? (
+                            <div className="mt-4 overflow-x-auto rounded-xl border border-neutral-200">
+                              <table className="min-w-full border-collapse text-left text-xs">
+                                <thead className="bg-neutral-50 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                                  <tr>
+                                    {tableHeaders.map((header) => (
+                                      <th key={header} className="border-b border-neutral-200 px-3 py-2 whitespace-nowrap">
+                                        {formatRecordTableHeader(header)}
+                                      </th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-neutral-100 bg-white">
+                                  {previewRows.map((row, index) => (
+                                    <tr key={`${record.id}-row-${index}`} className="align-top">
+                                      {tableHeaders.map((header) => {
+                                        const value = row[header] || "";
+                                        const isStatus = header.toLowerCase() === "status";
+                                        const isDifference = header.toLowerCase() === "difference";
+                                        return (
+                                          <td key={header} className="px-3 py-2 text-neutral-700">
+                                            {isStatus && value ? (
+                                              <span className={`inline-flex rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${getRecordStatusClasses(value)}`}>
+                                                {value}
+                                              </span>
+                                            ) : (
+                                              <span className={isDifference ? `font-semibold ${getDifferenceClasses(value)}` : ""}>
+                                                {value || "—"}
+                                              </span>
+                                            )}
+                                          </td>
+                                        );
+                                      })}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                              {tableRows.length > previewRows.length && (
+                                <div className="border-t border-neutral-100 bg-neutral-50 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+                                  {tableRows.length - previewRows.length} more row{tableRows.length - previewRows.length === 1 ? "" : "s"}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="mt-4 rounded-xl border border-dashed border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-500">
+                              No table rows parsed yet.
+                            </div>
                           )}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </section>
                 )}
@@ -1964,27 +2074,32 @@ ${strategyFocus.join("\n") || "—"}`;
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {parsedTrackingRecords.map((record) => (
-                        <div key={record.id} className="rounded-xl border border-blue-100 bg-white p-3">
+                      {parsedTrackingRecords.map((record) => {
+                        const tableRows = record.table || [];
+                        const tableHeaders = getRecordTableHeaders(tableRows);
+                        const previewRows = tableRows.slice(0, 5);
+
+                        return (
+                        <div key={record.id} className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-sm font-semibold text-neutral-900">{record.title}</span>
-                                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
-                                  {record.meta.type || "unknown"}
+                                <span className="text-base font-semibold text-neutral-900">{record.title}</span>
+                                <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
+                                  {getRecordTypeLabel(record.meta.type)}
                                 </span>
                                 {record.meta.status && (
-                                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-600">
+                                  <span className={`rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${getRecordStatusClasses(record.meta.status)}`}>
                                     {record.meta.status}
                                   </span>
                                 )}
                               </div>
 
-                              <div className="mt-2 grid gap-1 text-xs text-neutral-600 sm:grid-cols-2">
-                                <div><span className="font-medium text-neutral-800">Subject:</span> {record.meta.subject || "—"}</div>
-                                <div><span className="font-medium text-neutral-800">Period:</span> {record.meta.period || "—"}</div>
-                                <div><span className="font-medium text-neutral-800">Rows:</span> {record.table.length}</div>
-                                <div><span className="font-medium text-neutral-800">File links:</span> {record.fileLinks.length}</div>
+                              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-600">
+                                <span><span className="font-medium text-neutral-800">Purpose:</span> {record.meta.subject || "—"}</span>
+                                {record.meta.period && <span><span className="font-medium text-neutral-800">Period:</span> {record.meta.period}</span>}
+                                <span>{tableRows.length} row{tableRows.length === 1 ? "" : "s"}</span>
+                                {record.fileLinks.length > 0 && <span>{record.fileLinks.length} file link{record.fileLinks.length === 1 ? "" : "s"}</span>}
                               </div>
                             </div>
 
@@ -2011,10 +2126,60 @@ ${strategyFocus.join("\n") || "—"}`;
                           </div>
 
                           {record.summary && (
-                            <p className="mt-2 text-xs text-neutral-700 line-clamp-3">{record.summary}</p>
+                            <p className="mt-3 border-l-2 border-blue-100 pl-3 text-sm text-neutral-700 line-clamp-3">{record.summary}</p>
+                          )}
+
+                          {previewRows.length > 0 ? (
+                            <div className="mt-4 overflow-x-auto rounded-xl border border-neutral-200">
+                              <table className="min-w-full border-collapse text-left text-xs">
+                                <thead className="bg-neutral-50 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                                  <tr>
+                                    {tableHeaders.map((header) => (
+                                      <th key={header} className="border-b border-neutral-200 px-3 py-2 whitespace-nowrap">
+                                        {formatRecordTableHeader(header)}
+                                      </th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-neutral-100 bg-white">
+                                  {previewRows.map((row, index) => (
+                                    <tr key={`${record.id}-row-${index}`} className="align-top">
+                                      {tableHeaders.map((header) => {
+                                        const value = row[header] || "";
+                                        const isStatus = header.toLowerCase() === "status";
+                                        const isDifference = header.toLowerCase() === "difference";
+                                        return (
+                                          <td key={header} className="px-3 py-2 text-neutral-700">
+                                            {isStatus && value ? (
+                                              <span className={`inline-flex rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${getRecordStatusClasses(value)}`}>
+                                                {value}
+                                              </span>
+                                            ) : (
+                                              <span className={isDifference ? `font-semibold ${getDifferenceClasses(value)}` : ""}>
+                                                {value || "—"}
+                                              </span>
+                                            )}
+                                          </td>
+                                        );
+                                      })}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                              {tableRows.length > previewRows.length && (
+                                <div className="border-t border-neutral-100 bg-neutral-50 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+                                  {tableRows.length - previewRows.length} more row{tableRows.length - previewRows.length === 1 ? "" : "s"}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="mt-4 rounded-xl border border-dashed border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-500">
+                              No table rows parsed yet.
+                            </div>
                           )}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </section>

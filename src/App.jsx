@@ -137,6 +137,36 @@ Structure:
 - Key clause(s)
 - Why it matters`;
 
+const RECORD_GPT_PROMPT = `Convert the information I gave you into a ProveIt tracking record.
+
+Requirements:
+- Return ONLY the tracking record
+- Do NOT add explanation outside the format
+- Keep it clean, structured, and updateable
+- Use consistent units (EUR for money, hours for time)
+- Keep rows chronological
+
+Use this format:
+
+[TRACK RECORD]
+
+Title:
+<short clear title>
+
+Record Type:
+<Financial / Work Time / Compliance / Custom>
+
+Purpose:
+<what this tracks and why>
+
+--- TABLE ---
+| Period/Date | Expected | Actual | Difference | Unit | Status | Notes |
+|-------------|----------|--------|------------|------|--------|-------|
+| ...         | ...      | ...    | ...        | ...  | ...    | ...   |
+
+--- SUMMARY ---
+<short explanation of totals, patterns, and key issues>`;
+
 const RECORD_TYPE_OPTIONS = [
   { value: "financial", label: "Financial", metaType: "payment_tracker" },
   { value: "work_time", label: "Work Time", metaType: "work_time" },
@@ -323,6 +353,7 @@ export default function ProveItApp() {
   const [documentForm, setDocumentForm] = useState(EMPTY_DOCUMENT_FORM);
   const [editingDocumentId, setEditingDocumentId] = useState(null);
   const [documentPromptCopied, setDocumentPromptCopied] = useState(false);
+  const [recordPromptCopied, setRecordPromptCopied] = useState(false);
   const [documentModalMode, setDocumentModalMode] = useState("document");
 
   const handleSendReasoningExportToSupabase = async () => {
@@ -561,6 +592,7 @@ export default function ProveItApp() {
     setDocumentForm(EMPTY_DOCUMENT_FORM);
     setEditingDocumentId(null);
     setDocumentPromptCopied(false);
+    setRecordPromptCopied(false);
     setDocumentModalMode("document");
   };
 
@@ -588,6 +620,16 @@ export default function ProveItApp() {
       window.setTimeout(() => setDocumentPromptCopied(false), 1800);
     } catch (error) {
       console.error("Failed to copy GPT prompt", error);
+    }
+  };
+
+  const copyRecordGptPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(RECORD_GPT_PROMPT);
+      setRecordPromptCopied(true);
+      window.setTimeout(() => setRecordPromptCopied(false), 1800);
+    } catch (error) {
+      console.error("Failed to copy record prompt", error);
     }
   };
 
@@ -2058,7 +2100,21 @@ const handleRecordFiles = async (event) => {
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Table / Structured Record Text</label>
+                  <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                    <label className="block text-xs font-bold uppercase text-neutral-400">Table / Structured Record Text</label>
+                    <div className="flex items-center gap-2">
+                      {recordPromptCopied && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-lime-700">Copied</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={copyRecordGptPrompt}
+                        className="rounded-lg border border-neutral-300 bg-white px-2 py-1 text-[10px] font-bold text-neutral-600 shadow-sm hover:bg-neutral-50 transition-colors"
+                      >
+                        Copy Record Prompt
+                      </button>
+                    </div>
+                  </div>
                   <textarea
                     value={getRecordTableText(documentForm)}
                     onChange={(e) => updateRecordDocumentForm({ tableText: e.target.value })}
