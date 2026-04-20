@@ -33,7 +33,13 @@ test("getCaseHealthReport classifies missing incident support as a gap, not a bl
 
 test("getCaseHealthReport classifies missing evidence links and availability as gaps", () => {
   const report = getCaseHealthReport({
-    incidents: [{ id: "inc-1", title: "Incident", description: "Known incident", eventDate: "2024-01-01" }],
+    incidents: [{
+      id: "inc-1",
+      title: "Incident",
+      description: "Known incident",
+      eventDate: "2024-01-01",
+      attachments: [{ id: "att-1" }],
+    }],
     evidence: [
       {
         id: "ev-1",
@@ -91,4 +97,100 @@ test("getCaseHealthReport keeps critical missing evidence title as blocking", ()
   assert.equal(report.totalIssues, 1);
   assert.equal(report.status, "Needs review");
   assert.equal(blockingIssue?.detail, "Missing: title");
+});
+
+test("getCaseHealthReport lowers status when multiple meaningful gaps exist without blockers", () => {
+  const report = getCaseHealthReport({
+    incidents: [
+      {
+        id: "inc-1",
+        title: "First incident",
+        description: "Known incident",
+        eventDate: "2024-01-01",
+        attachments: [],
+        linkedEvidenceIds: [],
+      },
+      {
+        id: "inc-2",
+        title: "Second incident",
+        description: "Another known incident",
+        eventDate: "2024-01-02",
+        attachments: [],
+        linkedEvidenceIds: [],
+      },
+    ],
+    evidence: [],
+    tasks: [],
+    strategy: [],
+  });
+
+  const gapIssues = report.issues
+    .flatMap((group) => group.items)
+    .filter((item) => item.classification === "gap");
+
+  assert.equal(report.totalIssues, 0);
+  assert.equal(gapIssues.length, 2);
+  assert.equal(report.status, "Needs review");
+});
+
+test("getCaseHealthReport keeps only minor informational advisories Healthy", () => {
+  const report = getCaseHealthReport({
+    incidents: [
+      {
+        id: "inc-1",
+        title: "Duplicate title",
+        description: "First incident",
+        eventDate: "2024-01-01",
+        attachments: [{ id: "att-1" }],
+        linkedEvidenceIds: [],
+      },
+      {
+        id: "inc-2",
+        title: "Duplicate title",
+        description: "Second incident",
+        eventDate: "2024-01-02",
+        attachments: [{ id: "att-2" }],
+        linkedEvidenceIds: [],
+      },
+    ],
+    evidence: [],
+    tasks: [],
+    strategy: [],
+  });
+
+  const advisoryIssues = report.issues
+    .flatMap((group) => group.items)
+    .filter((item) => item.severity === "advisory");
+  const gapIssues = advisoryIssues.filter((item) => item.classification === "gap");
+
+  assert.equal(report.totalIssues, 0);
+  assert.equal(advisoryIssues.length, 2);
+  assert.equal(gapIssues.length, 0);
+  assert.equal(report.status, "Healthy");
+});
+
+test("getCaseHealthReport keeps blocker thresholds dominant", () => {
+  const needsReviewReport = getCaseHealthReport({
+    incidents: [],
+    evidence: [],
+    tasks: [{ id: "task-1", title: "", status: "open", date: "2024-01-01" }],
+    strategy: [],
+  });
+
+  const highRiskReport = getCaseHealthReport({
+    incidents: [],
+    evidence: [],
+    tasks: Array.from({ length: 6 }, (_, index) => ({
+      id: `task-${index}`,
+      title: "",
+      status: "open",
+      date: `2024-01-0${index + 1}`,
+    })),
+    strategy: [],
+  });
+
+  assert.equal(needsReviewReport.totalIssues, 1);
+  assert.equal(needsReviewReport.status, "Needs review");
+  assert.equal(highRiskReport.totalIssues, 6);
+  assert.equal(highRiskReport.status, "High risk");
 });

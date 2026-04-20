@@ -291,8 +291,18 @@ export const getCaseHealthReport = (selectedCase) => {
     (acc, cat) => acc + cat.items.filter((item) => item.severity !== "advisory").length,
     0
   );
+  const meaningfulGapKeys = new Set();
+  issues.forEach((cat) => {
+    cat.items
+      .filter((item) => item.classification === "gap")
+      .forEach((item) => {
+        meaningfulGapKeys.add(`${item.type || cat.category}:${item.id || item.detail}`);
+      });
+  });
+  const meaningfulGapCount = meaningfulGapKeys.size;
   let status = "Healthy";
   if (totalIssues > 0) status = totalIssues <= 5 ? "Needs review" : "High risk";
+  else if (meaningfulGapCount >= 2) status = "Needs review";
 
   return {
     totals: {
