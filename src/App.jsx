@@ -752,7 +752,7 @@ export default function ProveItApp() {
   const setupSteps = [
     { step: "1", title: "Create your first case", text: "Start with one case file using a generic template or create your own custom case from scratch." },
     { step: "2", title: "Add core records", text: "Add your first evidence, incident, task, or strategy note. Upload a phone photo, PDF, screenshot, or document." },
-    { step: "3", title: "Use Quick Capture daily", text: "When something happens, save it fast. Review and classify it later." },
+    { step: "3", title: "Build the timeline", text: "Add dated incidents, evidence, documents, and records so the case story is easy to follow." },
     { step: "4", title: "Build your case pack", text: "Mark important evidence and incidents for the printable Pack view." },
   ];
 
@@ -2435,10 +2435,6 @@ const handleRecordFiles = async (event) => {
             </div>
           </div>
         )}
-
-        <button onClick={openQuickCapture} className="fixed bottom-6 right-6 rounded-full border border-lime-500 bg-white px-5 py-3 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
-          + Quick Capture
-        </button>
 
         {previewFile && (
           <FilePreviewModal
