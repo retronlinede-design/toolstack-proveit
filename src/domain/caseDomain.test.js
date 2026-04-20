@@ -8,10 +8,13 @@ import {
   deleteLedgerEntryFromCase,
   deleteRecordFromCase,
   getIncidentLinkGroups,
+  getIncidentsUsingRecord,
+  linkRecordToIncident,
   mergeCase,
   normalizeCase,
   normalizeRecord,
   syncCaseLinks,
+  unlinkRecordFromIncident,
   upsertDocumentEntryInCase,
   upsertLedgerEntryInCase,
   upsertRecordInCase,
@@ -208,6 +211,16 @@ test("normalizeRecord keeps incident linkedEvidenceIds unchanged with linkedInci
 
   assert.deepEqual(record.linkedEvidenceIds, ["ev-1"]);
   assert.deepEqual(record.linkedIncidentRefs, [{ incidentId: "inc-2", type: "CAUSES" }]);
+});
+
+test("normalizeRecord preserves and dedupes incident linkedRecordIds", () => {
+  const record = normalizeRecord({
+    id: "inc-1",
+    title: "Incident",
+    linkedRecordIds: ["doc-1", "doc-1", "", null, "doc-2"],
+  }, "incidents");
+
+  assert.deepEqual(record.linkedRecordIds, ["doc-1", "doc-2"]);
 });
 
 test("normalizeCase builds the current canonical shape and sorts timeline arrays", () => {
@@ -556,6 +569,48 @@ test("getIncidentLinkGroups dedupes related results", () => {
   ]);
 });
 
+test("linkRecordToIncident adds linkedRecordIds without duplicates", () => {
+  const caseItem = {
+    id: "case-1",
+    updatedAt: iso("2024-01-01T08:00:00Z"),
+    incidents: [
+      { id: "inc-1", title: "Incident", date: "2024-01-01", eventDate: "2024-01-01", linkedRecordIds: ["record-1"] },
+    ],
+  };
+
+  const firstUpdate = linkRecordToIncident(caseItem, "inc-1", "record-2");
+  const duplicateUpdate = linkRecordToIncident(firstUpdate, "inc-1", "record-2");
+
+  assert.deepEqual(firstUpdate.incidents[0].linkedRecordIds, ["record-1", "record-2"]);
+  assert.deepEqual(duplicateUpdate.incidents[0].linkedRecordIds, ["record-1", "record-2"]);
+});
+
+test("unlinkRecordFromIncident removes only the target record link", () => {
+  const caseItem = {
+    id: "case-1",
+    updatedAt: iso("2024-01-01T08:00:00Z"),
+    incidents: [
+      { id: "inc-1", title: "Incident", date: "2024-01-01", eventDate: "2024-01-01", linkedRecordIds: ["record-1", "record-2"] },
+    ],
+  };
+
+  const updated = unlinkRecordFromIncident(caseItem, "inc-1", "record-1");
+
+  assert.deepEqual(updated.incidents[0].linkedRecordIds, ["record-2"]);
+});
+
+test("getIncidentsUsingRecord derives reverse record usage from incidents", () => {
+  const caseItem = {
+    incidents: [
+      { id: "inc-2", title: "Second", date: "2024-01-02", eventDate: "2024-01-02", linkedRecordIds: ["record-1"] },
+      { id: "inc-1", title: "First", date: "2024-01-01", eventDate: "2024-01-01", linkedRecordIds: ["record-1", "record-2"] },
+      { id: "inc-3", title: "Third", date: "2024-01-03", eventDate: "2024-01-03", linkedRecordIds: ["record-2"] },
+    ],
+  };
+
+  assert.deepEqual(getIncidentsUsingRecord(caseItem, "record-1").map((incident) => incident.id), ["inc-1", "inc-2"]);
+});
+
 test("deleteRecordFromCase removes deleted evidence id from linked incidents only", () => {
   const unchangedIncident = {
     id: "inc-unchanged",
@@ -751,6 +806,39 @@ test("upsertRecordInCase edit replaces an existing record by id and refreshes ca
   assert.match(updated.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.notEqual(updated.updatedAt, caseItem.updatedAt);
   assert.equal(updated.documents, documents);
+});
+
+test("upsertRecordInCase edit persists incident linkedRecordIds from form", () => {
+  const editingIncident = {
+    id: "inc-1",
+    title: "Old incident",
+    date: "2024-01-01",
+    eventDate: "2024-01-01",
+    description: "Old",
+    notes: "",
+    linkedRecordIds: ["record-old"],
+    linkedEvidenceIds: [],
+  };
+  const caseItem = {
+    id: "case-1",
+    incidents: [editingIncident],
+    evidence: [],
+  };
+
+  const updated = upsertRecordInCase(caseItem, "incidents", {
+    title: " Updated incident ",
+    date: "2024-01-02",
+    description: " Updated ",
+    notes: "",
+    attachments: [],
+    availability: { digital: { files: [], hasDigital: false } },
+    linkedIncidentIds: [],
+    linkedEvidenceIds: [],
+    linkedIncidentRefs: [],
+    linkedRecordIds: ["record-new", "record-new", "record-other"],
+  }, editingIncident);
+
+  assert.deepEqual(updated.incidents[0].linkedRecordIds, ["record-new", "record-other"]);
 });
 
 test("upsertRecordInCase mirrors evidence attachments into availability and syncs linked incidents", () => {

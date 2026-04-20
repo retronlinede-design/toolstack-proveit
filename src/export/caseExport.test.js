@@ -690,6 +690,33 @@ test("buildCaseReasoningExportPayload incidentSummary includes readable linkedEv
   ]);
 });
 
+test("buildCaseReasoningExportPayload incidentSummary includes readable linkedRecords without changing linkedRecordIds", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.incidents[0] = {
+    ...caseItem.incidents[0],
+    linkedRecordIds: ["doc-1", "task-1", "missing-record"],
+  };
+
+  const payload = buildCaseReasoningExportPayload(caseItem, "detailed");
+  const incident = payload.data.incidentSummary.find((item) => item.id === "inc-1");
+
+  assert.deepEqual(incident.linkedRecordIds, ["doc-1", "task-1", "missing-record"]);
+  assert.deepEqual(incident.linkedRecords, [
+    {
+      id: "doc-1",
+      title: "Document",
+      recordType: "document",
+      summary: "Document summary",
+    },
+    {
+      id: "task-1",
+      title: "Task 1",
+      recordType: "task",
+      summary: "Task 1 description",
+    },
+  ]);
+});
+
 test("buildCaseReasoningExportPayload linkedEvidence omits binary attachment data", () => {
   const payload = buildCaseReasoningExportPayload(buildReasoningCase(), "detailed");
   const incident = payload.data.incidentSummary.find((item) => item.id === "inc-1");

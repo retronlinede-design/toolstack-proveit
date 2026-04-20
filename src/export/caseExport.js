@@ -142,6 +142,29 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
     }));
 
   const evidenceMap = new Map((c.evidence || []).map((evidence) => [evidence.id, evidence]));
+  const linkedRecordMap = new Map([
+    ...(c.incidents || []).map((record) => [record.id, { record, recordType: "incident" }]),
+    ...(c.evidence || []).map((record) => [record.id, { record, recordType: "evidence" }]),
+    ...(c.tasks || []).map((record) => [record.id, { record, recordType: "task" }]),
+    ...(c.strategy || []).map((record) => [record.id, { record, recordType: "strategy" }]),
+    ...(c.documents || []).map((record) => [record.id, { record, recordType: "document" }]),
+  ]);
+  const mapLinkedRecord = ({ record, recordType }) => ({
+    id: record.id,
+    recordType,
+    title: record.title || record.label || "",
+    date: record.eventDate || record.date || record.documentDate || record.dueDate || record.createdAt || "",
+  });
+  const mapIncidentLinkedRecord = ({ record, recordType }) => ({
+    id: record.id,
+    title: record.title || record.label || "",
+    recordType,
+    summary: (record.summary || record.description || record.notes || record.source || "").substring(0, 300),
+  });
+  const resolveLinkedRecords = (linkedRecordIds, mapper = mapLinkedRecord) => (Array.isArray(linkedRecordIds) ? linkedRecordIds : [])
+    .map((recordId) => linkedRecordMap.get(recordId))
+    .filter(Boolean)
+    .map(mapper);
 
   const incidentSummary = sortTimelineItems(c.incidents || [])
     .reverse()
@@ -149,6 +172,7 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
     .map(i => {
       const incidentLinks = getIncidentLinkGroups(c, i.id);
       const linkedEvidenceIds = Array.isArray(i.linkedEvidenceIds) ? i.linkedEvidenceIds : [];
+      const linkedRecordIds = Array.isArray(i.linkedRecordIds) ? i.linkedRecordIds : [];
       const mapLinkedIncident = ({ incident }) => ({
         id: incident.id,
         title: incident.title || "",
@@ -162,6 +186,8 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
         importance: i.importance,
         date: i.eventDate || i.date || "",
         summary: (i.description || i.notes || "").substring(0, 300),
+        linkedRecordIds,
+        linkedRecords: resolveLinkedRecords(linkedRecordIds, mapIncidentLinkedRecord),
         linkedEvidenceIds,
         linkedEvidence: linkedEvidenceIds
           .map((evidenceId) => evidenceMap.get(evidenceId))
@@ -293,23 +319,6 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
         date: incident.eventDate || incident.date || "",
       })),
   }));
-  const linkedRecordMap = new Map([
-    ...(c.incidents || []).map((record) => [record.id, { record, recordType: "incident" }]),
-    ...(c.evidence || []).map((record) => [record.id, { record, recordType: "evidence" }]),
-    ...(c.tasks || []).map((record) => [record.id, { record, recordType: "task" }]),
-    ...(c.strategy || []).map((record) => [record.id, { record, recordType: "strategy" }]),
-    ...(c.documents || []).map((record) => [record.id, { record, recordType: "document" }]),
-  ]);
-  const mapLinkedRecord = ({ record, recordType }) => ({
-    id: record.id,
-    recordType,
-    title: record.title || record.label || "",
-    date: record.eventDate || record.date || record.documentDate || record.dueDate || record.createdAt || "",
-  });
-  const resolveLinkedRecords = (linkedRecordIds) => (Array.isArray(linkedRecordIds) ? linkedRecordIds : [])
-    .map((recordId) => linkedRecordMap.get(recordId))
-    .filter(Boolean)
-    .map(mapLinkedRecord);
   const toLedgerNumber = (value) => {
     const parsed = Number(value || 0);
     return Number.isFinite(parsed) ? parsed : 0;

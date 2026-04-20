@@ -98,6 +98,20 @@ export function normalizeIncidentLinkRefs(refs, currentIncidentId = null) {
   }, []);
 }
 
+export function normalizeLinkedRecordIds(value) {
+  if (!Array.isArray(value)) return [];
+
+  const seen = new Set();
+  return value.reduce((ids, item) => {
+    if (typeof item !== "string") return ids;
+    const id = item.trim();
+    if (!id || seen.has(id)) return ids;
+    seen.add(id);
+    ids.push(id);
+    return ids;
+  }, []);
+}
+
 /**
  * Normalizes timeline-specific fields with priority-based fallback logic.
  */
@@ -177,7 +191,7 @@ export function normalizeLedgerEntry(item) {
       : "missing",
     notes: item?.notes || "",
     batchLabel: item?.batchLabel || "",
-    linkedRecordIds: Array.isArray(item?.linkedRecordIds) ? item.linkedRecordIds : [],
+    linkedRecordIds: normalizeLinkedRecordIds(item?.linkedRecordIds),
     edited: !!item?.edited,
     createdAt: item?.createdAt || new Date().toISOString(),
     updatedAt: item?.updatedAt || item?.createdAt || new Date().toISOString(),
@@ -205,7 +219,7 @@ export function normalizeDocumentEntry(item) {
     summary: item?.summary || "",
     textContent: item?.textContent || "",
     attachments: Array.isArray(item?.attachments) ? item.attachments : [],
-    linkedRecordIds: Array.isArray(item?.linkedRecordIds) ? item.linkedRecordIds : [],
+    linkedRecordIds: normalizeLinkedRecordIds(item?.linkedRecordIds),
     edited: !!item?.edited,
     createdAt: item?.createdAt || new Date().toISOString(),
     updatedAt: item?.updatedAt || item?.createdAt || new Date().toISOString(),
@@ -222,7 +236,7 @@ export function normalizeRecord(item, recordType) {
     notes: item?.notes || "",
     attachments: Array.isArray(item?.attachments) ? item.attachments : [],
     tags: Array.isArray(item?.tags) ? item.tags : [],
-    linkedRecordIds: Array.isArray(item?.linkedRecordIds) ? item.linkedRecordIds : [],
+    linkedRecordIds: normalizeLinkedRecordIds(item?.linkedRecordIds),
     linkedIncidentIds: Array.isArray(item?.linkedIncidentIds) ? item.linkedIncidentIds : [], // For evidence
     linkedEvidenceIds: Array.isArray(item?.linkedEvidenceIds) ? item.linkedEvidenceIds : [], // For incidents
     status: normalizeRecordStatus(item?.status, recordType),
@@ -498,6 +512,71 @@ export function getIncidentLinkGroups(caseItem, incidentId) {
   };
 }
 
+export function linkRecordToIncident(caseItem, incidentId, recordId) {
+  if (!caseItem || !incidentId || !recordId) return caseItem;
+
+  const incidents = Array.isArray(caseItem.incidents) ? caseItem.incidents : [];
+  let changed = false;
+  const updatedIncidents = incidents.map((incident) => {
+    if (incident.id !== incidentId) return incident;
+
+    const linkedRecordIds = normalizeLinkedRecordIds([...(incident.linkedRecordIds || []), recordId]);
+    if (linkedRecordIds.length === normalizeLinkedRecordIds(incident.linkedRecordIds).length) return incident;
+
+    changed = true;
+    return {
+      ...incident,
+      linkedRecordIds,
+      updatedAt: new Date().toISOString(),
+    };
+  });
+
+  if (!changed) return caseItem;
+
+  return {
+    ...caseItem,
+    incidents: sortTimelineItems(updatedIncidents),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function unlinkRecordFromIncident(caseItem, incidentId, recordId) {
+  if (!caseItem || !incidentId || !recordId) return caseItem;
+
+  const incidents = Array.isArray(caseItem.incidents) ? caseItem.incidents : [];
+  let changed = false;
+  const updatedIncidents = incidents.map((incident) => {
+    if (incident.id !== incidentId) return incident;
+
+    const currentIds = normalizeLinkedRecordIds(incident.linkedRecordIds);
+    const linkedRecordIds = currentIds.filter((id) => id !== recordId);
+    if (linkedRecordIds.length === currentIds.length) return incident;
+
+    changed = true;
+    return {
+      ...incident,
+      linkedRecordIds,
+      updatedAt: new Date().toISOString(),
+    };
+  });
+
+  if (!changed) return caseItem;
+
+  return {
+    ...caseItem,
+    incidents: sortTimelineItems(updatedIncidents),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function getIncidentsUsingRecord(caseItem, recordId) {
+  if (!caseItem || !recordId) return [];
+  const incidents = Array.isArray(caseItem.incidents) ? caseItem.incidents : [];
+  return sortTimelineItems(
+    incidents.filter((incident) => normalizeLinkedRecordIds(incident.linkedRecordIds).includes(recordId))
+  );
+}
+
 export function deleteRecordFromCase(caseItem, recordType, recordId) {
   let updatedCase = {
     ...caseItem,
@@ -649,6 +728,7 @@ export function upsertRecordInCase(caseItem, recordType, recordInput, editingRec
       linkedIncidentIds: recordInput.linkedIncidentIds, // Explicitly pass from form
       linkedEvidenceIds: recordInput.linkedEvidenceIds, // Explicitly pass from form
       linkedIncidentRefs: recordInput.linkedIncidentRefs,
+      linkedRecordIds: recordInput.linkedRecordIds || editingRecord.linkedRecordIds || [],
       updatedAt: new Date().toISOString(),
       edited: true,
     }, recordType);

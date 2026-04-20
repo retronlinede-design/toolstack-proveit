@@ -23,6 +23,28 @@ const EVIDENCE_SUGGESTION_FIELDS = [
 
 const AUTO_SUGGEST_DESCRIPTION_THRESHOLD = 20;
 
+function isTrackingRecordDocument(doc) {
+  return typeof doc?.textContent === "string" && doc.textContent.includes("[TRACK RECORD]");
+}
+
+function getTrackingRecordTypeLabel(doc) {
+  const match = safeText(doc?.textContent).match(/^\s*type:\s*(.+)$/im);
+  const value = match?.[1]?.trim().toLowerCase() || "";
+  if (value === "payment_tracker" || value === "financial") return "Financial";
+  if (value === "work_time") return "Work Time";
+  if (value === "compliance") return "Compliance";
+  if (value === "custom") return "Custom";
+  return "Record";
+}
+
+function safeText(value) {
+  return typeof value === "string" ? value : "";
+}
+
+function getTrackingRecordSummary(doc) {
+  return safeText(doc?.summary) || safeText(doc?.source) || safeText(doc?.textContent).slice(0, 160);
+}
+
 function getEvidenceAttachmentCount(recordForm) {
   const attachments = [
     ...(Array.isArray(recordForm?.attachments) ? recordForm.attachments : []),
@@ -70,11 +92,13 @@ export default function RecordModal({
   focusHint,
   onPreviewFile,
   openEditRecordModal,
+  openDocumentModal,
   onCreateEvidenceFromIncident,
   onUnlinkEvidenceFromIncident,
 }) {
   const [isLinking, setIsLinking] = useState(false);
   const [tempSelection, setTempSelection] = useState([]);
+  const [selectedLinkedRecordId, setSelectedLinkedRecordId] = useState("");
   const [hasAutoSuggested, setHasAutoSuggested] = useState(false);
   const [showAutoSuggestedIndicator, setShowAutoSuggestedIndicator] = useState(false);
   const [showAdvancedEvidenceDetails, setShowAdvancedEvidenceDetails] = useState(false);
@@ -89,6 +113,12 @@ export default function RecordModal({
   const incidentLinkRefs = Array.isArray(recordForm.linkedIncidentRefs) ? recordForm.linkedIncidentRefs : [];
   const incidentOptions = (selectedCase.incidents || []).filter((incident) => incident.id !== recordForm.id);
   const linkedEvidenceIncidentIds = Array.isArray(recordForm.linkedIncidentIds) ? recordForm.linkedIncidentIds : [];
+  const linkedIncidentRecordIds = Array.isArray(recordForm.linkedRecordIds) ? recordForm.linkedRecordIds : [];
+  const trackingRecords = (selectedCase.documents || []).filter(isTrackingRecordDocument);
+  const linkedTrackingRecords = linkedIncidentRecordIds
+    .map((recordId) => trackingRecords.find((record) => record.id === recordId))
+    .filter(Boolean);
+  const availableTrackingRecords = trackingRecords.filter((record) => !linkedIncidentRecordIds.includes(record.id));
   const evidenceAttachmentCount = getEvidenceAttachmentCount(recordForm);
 
   // Follow-up task helper logic for new records
@@ -163,6 +193,22 @@ export default function RecordModal({
       linkedIncidentIds: linkedEvidenceIncidentIds.includes(incidentId)
         ? linkedEvidenceIncidentIds.filter((id) => id !== incidentId)
         : [...linkedEvidenceIncidentIds, incidentId],
+    });
+  };
+
+  const linkSelectedRecordToIncident = () => {
+    if (!selectedLinkedRecordId) return;
+    setRecordForm({
+      ...recordForm,
+      linkedRecordIds: Array.from(new Set([...linkedIncidentRecordIds, selectedLinkedRecordId])),
+    });
+    setSelectedLinkedRecordId("");
+  };
+
+  const unlinkRecordFromIncidentForm = (recordId) => {
+    setRecordForm({
+      ...recordForm,
+      linkedRecordIds: linkedIncidentRecordIds.filter((id) => id !== recordId),
     });
   };
 
@@ -710,6 +756,76 @@ export default function RecordModal({
               </button>
               <button onClick={() => onCreateEvidenceFromIncident(recordForm)} className="rounded-xl border border-lime-500 bg-white py-2 text-xs font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
                 + Create New
+              </button>
+            </div>
+          </div>
+          <div className="mb-4 space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Linked Records</h3>
+              <p className="mt-1 text-xs text-neutral-500">Connect this incident to full tracking records from the Records tab.</p>
+            </div>
+
+            {linkedTrackingRecords.length > 0 ? (
+              <div className="space-y-2">
+                {linkedTrackingRecords.map((record) => (
+                  <div key={record.id} className="rounded-xl border border-neutral-200 bg-white p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="truncate font-semibold text-neutral-800">{record.title || "Untitled Record"}</span>
+                          <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
+                            {getTrackingRecordTypeLabel(record)}
+                          </span>
+                        </div>
+                        {getTrackingRecordSummary(record) && (
+                          <p className="mt-1 line-clamp-2 text-xs text-neutral-600">
+                            {getTrackingRecordSummary(record)}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                        {openDocumentModal && (
+                          <button
+                            onClick={() => openDocumentModal(record, record.id, "record")}
+                            className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                          >
+                            Open
+                          </button>
+                        )}
+                        <button
+                          onClick={() => unlinkRecordFromIncidentForm(record.id)}
+                          className="rounded-lg border border-red-300 bg-white px-2 py-1 text-[10px] font-bold text-red-700 shadow-sm hover:bg-red-50 transition-colors"
+                        >
+                          Unlink
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-neutral-500 italic">No records linked yet.</p>
+            )}
+
+            <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+              <select
+                value={selectedLinkedRecordId}
+                onChange={(e) => setSelectedLinkedRecordId(e.target.value)}
+                className="rounded-lg border border-neutral-300 bg-white p-2 text-sm"
+              >
+                <option value="">Select record to link</option>
+                {availableTrackingRecords.map((record) => (
+                  <option key={record.id} value={record.id}>
+                    {record.title || "Untitled Record"}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={linkSelectedRecordToIncident}
+                disabled={!selectedLinkedRecordId}
+                className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-xs font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:bg-neutral-100 disabled:text-neutral-400 disabled:shadow-none transition-colors"
+              >
+                Link Record
               </button>
             </div>
           </div>
