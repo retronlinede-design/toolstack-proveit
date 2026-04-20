@@ -23,6 +23,7 @@ export default function RecordCard({
   deleteRecord,
   openLinkedRecord,
   openRecordModal,
+  trackingRecords = [],
   showTypeBadge = false,
   isTimeline = false,
   isMilestone = false,
@@ -34,6 +35,41 @@ export default function RecordCard({
   const isNewRecord =
     (recordType === "evidence" || recordType === "incidents") &&
     item.edited !== true;
+
+  const getRecordTypeLabel = (metaType = "") => {
+    const value = String(metaType || "").toLowerCase();
+    if (value === "payment_tracker") return "Financial";
+    if (value === "work_time") return "Work Time";
+    if (value === "compliance") return "Compliance";
+    if (value === "custom") return "Custom";
+    return metaType || "Record";
+  };
+
+  const getLinkedItemDisplay = (linkedId) => {
+    const trackingRecord = trackingRecords.find((record) => record.id === linkedId);
+    if (trackingRecord) {
+      return {
+        title: trackingRecord.title || "Untitled tracking record",
+        typeLabel: getRecordTypeLabel(trackingRecord.meta?.type),
+        summary: trackingRecord.meta?.subject || trackingRecord.summary || trackingRecord.notes || trackingRecord.source || "",
+      };
+    }
+
+    const fallbackSources = [
+      ...(selectedCase?.evidence || []).map((record) => ({ record, typeLabel: "Evidence" })),
+      ...(selectedCase?.incidents || []).map((record) => ({ record, typeLabel: "Incident" })),
+      ...(selectedCase?.strategy || []).map((record) => ({ record, typeLabel: "Strategy" })),
+      ...(selectedCase?.documents || []).map((record) => ({ record, typeLabel: "Document" })),
+    ];
+    const found = fallbackSources.find(({ record }) => record.id === linkedId);
+    if (!found) return null;
+
+    return {
+      title: found.record.title || found.record.label || "Untitled record",
+      typeLabel: found.typeLabel,
+      summary: found.record.summary || found.record.description || found.record.notes || found.record.source || "",
+    };
+  };
 
   const badgeColors = {
     evidence: "bg-purple-50 text-purple-700 border-purple-200",
@@ -242,18 +278,29 @@ export default function RecordCard({
               const allLinkIds = Array.from(new Set([...(item.linkedIncidentIds || []), ...(item.linkedRecordIds || [])]));
               if (allLinkIds.length === 0) return null;
               return (
-                <div className="mt-2 space-y-1">
-                  <div className="text-[10px] font-bold uppercase tracking-tight text-neutral-500">{isEvidence ? "Linked Incidents" : "Linked:"}</div>
-                  <div className="flex flex-wrap gap-1">
-                    {allLinkIds.map(linkedId => (
-                      <button
-                        key={linkedId}
-                        onClick={() => openLinkedRecord?.(linkedId)}
-                        className="px-1.5 py-0.5 rounded border border-neutral-300 bg-neutral-50 text-neutral-600 shadow-sm hover:bg-white hover:border-lime-500 hover:text-lime-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-95 transition-all cursor-pointer truncate max-w-[150px]"
-                      >
-                        {([...selectedCase.evidence, ...selectedCase.incidents, ...selectedCase.strategy].find(r => r.id === linkedId)?.title) || "Unknown Record"}
-                      </button>
-                    ))}
+                <div className="mt-3 space-y-1 border-t border-neutral-100 pt-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">{isEvidence ? "Linked Incidents" : "Linked Records"}</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {allLinkIds.map(linkedId => {
+                      const linkedItem = getLinkedItemDisplay(linkedId);
+                      if (!linkedItem) return null;
+
+                      return (
+                        <button
+                          key={linkedId}
+                          onClick={() => openLinkedRecord?.(linkedId)}
+                          className="flex max-w-full items-start gap-2 rounded-lg border border-neutral-300 bg-white px-2 py-1 text-left text-[10px] font-medium text-neutral-700 shadow-sm transition-all hover:border-lime-500 hover:text-lime-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-[0.99]"
+                        >
+                          <span className="shrink-0 font-bold uppercase opacity-50">{linkedItem.typeLabel}</span>
+                          <span className="min-w-0">
+                            <span className="block max-w-[160px] truncate">{linkedItem.title}</span>
+                            {linkedItem.summary && (
+                              <span className="block max-w-[220px] truncate text-neutral-400">{linkedItem.summary}</span>
+                            )}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               );

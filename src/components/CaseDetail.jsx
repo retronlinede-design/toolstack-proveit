@@ -933,6 +933,7 @@ ${strategyFocus.join("\n") || "—"}`;
       deleteRecord={deleteRecord}
       openLinkedRecord={openLinkedRecord}
       openRecordModal={openRecordModal}
+      trackingRecords={parsedTrackingRecords}
     />
   );
 };
