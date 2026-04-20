@@ -487,6 +487,113 @@ export default function CaseDetail({
   }
 
   const health = selectedCase ? getCaseHealthReport(selectedCase) : null;
+  const overviewIncidents = selectedCase?.incidents || [];
+  const overviewEvidence = selectedCase?.evidence || [];
+  const overviewDocuments = selectedCase?.documents || [];
+  const overviewRecords = overviewDocuments.filter(isTrackingRecord);
+  const overviewSourceDocuments = overviewDocuments.filter((doc) => !isTrackingRecord(doc));
+  const overviewUsefulDocuments = overviewSourceDocuments.filter((doc) =>
+    safeText(doc.textContent).trim().length > 80 || safeText(doc.summary).trim().length > 20
+  );
+  const overviewLinkedEvidence = overviewEvidence.filter((item) =>
+    Array.isArray(item.linkedIncidentIds) && item.linkedIncidentIds.length > 0
+  );
+  const overviewSupportedIncidents = overviewIncidents.filter((item) =>
+    (Array.isArray(item.attachments) && item.attachments.length > 0) ||
+    (Array.isArray(item.linkedEvidenceIds) && item.linkedEvidenceIds.length > 0)
+  );
+  const groupedWeakPoints = (health?.issues || [])
+    .flatMap((group) => group.items.map((item) => ({ ...item, category: group.category })))
+    .filter((item) => item.classification === "gap")
+    .reduce((groups, item) => {
+      const detail = safeText(item.detail).toLowerCase();
+      const category = safeText(item.category).toLowerCase();
+      let key = "Records/data weakness";
+      if (category.includes("timeline") || detail.includes("date") || detail.includes("chronology")) {
+        key = "Timeline/chronology weakness";
+      } else if (detail.includes("linked incident") || detail.includes("linked evidence") || detail.includes("broken linked")) {
+        key = "Structure/linking weakness";
+      } else if (
+        category.includes("evidence") ||
+        detail.includes("physical") ||
+        detail.includes("digital") ||
+        detail.includes("availability") ||
+        detail.includes("attachment")
+      ) {
+        key = "Evidence weakness";
+      }
+      groups[key] = groups[key] || [];
+      groups[key].push(item);
+      return groups;
+    }, {});
+  const weakPointText = {
+    "Evidence weakness": "Evidence support is incomplete for key incidents",
+    "Structure/linking weakness": "Some records are not clearly linked into the case story",
+    "Timeline/chronology weakness": "Chronology needs clearer dates or ordering",
+    "Records/data weakness": "Some structured case data is incomplete",
+  };
+  const displayedWeakPoints = [
+    "Evidence weakness",
+    "Structure/linking weakness",
+    "Timeline/chronology weakness",
+    "Records/data weakness",
+  ]
+    .filter((category) => (groupedWeakPoints[category] || []).length > 0)
+    .slice(0, 3)
+    .map((category) => ({
+      category,
+      text: weakPointText[category],
+    }));
+  const meaningfulGapCount = (health?.issues || [])
+    .flatMap((group) => group.items)
+    .filter((item) => item.classification === "gap").length;
+  const blockerCount = health?.totalIssues || 0;
+  const hasIncidents = overviewIncidents.length > 0;
+  const hasRecords = overviewRecords.length > 0;
+  const hasEvidence = overviewEvidence.length > 0;
+  const hasSomeLinking = overviewLinkedEvidence.length > 0 || overviewSupportedIncidents.length > 0;
+  const hasStrongStructure =
+    hasIncidents &&
+    hasRecords &&
+    hasEvidence &&
+    overviewLinkedEvidence.length > 0 &&
+    overviewSupportedIncidents.length > 0 &&
+    displayedWeakPoints.length === 0;
+  const casePosition = !hasIncidents && !hasRecords
+    ? "Logging"
+    : hasStrongStructure
+      ? "Escalation-ready"
+      : hasIncidents && hasRecords && hasSomeLinking
+        ? "Structured"
+        : "Building";
+  const strengthScore =
+    (hasIncidents ? 1 : 0) +
+    (overviewIncidents.length >= 2 ? 1 : 0) +
+    (hasEvidence ? 1 : 0) +
+    (overviewLinkedEvidence.length > 0 ? 1 : 0) +
+    (overviewSourceDocuments.length > 0 ? 1 : 0) +
+    (overviewUsefulDocuments.length > 0 ? 1 : 0) +
+    (overviewSupportedIncidents.length > 0 ? 1 : 0) +
+    (hasRecords ? 1 : 0);
+  const canBeStrong = blockerCount === 0 && meaningfulGapCount < 2;
+  const caseStrength = canBeStrong && strengthScore >= 5
+    ? "Strong"
+    : strengthScore >= 2
+      ? "Moderate"
+      : "Weak";
+  const positionStyleMap = {
+    Logging: "border-neutral-200 bg-neutral-50 text-neutral-700",
+    Building: "border-blue-200 bg-blue-50 text-blue-700",
+    Structured: "border-amber-200 bg-amber-50 text-amber-700",
+    "Escalation-ready": "border-lime-200 bg-lime-50 text-lime-700",
+  };
+  const strengthStyleMap = {
+    Weak: "border-red-200 bg-red-50 text-red-700",
+    Moderate: "border-amber-200 bg-amber-50 text-amber-700",
+    Strong: "border-lime-200 bg-lime-50 text-lime-700",
+  };
+  const positionStyle = positionStyleMap[casePosition] || positionStyleMap.Logging;
+  const strengthStyle = strengthStyleMap[caseStrength] || strengthStyleMap.Weak;
   const readinessDisplayMap = {
     Healthy: "Ready",
     "Needs review": "Needs work",
@@ -1191,45 +1298,54 @@ ${strategyFocus.join("\n") || "—"}`;
             {/* Tab content logic... */}
             {activeTab === "overview" && (
               <div className="space-y-5">
-                {/* Case Readiness Card */}
                 <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                   <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <h3 className="text-lg font-semibold">Case Readiness</h3>
-                      <p className="mt-1 text-sm text-neutral-500">Quick check of case completeness and cleanup needs</p>
+                      <h3 className="text-lg font-semibold">Case Position</h3>
+                      <p className="mt-1 text-sm text-neutral-500">Practical view of structure, strength, and weak points.</p>
                       {issueFixFeedback && (
                         <p className="mt-2 text-xs font-medium text-lime-700">{issueFixFeedback}</p>
                       )}
                     </div>
-                    {health && (
-                      <div className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusConfig[health.status].color}`}>
-                        {readinessLabel}
-                      </div>
-                    )}
+                    <div className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${positionStyle}`}>
+                      {casePosition}
+                    </div>
                   </div>
 
                   <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <div className="rounded-xl border border-lime-100 bg-lime-50/30 p-3">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-lime-700/80">Completeness</div>
-                      <div className="mt-1 flex items-center justify-between text-sm font-semibold text-neutral-900">
-                        <span>{completenessLabel}</span>
-                        <span className="text-xs text-neutral-500">{completenessPercent}%</span>
-                      </div>
+                    <div className={`rounded-xl border p-3 ${positionStyle}`}>
+                      <div className="text-[10px] font-bold uppercase tracking-wider opacity-75">Case Position</div>
+                      <div className="mt-1 text-sm font-semibold">{casePosition}</div>
                     </div>
-                    <div className="rounded-xl border border-amber-100 bg-amber-50/30 p-3">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700/80">Issues</div>
-                      <div className="mt-1 text-sm font-semibold text-neutral-900">
-                        {health?.totalIssues || 0} · {issuesLabel}
-                      </div>
+                    <div className={`rounded-xl border p-3 ${strengthStyle}`}>
+                      <div className="text-[10px] font-bold uppercase tracking-wider opacity-75">Case Strength</div>
+                      <div className="mt-1 text-sm font-semibold">{caseStrength}</div>
                     </div>
                     <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-600">Readiness</div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Health Check</div>
                       <div className="mt-1 text-sm font-semibold text-neutral-900">{readinessLabel}</div>
                     </div>
                   </div>
 
+                  <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                      Key Weak Points
+                    </div>
+                    {displayedWeakPoints.length > 0 ? (
+                      <ul className="mt-2 space-y-1 text-sm text-amber-950">
+                        {displayedWeakPoints.map((item) => (
+                          <li key={item.category} className="break-words">
+                            - {item.text}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-2 text-sm text-amber-900/70">No major weak points flagged.</p>
+                    )}
+                  </div>
+
                   {criticalBlockers.length > 0 && (
-                    <div className="mb-4 rounded-xl border border-neutral-200 bg-neutral-50/70 p-3">
+                    <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/50 p-3">
                       <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-600">
                         Critical Blockers
                       </div>
@@ -1240,6 +1356,12 @@ ${strategyFocus.join("\n") || "—"}`;
                           </li>
                         ))}
                       </ul>
+                    </div>
+                  )}
+
+                  {health && (
+                    <div className="mb-4 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-500">
+                      Existing health check: {readinessLabel} · {health.totalIssues || 0} blocker{health.totalIssues === 1 ? "" : "s"} · issue pressure {issuesLabel}
                     </div>
                   )}
 
