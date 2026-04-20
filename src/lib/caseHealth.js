@@ -24,30 +24,49 @@ export const getCaseHealthReport = (selectedCase) => {
   const activeEvidence = evidence.filter((e) => !isEvidenceResolved(e));
   const openTasks = tasks.filter((t) => t.status !== "done");
 
+  const makeGap = (issue) => ({
+    ...issue,
+    severity: "advisory",
+    classification: "gap",
+  });
+
   const incidentIssues = [];
   const incidentTitles = {};
 
   activeIncidents.forEach((item) => {
-    const missing = [];
-    if (!(item.eventDate || item.date)) missing.push("date");
-    if (!item.title?.trim()) missing.push("title");
-    if (!item.description?.trim()) missing.push("description");
+    const blockingMissing = [];
+    const gapMissing = [];
+    if (!(item.eventDate || item.date)) blockingMissing.push("date");
+    if (!item.title?.trim()) blockingMissing.push("title");
+    if (!item.description?.trim()) blockingMissing.push("description");
 
     const hasAtt = (item.attachments || []).length > 0;
     const hasEv = (item.linkedEvidenceIds || []).length > 0;
-    if (!hasAtt && !hasEv) missing.push("attachment or linked evidence");
+    if (!hasAtt && !hasEv) gapMissing.push("attachment or linked evidence");
 
-    if (missing.length) {
+    if (blockingMissing.length) {
       incidentIssues.push({
         id: item.id,
         title: item.title || "Untitled Incident",
-        detail: `Missing: ${missing.join(", ")}`,
+        detail: `Missing: ${blockingMissing.join(", ")}`,
         date: item.eventDate || item.date,
         record: item,
         type: "incidents",
         tab: "incidents",
         severity: "blocking",
       });
+    }
+
+    if (gapMissing.length) {
+      incidentIssues.push(makeGap({
+        id: item.id,
+        title: item.title || "Untitled Incident",
+        detail: `Gap: missing ${gapMissing.join(", ")}`,
+        date: item.eventDate || item.date,
+        record: item,
+        type: "incidents",
+        tab: "incidents",
+      }));
     }
 
     const norm = (item.title || "").trim().toLowerCase();
@@ -80,11 +99,12 @@ export const getCaseHealthReport = (selectedCase) => {
   const evidenceTitles = {};
 
   activeEvidence.forEach((item) => {
-    const missing = [];
-    if (!item.title?.trim()) missing.push("title");
+    const blockingMissing = [];
+    const gapMissing = [];
+    if (!item.title?.trim()) blockingMissing.push("title");
 
     const links = Array.isArray(item.linkedIncidentIds) ? item.linkedIncidentIds : [];
-    if (links.length === 0) missing.push("linked incident");
+    if (links.length === 0) gapMissing.push("linked incident");
 
     const broken = links.filter((id) => !incidentIds.has(id));
 
@@ -93,16 +113,29 @@ export const getCaseHealthReport = (selectedCase) => {
       !!item.availability?.digital?.hasDigital || (item.attachments?.length > 0);
 
     if (!hasPhys && !hasDigi) {
-      missing.push("no physical or digital availability set");
+      gapMissing.push("no physical or digital availability set");
     }
 
-    if (missing.length || broken.length) {
+    if (blockingMissing.length) {
       evidenceIssues.push({
         id: item.id,
         title: item.title || "Untitled Evidence",
+        detail: `Missing: ${blockingMissing.join(", ")}`,
+        date: item.eventDate || item.date,
+        record: item,
+        type: "evidence",
+        tab: "evidence",
+        severity: "blocking",
+      });
+    }
+
+    if (gapMissing.length || broken.length) {
+      evidenceIssues.push(makeGap({
+        id: item.id,
+        title: item.title || "Untitled Evidence",
         detail: [
-          missing.length ? `Missing: ${missing.join(", ")}` : null,
-          broken.length ? `${broken.length} broken linked incident reference(s)` : null,
+          gapMissing.length ? `Gap: missing ${gapMissing.join(", ")}` : null,
+          broken.length ? `Gap: ${broken.length} broken linked incident reference(s)` : null,
         ]
           .filter(Boolean)
           .join("; "),
@@ -110,8 +143,7 @@ export const getCaseHealthReport = (selectedCase) => {
         record: item,
         type: "evidence",
         tab: "evidence",
-        severity: "blocking",
-      });
+      }));
     }
 
     if ((hasPhys || hasDigi) && (!hasPhys || !hasDigi)) {
@@ -212,27 +244,25 @@ export const getCaseHealthReport = (selectedCase) => {
     if (item._kind === "Evidence") {
       const links = Array.isArray(item.linkedIncidentIds) ? item.linkedIncidentIds : [];
       if (links.length === 0) {
-        timelineIssues.push({
+        timelineIssues.push(makeGap({
           id: item.id,
           title: item.title || "Untitled",
-          detail: "Missing linked incident",
+          detail: "Gap: missing linked incident",
           record: item,
           type,
           tab: "timeline",
-          severity: "blocking",
-        });
+        }));
       } else {
         const broken = links.filter((id) => !incidentIds.has(id));
         if (broken.length) {
-          timelineIssues.push({
+          timelineIssues.push(makeGap({
             id: item.id,
             title: item.title || "Untitled",
-            detail: `${broken.length} broken linked incident reference(s)`,
+            detail: `Gap: ${broken.length} broken linked incident reference(s)`,
             record: item,
             type,
             tab: "timeline",
-            severity: "blocking",
-          });
+          }));
         }
       }
     }

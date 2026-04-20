@@ -511,6 +511,7 @@ export default function CaseDetail({
       : "High";
   const criticalBlockers = (health?.issues || [])
     .flatMap(group => group.items)
+    .filter(item => item.severity === "blocking")
     .slice(0, 3);
 
   const rawActionSummary = selectedCase?.actionSummary || {};
