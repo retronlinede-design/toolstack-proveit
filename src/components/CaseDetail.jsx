@@ -1812,18 +1812,19 @@ ${strategyFocus.join("\n") || "—"}`;
                           )}
 
                           {usedByIncidents.length > 0 && (
-                            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/50 p-3">
-                              <div className="text-[10px] font-bold uppercase tracking-wider text-amber-800">Used By Incidents</div>
-                              <div className="mt-2 flex flex-wrap gap-2">
+                            <div className="mt-3 border-t border-neutral-100 pt-3">
+                              <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">Used By Incidents</div>
+                              <div className="flex flex-wrap gap-1.5">
                                 {usedByIncidents.map((incident) => (
                                   <button
                                     key={incident.id}
                                     onClick={() => openLinkedRecord(incident.id)}
-                                    className="rounded-lg border border-amber-200 bg-white px-2 py-1 text-left text-xs text-amber-900 shadow-sm hover:border-lime-500 hover:bg-lime-50 transition-colors"
+                                    className="flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-2 py-1 text-left text-[10px] font-medium text-neutral-700 shadow-sm transition-all hover:border-lime-500 hover:text-lime-600"
                                   >
-                                    <span className="font-semibold">{incident.title || "Untitled incident"}</span>
+                                    <span className="font-bold uppercase opacity-50">Incident</span>
+                                    <span className="max-w-[120px] truncate">{incident.title || "Untitled incident"}</span>
                                     {(incident.eventDate || incident.date || incident.status) && (
-                                      <span className="ml-2 text-[10px] text-amber-700/70">
+                                      <span className="text-neutral-400">
                                         {[incident.eventDate || incident.date, incident.status].filter(Boolean).join(" · ")}
                                       </span>
                                     )}
@@ -2225,6 +2226,7 @@ ${strategyFocus.join("\n") || "—"}`;
                         const tableRows = record.table || [];
                         const tableHeaders = getRecordTableHeaders(tableRows);
                         const previewRows = tableRows.slice(0, 5);
+                        const usedByIncidents = getIncidentsUsingRecord(selectedCase, record.id);
 
                         return (
                         <div key={record.id} className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
@@ -2274,6 +2276,29 @@ ${strategyFocus.join("\n") || "—"}`;
 
                           {record.summary && (
                             <p className="mt-3 border-l-2 border-blue-100 pl-3 text-sm text-neutral-700 line-clamp-3">{record.summary}</p>
+                          )}
+
+                          {usedByIncidents.length > 0 && (
+                            <div className="mt-3 border-t border-neutral-100 pt-3">
+                              <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">Used By Incidents</div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {usedByIncidents.map((incident) => (
+                                  <button
+                                    key={incident.id}
+                                    onClick={() => openLinkedRecord(incident.id)}
+                                    className="flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-2 py-1 text-left text-[10px] font-medium text-neutral-700 shadow-sm transition-all hover:border-lime-500 hover:text-lime-600"
+                                  >
+                                    <span className="font-bold uppercase opacity-50">Incident</span>
+                                    <span className="max-w-[120px] truncate">{incident.title || "Untitled incident"}</span>
+                                    {(incident.eventDate || incident.date || incident.status) && (
+                                      <span className="text-neutral-400">
+                                        {[incident.eventDate || incident.date, incident.status].filter(Boolean).join(" Â· ")}
+                                      </span>
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
                           )}
 
                           {previewRows.length > 0 ? (
