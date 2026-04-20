@@ -142,6 +142,7 @@ export default function CaseDetail({
   const [collapsedLedgerGroups, setCollapsedLedgerGroups] = useState({});
   const [showVerifiedEvidence, setShowVerifiedEvidence] = useState(false);
   const [activeLedgerRecord, setActiveLedgerRecord] = useState(null);
+  const [showStructuredRecords, setShowStructuredRecords] = useState(false);
   const [actionSummaryEditOpen, setActionSummaryEditOpen] = useState(false);
   const [quickActionInput, setQuickActionInput] = useState("");
   const [actionSummaryForm, setActionSummaryForm] = useState(emptyActionSummaryForm);
@@ -185,8 +186,8 @@ export default function CaseDetail({
 
     if (charCount > 1000) {
       return {
-        label: "Excerpt Only",
-        detail: "GPT gets the first 1,000 characters.",
+        label: "Partial Text",
+        detail: "Long text is captured; review the important parts.",
         tone: "amber",
         charCount,
         wordCount,
@@ -205,8 +206,8 @@ export default function CaseDetail({
 
     if (attachmentCount > 0 && charCount === 0) {
       return {
-        label: "Attachment Only",
-        detail: "GPT sees file names, not file contents.",
+        label: "No Usable Text",
+        detail: "Only attachments are present.",
         tone: "red",
         charCount,
         wordCount,
@@ -215,8 +216,8 @@ export default function CaseDetail({
 
     if (charCount > 0) {
       return {
-        label: "Text Weak",
-        detail: "Text is present but likely too short.",
+        label: "Partial Text",
+        detail: "Some text is captured, but it may be thin.",
         tone: "amber",
         charCount,
         wordCount,
@@ -224,8 +225,8 @@ export default function CaseDetail({
     }
 
     return {
-      label: "Text Missing",
-      detail: "Add document text for GPT reasoning.",
+      label: "No Usable Text",
+      detail: "No document text is captured.",
       tone: "red",
       charCount,
       wordCount,
@@ -1114,7 +1115,9 @@ ${strategyFocus.join("\n") || "—"}`;
         <div className="lg:col-span-8 space-y-6">
           <div className="rounded-3xl border border-neutral-200 bg-white p-3 shadow-sm">
             <div className="flex flex-wrap gap-2">
-              {tabs.map((tab) => (
+              {tabs
+                .flatMap((tab) => tab.id === "documents" ? [tab, { id: "records", label: "Records" }] : [tab])
+                .map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
@@ -1510,9 +1513,9 @@ ${strategyFocus.join("\n") || "—"}`;
               <div className="space-y-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h3 className="text-lg font-semibold">Documents</h3>
+                    <h3 className="text-lg font-semibold">Documents (Source Material)</h3>
                     <p className="mt-1 text-sm text-neutral-500">
-                      Normal documents are checked for GPT-ready text. Tracking records stay separate.
+                      Primary source documents first. GPT reasoning depends on captured text, not just attached files.
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -1545,7 +1548,7 @@ ${strategyFocus.join("\n") || "—"}`;
 
     `
                       })}
-                      className="rounded-lg border border-blue-400 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md hover:bg-blue-50 transition-all active:scale-95"
+                      className="hidden"
                     >
                       Add Tracking Record
                     </button>
@@ -1559,7 +1562,7 @@ ${strategyFocus.join("\n") || "—"}`;
                 </div>
 
                 {parsedTrackingRecords.length > 0 && (
-                  <section className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                  <section className="hidden">
                     <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <h3 className="text-sm font-bold uppercase tracking-wider text-blue-900">Tracking Records</h3>
@@ -1605,7 +1608,7 @@ ${strategyFocus.join("\n") || "—"}`;
                                 View Payments
                               </button>
                               <button 
-                                onClick={() => openDocumentModal(record.rawDocument, record.rawDocument.id)}
+                              onClick={() => openDocumentModal(record.rawDocument, record.rawDocument.id, "record")}
                                 className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
                               >
                                 Open / Edit
@@ -1630,9 +1633,9 @@ ${strategyFocus.join("\n") || "—"}`;
 
                 <section className="space-y-3">
                   <div>
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Normal Documents</h3>
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Documents (Source Material)</h3>
                     <p className="mt-1 text-xs text-neutral-500">
-                      GPT reasoning depends on captured text, not just attached files.
+                      Add source letters, PDFs, emails, notices, screenshots, and written evidence here.
                     </p>
                   </div>
 
@@ -1672,7 +1675,13 @@ ${strategyFocus.join("\n") || "—"}`;
                               <div className="flex shrink-0 items-center gap-2">
                                 <button 
                                   onClick={() => openDocumentModal(doc, doc.id)}
-                                  className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                                  className="rounded-lg border border-lime-500 bg-lime-50 px-2 py-0.5 text-[10px] font-bold text-lime-800 shadow-sm hover:bg-lime-100 transition-colors"
+                                >
+                                  Open Document
+                                </button>
+                                <button
+                                  onClick={() => openDocumentModal(doc, doc.id)}
+                                  className="rounded-lg border border-neutral-300 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors"
                                 >
                                   Edit
                                 </button>
@@ -1685,27 +1694,15 @@ ${strategyFocus.join("\n") || "—"}`;
                               </div>
                             </div>
 
-                            <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                              <div className={`rounded-xl border p-3 ${getDocumentStatusClasses(textStatus.tone)}`}>
-                                <div className="text-[10px] font-bold uppercase tracking-wider">GPT Text Status</div>
-                                <div className="mt-1 text-sm font-semibold">{textStatus.label}</div>
-                                <div className="mt-1 text-xs opacity-80">{textStatus.detail}</div>
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                              <div className="hidden">
+                                {textStatus.label}
                               </div>
-                              <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-                                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Text Size</div>
-                                <div className="mt-1 text-sm font-semibold text-neutral-900">
-                                  {textStatus.charCount > 0 ? `${textStatus.charCount.toLocaleString()} chars` : "No text"}
-                                </div>
-                                <div className="mt-1 text-xs text-neutral-500">
-                                  {textStatus.wordCount > 0 ? `About ${textStatus.wordCount.toLocaleString()} words` : "Nothing for GPT to read yet"}
-                                </div>
-                              </div>
-                              <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-                                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Context</div>
-                                <div className="mt-1 text-sm font-semibold text-neutral-900">
+                              <div className="rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-medium text-neutral-600">
+                                <div>
                                   {attachmentCount} attachment{attachmentCount === 1 ? "" : "s"} · {linkedCount} linked record{linkedCount === 1 ? "" : "s"}
                                 </div>
-                                <div className="mt-1 text-xs text-neutral-500">
+                                <div className="hidden">
                                   {attachmentCount > 0 && textStatus.charCount === 0 ? "Attachments need captured text for reasoning." : "Links and files support the document context."}
                                 </div>
                               </div>
@@ -1719,14 +1716,7 @@ ${strategyFocus.join("\n") || "—"}`;
 
                           {doc.textContent && doc.textContent.trim() && (
                             <div className="mt-4 pt-4 border-t border-neutral-100">
-                              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Captured Text For GPT</div>
-                                {textStatus.charCount > 1000 && (
-                                  <span className="rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">
-                                    Export excerpt is capped
-                                  </span>
-                                )}
-                              </div>
+                              <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">Short Preview</div>
                               <div className="text-sm text-neutral-700 whitespace-pre-wrap">
                                 {expandedDocuments[doc.id] 
                                   ? doc.textContent 
@@ -1747,9 +1737,6 @@ ${strategyFocus.join("\n") || "—"}`;
                             <div className="mt-4 pt-4 border-t border-neutral-100">
                               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                                 <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Attachments</div>
-                                {!doc.textContent?.trim() && (
-                                  <span className="text-[10px] font-semibold text-red-600">File names only for GPT</span>
-                                )}
                               </div>
                               <div className="rounded-2xl border border-neutral-200 bg-neutral-50/50 p-4">
                                 <AttachmentPreview 
@@ -1788,6 +1775,248 @@ ${strategyFocus.join("\n") || "—"}`;
                       </div>
                     );
                   })()}
+                </section>
+
+                <section className="hidden">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setShowStructuredRecords((value) => !value)}
+                      className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                    >
+                      <span className="mt-0.5 w-3 text-xs text-blue-700">
+                        {showStructuredRecords ? "▼" : "▶"}
+                      </span>
+                      <span>
+                        <span className="block text-sm font-bold uppercase tracking-wider text-blue-900">
+                          Structured Records (Temporary)
+                        </span>
+                        <span className="mt-1 block text-xs text-blue-800">
+                          Structured trackers and generated payment previews. These are not primary source-material documents.
+                        </span>
+                      </span>
+                    </button>
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      <span className="rounded-lg border border-blue-200 bg-white px-2 py-1 text-xs font-semibold text-blue-700">
+                        {parsedTrackingRecords.length} record{parsedTrackingRecords.length === 1 ? "" : "s"}
+                      </span>
+                      <button
+                        onClick={() => openDocumentModal({
+                          title: "New Tracking Record",
+                          textContent: `[TRACK RECORD]
+
+    meta:
+    type:
+    subject:
+    period:
+    status:
+
+    --- TABLE ---
+
+    | Date       | Amount € | Direction | Status    | Notes |
+    |------------|----------|-----------|-----------|-------|
+
+    --- SUMMARY (GPT READY) ---
+
+
+
+    --- FILE LINKS ---
+
+
+
+    --- NOTES ---
+
+
+    `
+                        })}
+                        className="rounded-lg border border-blue-400 bg-white px-3 py-1 text-xs font-bold text-neutral-900 shadow-sm hover:bg-blue-50 transition-all active:scale-95"
+                      >
+                        Add Tracking Record
+                      </button>
+                    </div>
+                  </div>
+
+                  {showStructuredRecords && (
+                    <div className="mt-4 space-y-3">
+                      {parsedTrackingRecords.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-blue-200 bg-white/70 p-4 text-sm text-blue-800">
+                          No temporary structured records yet.
+                        </div>
+                      ) : (
+                        parsedTrackingRecords.map((record) => (
+                          <div key={record.id} className="rounded-xl border border-blue-100 bg-white p-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-sm font-semibold text-neutral-900">{record.title}</span>
+                                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
+                                    {record.meta.type || "unknown"}
+                                  </span>
+                                  {record.meta.status && (
+                                    <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-600">
+                                      {record.meta.status}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="mt-2 grid gap-1 text-xs text-neutral-600 sm:grid-cols-2">
+                                  <div><span className="font-medium text-neutral-800">Subject:</span> {record.meta.subject || "—"}</div>
+                                  <div><span className="font-medium text-neutral-800">Period:</span> {record.meta.period || "—"}</div>
+                                  <div><span className="font-medium text-neutral-800">Rows:</span> {record.table.length}</div>
+                                  <div><span className="font-medium text-neutral-800">File links:</span> {record.fileLinks.length}</div>
+                                </div>
+                              </div>
+
+                              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                                <button
+                                  onClick={() => setActiveLedgerRecord(record)}
+                                  className="rounded-lg border border-blue-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-blue-50 transition-colors"
+                                >
+                                  View Payments
+                                </button>
+                                <button
+                                  onClick={() => openDocumentModal(record.rawDocument, record.rawDocument.id, "record")}
+                                  className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                                >
+                                  Open / Edit
+                                </button>
+                                <button
+                                  onClick={() => deleteDocumentEntry(record.rawDocument.id)}
+                                  className="rounded-lg border border-red-300 bg-white px-2 py-0.5 text-[10px] font-bold text-red-700 shadow-sm hover:bg-red-50 transition-colors"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+
+                            {record.summary && (
+                              <p className="mt-2 text-xs text-neutral-700 line-clamp-3">{record.summary}</p>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </section>
+              </div>
+            )}
+
+            {activeTab === "records" && (
+              <div className="space-y-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold">Records</h3>
+                    <p className="mt-1 text-sm text-neutral-500">
+                      Table-based tracking records live here. Source documents stay in Documents.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => openDocumentModal({
+                      title: "New Tracking Record",
+                      textContent: `[TRACK RECORD]
+
+    meta:
+    type:
+    subject:
+    period:
+    status:
+
+    --- TABLE ---
+
+    | Date       | Amount € | Direction | Status    | Notes |
+    |------------|----------|-----------|-----------|-------|
+
+    --- SUMMARY (GPT READY) ---
+
+
+
+    --- FILE LINKS ---
+
+
+
+    --- NOTES ---
+
+
+    `
+                    }, null, "record")}
+                    className="rounded-lg border border-blue-400 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md hover:bg-blue-50 transition-all active:scale-95"
+                  >
+                    Add Record
+                  </button>
+                </div>
+
+                <section className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                  <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-blue-900">Tracking Records</h3>
+                      <p className="mt-1 text-xs text-blue-800">
+                        Structured tables parsed from tracking-record text. Generated payment previews are temporary and do not update the Ledger yet.
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-lg border border-blue-200 bg-white px-2 py-1 text-xs font-semibold text-blue-700">
+                      {parsedTrackingRecords.length} tracking record{parsedTrackingRecords.length === 1 ? "" : "s"} · {derivedTrackingLedger.length} generated payment preview{derivedTrackingLedger.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+
+                  {parsedTrackingRecords.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-blue-200 bg-white/70 p-5 text-sm text-blue-800">
+                      No tracking records yet.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {parsedTrackingRecords.map((record) => (
+                        <div key={record.id} className="rounded-xl border border-blue-100 bg-white p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-sm font-semibold text-neutral-900">{record.title}</span>
+                                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
+                                  {record.meta.type || "unknown"}
+                                </span>
+                                {record.meta.status && (
+                                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-600">
+                                    {record.meta.status}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="mt-2 grid gap-1 text-xs text-neutral-600 sm:grid-cols-2">
+                                <div><span className="font-medium text-neutral-800">Subject:</span> {record.meta.subject || "—"}</div>
+                                <div><span className="font-medium text-neutral-800">Period:</span> {record.meta.period || "—"}</div>
+                                <div><span className="font-medium text-neutral-800">Rows:</span> {record.table.length}</div>
+                                <div><span className="font-medium text-neutral-800">File links:</span> {record.fileLinks.length}</div>
+                              </div>
+                            </div>
+
+                            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                              <button
+                                onClick={() => setActiveLedgerRecord(record)}
+                                className="rounded-lg border border-blue-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-blue-50 transition-colors"
+                              >
+                                View Payments
+                              </button>
+                              <button
+                                onClick={() => openDocumentModal(record.rawDocument, record.rawDocument.id, "record")}
+                                className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                              >
+                                Open / Edit
+                              </button>
+                              <button
+                                onClick={() => deleteDocumentEntry(record.rawDocument.id)}
+                                className="rounded-lg border border-red-300 bg-white px-2 py-0.5 text-[10px] font-bold text-red-700 shadow-sm hover:bg-red-50 transition-colors"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+
+                          {record.summary && (
+                            <p className="mt-2 text-xs text-neutral-700 line-clamp-3">{record.summary}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </section>
               </div>
             )}

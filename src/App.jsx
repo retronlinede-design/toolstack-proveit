@@ -120,6 +120,104 @@ const EMPTY_DOCUMENT_FORM = {
   linkedRecordIds: [],
 };
 
+const DOCUMENT_GPT_SUMMARY_PROMPT = `Read this uploaded document and produce a ProveIt-ready document summary.
+
+Requirements:
+- Max about 1000 characters
+- Keep names, dates, amounts, duties, deadlines, and key clauses
+- Use bullets or very short sections
+- Do not be vague
+- Focus on facts that matter for later legal/case reasoning
+
+Structure:
+- Document type
+- Date
+- Parties / sender
+- Key facts
+- Key clause(s)
+- Why it matters`;
+
+const RECORD_TYPE_OPTIONS = [
+  { value: "financial", label: "Financial", metaType: "payment_tracker" },
+  { value: "work_time", label: "Work Time", metaType: "work_time" },
+  { value: "compliance", label: "Compliance", metaType: "compliance" },
+  { value: "custom", label: "Custom", metaType: "custom" },
+];
+
+function getRecordMetaType(recordType = "financial") {
+  return RECORD_TYPE_OPTIONS.find((option) => option.value === recordType)?.metaType || "custom";
+}
+
+function getRecordTypeFromMeta(metaType = "") {
+  return RECORD_TYPE_OPTIONS.find((option) => option.metaType === metaType)?.value || "custom";
+}
+
+function getTrackingSection(text = "", startMarker, endMarker = null) {
+  if (!text || !startMarker) return "";
+  const start = text.indexOf(startMarker);
+  if (start === -1) return "";
+  const from = start + startMarker.length;
+  const rest = text.slice(from);
+  if (!endMarker) return rest.trim();
+  const end = rest.indexOf(endMarker);
+  return end === -1 ? rest.trim() : rest.slice(0, end).trim();
+}
+
+function getTrackingMetaValue(text = "", key = "") {
+  const metaText = getTrackingSection(text, "meta:", "--- TABLE ---");
+  const line = metaText
+    .split("\n")
+    .map((item) => item.trim())
+    .find((item) => item.toLowerCase().startsWith(`${key.toLowerCase()}:`));
+  return line ? line.slice(line.indexOf(":") + 1).trim() : "";
+}
+
+function getRecordFormType(form = {}) {
+  if (RECORD_TYPE_OPTIONS.some((option) => option.value === form.category)) return form.category;
+  return getRecordTypeFromMeta(getTrackingMetaValue(form.textContent, "type"));
+}
+
+function getRecordFormPurpose(form = {}) {
+  return form.source || getTrackingMetaValue(form.textContent, "subject");
+}
+
+function getRecordTableText(form = {}) {
+  const tableText = getTrackingSection(form.textContent, "--- TABLE ---", "--- SUMMARY (GPT READY) ---");
+  return tableText || `| Date       | Amount € | Direction | Status    | Notes |
+|------------|----------|-----------|-----------|-------|`;
+}
+
+function getRecordNotes(form = {}) {
+  return form.summary || getTrackingSection(form.textContent, "--- NOTES ---");
+}
+
+function buildTrackingRecordText({ recordType = "financial", purpose = "", tableText = "", notes = "" } = {}) {
+  return `[TRACK RECORD]
+
+meta:
+type: ${getRecordMetaType(recordType)}
+subject: ${purpose}
+period:
+status:
+
+--- TABLE ---
+
+${tableText || getRecordTableText({})}
+
+--- SUMMARY (GPT READY) ---
+
+${notes || ""}
+
+--- FILE LINKS ---
+
+
+
+--- NOTES ---
+
+${notes || ""}
+`;
+}
+
 async function fileToSerializable(file, recordId) {
   const isEml = file.type === "message/rfc822" || file.name.toLowerCase().endsWith(".eml");
   let emailMeta = null;
@@ -224,6 +322,8 @@ export default function ProveItApp() {
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
   const [documentForm, setDocumentForm] = useState(EMPTY_DOCUMENT_FORM);
   const [editingDocumentId, setEditingDocumentId] = useState(null);
+  const [documentPromptCopied, setDocumentPromptCopied] = useState(false);
+  const [documentModalMode, setDocumentModalMode] = useState("document");
 
   const handleSendReasoningExportToSupabase = async () => {
     if (!selectedCase) return;
@@ -434,9 +534,25 @@ export default function ProveItApp() {
     setCases(prev => prev.map(c => (c.id === updatedCase.id ? updatedCase : c)));
   }
 
-  const openDocumentModal = (preset = {}, documentId = null) => {
-    setDocumentForm({ ...EMPTY_DOCUMENT_FORM, ...preset });
+  const openDocumentModal = (preset = {}, documentId = null, mode = "document") => {
+    const nextForm = { ...EMPTY_DOCUMENT_FORM, ...preset };
+    if (mode === "record") {
+      const recordType = getRecordFormType(nextForm);
+      const purpose = getRecordFormPurpose(nextForm);
+      const notes = getRecordNotes(nextForm);
+      nextForm.category = recordType;
+      nextForm.source = purpose;
+      nextForm.summary = notes;
+      nextForm.textContent = buildTrackingRecordText({
+        recordType,
+        purpose,
+        tableText: getRecordTableText(nextForm),
+        notes,
+      });
+    }
+    setDocumentForm(nextForm);
     setEditingDocumentId(documentId);
+    setDocumentModalMode(mode);
     setDocumentModalOpen(true);
   };
 
@@ -444,6 +560,35 @@ export default function ProveItApp() {
     setDocumentModalOpen(false);
     setDocumentForm(EMPTY_DOCUMENT_FORM);
     setEditingDocumentId(null);
+    setDocumentPromptCopied(false);
+    setDocumentModalMode("document");
+  };
+
+  const updateRecordDocumentForm = (patch) => {
+    setDocumentForm((prev) => {
+      const next = { ...prev, ...patch };
+      const recordType = patch.recordType || getRecordFormType(next);
+      const purpose = patch.purpose ?? getRecordFormPurpose(next);
+      const tableText = patch.tableText ?? getRecordTableText(next);
+      const notes = patch.notes ?? getRecordNotes(next);
+      return {
+        ...next,
+        category: recordType,
+        source: purpose,
+        summary: notes,
+        textContent: buildTrackingRecordText({ recordType, purpose, tableText, notes }),
+      };
+    });
+  };
+
+  const copyDocumentGptPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(DOCUMENT_GPT_SUMMARY_PROMPT);
+      setDocumentPromptCopied(true);
+      window.setTimeout(() => setDocumentPromptCopied(false), 1800);
+    } catch (error) {
+      console.error("Failed to copy GPT prompt", error);
+    }
   };
 
   const saveDocumentEntry = async () => {
@@ -1863,10 +2008,78 @@ const handleRecordFiles = async (event) => {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
             <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-xl flex flex-col max-h-[90vh]">
               <div className="mb-4">
-                <h2 className="text-xl font-semibold">{editingDocumentId ? "Edit Document" : "Add Document"}</h2>
-                <p className="text-sm text-neutral-600">{editingDocumentId ? "Update details for this document record." : "Enter details for a new document record."}</p>
+                <h2 className="text-xl font-semibold">
+                  {documentModalMode === "record"
+                    ? editingDocumentId ? "Edit Record" : "Add Record"
+                    : editingDocumentId ? "Edit Document" : "Add Document"}
+                </h2>
+                <p className="text-sm text-neutral-600">
+                  {documentModalMode === "record"
+                    ? "Create a table-based tracking record."
+                    : editingDocumentId ? "Update details for this document record." : "Enter details for a new document record."}
+                </p>
               </div>
 
+              {documentModalMode === "record" ? (
+              <div className="flex-1 overflow-y-auto pr-1 space-y-4">
+                <div>
+                  <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Title</label>
+                  <input
+                    type="text"
+                    value={documentForm.title}
+                    onChange={(e) => setDocumentForm({ ...documentForm, title: e.target.value })}
+                    placeholder="Record title"
+                    className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Record Type</label>
+                  <select
+                    value={getRecordFormType(documentForm)}
+                    onChange={(e) => updateRecordDocumentForm({ recordType: e.target.value })}
+                    className="w-full rounded-xl border border-neutral-300 p-3 bg-white"
+                  >
+                    {RECORD_TYPE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Purpose / What This Tracks</label>
+                  <input
+                    type="text"
+                    value={getRecordFormPurpose(documentForm)}
+                    onChange={(e) => updateRecordDocumentForm({ purpose: e.target.value })}
+                    placeholder="e.g. Rent payments, work hours, compliance checks"
+                    className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Table / Structured Record Text</label>
+                  <textarea
+                    value={getRecordTableText(documentForm)}
+                    onChange={(e) => updateRecordDocumentForm({ tableText: e.target.value })}
+                    placeholder="Paste or write the table rows here..."
+                    rows={12}
+                    className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none font-mono text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Notes / Summary</label>
+                  <textarea
+                    value={getRecordNotes(documentForm)}
+                    onChange={(e) => updateRecordDocumentForm({ notes: e.target.value })}
+                    placeholder="Optional notes about what this record means..."
+                    rows={3}
+                    className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
+                  />
+                </div>
+              </div>
+              ) : (
               <div className="flex-1 overflow-y-auto pr-1 space-y-4">
                 <div>
                   <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Title</label>
@@ -1928,7 +2141,21 @@ const handleRecordFiles = async (event) => {
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Text Content</label>
+                  <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                    <label className="block text-xs font-bold uppercase text-neutral-400">Text Content</label>
+                    <div className="flex items-center gap-2">
+                      {documentPromptCopied && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-lime-700">Copied</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={copyDocumentGptPrompt}
+                        className="rounded-lg border border-neutral-300 bg-white px-2 py-1 text-[10px] font-bold text-neutral-600 shadow-sm hover:bg-neutral-50 transition-colors"
+                      >
+                        Copy GPT Prompt
+                      </button>
+                    </div>
+                  </div>
                   <textarea
                     value={documentForm.textContent}
                     onChange={(e) => setDocumentForm({ ...documentForm, textContent: e.target.value })}
@@ -2022,13 +2249,14 @@ const handleRecordFiles = async (event) => {
                   </div>
                 </div>
               </div>
+              )}
 
               <div className="mt-6 flex gap-3 pt-4 border-t border-neutral-100">
                 <button
                   onClick={saveDocumentEntry}
                   className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
                 >
-                  Save Document
+                  {documentModalMode === "record" ? "Save Record" : "Save Document"}
                 </button>
                 <button
                   onClick={closeDocumentModal}
