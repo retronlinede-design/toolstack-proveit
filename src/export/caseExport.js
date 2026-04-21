@@ -1,5 +1,6 @@
 import { getCaseHealthReport } from "../lib/caseHealth.js";
 import { getIncidentLinkGroups, sortTimelineItems } from "../domain/caseDomain.js";
+import { getEvidenceDisplayMeta, getIncidentDisplayMeta, getRecordDisplayMeta } from "../domain/linkingResolvers.js";
 
 /**
  * Sanitizes an attachment object for export, removing binary data.
@@ -141,28 +142,8 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
       description: t.description ? t.description.substring(0, 300) : "",
     }));
 
-  const evidenceMap = new Map((c.evidence || []).map((evidence) => [evidence.id, evidence]));
-  const linkedRecordMap = new Map([
-    ...(c.incidents || []).map((record) => [record.id, { record, recordType: "incident" }]),
-    ...(c.evidence || []).map((record) => [record.id, { record, recordType: "evidence" }]),
-    ...(c.tasks || []).map((record) => [record.id, { record, recordType: "task" }]),
-    ...(c.strategy || []).map((record) => [record.id, { record, recordType: "strategy" }]),
-    ...(c.documents || []).map((record) => [record.id, { record, recordType: "document" }]),
-  ]);
-  const mapLinkedRecord = ({ record, recordType }) => ({
-    id: record.id,
-    recordType,
-    title: record.title || record.label || "",
-    date: record.eventDate || record.date || record.documentDate || record.dueDate || record.createdAt || "",
-  });
-  const mapIncidentLinkedRecord = ({ record, recordType }) => ({
-    id: record.id,
-    title: record.title || record.label || "",
-    recordType,
-    summary: (record.summary || record.description || record.notes || record.source || "").substring(0, 300),
-  });
-  const resolveLinkedRecords = (linkedRecordIds, mapper = mapLinkedRecord) => (Array.isArray(linkedRecordIds) ? linkedRecordIds : [])
-    .map((recordId) => linkedRecordMap.get(recordId))
+  const resolveLinkedRecords = (linkedRecordIds, mapper) => (Array.isArray(linkedRecordIds) ? linkedRecordIds : [])
+    .map((recordId) => getRecordDisplayMeta(c, recordId))
     .filter(Boolean)
     .map(mapper);
 
@@ -173,11 +154,7 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
       const incidentLinks = getIncidentLinkGroups(c, i.id);
       const linkedEvidenceIds = Array.isArray(i.linkedEvidenceIds) ? i.linkedEvidenceIds : [];
       const linkedRecordIds = Array.isArray(i.linkedRecordIds) ? i.linkedRecordIds : [];
-      const mapLinkedIncident = ({ incident }) => ({
-        id: incident.id,
-        title: incident.title || "",
-        date: incident.eventDate || incident.date || "",
-      });
+      const mapLinkedIncident = ({ incident }) => getIncidentDisplayMeta(c, incident.id);
 
       return {
         id: i.id,
@@ -187,25 +164,42 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
         date: i.eventDate || i.date || "",
         summary: (i.description || i.notes || "").substring(0, 300),
         linkedRecordIds,
-        linkedRecords: resolveLinkedRecords(linkedRecordIds, mapIncidentLinkedRecord),
+        linkedRecords: resolveLinkedRecords(linkedRecordIds, (record) => ({
+          id: record.id,
+          title: record.title || "",
+          recordType: record.recordType,
+          summary: (record.summary || "").substring(0, 300),
+        })),
         linkedEvidenceIds,
         linkedEvidence: linkedEvidenceIds
-          .map((evidenceId) => evidenceMap.get(evidenceId))
+          .map((evidenceId) => getEvidenceDisplayMeta(c, evidenceId))
           .filter(Boolean)
           .map((evidence) => ({
             id: evidence.id,
             title: evidence.title || "",
-            date: evidence.eventDate || evidence.date || evidence.capturedAt || "",
-            status: evidence.status,
-            importance: evidence.importance,
-            relevance: evidence.relevance,
-            evidenceRole: evidence.evidenceRole,
-            summary: (evidence.description || evidence.notes || "").substring(0, 300),
+            date: evidence.date || evidence.record?.capturedAt || "",
+            status: evidence.record?.status,
+            importance: evidence.record?.importance,
+            relevance: evidence.record?.relevance,
+            evidenceRole: evidence.record?.evidenceRole,
+            summary: (evidence.summary || "").substring(0, 300),
           })),
         incidentLinks: {
-          causes: incidentLinks.causes.map(mapLinkedIncident),
-          outcomes: incidentLinks.outcomes.map(mapLinkedIncident),
-          related: incidentLinks.related.map(mapLinkedIncident),
+          causes: incidentLinks.causes.map(mapLinkedIncident).filter(Boolean).map((incident) => ({
+            id: incident.id,
+            title: incident.title || "",
+            date: incident.date || "",
+          })),
+          outcomes: incidentLinks.outcomes.map(mapLinkedIncident).filter(Boolean).map((incident) => ({
+            id: incident.id,
+            title: incident.title || "",
+            date: incident.date || "",
+          })),
+          related: incidentLinks.related.map(mapLinkedIncident).filter(Boolean).map((incident) => ({
+            id: incident.id,
+            title: incident.title || "",
+            date: incident.date || "",
+          })),
         },
       };
     });
@@ -438,7 +432,12 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
         counterparty: entry?.counterparty,
         notes: entry?.notes,
         linkedRecordIds: Array.isArray(entry?.linkedRecordIds) ? entry.linkedRecordIds : [],
-        linkedRecords: resolveLinkedRecords(entry?.linkedRecordIds),
+        linkedRecords: resolveLinkedRecords(entry?.linkedRecordIds, (record) => ({
+          id: record.id,
+          recordType: record.recordType,
+          title: record.title || "",
+          date: record.date || "",
+        })),
       };
     }),
   };
@@ -456,7 +455,12 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
       ? d.attachments.map((att) => att?.name || att?.fileName || "").filter(Boolean)
       : [],
     linkedRecordIds: Array.isArray(d.linkedRecordIds) ? d.linkedRecordIds : [],
-    linkedRecords: resolveLinkedRecords(d.linkedRecordIds),
+    linkedRecords: resolveLinkedRecords(d.linkedRecordIds, (record) => ({
+      id: record.id,
+      recordType: record.recordType,
+      title: record.title || "",
+      date: record.date || "",
+    })),
   }));
   const allHealthIssues = (health.issues || []).flatMap(group =>
     (group.items || []).map(item => ({

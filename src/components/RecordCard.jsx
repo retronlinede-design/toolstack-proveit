@@ -1,5 +1,6 @@
 import AttachmentPreview from "./AttachmentPreview";
 import { getIncidentLinkGroups } from "../domain/caseDomain.js";
+import { getEvidenceDisplayMeta, getIncidentDisplayMeta, getRecordDisplayMeta } from "../domain/linkingResolvers.js";
 
 const EVIDENCE_ROLE_LABELS = {
   ANCHOR_EVIDENCE: "Anchor Evidence",
@@ -23,7 +24,6 @@ export default function RecordCard({
   deleteRecord,
   openLinkedRecord,
   openRecordModal,
-  trackingRecords = [],
   showTypeBadge = false,
   isTimeline = false,
   isMilestone = false,
@@ -35,41 +35,6 @@ export default function RecordCard({
   const isNewRecord =
     (recordType === "evidence" || recordType === "incidents") &&
     item.edited !== true;
-
-  const getRecordTypeLabel = (metaType = "") => {
-    const value = String(metaType || "").toLowerCase();
-    if (value === "payment_tracker") return "Financial";
-    if (value === "work_time") return "Work Time";
-    if (value === "compliance") return "Compliance";
-    if (value === "custom") return "Custom";
-    return metaType || "Record";
-  };
-
-  const getLinkedItemDisplay = (linkedId) => {
-    const trackingRecord = trackingRecords.find((record) => record.id === linkedId);
-    if (trackingRecord) {
-      return {
-        title: trackingRecord.title || "Untitled tracking record",
-        typeLabel: getRecordTypeLabel(trackingRecord.meta?.type),
-        summary: trackingRecord.meta?.subject || trackingRecord.summary || trackingRecord.notes || trackingRecord.source || "",
-      };
-    }
-
-    const fallbackSources = [
-      ...(selectedCase?.evidence || []).map((record) => ({ record, typeLabel: "Evidence" })),
-      ...(selectedCase?.incidents || []).map((record) => ({ record, typeLabel: "Incident" })),
-      ...(selectedCase?.strategy || []).map((record) => ({ record, typeLabel: "Strategy" })),
-      ...(selectedCase?.documents || []).map((record) => ({ record, typeLabel: "Document" })),
-    ];
-    const found = fallbackSources.find(({ record }) => record.id === linkedId);
-    if (!found) return null;
-
-    return {
-      title: found.record.title || found.record.label || "Untitled record",
-      typeLabel: found.typeLabel,
-      summary: found.record.summary || found.record.description || found.record.notes || found.record.source || "",
-    };
-  };
 
   const badgeColors = {
     evidence: "bg-purple-50 text-purple-700 border-purple-200",
@@ -274,37 +239,60 @@ export default function RecordCard({
                   : "Unknown"}
               </div>
             </div>
-            {(() => {
-              const allLinkIds = Array.from(new Set([...(item.linkedIncidentIds || []), ...(item.linkedRecordIds || [])]));
-              if (allLinkIds.length === 0) return null;
-              return (
-                <div className="mt-3 space-y-1 border-t border-neutral-100 pt-3">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">{isEvidence ? "Linked Incidents" : "Linked Records"}</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {allLinkIds.map(linkedId => {
-                      const linkedItem = getLinkedItemDisplay(linkedId);
-                      if (!linkedItem) return null;
+            {!isEvidence && recordType !== "incidents" && Array.isArray(item.linkedRecordIds) && item.linkedRecordIds.length > 0 && (
+              <div className="mt-3 space-y-1 border-t border-neutral-100 pt-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Linked Records</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {item.linkedRecordIds.map((linkedId) => {
+                    const linkedItem = getRecordDisplayMeta(selectedCase, linkedId);
+                    if (!linkedItem) return null;
 
-                      return (
-                        <button
-                          key={linkedId}
-                          onClick={() => openLinkedRecord?.(linkedId)}
-                          className="flex max-w-full items-start gap-2 rounded-lg border border-neutral-300 bg-white px-2 py-1 text-left text-[10px] font-medium text-neutral-700 shadow-sm transition-all hover:border-lime-500 hover:text-lime-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-[0.99]"
-                        >
-                          <span className="shrink-0 font-bold uppercase opacity-50">{linkedItem.typeLabel}</span>
-                          <span className="min-w-0">
-                            <span className="block max-w-[160px] truncate">{linkedItem.title}</span>
-                            {linkedItem.summary && (
-                              <span className="block max-w-[220px] truncate text-neutral-400">{linkedItem.summary}</span>
-                            )}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                    return (
+                      <button
+                        key={linkedId}
+                        onClick={() => openLinkedRecord?.(linkedId)}
+                        className="flex max-w-full items-start gap-2 rounded-lg border border-neutral-300 bg-white px-2 py-1 text-left text-[10px] font-medium text-neutral-700 shadow-sm transition-all hover:border-lime-500 hover:text-lime-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-[0.99]"
+                      >
+                        <span className="shrink-0 font-bold uppercase opacity-50">{linkedItem.typeLabel}</span>
+                        <span className="min-w-0">
+                          <span className="block max-w-[160px] truncate">{linkedItem.title}</span>
+                          {linkedItem.summary && (
+                            <span className="block max-w-[220px] truncate text-neutral-400">{linkedItem.summary}</span>
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
-              );
-            })()}
+              </div>
+            )}
+            {isEvidence && Array.isArray(item.linkedIncidentIds) && item.linkedIncidentIds.length > 0 && (
+              <div className="mt-3 space-y-1 border-t border-neutral-100 pt-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Linked Incidents</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {item.linkedIncidentIds.map((linkedId) => {
+                    const linkedItem = getIncidentDisplayMeta(selectedCase, linkedId);
+                    if (!linkedItem) return null;
+
+                    return (
+                      <button
+                        key={linkedId}
+                        onClick={() => openLinkedRecord?.(linkedId)}
+                        className="flex max-w-full items-start gap-2 rounded-lg border border-neutral-300 bg-white px-2 py-1 text-left text-[10px] font-medium text-neutral-700 shadow-sm transition-all hover:border-lime-500 hover:text-lime-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-[0.99]"
+                      >
+                        <span className="shrink-0 font-bold uppercase opacity-50">{linkedItem.typeLabel}</span>
+                        <span className="min-w-0">
+                          <span className="block max-w-[160px] truncate">{linkedItem.title}</span>
+                          {linkedItem.summary && (
+                            <span className="block max-w-[220px] truncate text-neutral-400">{linkedItem.summary}</span>
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -338,7 +326,8 @@ export default function RecordCard({
           <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">Linked Evidence</h4>
           <div className="space-y-2">
             {item.linkedEvidenceIds.map((evidenceId) => {
-              const evidenceItem = selectedCase?.evidence?.find((e) => e.id === evidenceId);
+              const evidenceMeta = getEvidenceDisplayMeta(selectedCase, evidenceId);
+              const evidenceItem = evidenceMeta?.record;
               if (!evidenceItem) return null;
 
               return (
@@ -410,6 +399,39 @@ export default function RecordCard({
         badge: "CAUSED BY",
         badgeClass: "border-red-200 bg-red-50 text-red-700",
       })}
+      {recordType === "incidents" && Array.isArray(item.linkedRecordIds) && item.linkedRecordIds.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-neutral-100">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">Linked Records</h4>
+          <div className="space-y-2">
+            {item.linkedRecordIds.map((recordId) => {
+              const linkedRecord = getRecordDisplayMeta(selectedCase, recordId);
+              if (!linkedRecord) return null;
+
+              return (
+                <button
+                  type="button"
+                  key={recordId}
+                  onClick={() => openLinkedRecord?.(recordId)}
+                  className="flex w-full cursor-pointer items-start gap-2 rounded-lg border border-neutral-200 bg-white px-2 py-2 text-left text-xs text-neutral-700 shadow-sm transition-all hover:border-lime-500 hover:bg-lime-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1 active:scale-[0.99]"
+                >
+                  <span className="shrink-0 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-700">
+                    {linkedRecord.typeLabel}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-semibold">{linkedRecord.title || "Untitled record"}</span>
+                    {linkedRecord.summary && (
+                      <span className="mt-0.5 block truncate text-[10px] text-neutral-400">{linkedRecord.summary}</span>
+                    )}
+                  </span>
+                  <span className="shrink-0 rounded border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-neutral-500">
+                    Open
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {recordType === "incidents" && renderIncidentLinkSection("Outcomes", incidentLinkGroups.outcomes, {
         indicator: "→",
         badge: "OUTCOME",

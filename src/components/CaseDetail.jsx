@@ -3,6 +3,7 @@ import AttachmentPreview from "./AttachmentPreview";
 import { AlertCircle, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, ShieldCheck, X } from "lucide-react";
 import { isTimelineCapable, getCaseHealthReport } from "../lib/caseHealth";
 import { getIncidentsUsingRecord } from "../domain/caseDomain.js";
+import { getRecordDisplayMeta, resolveRecordById } from "../domain/linkingResolvers.js";
 import RecordCard from "./RecordCard";
 
 const emptyActionSummaryForm = {
@@ -725,54 +726,26 @@ ${strategyFocus.join("\n") || "—"}`;
     }
   };
 
-  // Helper to find a record by ID across all record types in the current case
-  const findRecordById = (recordId) => {
-    const recordTypes = ['evidence', 'incidents', 'strategy', 'documents'];
-    for (const type of recordTypes) {
-      const record = selectedCase[type]?.find(r => r.id === recordId);
-      if (record) {
-        // For timeline items, ensure eventDate is present for sorting consistency
-        const recordToReturn = isTimelineCapable(type) ? { ...record, eventDate: record.eventDate || record.date } : record;
-        return { record: recordToReturn, type };
-      }
-    }
-    return null;
-  };
-
   const openLinkedRecord = (recordId) => {
-    const found = findRecordById(recordId);
+    const found = resolveRecordById(selectedCase, recordId);
     if (!found) return;
+    const editTypeMap = {
+      incident: "incidents",
+      evidence: "evidence",
+      strategy: "strategy",
+      task: "tasks",
+      ledger: "ledger",
+    };
 
-    if (found.type === 'documents') {
-      openDocumentModal(found.record, found.record.id);
+    if (found.recordType === "document") {
+      openDocumentModal(found.record, found.record.id, found.typeLabel === "Document" ? "document" : "record");
       return;
     }
 
-    const { record, type } = found;
-    setActiveTab(type);
-    openEditRecordModal(type, record);
-  };
-
-  const getLinkedRecordDisplay = (recordId) => {
-    const trackingRecord = parsedTrackingRecords.find((record) => record.id === recordId);
-    if (trackingRecord) {
-      return {
-        id: trackingRecord.id,
-        typeLabel: getRecordTypeLabel(trackingRecord.meta?.type),
-        title: trackingRecord.title || "Untitled tracking record",
-        summary: trackingRecord.meta?.subject || trackingRecord.summary || trackingRecord.notes || trackingRecord.source || "",
-      };
-    }
-
-    const found = findRecordById(recordId);
-    if (!found) return null;
-
-    return {
-      id: recordId,
-      typeLabel: found.type === "evidence" ? "Evidence" : found.type.slice(0, -1),
-      title: found.record.title || found.record.label || "Untitled record",
-      summary: found.record.summary || found.record.description || found.record.notes || found.record.source || "",
-    };
+    const targetType = editTypeMap[found.recordType];
+    if (!targetType) return;
+    setActiveTab(targetType);
+    openEditRecordModal(targetType, found.record);
   };
 
   const statusConfig = {
@@ -933,7 +906,6 @@ ${strategyFocus.join("\n") || "—"}`;
       deleteRecord={deleteRecord}
       openLinkedRecord={openLinkedRecord}
       openRecordModal={openRecordModal}
-      trackingRecords={parsedTrackingRecords}
     />
   );
 };
@@ -1681,7 +1653,7 @@ ${strategyFocus.join("\n") || "—"}`;
                                       <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Linked Records</div>
                                       <div className="flex flex-wrap gap-1.5">
                                         {item.linkedRecordIds.map((rid) => {
-                                          const linkedRecord = getLinkedRecordDisplay(rid);
+                                          const linkedRecord = getRecordDisplayMeta(selectedCase, rid);
                                           if (!linkedRecord) return null;
                                           return (
                                             <button
@@ -2039,16 +2011,16 @@ ${strategyFocus.join("\n") || "—"}`;
                               <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Supports / Linked To</div>
                               <div className="flex flex-wrap gap-1.5">
                                 {doc.linkedRecordIds.map((rid) => {
-                                  const found = findRecordById(rid);
-                                  if (!found) return null;
+                                  const linkedRecord = getRecordDisplayMeta(selectedCase, rid);
+                                  if (!linkedRecord) return null;
                                   return (
                                     <button
                                       key={rid}
                                       onClick={() => openLinkedRecord(rid)}
                                       className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-neutral-300 bg-white text-[10px] font-medium text-neutral-700 shadow-sm hover:border-lime-500 hover:text-lime-600 transition-all text-left"
                                     >
-                                      <span className="opacity-50 font-bold uppercase">{found.type === 'evidence' ? 'Evidence' : found.type.slice(0, -1)}</span>
-                                      <span className="truncate max-w-[120px]">{found.record.title}</span>
+                                      <span className="opacity-50 font-bold uppercase">{linkedRecord.typeLabel}</span>
+                                      <span className="truncate max-w-[120px]">{linkedRecord.title}</span>
                                     </button>
                                   );
                                 })}
