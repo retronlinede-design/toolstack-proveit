@@ -283,9 +283,26 @@ test("buildCaseReasoningExportPayload evidenceSummary includes compact linkedInc
   const payload = buildCaseReasoningExportPayload(caseItem);
   const evidence = payload.data.evidenceSummary.find((item) => item.id === "ev-1");
 
+  assert.deepEqual(evidence.linkedIncidentIds, ["inc-1", "inc-2"]);
   assert.deepEqual(evidence.linkedIncidents, [
     { id: "inc-1", title: "Early incident", date: "2024-01-01" },
     { id: "inc-2", title: "Late incident", date: "2024-01-03" },
+  ]);
+  assert.deepEqual(evidence.resolvedLinks.incidents, [
+    {
+      id: "inc-1",
+      title: "Early incident",
+      date: "2024-01-01",
+      recordType: "incident",
+      summary: "Early incident description",
+    },
+    {
+      id: "inc-2",
+      title: "Late incident",
+      date: "2024-01-03",
+      recordType: "incident",
+      summary: "Late incident description",
+    },
   ]);
 });
 
@@ -448,8 +465,16 @@ test("buildCaseReasoningExportPayload ledgerSummary includes totals and readable
       { id: "inc-1", recordType: "incident", title: "Early incident", date: "2024-01-01" },
       { id: "doc-1", recordType: "document", title: "Document", date: "2024-01-06" },
     ],
+    resolvedLinks: {
+      records: [
+        { id: "ev-1", recordType: "evidence", title: "Middle evidence", date: "2024-01-02" },
+        { id: "inc-1", recordType: "incident", title: "Early incident", date: "2024-01-01" },
+        { id: "doc-1", recordType: "document", title: "Document", date: "2024-01-06" },
+      ],
+    },
   });
   assert.deepEqual(payload.data.ledgerSummary.entries[1].linkedRecords, []);
+  assert.deepEqual(payload.data.ledgerSummary.entries[1].resolvedLinks, { records: [] });
 });
 
 test("buildCaseReasoningExportPayload ledgerSummary entries are bounded by mode while totals cover all entries", () => {
@@ -599,7 +624,9 @@ test("buildCaseReasoningExportPayload chronology omits attachment and binary pay
     "date",
     "id",
     "linkedRecordIds",
+    "linkedRecords",
     "recordType",
+    "resolvedLinks",
     "summary",
     "title",
   ]);
@@ -659,6 +686,36 @@ test("buildCaseReasoningExportPayload incidentSummary includes derived incidentL
     related: [{ id: "inc-related", title: "Related incident", date: "2024-01-02" }],
   });
   assert.deepEqual(current.linkedEvidenceIds, []);
+  assert.deepEqual(current.linkedIncidentRefs, [{ incidentId: "inc-outcome", type: "CAUSES" }]);
+  assert.deepEqual(current.resolvedLinks.incidents, {
+    causes: [
+      {
+        id: "inc-cause",
+        title: "Cause incident",
+        date: "2024-01-03",
+        recordType: "incident",
+        summary: "Cause description",
+      },
+    ],
+    outcomes: [
+      {
+        id: "inc-outcome",
+        title: "Outcome incident",
+        date: "2024-01-01",
+        recordType: "incident",
+        summary: "Outcome description",
+      },
+    ],
+    related: [
+      {
+        id: "inc-related",
+        title: "Related incident",
+        date: "2024-01-02",
+        recordType: "incident",
+        summary: "Related description",
+      },
+    ],
+  });
 });
 
 test("buildCaseReasoningExportPayload incidentSummary includes readable linkedEvidence without changing linkedEvidenceIds", () => {
@@ -685,6 +742,20 @@ test("buildCaseReasoningExportPayload incidentSummary includes readable linkedEv
       importance: "critical",
       relevance: "high",
       evidenceRole: "ANCHOR_EVIDENCE",
+      recordType: "evidence",
+      summary: "Middle evidence description",
+    },
+  ]);
+  assert.deepEqual(incident.resolvedLinks.evidence, [
+    {
+      id: "ev-1",
+      title: "Middle evidence",
+      date: "2024-01-02",
+      status: "needs_review",
+      importance: "critical",
+      relevance: "high",
+      evidenceRole: "ANCHOR_EVIDENCE",
+      recordType: "evidence",
       summary: "Middle evidence description",
     },
   ]);
@@ -707,14 +778,67 @@ test("buildCaseReasoningExportPayload incidentSummary includes readable linkedRe
       title: "Document",
       recordType: "document",
       summary: "Document summary",
+      date: "2024-01-06",
     },
     {
       id: "task-1",
       title: "Task 1",
       recordType: "task",
       summary: "Task 1 description",
+      date: "",
     },
   ]);
+  assert.deepEqual(incident.resolvedLinks.records, [
+    {
+      id: "doc-1",
+      title: "Document",
+      recordType: "document",
+      summary: "Document summary",
+      date: "2024-01-06",
+    },
+    {
+      id: "task-1",
+      title: "Task 1",
+      recordType: "task",
+      summary: "Task 1 description",
+      date: "",
+    },
+  ]);
+});
+
+test("buildCaseReasoningExportPayload strategy current and openTasks preserve raw links with resolved records", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.strategy[0] = {
+    ...caseItem.strategy[0],
+    linkedRecordIds: ["inc-1", "doc-1"],
+  };
+  caseItem.tasks[0] = {
+    ...caseItem.tasks[0],
+    linkedRecordIds: ["ev-1", "missing-record"],
+  };
+
+  const payload = buildCaseReasoningExportPayload(caseItem, "detailed");
+
+  assert.deepEqual(payload.data.strategy.current[0].linkedRecordIds, ["inc-1", "doc-1"]);
+  assert.deepEqual(payload.data.strategy.current[0].linkedRecords, [
+    { id: "inc-1", recordType: "incident", title: "Early incident", date: "2024-01-01" },
+    { id: "doc-1", recordType: "document", title: "Document", date: "2024-01-06" },
+  ]);
+  assert.deepEqual(payload.data.strategy.current[0].resolvedLinks, {
+    records: [
+      { id: "inc-1", recordType: "incident", title: "Early incident", date: "2024-01-01" },
+      { id: "doc-1", recordType: "document", title: "Document", date: "2024-01-06" },
+    ],
+  });
+  assert.deepEqual(payload.data.openTasks[0].linkedRecordIds, ["ev-1", "missing-record"]);
+  assert.deepEqual(payload.data.openTasks[0].linkedRecords, [
+    { id: "ev-1", recordType: "evidence", title: "Middle evidence", date: "2024-01-02" },
+  ]);
+  assert.deepEqual(payload.data.openTasks[0].resolvedLinks, {
+    records: [
+      { id: "ev-1", recordType: "evidence", title: "Middle evidence", date: "2024-01-02" },
+    ],
+  });
 });
 
 test("buildCaseReasoningExportPayload linkedEvidence omits binary attachment data", () => {
@@ -726,6 +850,7 @@ test("buildCaseReasoningExportPayload linkedEvidence omits binary attachment dat
     "evidenceRole",
     "id",
     "importance",
+    "recordType",
     "relevance",
     "status",
     "summary",
