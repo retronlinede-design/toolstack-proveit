@@ -4,7 +4,28 @@ import { AlertCircle, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Sh
 import { isTimelineCapable, getCaseHealthReport } from "../lib/caseHealth";
 import { getIncidentsUsingRecord } from "../domain/caseDomain.js";
 import { getRecordDisplayMeta, resolveRecordById } from "../domain/linkingResolvers.js";
+import { getLinkChipClasses } from "./linkChipStyles";
 import RecordCard from "./RecordCard";
+
+function renderCompactLinkRow(label, items, renderChip) {
+  if (!items || items.length === 0) return null;
+  const visibleItems = items.slice(0, 4);
+  const remainingCount = items.length - visibleItems.length;
+
+  return (
+    <div className="mt-1 flex items-start gap-2">
+      <div className="w-24 shrink-0 pt-0.5 text-[11px] text-neutral-500">{label}</div>
+      <div className="flex flex-wrap gap-1">
+        {visibleItems.map(renderChip)}
+        {remainingCount > 0 && (
+          <span className={getLinkChipClasses("neutral")}>
+            +{remainingCount}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const emptyActionSummaryForm = {
   currentFocus: "",
@@ -1649,29 +1670,21 @@ ${strategyFocus.join("\n") || "—"}`;
                                   {item.notes && <p className="text-xs text-neutral-500 mt-2 line-clamp-2">{item.notes}</p>}
 
                                   {item.linkedRecordIds && item.linkedRecordIds.length > 0 && (
-                                    <div className="mt-3 pt-3 border-t border-neutral-100">
-                                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Linked Records</div>
-                                      <div className="flex flex-wrap gap-1.5">
-                                        {item.linkedRecordIds.map((rid) => {
-                                          const linkedRecord = getRecordDisplayMeta(selectedCase, rid);
-                                          if (!linkedRecord) return null;
-                                          return (
-                                            <button
-                                              key={rid}
-                                              onClick={() => openLinkedRecord(rid)}
-                                              className="flex max-w-full items-start gap-2 rounded-lg border border-neutral-300 bg-white px-2 py-1 text-left text-[10px] font-medium text-neutral-700 shadow-sm transition-all hover:border-lime-500 hover:text-lime-600"
-                                            >
-                                              <span className="shrink-0 font-bold uppercase opacity-50">{linkedRecord.typeLabel}</span>
-                                              <span className="min-w-0">
-                                                <span className="block max-w-[160px] truncate">{linkedRecord.title}</span>
-                                                {linkedRecord.summary && (
-                                                  <span className="block max-w-[220px] truncate text-neutral-400">{linkedRecord.summary}</span>
-                                                )}
-                                              </span>
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
+                                    <div className="mt-1 border-t border-neutral-100 pt-1">
+                                      {renderCompactLinkRow("Linked Records", item.linkedRecordIds, (rid) => {
+                                        const linkedRecord = getRecordDisplayMeta(selectedCase, rid);
+                                        if (!linkedRecord) return null;
+                                        return (
+                                          <button
+                                            key={rid}
+                                            onClick={() => openLinkedRecord(rid)}
+                                            className={getLinkChipClasses("record", "flex items-center gap-1 text-left transition-colors")}
+                                          >
+                                            <span className="shrink-0 font-bold uppercase opacity-50">{linkedRecord.typeLabel}</span>
+                                            <span className="truncate max-w-[180px]">{linkedRecord.title}</span>
+                                          </button>
+                                        );
+                                      })}
                                     </div>
                                   )}
                                 </div>
@@ -1812,25 +1825,17 @@ ${strategyFocus.join("\n") || "—"}`;
                           )}
 
                           {usedByIncidents.length > 0 && (
-                            <div className="mt-3 border-t border-neutral-100 pt-3">
-                              <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">Used By Incidents</div>
-                              <div className="flex flex-wrap gap-1.5">
-                                {usedByIncidents.map((incident) => (
-                                  <button
-                                    key={incident.id}
-                                    onClick={() => openLinkedRecord(incident.id)}
-                                    className="flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-2 py-1 text-left text-[10px] font-medium text-neutral-700 shadow-sm transition-all hover:border-lime-500 hover:text-lime-600"
-                                  >
-                                    <span className="font-bold uppercase opacity-50">Incident</span>
-                                    <span className="max-w-[120px] truncate">{incident.title || "Untitled incident"}</span>
-                                    {(incident.eventDate || incident.date || incident.status) && (
-                                      <span className="text-neutral-400">
-                                        {[incident.eventDate || incident.date, incident.status].filter(Boolean).join(" · ")}
-                                      </span>
-                                    )}
-                                  </button>
-                                ))}
-                              </div>
+                            <div className="mt-1 border-t border-neutral-100 pt-1">
+                              {renderCompactLinkRow("Used By", usedByIncidents, (incident) => (
+                                <button
+                                  key={incident.id}
+                                  onClick={() => openLinkedRecord(incident.id)}
+                                  className={getLinkChipClasses("incident", "flex items-center gap-1 text-left transition-colors")}
+                                >
+                                  <span className="font-bold uppercase opacity-50">Incident</span>
+                                  <span className="truncate max-w-[180px]">{incident.title || "Untitled incident"}</span>
+                                </button>
+                              ))}
                             </div>
                           )}
 
@@ -2007,24 +2012,21 @@ ${strategyFocus.join("\n") || "—"}`;
                           )}
 
                           {doc.linkedRecordIds && doc.linkedRecordIds.length > 0 && (
-                            <div className="mt-3 pt-3 border-t border-neutral-100">
-                              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Supports / Linked To</div>
-                              <div className="flex flex-wrap gap-1.5">
-                                {doc.linkedRecordIds.map((rid) => {
-                                  const linkedRecord = getRecordDisplayMeta(selectedCase, rid);
-                                  if (!linkedRecord) return null;
-                                  return (
-                                    <button
-                                      key={rid}
-                                      onClick={() => openLinkedRecord(rid)}
-                                      className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-neutral-300 bg-white text-[10px] font-medium text-neutral-700 shadow-sm hover:border-lime-500 hover:text-lime-600 transition-all text-left"
-                                    >
-                                      <span className="opacity-50 font-bold uppercase">{linkedRecord.typeLabel}</span>
-                                      <span className="truncate max-w-[120px]">{linkedRecord.title}</span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
+                            <div className="mt-1 border-t border-neutral-100 pt-1">
+                              {renderCompactLinkRow("Supports", doc.linkedRecordIds, (rid) => {
+                                const linkedRecord = getRecordDisplayMeta(selectedCase, rid);
+                                if (!linkedRecord) return null;
+                                return (
+                                  <button
+                                    key={rid}
+                                    onClick={() => openLinkedRecord(rid)}
+                                    className={getLinkChipClasses("record", "flex items-center gap-1 text-left transition-colors")}
+                                  >
+                                    <span className="opacity-50 font-bold uppercase">{linkedRecord.typeLabel}</span>
+                                    <span className="truncate max-w-[180px]">{linkedRecord.title}</span>
+                                  </button>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
@@ -2279,25 +2281,17 @@ ${strategyFocus.join("\n") || "—"}`;
                           )}
 
                           {usedByIncidents.length > 0 && (
-                            <div className="mt-3 border-t border-neutral-100 pt-3">
-                              <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">Used By Incidents</div>
-                              <div className="flex flex-wrap gap-1.5">
-                                {usedByIncidents.map((incident) => (
-                                  <button
-                                    key={incident.id}
-                                    onClick={() => openLinkedRecord(incident.id)}
-                                    className="flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-2 py-1 text-left text-[10px] font-medium text-neutral-700 shadow-sm transition-all hover:border-lime-500 hover:text-lime-600"
-                                  >
-                                    <span className="font-bold uppercase opacity-50">Incident</span>
-                                    <span className="max-w-[120px] truncate">{incident.title || "Untitled incident"}</span>
-                                    {(incident.eventDate || incident.date || incident.status) && (
-                                      <span className="text-neutral-400">
-                                        {[incident.eventDate || incident.date, incident.status].filter(Boolean).join(" Â· ")}
-                                      </span>
-                                    )}
-                                  </button>
-                                ))}
-                              </div>
+                            <div className="mt-1 border-t border-neutral-100 pt-1">
+                              {renderCompactLinkRow("Used By", usedByIncidents, (incident) => (
+                                <button
+                                  key={incident.id}
+                                  onClick={() => openLinkedRecord(incident.id)}
+                                  className={getLinkChipClasses("incident", "flex items-center gap-1 text-left transition-colors")}
+                                >
+                                  <span className="font-bold uppercase opacity-50">Incident</span>
+                                  <span className="truncate max-w-[180px]">{incident.title || "Untitled incident"}</span>
+                                </button>
+                              ))}
                             </div>
                           )}
 
@@ -2853,3 +2847,4 @@ ${strategyFocus.join("\n") || "—"}`;
     </div>
   );
 }
+

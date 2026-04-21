@@ -1,4 +1,5 @@
 import AttachmentPreview from "./AttachmentPreview";
+import { getLinkChipClasses } from "./linkChipStyles";
 import { getIncidentLinkGroups } from "../domain/caseDomain.js";
 import { getEvidenceDisplayMeta, getIncidentDisplayMeta, getRecordDisplayMeta } from "../domain/linkingResolvers.js";
 
@@ -42,37 +43,44 @@ export default function RecordCard({
     strategy: "bg-blue-50 text-blue-700 border-blue-200",
   };
 
-  const renderIncidentLinkSection = (title, links, { indicator, badge, badgeClass }) => {
-    if (!links || links.length === 0) return null;
+  const renderCompactChipRow = (label, items, renderChip) => {
+    if (!items || items.length === 0) return null;
+    const visibleItems = items.slice(0, 4);
+    const remainingCount = items.length - visibleItems.length;
 
     return (
-      <div className="mt-4 pt-4 border-t border-neutral-100">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">{title}</h4>
-        <div className="space-y-2">
-          {links.map(({ ref, incident }) => (
-            <button
-              type="button"
-              key={`${title}-${incident.id}-${ref.type}`}
-              onClick={() => openLinkedRecord?.(incident.id)}
-              title={`Open linked incident: ${incident.title || "Untitled incident"}`}
-              className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-neutral-200 bg-white px-2 py-2 text-left text-xs text-neutral-700 shadow-sm transition-all hover:border-lime-500 hover:bg-lime-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1 active:scale-[0.99]"
-            >
-              <span className="shrink-0 text-sm font-bold text-neutral-400">{indicator}</span>
-              <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
-                {badge}
-              </span>
-              <span className="min-w-0 flex-1 truncate font-semibold">{incident.title || "Untitled incident"}</span>
-              {(incident.eventDate || incident.date) && (
-                <span className="shrink-0 text-[10px] text-neutral-400">{incident.eventDate || incident.date}</span>
-              )}
-              <span className="shrink-0 rounded border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-neutral-500">
-                Open
-              </span>
-            </button>
-          ))}
+      <div className="mt-1 flex items-start gap-2">
+        <div className="w-24 shrink-0 pt-0.5 text-[11px] text-neutral-500">{label}</div>
+        <div className="flex flex-wrap gap-1">
+          {visibleItems.map(renderChip)}
+          {remainingCount > 0 && (
+            <span className={getLinkChipClasses("neutral")}>
+              +{remainingCount}
+            </span>
+          )}
         </div>
       </div>
     );
+  };
+
+  const renderIncidentLinkSection = (title, links, { indicator, badge, badgeClass }) => {
+    if (!links || links.length === 0) return null;
+
+    return renderCompactChipRow(title, links, ({ ref, incident }) => (
+      <button
+        type="button"
+        key={`${title}-${incident.id}-${ref.type}`}
+        onClick={() => openLinkedRecord?.(incident.id)}
+        title={`Open linked incident: ${incident.title || "Untitled incident"}`}
+        className={getLinkChipClasses("incident", "flex items-center gap-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-[0.99]")}
+      >
+        <span className="shrink-0 text-[10px] font-bold text-neutral-400">{indicator}</span>
+        <span className={`shrink-0 rounded-sm border px-1 py-0 text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
+          {badge}
+        </span>
+        <span className="truncate max-w-[180px]">{incident.title || "Untitled incident"}</span>
+      </button>
+    ));
   };
 
   return (
@@ -240,58 +248,38 @@ export default function RecordCard({
               </div>
             </div>
             {!isEvidence && recordType !== "incidents" && Array.isArray(item.linkedRecordIds) && item.linkedRecordIds.length > 0 && (
-              <div className="mt-3 space-y-1 border-t border-neutral-100 pt-3">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Linked Records</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {item.linkedRecordIds.map((linkedId) => {
-                    const linkedItem = getRecordDisplayMeta(selectedCase, linkedId);
-                    if (!linkedItem) return null;
+              renderCompactChipRow("Linked Records", item.linkedRecordIds, (linkedId) => {
+                const linkedItem = getRecordDisplayMeta(selectedCase, linkedId);
+                if (!linkedItem) return null;
 
-                    return (
-                      <button
-                        key={linkedId}
-                        onClick={() => openLinkedRecord?.(linkedId)}
-                        className="flex max-w-full items-start gap-2 rounded-lg border border-neutral-300 bg-white px-2 py-1 text-left text-[10px] font-medium text-neutral-700 shadow-sm transition-all hover:border-lime-500 hover:text-lime-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-[0.99]"
-                      >
-                        <span className="shrink-0 font-bold uppercase opacity-50">{linkedItem.typeLabel}</span>
-                        <span className="min-w-0">
-                          <span className="block max-w-[160px] truncate">{linkedItem.title}</span>
-                          {linkedItem.summary && (
-                            <span className="block max-w-[220px] truncate text-neutral-400">{linkedItem.summary}</span>
-                          )}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+                return (
+                  <button
+                    key={linkedId}
+                    onClick={() => openLinkedRecord?.(linkedId)}
+                    className={getLinkChipClasses("record", "flex items-center gap-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-[0.99]")}
+                  >
+                    <span className="shrink-0 font-bold uppercase opacity-50">{linkedItem.typeLabel}</span>
+                    <span className="truncate max-w-[180px]">{linkedItem.title}</span>
+                  </button>
+                );
+              })
             )}
             {isEvidence && Array.isArray(item.linkedIncidentIds) && item.linkedIncidentIds.length > 0 && (
-              <div className="mt-3 space-y-1 border-t border-neutral-100 pt-3">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Linked Incidents</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {item.linkedIncidentIds.map((linkedId) => {
-                    const linkedItem = getIncidentDisplayMeta(selectedCase, linkedId);
-                    if (!linkedItem) return null;
+              renderCompactChipRow("Linked Incidents", item.linkedIncidentIds, (linkedId) => {
+                const linkedItem = getIncidentDisplayMeta(selectedCase, linkedId);
+                if (!linkedItem) return null;
 
-                    return (
-                      <button
-                        key={linkedId}
-                        onClick={() => openLinkedRecord?.(linkedId)}
-                        className="flex max-w-full items-start gap-2 rounded-lg border border-neutral-300 bg-white px-2 py-1 text-left text-[10px] font-medium text-neutral-700 shadow-sm transition-all hover:border-lime-500 hover:text-lime-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-[0.99]"
-                      >
-                        <span className="shrink-0 font-bold uppercase opacity-50">{linkedItem.typeLabel}</span>
-                        <span className="min-w-0">
-                          <span className="block max-w-[160px] truncate">{linkedItem.title}</span>
-                          {linkedItem.summary && (
-                            <span className="block max-w-[220px] truncate text-neutral-400">{linkedItem.summary}</span>
-                          )}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+                return (
+                  <button
+                    key={linkedId}
+                    onClick={() => openLinkedRecord?.(linkedId)}
+                    className={getLinkChipClasses("incident", "flex items-center gap-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-[0.99]")}
+                  >
+                    <span className="shrink-0 font-bold uppercase opacity-50">{linkedItem.typeLabel}</span>
+                    <span className="truncate max-w-[180px]">{linkedItem.title}</span>
+                  </button>
+                );
+              })
             )}
           </div>
         </div>
@@ -322,77 +310,23 @@ export default function RecordCard({
       )}
 
       {recordType === "incidents" && item.linkedEvidenceIds && item.linkedEvidenceIds.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-neutral-100">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">Linked Evidence</h4>
-          <div className="space-y-2">
-            {item.linkedEvidenceIds.map((evidenceId) => {
-              const evidenceMeta = getEvidenceDisplayMeta(selectedCase, evidenceId);
-              const evidenceItem = evidenceMeta?.record;
-              if (!evidenceItem) return null;
+        renderCompactChipRow("Linked Evidence", item.linkedEvidenceIds, (evidenceId) => {
+          const evidenceMeta = getEvidenceDisplayMeta(selectedCase, evidenceId);
+          const evidenceItem = evidenceMeta?.record;
+          if (!evidenceItem) return null;
 
-              return (
-                <div key={evidenceId} className="rounded-xl border border-neutral-200 bg-white p-3">
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="font-semibold text-neutral-800 truncate">
-                      {evidenceItem.title || "Untitled Evidence"}
-                    </span>
-                    <div className="flex flex-wrap gap-1">
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                          evidenceItem.importance === "critical"
-                            ? "bg-red-50 border-red-200 text-red-700"
-                            : evidenceItem.importance === "strong"
-                            ? "bg-amber-50 border-amber-200 text-amber-700"
-                            : "bg-neutral-100 border-neutral-200 text-neutral-500"
-                        }`}
-                      >
-                        {evidenceItem.importance?.toUpperCase()}
-                      </span>
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                          evidenceItem.status === "verified"
-                            ? "bg-lime-50 border-lime-200 text-lime-700"
-                            : evidenceItem.status === "incomplete"
-                            ? "bg-red-50 border-red-200 text-red-700"
-                            : "bg-neutral-100 border-neutral-200 text-neutral-500"
-                        }`}
-                      >
-                        {evidenceItem.status?.replace("_", " ").toUpperCase()}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-neutral-500">
-                    <span>
-                      {evidenceItem.attachments?.[0]?.mimeType?.startsWith("image/") && "Image"}
-                      {evidenceItem.attachments?.[0]?.mimeType === "application/pdf" && "PDF"}
-                      {evidenceItem.attachments?.[0] &&
-                        !evidenceItem.attachments?.[0]?.mimeType?.startsWith("image/") &&
-                        evidenceItem.attachments?.[0]?.mimeType !== "application/pdf" &&
-                        "File"}
-                      {!evidenceItem.attachments?.[0] && "No Digital File"}
-                    </span>
-                    <div className="flex gap-2">
-                      {evidenceItem.attachments?.[0] && onPreviewFile && (
-                        <button
-                          onClick={() => onPreviewFile(evidenceItem.attachments[0])}
-                          className="rounded-lg border border-neutral-300 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors whitespace-nowrap"
-                        >
-                          Preview
-                        </button>
-                      )}
-                      <button
-                        onClick={() => openEditRecordModal("evidence", evidenceItem)}
-                        className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors whitespace-nowrap"
-                      >
-                        Open
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+          return (
+            <button
+              type="button"
+              key={evidenceId}
+              onClick={() => openEditRecordModal("evidence", evidenceItem)}
+              className={getLinkChipClasses("evidence", "flex items-center gap-1 text-left transition-colors")}
+            >
+              <span className="shrink-0 font-bold uppercase opacity-50">Evidence</span>
+              <span className="truncate max-w-[180px]">{evidenceItem.title || "Untitled Evidence"}</span>
+            </button>
+          );
+        })
       )}
       {recordType === "incidents" && renderIncidentLinkSection("Caused by", incidentLinkGroups.causes, {
         indicator: "←",
@@ -400,37 +334,22 @@ export default function RecordCard({
         badgeClass: "border-red-200 bg-red-50 text-red-700",
       })}
       {recordType === "incidents" && Array.isArray(item.linkedRecordIds) && item.linkedRecordIds.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-neutral-100">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">Linked Records</h4>
-          <div className="space-y-2">
-            {item.linkedRecordIds.map((recordId) => {
-              const linkedRecord = getRecordDisplayMeta(selectedCase, recordId);
-              if (!linkedRecord) return null;
+        renderCompactChipRow("Linked Records", item.linkedRecordIds, (recordId) => {
+          const linkedRecord = getRecordDisplayMeta(selectedCase, recordId);
+          if (!linkedRecord) return null;
 
-              return (
-                <button
-                  type="button"
-                  key={recordId}
-                  onClick={() => openLinkedRecord?.(recordId)}
-                  className="flex w-full cursor-pointer items-start gap-2 rounded-lg border border-neutral-200 bg-white px-2 py-2 text-left text-xs text-neutral-700 shadow-sm transition-all hover:border-lime-500 hover:bg-lime-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1 active:scale-[0.99]"
-                >
-                  <span className="shrink-0 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-700">
-                    {linkedRecord.typeLabel}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-semibold">{linkedRecord.title || "Untitled record"}</span>
-                    {linkedRecord.summary && (
-                      <span className="mt-0.5 block truncate text-[10px] text-neutral-400">{linkedRecord.summary}</span>
-                    )}
-                  </span>
-                  <span className="shrink-0 rounded border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-neutral-500">
-                    Open
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+          return (
+            <button
+              type="button"
+              key={recordId}
+              onClick={() => openLinkedRecord?.(recordId)}
+              className={getLinkChipClasses("record", "flex items-center gap-1 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-[0.99]")}
+            >
+              <span className="shrink-0 font-bold uppercase opacity-50">{linkedRecord.typeLabel}</span>
+              <span className="truncate max-w-[180px]">{linkedRecord.title || "Untitled record"}</span>
+            </button>
+          );
+        })
       )}
       {recordType === "incidents" && renderIncidentLinkSection("Outcomes", incidentLinkGroups.outcomes, {
         indicator: "→",
