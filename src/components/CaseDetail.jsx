@@ -5,6 +5,7 @@ import { isTimelineCapable, getCaseHealthReport } from "../lib/caseHealth";
 import { getIncidentsUsingRecord } from "../domain/caseDomain.js";
 import { getRecordDisplayMeta, resolveRecordById } from "../domain/linkingResolvers.js";
 import { getLinkChipClasses } from "./linkChipStyles";
+import LinkedChip from "./LinkedChip";
 import RecordCard from "./RecordCard";
 
 function renderCompactLinkRow(label, items, renderChip) {
@@ -140,6 +141,8 @@ export default function CaseDetail({
   onSendReasoningExportToSupabase,
   onExportFullBackup,
   onOpenGptDeltaModal,
+  onOpenPinManager,
+  isPinLocked = false,
   issueFixFeedback = "",
   onViewRecord,
   onPreviewFile,
@@ -1071,8 +1074,17 @@ ${strategyFocus.join("\n") || "—"}`;
             <button onClick={() => openEditCaseModal(selectedCase)} className="text-sm font-medium text-lime-600 hover:text-lime-700">
               Edit
             </button>
+            <button
+              onClick={() => onOpenPinManager?.(selectedCase)}
+              className="text-sm font-medium text-blue-700 hover:text-blue-800"
+            >
+              {isPinLocked ? "Manage PIN" : "Set PIN"}
+            </button>
           </div>
           <p className="mt-1 text-sm text-neutral-600">Category: {selectedCase.category}</p>
+          <p className="mt-1 text-xs font-medium text-neutral-500">
+            {isPinLocked ? "Privacy lock: PIN enabled" : "Privacy lock: off"}
+          </p>
           {selectedCase.notes ? <p className="mt-3 max-w-2xl text-sm text-neutral-700">{selectedCase.notes}</p> : null}
         </div>
         <div className="flex gap-2 flex-wrap items-start">
@@ -1675,14 +1687,16 @@ ${strategyFocus.join("\n") || "—"}`;
                                         const linkedRecord = getRecordDisplayMeta(selectedCase, rid);
                                         if (!linkedRecord) return null;
                                         return (
-                                          <button
+                                          <LinkedChip
                                             key={rid}
                                             onClick={() => openLinkedRecord(rid)}
-                                            className={getLinkChipClasses("record", "flex items-center gap-1 text-left transition-colors")}
+                                            titleText={linkedRecord.title || "Untitled record"}
+                                            variant="record"
+                                            className="flex items-center gap-1 text-left transition-colors"
+                                            leading={<span className="shrink-0 font-bold uppercase opacity-50">{linkedRecord.typeLabel}</span>}
                                           >
-                                            <span className="shrink-0 font-bold uppercase opacity-50">{linkedRecord.typeLabel}</span>
-                                            <span className="truncate max-w-[180px]">{linkedRecord.title}</span>
-                                          </button>
+                                            {linkedRecord.title || "Untitled record"}
+                                          </LinkedChip>
                                         );
                                       })}
                                     </div>
@@ -1827,14 +1841,16 @@ ${strategyFocus.join("\n") || "—"}`;
                           {usedByIncidents.length > 0 && (
                             <div className="mt-1 border-t border-neutral-100 pt-1">
                               {renderCompactLinkRow("Used By", usedByIncidents, (incident) => (
-                                <button
+                                <LinkedChip
                                   key={incident.id}
                                   onClick={() => openLinkedRecord(incident.id)}
-                                  className={getLinkChipClasses("incident", "flex items-center gap-1 text-left transition-colors")}
+                                  titleText={incident.title || "Untitled incident"}
+                                  variant="incident"
+                                  className="flex items-center gap-1 text-left transition-colors"
+                                  leading={<span className="font-bold uppercase opacity-50">Incident</span>}
                                 >
-                                  <span className="font-bold uppercase opacity-50">Incident</span>
-                                  <span className="truncate max-w-[180px]">{incident.title || "Untitled incident"}</span>
-                                </button>
+                                  {incident.title || "Untitled incident"}
+                                </LinkedChip>
                               ))}
                             </div>
                           )}
@@ -2017,14 +2033,16 @@ ${strategyFocus.join("\n") || "—"}`;
                                 const linkedRecord = getRecordDisplayMeta(selectedCase, rid);
                                 if (!linkedRecord) return null;
                                 return (
-                                  <button
+                                  <LinkedChip
                                     key={rid}
                                     onClick={() => openLinkedRecord(rid)}
-                                    className={getLinkChipClasses("record", "flex items-center gap-1 text-left transition-colors")}
+                                    titleText={linkedRecord.title || "Untitled record"}
+                                    variant="record"
+                                    className="flex items-center gap-1 text-left transition-colors"
+                                    leading={<span className="opacity-50 font-bold uppercase">{linkedRecord.typeLabel}</span>}
                                   >
-                                    <span className="opacity-50 font-bold uppercase">{linkedRecord.typeLabel}</span>
-                                    <span className="truncate max-w-[180px]">{linkedRecord.title}</span>
-                                  </button>
+                                    {linkedRecord.title || "Untitled record"}
+                                  </LinkedChip>
                                 );
                               })}
                             </div>
@@ -2283,14 +2301,16 @@ ${strategyFocus.join("\n") || "—"}`;
                           {usedByIncidents.length > 0 && (
                             <div className="mt-1 border-t border-neutral-100 pt-1">
                               {renderCompactLinkRow("Used By", usedByIncidents, (incident) => (
-                                <button
+                                <LinkedChip
                                   key={incident.id}
                                   onClick={() => openLinkedRecord(incident.id)}
-                                  className={getLinkChipClasses("incident", "flex items-center gap-1 text-left transition-colors")}
+                                  titleText={incident.title || "Untitled incident"}
+                                  variant="incident"
+                                  className="flex items-center gap-1 text-left transition-colors"
+                                  leading={<span className="font-bold uppercase opacity-50">Incident</span>}
                                 >
-                                  <span className="font-bold uppercase opacity-50">Incident</span>
-                                  <span className="truncate max-w-[180px]">{incident.title || "Untitled incident"}</span>
-                                </button>
+                                  {incident.title || "Untitled incident"}
+                                </LinkedChip>
                               ))}
                             </div>
                           )}

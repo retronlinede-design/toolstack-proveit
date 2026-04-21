@@ -12,6 +12,7 @@ import {
   linkRecordToIncident,
   mergeCase,
   normalizeCase,
+  normalizeCasePrivacyLock,
   normalizeRecord,
   syncCaseLinks,
   unlinkRecordFromIncident,
@@ -107,6 +108,55 @@ test("normalizeRecord keeps evidence capturedAt independent from eventDate", () 
 
   assert.equal(record.eventDate, "2024-02-03");
   assert.equal(record.capturedAt, "2024-02-10");
+});
+
+test("normalizeCasePrivacyLock keeps valid per-case PINs and rejects invalid values", () => {
+  assert.deepEqual(normalizeCasePrivacyLock({ pin: "1234", enabledAt: "2024-01-01T00:00:00.000Z" }), {
+    pin: "1234",
+    enabledAt: "2024-01-01T00:00:00.000Z",
+    updatedAt: "2024-01-01T00:00:00.000Z",
+  });
+  assert.equal(normalizeCasePrivacyLock({ pin: "12ab" }), null);
+  assert.equal(normalizeCasePrivacyLock({ pin: "123" }), null);
+});
+
+test("normalizeCase preserves valid privacyLock metadata", () => {
+  const normalized = normalizeCase({
+    id: "case-1",
+    name: "Locked case",
+    privacyLock: {
+      pin: "456789",
+      enabledAt: "2024-02-01T10:00:00.000Z",
+      updatedAt: "2024-02-02T10:00:00.000Z",
+    },
+  });
+
+  assert.deepEqual(normalized.privacyLock, {
+    pin: "456789",
+    enabledAt: "2024-02-01T10:00:00.000Z",
+    updatedAt: "2024-02-02T10:00:00.000Z",
+  });
+});
+
+test("mergeCase preserves an existing privacyLock when the incoming case has none", () => {
+  const merged = mergeCase(
+    {
+      id: "case-1",
+      name: "Locked case",
+      privacyLock: { pin: "1234", enabledAt: "2024-01-01T00:00:00.000Z" },
+    },
+    {
+      id: "case-1",
+      name: "Locked case updated",
+      notes: "updated",
+    }
+  );
+
+  assert.deepEqual(merged.privacyLock, {
+    pin: "1234",
+    enabledAt: "2024-01-01T00:00:00.000Z",
+    updatedAt: "2024-01-01T00:00:00.000Z",
+  });
 });
 
 test("normalizeRecord normalizes timeline-capable incident records", () => {

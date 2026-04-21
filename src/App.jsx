@@ -174,6 +174,25 @@ const RECORD_TYPE_OPTIONS = [
   { value: "custom", label: "Custom", metaType: "custom" },
 ];
 
+const EMPTY_PIN_FORM = {
+  currentPin: "",
+  newPin: "",
+  confirmPin: "",
+  confirmRemoval: false,
+};
+
+function sanitizePinInput(value = "") {
+  return String(value || "").replace(/\D/g, "").slice(0, 6);
+}
+
+function isValidCasePin(pin = "") {
+  return /^\d{4,6}$/.test(String(pin || ""));
+}
+
+function isCasePinLocked(caseItem) {
+  return isValidCasePin(caseItem?.privacyLock?.pin);
+}
+
 function getRecordMetaType(recordType = "financial") {
   return RECORD_TYPE_OPTIONS.find((option) => option.value === recordType)?.metaType || "custom";
 }
@@ -302,10 +321,18 @@ async function fileToSerializable(file, recordId) {
 export default function ProveItApp() {
   const [cases, setCases] = useState([]);
   const [loadingCases, setLoadingCases] = useState(true);
+  const [caseSearchQuery, setCaseSearchQuery] = useState("");
+  const [caseSort, setCaseSort] = useState("updated");
   const [editingCase, setEditingCase] = useState(null);
   const [imageCache, setImageCache] = useState({});
   const [previewFile, setPreviewFile] = useState(null);
   const [viewingRecord, setViewingRecord] = useState(null);
+  const [unlockedCaseIds, setUnlockedCaseIds] = useState([]);
+  const [pinManagerState, setPinManagerState] = useState({ open: false, caseId: null, mode: "set" });
+  const [pinForm, setPinForm] = useState(EMPTY_PIN_FORM);
+  const [pinModalError, setPinModalError] = useState("");
+  const [lockPromptPin, setLockPromptPin] = useState("");
+  const [lockPromptError, setLockPromptError] = useState("");
 
   const [showCreate, setShowCreate] = useState(false);
   const [selectedCaseId, setSelectedCaseId] = useState(() => {
@@ -398,9 +425,188 @@ export default function ProveItApp() {
     try {
       await saveCase(updatedCase);
       setCases((prev) => prev.map((c) => (c.id === updatedCase.id ? updatedCase : c)));
+      return true;
     } catch (error) {
       console.error("Failed to update case", error);
+      return false;
     }
+  };
+
+  const resetPinModalState = () => {
+    setPinForm(EMPTY_PIN_FORM);
+    setPinModalError("");
+  };
+
+  const closePinManager = () => {
+    setPinManagerState({ open: false, caseId: null, mode: "set" });
+    resetPinModalState();
+  };
+
+  const openPinManager = (caseItem, mode = null) => {
+    if (!caseItem) return;
+    setPinManagerState({
+      open: true,
+      caseId: caseItem.id,
+      mode: mode || (isCasePinLocked(caseItem) ? "change" : "set"),
+    });
+    resetPinModalState();
+  };
+
+  const closeLockPrompt = () => {
+    setLockPromptPin("");
+    setLockPromptError("");
+    setSelectedCaseId(null);
+  };
+
+  const unlockCaseWithPin = (caseItem, pin) => {
+    if (!caseItem || !isCasePinLocked(caseItem)) return false;
+    if (String(caseItem.privacyLock.pin) !== String(pin)) return false;
+
+    setUnlockedCaseIds((prev) => (prev.includes(caseItem.id) ? prev : [...prev, caseItem.id]));
+    setLockPromptPin("");
+    setLockPromptError("");
+    return true;
+  };
+
+  const handleUnlockSelectedCase = (event) => {
+    event.preventDefault();
+    if (!selectedCase || !selectedCaseLocked) return;
+
+    const candidatePin = sanitizePinInput(lockPromptPin);
+    if (!candidatePin) {
+      setLockPromptError("Enter the case PIN to continue.");
+      return;
+    }
+
+    if (!unlockCaseWithPin(selectedCase, candidatePin)) {
+      setLockPromptError("Wrong PIN. Check the digits and try again.");
+    }
+  };
+
+  const handleSavePinFlow = async () => {
+    if (!pinManagerCase) return;
+
+    if (pinManagerState.mode === "set") {
+      const newPin = sanitizePinInput(pinForm.newPin);
+      const confirmPin = sanitizePinInput(pinForm.confirmPin);
+
+      if (!isValidCasePin(newPin)) {
+        setPinModalError("PIN must be numeric and 4 to 6 digits.");
+        return;
+      }
+
+      if (newPin !== confirmPin) {
+        setPinModalError("PIN confirmation does not match.");
+        return;
+      }
+
+      const updatedCase = {
+        ...pinManagerCase,
+        privacyLock: {
+          pin: newPin,
+          enabledAt: pinManagerCase.privacyLock?.enabledAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        updatedAt: new Date().toISOString(),
+      };
+
+      const saved = await handleUpdateCase(updatedCase);
+      if (!saved) {
+        setPinModalError("Could not save the new PIN.");
+        return;
+      }
+      setUnlockedCaseIds((prev) => (prev.includes(updatedCase.id) ? prev : [...prev, updatedCase.id]));
+      closePinManager();
+      return;
+    }
+
+    if (pinManagerState.mode === "change") {
+      const currentPin = sanitizePinInput(pinForm.currentPin);
+      const newPin = sanitizePinInput(pinForm.newPin);
+      const confirmPin = sanitizePinInput(pinForm.confirmPin);
+
+      if (currentPin !== pinManagerCase?.privacyLock?.pin) {
+        setPinModalError("Current PIN is incorrect.");
+        return;
+      }
+
+      if (!isValidCasePin(newPin)) {
+        setPinModalError("New PIN must be numeric and 4 to 6 digits.");
+        return;
+      }
+
+      if (newPin !== confirmPin) {
+        setPinModalError("New PIN confirmation does not match.");
+        return;
+      }
+
+      const updatedCase = {
+        ...pinManagerCase,
+        privacyLock: {
+          pin: newPin,
+          enabledAt: pinManagerCase.privacyLock?.enabledAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        updatedAt: new Date().toISOString(),
+      };
+
+      const saved = await handleUpdateCase(updatedCase);
+      if (!saved) {
+        setPinModalError("Could not save the new PIN.");
+        return;
+      }
+      setUnlockedCaseIds((prev) => (prev.includes(updatedCase.id) ? prev : [...prev, updatedCase.id]));
+      closePinManager();
+      return;
+    }
+
+    if (pinManagerState.mode === "remove") {
+      const currentPin = sanitizePinInput(pinForm.currentPin);
+
+      if (currentPin !== pinManagerCase?.privacyLock?.pin) {
+        setPinModalError("Current PIN is incorrect.");
+        return;
+      }
+
+      if (!pinForm.confirmRemoval) {
+        setPinModalError("Confirm PIN removal to continue.");
+        return;
+      }
+
+      const updatedCase = {
+        ...pinManagerCase,
+        privacyLock: null,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const saved = await handleUpdateCase(updatedCase);
+      if (!saved) {
+        setPinModalError("Could not remove the PIN.");
+        return;
+      }
+      setUnlockedCaseIds((prev) => prev.filter((id) => id !== updatedCase.id));
+      closePinManager();
+    }
+  };
+
+  const reconcileUnlockedCaseIds = (nextCases, previousCases = cases) => {
+    const previousLockByCaseId = new Map(
+      (previousCases || []).map((caseItem) => [caseItem.id, caseItem?.privacyLock?.pin || ""])
+    );
+
+    setUnlockedCaseIds((prev) =>
+      prev.filter((caseId) => {
+        const nextCase = (nextCases || []).find((caseItem) => caseItem.id === caseId);
+        if (!nextCase) return false;
+
+        const previousPin = previousLockByCaseId.get(caseId) || "";
+        const nextPin = nextCase?.privacyLock?.pin || "";
+
+        if (!nextPin) return false;
+        if (previousPin !== nextPin) return false;
+        return true;
+      })
+    );
   };
 
   const resetGptDeltaModal = () => {
@@ -784,6 +990,95 @@ export default function ProveItApp() {
     [cases, selectedCaseId]
   );
 
+  const pinManagerCase = useMemo(
+    () => cases.find((c) => c.id === pinManagerState.caseId) || null,
+    [cases, pinManagerState.caseId]
+  );
+  const selectedCaseLocked = selectedCase ? isCasePinLocked(selectedCase) : false;
+  const selectedCaseUnlocked = selectedCase ? unlockedCaseIds.includes(selectedCase.id) : false;
+  const selectedCaseRequiresPin = !!selectedCase && selectedCaseLocked && !selectedCaseUnlocked;
+
+  const normalizeSearchText = (value) => String(value || "").trim().toLowerCase();
+
+  const getCaseLastUpdated = (caseItem) => caseItem?.updatedAt || caseItem?.createdAt || "";
+
+  const formatCaseLastUpdated = (caseItem) => {
+    const timestamp = getCaseLastUpdated(caseItem);
+    if (!timestamp) return "Unknown";
+
+    const parsed = new Date(timestamp);
+    if (Number.isNaN(parsed.getTime())) return "Unknown";
+
+    return parsed.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const getCaseStatusClasses = (status = "") => {
+    const normalized = String(status || "").toLowerCase();
+    if (normalized === "archived" || normalized === "done") return "border-neutral-200 bg-neutral-100 text-neutral-600";
+    if (normalized === "needs_review") return "border-amber-200 bg-amber-50 text-amber-700";
+    if (normalized === "open") return "border-lime-200 bg-lime-50 text-lime-700";
+    return "border-blue-200 bg-blue-50 text-blue-700";
+  };
+
+  const formatCaseStatus = (status = "") =>
+    String(status || "open")
+      .replaceAll("_", " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+
+  const getCaseFallbackFocus = (caseItem) => {
+    const description = String(caseItem?.description || "").trim();
+    const notes = String(caseItem?.notes || "").trim();
+    const summarySource = description || notes;
+    if (summarySource) {
+      return summarySource.length > 140 ? `${summarySource.slice(0, 137)}...` : summarySource;
+    }
+
+    const counts = [
+      `${caseItem?.incidents?.length || 0} incidents`,
+      `${caseItem?.evidence?.length || 0} evidence`,
+      `${caseItem?.documents?.length || 0} documents`,
+    ];
+    return `Resume ${caseItem?.category || "case"} work. ${counts.join(" · ")}.`;
+  };
+
+  const caseListItems = useMemo(() => {
+    const query = normalizeSearchText(caseSearchQuery);
+    const filteredCases = cases.filter((caseItem) => {
+      if (!query) return true;
+      return [caseItem?.name, caseItem?.category]
+        .map(normalizeSearchText)
+        .some((value) => value.includes(query));
+    });
+
+    const sortedCases = [...filteredCases].sort((a, b) => {
+      if (caseSort === "name") {
+        return String(a?.name || "").localeCompare(String(b?.name || ""));
+      }
+      if (caseSort === "status") {
+        const statusCompare = String(a?.status || "").localeCompare(String(b?.status || ""));
+        if (statusCompare !== 0) return statusCompare;
+      }
+
+      const dateA = new Date(getCaseLastUpdated(a) || 0).getTime();
+      const dateB = new Date(getCaseLastUpdated(b) || 0).getTime();
+      return dateB - dateA;
+    });
+
+    return sortedCases;
+  }, [cases, caseSearchQuery, caseSort]);
+
+  const mostRecentlyUpdatedCaseId = useMemo(() => {
+    if (cases.length === 0) return null;
+    return [...cases]
+      .sort((a, b) => new Date(getCaseLastUpdated(b) || 0) - new Date(getCaseLastUpdated(a) || 0))[0]?.id || null;
+  }, [cases]);
+
   // Load cases from IndexedDB
   useEffect(() => {
     let mounted = true;
@@ -820,14 +1115,16 @@ export default function ProveItApp() {
   // Load images when a case is selected
   useEffect(() => {
     async function loadAllImages() {
+      if (!selectedCase || selectedCaseRequiresPin) return;
+
       const newCache = {};
       const imageIds = new Set();
 
-      const allRecords = selectedCase ? [
+      const allRecords = [
         ...(selectedCase.evidence || []),
         ...(selectedCase.incidents || []),
         ...(selectedCase.strategy || []),
-      ] : [];
+      ];
 
       for (const record of allRecords) {
         for (const att of record.attachments || []) {
@@ -860,7 +1157,7 @@ export default function ProveItApp() {
     }
 
     loadAllImages();
-  }, [selectedCase, reviewQueue.length]);
+  }, [selectedCase, selectedCaseRequiresPin, reviewQueue.length]);
 
   useEffect(() => {
     localStorage.setItem("toolstack.proveit.v1.captures", JSON.stringify(quickCaptures));
@@ -998,6 +1295,7 @@ export default function ProveItApp() {
         await saveCase(caseItem);
       }
 
+      reconcileUnlockedCaseIds(mergedCases, currentCases);
       setCases(mergedCases);
       if (hasIncomingQuickCaptures && shouldImportQuickCaptures) {
         setQuickCaptures((prev) => {
@@ -1099,6 +1397,7 @@ export default function ProveItApp() {
       try {
         await deleteCase(caseId);
         setCases((prev) => prev.filter((c) => c.id !== caseId));
+        setUnlockedCaseIds((prev) => prev.filter((id) => id !== caseId));
         if (selectedCaseId === caseId) {
           setSelectedCaseId(null);
         }
@@ -1124,6 +1423,8 @@ export default function ProveItApp() {
   };
 
   const openCase = (caseId) => {
+    setLockPromptPin("");
+    setLockPromptError("");
     setSelectedCaseId(caseId);
     setActiveTab("overview");
   };
@@ -1450,44 +1751,112 @@ const handleRecordFiles = async (event) => {
 
     return (
       <div className="grid gap-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">Your Cases</h2>
+            <p className="mt-1 text-sm text-neutral-500">Search, sort, and jump straight back into the right case.</p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <input
+              type="search"
+              value={caseSearchQuery}
+              onChange={(e) => setCaseSearchQuery(e.target.value)}
+              placeholder="Search by case name or category"
+              className="w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-800 outline-none transition-colors focus:border-lime-500 sm:w-72"
+            />
+            <select
+              value={caseSort}
+              onChange={(e) => setCaseSort(e.target.value)}
+              className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-800 outline-none transition-colors focus:border-lime-500"
+            >
+              <option value="updated">Recently updated</option>
+              <option value="name">Name</option>
+              <option value="status">Status</option>
+            </select>
+          </div>
+        </div>
         <div className="flex items-center justify-between gap-4">
-          <h2 className="text-xl font-semibold">Your Cases</h2>
+          <div className="text-sm text-neutral-500">
+            {caseListItems.length} case{caseListItems.length === 1 ? "" : "s"}
+          </div>
           <button onClick={openCreateCaseModal} className="inline-flex items-center px-3 py-1.5 text-sm rounded-md whitespace-nowrap border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95">
             + Create Case
           </button>
         </div>
-        {cases.map((c) => (
-          <div key={c.id} onClick={() => openCase(c.id)} className="flex items-center justify-between gap-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm cursor-pointer hover:border-neutral-300">
-            <div>
-              <div className="font-semibold">{c.name}</div>
-              <div className="text-sm text-neutral-600">{c.category}</div>
-              <div className="mt-2 flex gap-2 text-xs text-neutral-600">
-                <span className="rounded-full border border-neutral-300 bg-neutral-50 px-2 py-1">{c.evidence?.length || 0} Evidence</span>
-                <span className="rounded-full border border-neutral-300 bg-neutral-50 px-2 py-1">{c.incidents?.length || 0} Incidents</span>
-                <span className="rounded-full border border-neutral-300 bg-neutral-50 px-2 py-1">{c.tasks?.length || 0} Tasks</span>
-              </div>
-            </div>
-
-            <div className="hidden md:block flex-1 px-8 min-w-0 max-w-md">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1">Current Focus</div>
-              <div className="text-sm text-neutral-600 line-clamp-2 italic">
-                {c.actionSummary?.currentFocus || "Active case file management."}
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <button onClick={(e) => { e.stopPropagation(); openCase(c.id); }} className="rounded-xl border border-lime-500 bg-white px-4 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
-                Open
-              </button>
-              <button 
-                onClick={(e) => { e.stopPropagation(); handleDeleteCase(c.id); }} 
-                className="rounded-xl border border-lime-500 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-red-50 hover:text-red-600 hover:border-red-200 shadow-[0_2px_4px_rgba(60,60,60,0.2)] transition-colors"
-              >
-                Delete
-              </button>
-            </div>
+        {caseListItems.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+            No cases match the current search.
           </div>
-        ))}
+        ) : (
+          caseListItems.map((c) => {
+            const isMostRecent = c.id === mostRecentlyUpdatedCaseId;
+            const caseIsLocked = isCasePinLocked(c);
+            const focusText = caseIsLocked
+              ? "Unlock to view this case."
+              : String(c.actionSummary?.currentFocus || "").trim() || getCaseFallbackFocus(c);
+            const primaryActionLabel = caseIsLocked ? "Unlock" : (c.id === selectedCaseId || isMostRecent ? "Continue" : "Open");
+
+            return (
+              <div
+                key={c.id}
+                onClick={() => openCase(c.id)}
+                className={`flex flex-col gap-4 rounded-2xl border bg-white p-4 shadow-sm cursor-pointer transition-colors hover:border-neutral-300 lg:flex-row lg:items-center lg:justify-between ${
+                  isMostRecent
+                    ? "border-lime-300 bg-lime-50/30 shadow-[0_0_0_1px_rgba(163,230,53,0.35)]"
+                    : "border-neutral-200"
+                }`}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="min-w-0 truncate font-semibold text-neutral-900">{caseIsLocked ? "Locked Case" : c.name}</div>
+                    {!caseIsLocked && isMostRecent && (
+                      <span className="rounded-full border border-lime-300 bg-lime-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-lime-700">
+                        Most Recent
+                      </span>
+                    )}
+                    {caseIsLocked && (
+                      <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700">
+                        PIN Locked
+                      </span>
+                    )}
+                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${getCaseStatusClasses(c.status)}`}>
+                      {formatCaseStatus(c.status)}
+                    </span>
+                  </div>
+                  {!caseIsLocked && (
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500">
+                      <span>{c.category || "Uncategorized"}</span>
+                      <span>Updated {formatCaseLastUpdated(c)}</span>
+                    </div>
+                  )}
+                  <div className="mt-3">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                      {caseIsLocked ? "Privacy" : "Current Focus"}
+                    </div>
+                    <div className="mt-1 line-clamp-2 text-sm text-neutral-700">
+                      {focusText}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex shrink-0 items-center gap-2 self-start lg:self-center">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); openCase(c.id); }}
+                    className="rounded-xl border border-lime-500 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
+                  >
+                    {primaryActionLabel}
+                  </button>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); handleDeleteCase(c.id); }} 
+                    className="rounded-xl border border-lime-500 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-red-50 hover:text-red-600 hover:border-red-200 shadow-[0_2px_4px_rgba(60,60,60,0.2)] transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
     );
   };
@@ -1581,54 +1950,124 @@ const handleRecordFiles = async (event) => {
           <div className="p-8 text-center text-neutral-500">Loading cases...</div>
         ) : cases.length === 0 ? (
           renderEmptyState()
-        ) : (
-              <CaseDetail
-                selectedCase={selectedCase}
-                reviewQueue={reviewQueue}
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
-                tabs={tabs}
-                imageCache={imageCache}
-                setSelectedCaseId={setSelectedCaseId}
-                openRecordModal={openRecordModal}
-                renderCaseList={renderCaseList}
-                openEditRecordModal={openEditRecordModal}
-                openEditCaseModal={openEditCaseModal}
-                onUpdateCase={handleUpdateCase} // Pass the new handler
-                deleteRecord={deleteRecord}
-                exportSelectedCase={exportSelectedCaseBackup}
-                onExportSnapshot={exportCaseReasoningExport}
-                onSendReasoningSnapshotToSupabase={handleSendReasoningSnapshotToSupabase}
-                onSendReasoningExportToSupabase={handleSendReasoningExportToSupabase}
-                onExportFullBackup={handleFullBackup}
-                onOpenGptDeltaModal={openGptDeltaModal}
-                issueFixFeedback={recordIssueFeedback}
-                syncStatus={syncStatus}
-                syncMessage={syncMessage}
-                supabaseReasoningExportStatus={supabaseReasoningExportStatus}
-                supabaseReasoningExportMessage={supabaseReasoningExportMessage}
-                onViewRecord={setViewingRecord}
-                onPreviewFile={setPreviewFile}
-                openLedgerModal={openLedgerModal}
-                deleteLedgerEntry={deleteLedgerEntry}
-                duplicateLedgerEntry={duplicateLedgerEntry}
-                openDocumentModal={openDocumentModal}
-                deleteDocumentEntry={deleteDocumentEntry}
-                reviewQueueSection={(
-                  <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
-                    <div className="mb-4 flex items-start justify-between gap-3">
-                      <div>
-                        <h2 className="text-xl font-semibold">Review Queue</h2>
-                        <p className="mt-1 text-sm text-neutral-600">Quick captures waiting to be classified.</p>
-                      </div>
-                      <span className="rounded-full border border-neutral-300 bg-neutral-50 px-3 py-1 text-xs font-medium text-neutral-700">
-                        {reviewQueue.length} Open
-                      </span>
-                    </div>
-                    {renderReviewQueue()}
+        ) : selectedCaseRequiresPin ? (
+          <div className="mx-auto max-w-xl rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Privacy Lock</div>
+                <h2 className="mt-1 text-2xl font-semibold text-neutral-900">{selectedCase.name}</h2>
+                <p className="mt-2 text-sm text-neutral-600">
+                  This case is PIN locked. Enter the case PIN to continue.
+                </p>
+              </div>
+              <button
+                onClick={closeLockPrompt}
+                className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <form onSubmit={handleUnlockSelectedCase} className="mt-6 space-y-4">
+              <div>
+                <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-neutral-500">Case PIN</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  autoFocus
+                  value={lockPromptPin}
+                  onChange={(e) => {
+                    setLockPromptPin(sanitizePinInput(e.target.value));
+                    setLockPromptError("");
+                  }}
+                  placeholder="Enter 4 to 6 digits"
+                  className="w-full rounded-xl border border-neutral-300 p-3 outline-none transition-colors focus:border-lime-500"
+                />
+                <p className="mt-2 text-xs text-neutral-500">Numeric only. Press Enter to submit.</p>
+              </div>
+
+              {lockPromptError ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {lockPromptError}
+                </div>
+              ) : null}
+
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                <div className="font-semibold">Forgot PIN?</div>
+                <p className="mt-1">
+                  V1 has no in-app recovery and no reset shortcut. If the PIN is forgotten, recovery may not be possible.
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
+                >
+                  Unlock Case
+                </button>
+                <button
+                  type="button"
+                  onClick={closeLockPrompt}
+                  className="flex-1 rounded-xl border border-neutral-300 bg-white py-2 font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : selectedCase ? (
+          <CaseDetail
+            selectedCase={selectedCase}
+            reviewQueue={reviewQueue}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            tabs={tabs}
+            imageCache={imageCache}
+            setSelectedCaseId={setSelectedCaseId}
+            openRecordModal={openRecordModal}
+            renderCaseList={renderCaseList}
+            openEditRecordModal={openEditRecordModal}
+            openEditCaseModal={openEditCaseModal}
+            onUpdateCase={handleUpdateCase}
+            deleteRecord={deleteRecord}
+            exportSelectedCase={exportSelectedCaseBackup}
+            onExportSnapshot={exportCaseReasoningExport}
+            onSendReasoningSnapshotToSupabase={handleSendReasoningSnapshotToSupabase}
+            onSendReasoningExportToSupabase={handleSendReasoningExportToSupabase}
+            onExportFullBackup={handleFullBackup}
+            onOpenGptDeltaModal={openGptDeltaModal}
+            onOpenPinManager={openPinManager}
+            isPinLocked={selectedCaseLocked}
+            issueFixFeedback={recordIssueFeedback}
+            syncStatus={syncStatus}
+            syncMessage={syncMessage}
+            supabaseReasoningExportStatus={supabaseReasoningExportStatus}
+            supabaseReasoningExportMessage={supabaseReasoningExportMessage}
+            onViewRecord={setViewingRecord}
+            onPreviewFile={setPreviewFile}
+            openLedgerModal={openLedgerModal}
+            deleteLedgerEntry={deleteLedgerEntry}
+            duplicateLedgerEntry={duplicateLedgerEntry}
+            openDocumentModal={openDocumentModal}
+            deleteDocumentEntry={deleteDocumentEntry}
+            reviewQueueSection={(
+              <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-semibold">Review Queue</h2>
+                    <p className="mt-1 text-sm text-neutral-600">Quick captures waiting to be classified.</p>
                   </div>
-                )}
-              />
+                  <span className="rounded-full border border-neutral-300 bg-neutral-50 px-3 py-1 text-xs font-medium text-neutral-700">
+                    {reviewQueue.length} Open
+                  </span>
+                </div>
+                {renderReviewQueue()}
+              </div>
+            )}
+          />
+        ) : (
+          renderCaseList()
         )}
 
         {showGptDeltaModal && (
@@ -1731,6 +2170,229 @@ const handleRecordFiles = async (event) => {
                   {gptDeltaApplying ? "Applying..." : "Apply Update"}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {pinManagerState.open && pinManagerCase && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Privacy Lock</div>
+                  <h2 className="mt-1 text-xl font-semibold text-neutral-900">
+                    {pinManagerState.mode === "set" ? "Set PIN" : pinManagerState.mode === "change" ? "Change PIN" : "Remove PIN"}
+                  </h2>
+                  <p className="mt-1 text-sm text-neutral-600">{pinManagerCase.name}</p>
+                </div>
+                <button
+                  onClick={closePinManager}
+                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+                >
+                  Close
+                </button>
+              </div>
+
+              {isCasePinLocked(pinManagerCase) && (
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPinManagerState((prev) => ({ ...prev, mode: "change" }));
+                      resetPinModalState();
+                    }}
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                      pinManagerState.mode === "change"
+                        ? "border-lime-500 bg-lime-50 text-lime-700"
+                        : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50"
+                    }`}
+                  >
+                    Change PIN
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPinManagerState((prev) => ({ ...prev, mode: "remove" }));
+                      resetPinModalState();
+                    }}
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                      pinManagerState.mode === "remove"
+                        ? "border-red-300 bg-red-50 text-red-700"
+                        : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50"
+                    }`}
+                  >
+                    Remove PIN
+                  </button>
+                </div>
+              )}
+
+              <form
+                className="mt-5 space-y-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  handleSavePinFlow();
+                }}
+              >
+                {pinManagerState.mode === "set" && (
+                  <>
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                      <div className="font-semibold">Before you enable this lock</div>
+                      <ul className="mt-2 list-disc space-y-1 pl-5">
+                        <li>This is a privacy lock, not encryption.</li>
+                        <li>If the PIN is forgotten, recovery may not be possible.</li>
+                        <li>Export a backup before enabling the lock.</li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-neutral-500">New PIN</label>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        autoFocus
+                        value={pinForm.newPin}
+                        onChange={(e) => {
+                          setPinForm((prev) => ({ ...prev, newPin: sanitizePinInput(e.target.value) }));
+                          setPinModalError("");
+                        }}
+                        placeholder="4 to 6 digits"
+                        className="w-full rounded-xl border border-neutral-300 p-3 outline-none transition-colors focus:border-lime-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-neutral-500">Confirm PIN</label>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        value={pinForm.confirmPin}
+                        onChange={(e) => {
+                          setPinForm((prev) => ({ ...prev, confirmPin: sanitizePinInput(e.target.value) }));
+                          setPinModalError("");
+                        }}
+                        placeholder="Re-enter PIN"
+                        className="w-full rounded-xl border border-neutral-300 p-3 outline-none transition-colors focus:border-lime-500"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {pinManagerState.mode === "change" && (
+                  <>
+                    <div>
+                      <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-neutral-500">Current PIN</label>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        autoFocus
+                        value={pinForm.currentPin}
+                        onChange={(e) => {
+                          setPinForm((prev) => ({ ...prev, currentPin: sanitizePinInput(e.target.value) }));
+                          setPinModalError("");
+                        }}
+                        placeholder="Current PIN"
+                        className="w-full rounded-xl border border-neutral-300 p-3 outline-none transition-colors focus:border-lime-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-neutral-500">New PIN</label>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        value={pinForm.newPin}
+                        onChange={(e) => {
+                          setPinForm((prev) => ({ ...prev, newPin: sanitizePinInput(e.target.value) }));
+                          setPinModalError("");
+                        }}
+                        placeholder="4 to 6 digits"
+                        className="w-full rounded-xl border border-neutral-300 p-3 outline-none transition-colors focus:border-lime-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-neutral-500">Confirm New PIN</label>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        value={pinForm.confirmPin}
+                        onChange={(e) => {
+                          setPinForm((prev) => ({ ...prev, confirmPin: sanitizePinInput(e.target.value) }));
+                          setPinModalError("");
+                        }}
+                        placeholder="Re-enter new PIN"
+                        className="w-full rounded-xl border border-neutral-300 p-3 outline-none transition-colors focus:border-lime-500"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {pinManagerState.mode === "remove" && (
+                  <>
+                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
+                      Removing the PIN will stop prompting before this case opens on this device.
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-neutral-500">Current PIN</label>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        autoFocus
+                        value={pinForm.currentPin}
+                        onChange={(e) => {
+                          setPinForm((prev) => ({ ...prev, currentPin: sanitizePinInput(e.target.value) }));
+                          setPinModalError("");
+                        }}
+                        placeholder="Current PIN"
+                        className="w-full rounded-xl border border-neutral-300 p-3 outline-none transition-colors focus:border-lime-500"
+                      />
+                    </div>
+
+                    <label className="flex items-start gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-700">
+                      <input
+                        type="checkbox"
+                        checked={pinForm.confirmRemoval}
+                        onChange={(e) => {
+                          setPinForm((prev) => ({ ...prev, confirmRemoval: e.target.checked }));
+                          setPinModalError("");
+                        }}
+                        className="mt-1"
+                      />
+                      <span>I confirm that I want to remove the PIN from this case.</span>
+                    </label>
+                  </>
+                )}
+
+                {pinModalError ? (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {pinModalError}
+                  </div>
+                ) : null}
+
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                  <div className="font-semibold">Forgot PIN behavior in V1</div>
+                  <p className="mt-1">
+                    There is no in-app recovery and no insecure reset shortcut. If the PIN is forgotten, recovery may not be possible.
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
+                  >
+                    {pinManagerState.mode === "set" ? "Enable PIN" : pinManagerState.mode === "change" ? "Save New PIN" : "Remove PIN"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closePinManager}
+                    className="flex-1 rounded-xl border border-neutral-300 bg-white py-2 font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

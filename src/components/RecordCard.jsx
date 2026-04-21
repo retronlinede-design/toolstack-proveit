@@ -1,5 +1,6 @@
 import AttachmentPreview from "./AttachmentPreview";
 import { getLinkChipClasses } from "./linkChipStyles";
+import LinkedChip from "./LinkedChip";
 import { getIncidentLinkGroups } from "../domain/caseDomain.js";
 import { getEvidenceDisplayMeta, getIncidentDisplayMeta, getRecordDisplayMeta } from "../domain/linkingResolvers.js";
 
@@ -67,19 +68,23 @@ export default function RecordCard({
     if (!links || links.length === 0) return null;
 
     return renderCompactChipRow(title, links, ({ ref, incident }) => (
-      <button
-        type="button"
+      <LinkedChip
         key={`${title}-${incident.id}-${ref.type}`}
         onClick={() => openLinkedRecord?.(incident.id)}
-        title={`Open linked incident: ${incident.title || "Untitled incident"}`}
-        className={getLinkChipClasses("incident", "flex items-center gap-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-[0.99]")}
+        titleText={incident.title || "Untitled incident"}
+        variant="incident"
+        className="flex items-center gap-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-[0.99]"
+        leading={
+          <>
+            <span className="shrink-0 text-[10px] font-bold text-neutral-400">{indicator}</span>
+            <span className={`shrink-0 rounded-sm border px-1 py-0 text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
+              {badge}
+            </span>
+          </>
+        }
       >
-        <span className="shrink-0 text-[10px] font-bold text-neutral-400">{indicator}</span>
-        <span className={`shrink-0 rounded-sm border px-1 py-0 text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
-          {badge}
-        </span>
-        <span className="truncate max-w-[180px]">{incident.title || "Untitled incident"}</span>
-      </button>
+        {incident.title || "Untitled incident"}
+      </LinkedChip>
     ));
   };
 
@@ -253,14 +258,16 @@ export default function RecordCard({
                 if (!linkedItem) return null;
 
                 return (
-                  <button
+                  <LinkedChip
                     key={linkedId}
                     onClick={() => openLinkedRecord?.(linkedId)}
-                    className={getLinkChipClasses("record", "flex items-center gap-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-[0.99]")}
+                    titleText={linkedItem.title || "Untitled record"}
+                    variant="record"
+                    className="flex items-center gap-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-[0.99]"
+                    leading={<span className="shrink-0 font-bold uppercase opacity-50">{linkedItem.typeLabel}</span>}
                   >
-                    <span className="shrink-0 font-bold uppercase opacity-50">{linkedItem.typeLabel}</span>
-                    <span className="truncate max-w-[180px]">{linkedItem.title}</span>
-                  </button>
+                    {linkedItem.title || "Untitled record"}
+                  </LinkedChip>
                 );
               })
             )}
@@ -270,14 +277,16 @@ export default function RecordCard({
                 if (!linkedItem) return null;
 
                 return (
-                  <button
+                  <LinkedChip
                     key={linkedId}
                     onClick={() => openLinkedRecord?.(linkedId)}
-                    className={getLinkChipClasses("incident", "flex items-center gap-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-[0.99]")}
+                    titleText={linkedItem.title || "Untitled incident"}
+                    variant="incident"
+                    className="flex items-center gap-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-[0.99]"
+                    leading={<span className="shrink-0 font-bold uppercase opacity-50">{linkedItem.typeLabel}</span>}
                   >
-                    <span className="shrink-0 font-bold uppercase opacity-50">{linkedItem.typeLabel}</span>
-                    <span className="truncate max-w-[180px]">{linkedItem.title}</span>
-                  </button>
+                    {linkedItem.title || "Untitled incident"}
+                  </LinkedChip>
                 );
               })
             )}
@@ -316,15 +325,16 @@ export default function RecordCard({
           if (!evidenceItem) return null;
 
           return (
-            <button
-              type="button"
+            <LinkedChip
               key={evidenceId}
               onClick={() => openEditRecordModal("evidence", evidenceItem)}
-              className={getLinkChipClasses("evidence", "flex items-center gap-1 text-left transition-colors")}
+              titleText={evidenceItem.title || "Untitled Evidence"}
+              variant="evidence"
+              className="flex items-center gap-1 text-left transition-colors"
+              leading={<span className="shrink-0 font-bold uppercase opacity-50">Evidence</span>}
             >
-              <span className="shrink-0 font-bold uppercase opacity-50">Evidence</span>
-              <span className="truncate max-w-[180px]">{evidenceItem.title || "Untitled Evidence"}</span>
-            </button>
+              {evidenceItem.title || "Untitled Evidence"}
+            </LinkedChip>
           );
         })
       )}
@@ -339,15 +349,16 @@ export default function RecordCard({
           if (!linkedRecord) return null;
 
           return (
-            <button
-              type="button"
+            <LinkedChip
               key={recordId}
               onClick={() => openLinkedRecord?.(recordId)}
-              className={getLinkChipClasses("record", "flex items-center gap-1 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-[0.99]")}
+              titleText={linkedRecord.title || "Untitled record"}
+              variant="record"
+              className="flex items-center gap-1 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-[0.99]"
+              leading={<span className="shrink-0 font-bold uppercase opacity-50">{linkedRecord.typeLabel}</span>}
             >
-              <span className="shrink-0 font-bold uppercase opacity-50">{linkedRecord.typeLabel}</span>
-              <span className="truncate max-w-[180px]">{linkedRecord.title || "Untitled record"}</span>
-            </button>
+              {linkedRecord.title || "Untitled record"}
+            </LinkedChip>
           );
         })
       )}

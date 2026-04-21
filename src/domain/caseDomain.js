@@ -34,6 +34,17 @@ export const normalizeCaseName = (value) => {
   return trimmed || "Imported Case";
 };
 
+export function normalizeCasePrivacyLock(value) {
+  const pin = typeof value?.pin === "string" ? value.pin.trim() : "";
+  if (!/^\d{4,6}$/.test(pin)) return null;
+
+  return {
+    pin,
+    enabledAt: value?.enabledAt || "",
+    updatedAt: value?.updatedAt || value?.enabledAt || "",
+  };
+}
+
 /**
  * Validates and normalizes a date string to YYYY-MM-DD.
  */
@@ -383,6 +394,7 @@ export function normalizeCase(caseItem) {
   const ledger = Array.isArray(caseItem?.ledger) ? caseItem.ledger.map(normalizeLedgerEntry) : [];
   const documents = Array.isArray(caseItem?.documents) ? caseItem.documents.map(normalizeDocumentEntry) : [];
   const actionSummary = normalizeActionSummary(caseItem?.actionSummary || {});
+  const privacyLock = normalizeCasePrivacyLock(caseItem?.privacyLock);
 
   return {
     id: caseItem?.id || generateId(),
@@ -401,6 +413,7 @@ export function normalizeCase(caseItem) {
     ledger: ledger,
     documents: documents,
     actionSummary,
+    privacyLock,
   };
 }
 
@@ -904,5 +917,6 @@ export function mergeCase(existingCase, incomingCase) {
         ? incomingCase.actionSummary
         : existingCase?.actionSummary
     ),
+    privacyLock: normalizeCasePrivacyLock(incomingCase?.privacyLock) || normalizeCasePrivacyLock(existingCase?.privacyLock),
   };
 }
