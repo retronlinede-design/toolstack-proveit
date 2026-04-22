@@ -173,7 +173,7 @@ export default function CaseDetail({
   const [actionSummaryEditOpen, setActionSummaryEditOpen] = useState(false);
   const [quickActionInput, setQuickActionInput] = useState("");
   const [actionSummaryForm, setActionSummaryForm] = useState(emptyActionSummaryForm);
-  const [selectedPackType, setSelectedPackType] = useState("general");
+  const [reportMode, setReportMode] = useState("internal");
 
   useEffect(() => {
     const handleScroll = () => {
@@ -692,17 +692,7 @@ ${strategyFocus.join("\n") || "—"}`;
     });
   };
 
-  const packDateValue = (item) => item?.eventDate || item?.date || item?.capturedAt || item?.documentDate || item?.createdAt || "";
   const packText = (value, fallback = "") => (typeof value === "string" && value.trim()) ? value.trim() : fallback;
-  const packSummaryText = (item, max = 260) => {
-    const text = packText(item?.description) || packText(item?.notes) || packText(item?.summary);
-    return text.length > max ? `${text.slice(0, max)}...` : text;
-  };
-  const sortPackRecent = (items = []) => [...items].sort((a, b) => String(packDateValue(b)).localeCompare(String(packDateValue(a))));
-  const packIncidents = sortPackRecent(selectedCase?.incidents || []).slice(0, 8);
-  const packEvidence = sortPackRecent(selectedCase?.evidence || []).slice(0, 8);
-  const packDocuments = sortPackRecent(selectedCase?.documents || []).slice(0, 8);
-  const packStrategy = sortPackRecent(selectedCase?.strategy || []).slice(0, 5);
   const packExecutiveSummary = (
     packText(currentFocus) ||
     packText(selectedCase?.caseState?.currentSituation) ||
@@ -711,7 +701,10 @@ ${strategyFocus.join("\n") || "—"}`;
     packText(selectedCase?.description) ||
     "No executive summary available."
   );
-  const isEscalationPack = selectedPackType === "escalation";
+  const packAppendixItems = [
+    ...(nextActions || []).map((item) => ({ kind: "Next step", text: item })),
+    ...(importantReminders || []).map((item) => ({ kind: "Reminder", text: item })),
+  ];
 
   const scrollTopTabLabelMap = {
     overview: "Home",
@@ -1066,10 +1059,207 @@ ${strategyFocus.join("\n") || "—"}`;
     () => (selectedCase ? buildNarrativeSections(selectedCase) : []),
     [selectedCase]
   );
+  const reportComposer = useMemo(() => {
+    const scoredSections = narrativeSections
+      .map((section, index) => {
+        let score = 0;
+        if (safeText(section?.incident?.description).trim()) score += 2;
+        if ((section?.supportingEvidence || []).length >= 2) score += 2;
+        if ((section?.supportingRecords || []).length >= 1) score += 2;
+        if ((section?.establishes || []).length >= 1) score += 2;
+        if ((section?.establishes || []).length >= 2) score += 1;
+
+        return { ...section, score, originalIndex: index };
+      })
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        const dateCompare = String(a.date || "").localeCompare(String(b.date || ""));
+        if (dateCompare !== 0) return dateCompare;
+        return a.originalIndex - b.originalIndex;
+      });
+
+    const keyChainCount = scoredSections.length >= 7 ? 5 : scoredSections.length >= 5 ? 4 : Math.min(3, scoredSections.length);
+    const keyChains = scoredSections.slice(0, keyChainCount);
+    const supportingContext = scoredSections.slice(keyChainCount);
+
+    const seenStatements = new Set();
+    const corePosition = [];
+    for (const section of keyChains) {
+      for (const statement of section.establishes || []) {
+        const normalized = safeText(statement).trim();
+        const key = normalized.toLowerCase();
+        if (!normalized || seenStatements.has(key)) continue;
+        seenStatements.add(key);
+        corePosition.push(normalized);
+        if (corePosition.length >= 5) break;
+      }
+      if (corePosition.length >= 5) break;
+    }
+
+    return {
+      keyChains,
+      supportingContext,
+      corePosition,
+    };
+  }, [narrativeSections]);
+  const reportGapItems = useMemo(() => {
+    const items = [...displayedWeakPoints.map((item) => item.text)];
+    if (narrativeSections.length === 0) {
+      items.push("No incident-based narrative chains are available yet.");
+    }
+    if (reportComposer.corePosition.length === 0) {
+      items.push("Core Position is thin because the strongest sections do not yet establish clear support statements.");
+    }
+    if (reportComposer.keyChains.some((section) => (section.supportingEvidence || []).length === 0)) {
+      items.push("Some key chains still have no linked evidence.");
+    }
+    if (reportComposer.keyChains.some((section) => (section.supportingRecords || []).length === 0)) {
+      items.push("Some key chains do not yet include supporting records or documents.");
+    }
+
+    return items.filter((item, index) => items.indexOf(item) === index).slice(0, 5);
+  }, [displayedWeakPoints, narrativeSections.length, reportComposer]);
+  const clientKeyChains = useMemo(
+    () => reportComposer.keyChains.slice(0, 3),
+    [reportComposer.keyChains]
+  );
+  const clientSummary = useMemo(() => {
+    const cleanSentence = (value) =>
+      safeText(value)
+        .replace(/\b(link|evidence|record|chain|blocker|proof point|core position)\b/gi, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/\s([.,!?;:])/g, "$1");
+
+    const ensureSentence = (value) => {
+      const text = cleanSentence(value);
+      if (!text) return "";
+      return /[.!?]$/.test(text) ? text : `${text}.`;
+    };
+
+    const mainProblem = ensureSentence(selectedCase?.caseState?.mainProblem);
+    const fallbackDescription = ensureSentence(selectedCase?.description);
+    const keyChainLead = clientKeyChains
+      .map((section) => {
+        const title = safeText(section?.incident?.title).trim();
+        const description = cleanSentence(section?.incident?.description);
+        if (description) return description;
+        if (title) return `${title} is one of the main parts of the issue`;
+        return "";
+      })
+      .find(Boolean);
+    const keyChainSentence = keyChainLead ? ensureSentence(keyChainLead) : "";
+
+    const positionLead = (reportComposer.corePosition || [])
+      .map((statement) => cleanSentence(statement))
+      .find(Boolean);
+    const positionSentence = positionLead ? ensureSentence(positionLead) : "";
+
+    const summaryParts = [mainProblem, keyChainSentence, positionSentence]
+      .filter(Boolean)
+      .filter((part, index, array) =>
+        array.findIndex((candidate) => candidate.toLowerCase() === part.toLowerCase()) === index
+      )
+      .slice(0, 3);
+
+    if (summaryParts.length > 0) {
+      return summaryParts.join(" ");
+    }
+
+    return (
+      ensureSentence(selectedCase?.caseState?.mainProblem) ||
+      fallbackDescription ||
+      "There is not yet enough clear information to explain the situation properly."
+    );
+  }, [clientKeyChains, reportComposer.corePosition, selectedCase]);
+  const clientNextSteps = useMemo(() => {
+    const actions = [];
+    const hasMissingEvidenceGap = reportGapItems.some((item) => /no linked evidence|evidence support is incomplete|weaker proof|proof points/i.test(item));
+    const hasMissingRecordsGap = reportGapItems.some((item) => /supporting records|records or documents|documents? are incomplete/i.test(item));
+    const hasThinPositionGap = reportGapItems.some((item) => /core position is thin|no incident-based narrative chains/i.test(item));
+
+    if (hasMissingEvidenceGap) {
+      actions.push("Gather the strongest messages, photos, letters, or other documents that directly support the main issues.");
+    }
+
+    if (hasMissingRecordsGap) {
+      actions.push("Request or collect the documents that confirm dates, payments, decisions, or other key events.");
+    }
+
+    if (hasThinPositionGap) {
+      actions.push("Write a short timeline of the main events so the case can be explained clearly from start to finish.");
+    }
+
+    if (clientKeyChains.length > 0) {
+      const firstChain = clientKeyChains[0];
+      const chainTitle = safeText(firstChain?.incident?.title).trim().toLowerCase();
+      if (chainTitle) {
+        actions.push(`Prepare a short statement explaining why "${firstChain.incident.title}" matters and how the documents and messages that show what happened back it up.`);
+      }
+    }
+
+    if (clientKeyChains.some((section) => (section.establishes || []).length > 0)) {
+      actions.push("Keep the most important documents, messages, and dates together so they can be shared quickly with an adviser, solicitor, or the person or organisation dealing with the matter.");
+    }
+
+    if (actions.length < 3) {
+      actions.push("Make sure the main dates, messages, and documents are easy to find and ready to share.");
+      actions.push("Focus first on the parts of the case that have the clearest proof and the biggest practical impact.");
+    }
+
+    return actions
+      .filter((item, index) => actions.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index)
+      .slice(0, 5);
+  }, [clientKeyChains, reportGapItems]);
+  const clientMetricItems = useMemo(() => {
+    const items = [];
+    const keyIncidentCount = clientKeyChains.length;
+    const keyEvidenceCount = clientKeyChains.reduce(
+      (total, section) => total + (section.supportingEvidence || []).length,
+      0
+    );
+    const datedKeyChains = clientKeyChains
+      .map((section) => safeText(section.date).trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+
+    if (keyIncidentCount > 0) {
+      items.push({
+        label: keyIncidentCount === 1 ? "Key incident" : "Key incidents",
+        value: String(keyIncidentCount),
+      });
+    }
+
+    if (keyEvidenceCount > 0) {
+      items.push({
+        label: "Key supporting documents",
+        value: String(keyEvidenceCount),
+      });
+    }
+
+    if (datedKeyChains.length >= 2) {
+      items.push({
+        label: "Issue duration",
+        value: `${datedKeyChains[0]} to ${datedKeyChains[datedKeyChains.length - 1]}`,
+      });
+    }
+
+    const hasTrackedPayments = derivedTrackingLedger.length > 0 && (totalOutgoing > 0 || totalIncoming > 0);
+    if (hasTrackedPayments && (selectedCase?.category || "").toLowerCase().includes("housing")) {
+      if (totalOutgoing > 0) {
+        items.push({ label: "Tracked outgoing value", value: `€${totalOutgoing.toFixed(2)}` });
+      }
+      if (totalIncoming > 0) {
+        items.push({ label: "Tracked incoming value", value: `€${totalIncoming.toFixed(2)}` });
+      }
+    }
+
+    return items.slice(0, 4);
+  }, [clientKeyChains, derivedTrackingLedger.length, selectedCase?.category, totalIncoming, totalOutgoing]);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-4 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden lg:flex-row lg:items-start lg:justify-between">
         <div>
           <button onClick={() => setSelectedCaseId(null)} className="mb-3 text-sm font-medium text-neutral-500 underline-offset-4 hover:underline">
             ← Back to Cases
@@ -1206,7 +1396,7 @@ ${strategyFocus.join("\n") || "—"}`;
       </div>
 
       {/* Action Summary Panel */}
-      <div className="mb-6 w-full rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+      <div className="mb-6 w-full rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden">
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h3 className="text-lg font-semibold text-neutral-900">Action Summary</h3>
@@ -1310,7 +1500,7 @@ ${strategyFocus.join("\n") || "—"}`;
 
       <div className="grid gap-6 lg:grid-cols-12">
         <div className="lg:col-span-8 space-y-6">
-          <div className="rounded-3xl border border-neutral-200 bg-white p-3 shadow-sm">
+          <div className="rounded-3xl border border-neutral-200 bg-white p-3 shadow-sm print:hidden">
             <div className="flex flex-wrap gap-2">
               {tabs
                 .flatMap((tab) => tab.id === "documents" ? [tab, { id: "records", label: "Records" }] : [tab])
@@ -2698,24 +2888,25 @@ ${strategyFocus.join("\n") || "—"}`;
             )}
 
             {activeTab === "pack" && (
-              <div className="space-y-4 text-neutral-800 print:bg-white print:text-black">
+              <div className="print-pack-shell space-y-4 text-neutral-800 print:bg-white print:text-black">
                 <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 print:hidden">
                   <div className="inline-flex rounded-lg border border-neutral-200 bg-white p-1 shadow-sm">
                     {[
-                      { id: "general", label: "General" },
-                      { id: "escalation", label: "Escalation" },
-                    ].map((packType) => (
+                      { id: "internal", label: "Internal View" },
+                      { id: "client", label: "Client Report" },
+                      { id: "lawyer", label: "Lawyer Pack" },
+                    ].map((mode) => (
                       <button
-                        key={packType.id}
+                        key={mode.id}
                         type="button"
-                        onClick={() => setSelectedPackType(packType.id)}
+                        onClick={() => setReportMode(mode.id)}
                         className={`rounded-md px-3 py-1.5 text-sm font-semibold transition-colors ${
-                          selectedPackType === packType.id
+                          reportMode === mode.id
                             ? "bg-lime-500 text-white shadow-sm"
                             : "text-neutral-600 hover:bg-neutral-50"
                         }`}
                       >
-                        {packType.label}
+                        {mode.label}
                       </button>
                     ))}
                   </div>
@@ -2726,170 +2917,414 @@ ${strategyFocus.join("\n") || "—"}`;
                     Print / Save PDF
                   </button>
                 </div>
-                <article className="mx-auto max-w-4xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
-                <header className="break-inside-avoid pb-7 print:pb-6">
+                {reportMode === "internal" && (
+                <article className="print-pack-article mx-auto max-w-4xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
+                <header className="print-pack-header break-inside-avoid pb-7 print:pb-6">
                   <div className="flex flex-col gap-5 border-b border-neutral-200 pb-6 sm:flex-row sm:items-center print:pb-5">
                     <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-lime-500 text-white shadow-lg shadow-lime-100 print:h-14 print:w-14 print:rounded-xl print:shadow-none">
                       <ShieldCheck className="h-9 w-9 print:h-8 print:w-8" />
                     </div>
                     <div className="min-w-0">
-                      <div className="text-xs font-bold uppercase tracking-[0.18em] text-lime-700">ProveIt Case Pack</div>
+                      <div className="text-xs font-bold uppercase tracking-[0.18em] text-lime-700">Case Report</div>
                       <h1 className="mt-2 break-words text-3xl font-bold leading-tight text-neutral-950 print:text-2xl">
                         {selectedCase.name || "Untitled Case"}
                       </h1>
-                      <p className="mt-2 text-sm text-neutral-500">
-                        {selectedCase.category || "Uncategorized"} · {selectedCase.status || "No status"} · Updated {selectedCase.updatedAt || "unknown"}
-                      </p>
+                      <p className="mt-2 text-sm leading-6 text-neutral-600">{packExecutiveSummary}</p>
                     </div>
                   </div>
                 </header>
-                <section className="break-inside-avoid py-6 print:py-5">
+                <section className="print-pack-major break-inside-avoid py-6 print:py-5">
                   <div className="border-b border-neutral-100 pb-3">
-                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Executive Summary</h4>
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Matter Summary</h4>
                   </div>
-                  <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-neutral-700">{packExecutiveSummary}</p>
                   {selectedCase?.caseState?.currentSituation && (
-                    <p className="mt-3 text-sm leading-6 text-neutral-700">{selectedCase.caseState.currentSituation}</p>
+                    <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-neutral-700">{selectedCase.caseState.currentSituation}</p>
+                  )}
+                  {!selectedCase?.caseState?.currentSituation && (
+                    <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-neutral-700">{packExecutiveSummary}</p>
                   )}
                   {selectedCase?.caseState?.mainProblem && (
                     <p className="mt-2 text-sm leading-6 text-neutral-700">
-                      <span className="font-semibold text-neutral-800">Main problem: </span>
+                      <span className="font-semibold text-neutral-800">Main issue: </span>
                       {selectedCase.caseState.mainProblem}
                     </p>
                   )}
                 </section>
 
-                <section className="break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
+                <section className="print-pack-major break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
                   <div className="border-b border-neutral-100 pb-3">
-                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Key Deadlines & Actions</h4>
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Core Position</h4>
                   </div>
-                  <div className="mt-4 grid gap-4 md:grid-cols-3">
-                    <div>
-                      <h5 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Critical Deadlines</h5>
-                      {criticalDeadlines.length > 0 ? (
-                        <ul className="mt-2 space-y-1 text-sm text-neutral-700">
+                  {reportComposer.corePosition.length === 0 ? (
+                    <div className="mt-4 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                      No core position statements are available yet. Add stronger linked evidence and records to the main incident chains.
+                    </div>
+                  ) : (
+                    <ul className="mt-4 space-y-3">
+                      {reportComposer.corePosition.map((statement) => (
+                        <li key={statement} className="rounded-xl border border-lime-200 bg-lime-50 p-4 text-sm leading-6 text-lime-950">
+                          {statement}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+                <section className="print-pack-major break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
+                  <div className="border-b border-neutral-100 pb-3">
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Key Chains</h4>
+                  </div>
+                  {reportComposer.keyChains.length === 0 ? (
+                    <div className="mt-4 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                      No key chains are available yet.
+                    </div>
+                  ) : (
+                    <div className="mt-4 space-y-6">
+                      {reportComposer.keyChains.map((section, index) => (
+                        <section
+                          key={`${section.incident.id}-${section.date}-${index}`}
+                          className="print-pack-narrative-section break-inside-avoid rounded-2xl border border-neutral-200 bg-neutral-50 p-5"
+                        >
+                          <div className="border-b border-neutral-200 pb-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                                {section.date || "Undated incident"}
+                              </div>
+                              <span className="rounded-full border border-neutral-200 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                                Score {section.score}
+                              </span>
+                            </div>
+                            <h5 className="mt-1 text-xl font-semibold text-neutral-950">
+                              {section.incident.title || "Untitled incident"}
+                            </h5>
+                          </div>
+
+                          {section.incident.description ? (
+                            <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-neutral-700">
+                              {section.incident.description}
+                            </p>
+                          ) : (
+                            <p className="mt-4 text-sm italic text-neutral-500">
+                              No incident description recorded.
+                            </p>
+                          )}
+
+                          <div className="print-pack-support-grid mt-5 grid gap-4 lg:grid-cols-2">
+                            <section className="rounded-xl border border-neutral-200 bg-white p-4">
+                              <h6 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Supporting Evidence</h6>
+                              {section.supportingEvidence.length > 0 ? (
+                                <div className="mt-3 space-y-3">
+                                  {section.supportingEvidence.slice(0, 3).map((item) => (
+                                    <div key={item.id} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span className="font-semibold text-neutral-900">{item.title || "Untitled evidence"}</span>
+                                        {item.evidenceRole && (
+                                          <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700">
+                                            {item.evidenceRole.replaceAll("_", " ")}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {item.functionSummary ? (
+                                        <p className="mt-2 text-sm leading-6 text-neutral-700">{item.functionSummary}</p>
+                                      ) : (
+                                        <p className="mt-2 text-sm italic text-neutral-500">No function summary recorded.</p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="mt-3 text-sm italic text-neutral-500">No supporting evidence linked to this incident.</p>
+                              )}
+                            </section>
+
+                            <section className="rounded-xl border border-neutral-200 bg-white p-4">
+                              <h6 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Supporting Records</h6>
+                              {section.supportingRecords.length > 0 ? (
+                                <div className="mt-3 space-y-3">
+                                  {section.supportingRecords.slice(0, 2).map((item) => (
+                                    <div key={item.id} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span className="font-semibold text-neutral-900">{item.title || "Untitled record"}</span>
+                                        {item.recordType && (
+                                          <span className="rounded-full border border-neutral-200 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                                            {item.recordType}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {item.summary ? (
+                                        <p className="mt-2 text-sm leading-6 text-neutral-700">{item.summary}</p>
+                                      ) : (
+                                        <p className="mt-2 text-sm italic text-neutral-500">No summary recorded.</p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="mt-3 text-sm italic text-neutral-500">No supporting records linked to this incident.</p>
+                              )}
+                            </section>
+                          </div>
+
+                          {section.establishes.length > 0 && (
+                            <section className="mt-5 rounded-xl border border-lime-200 bg-lime-50 p-4">
+                              <h6 className="text-xs font-bold uppercase tracking-wider text-lime-800">Establishes</h6>
+                              <ul className="mt-3 space-y-2 text-sm leading-6 text-lime-950">
+                                {section.establishes.map((statement) => (
+                                  <li key={statement}>- {statement}</li>
+                                ))}
+                              </ul>
+                            </section>
+                          )}
+                        </section>
+                      ))}
+                    </div>
+                  )}
+                </section>
+                {reportComposer.supportingContext.length > 0 && (
+                  <section className="print-pack-major break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
+                    <div className="border-b border-neutral-100 pb-3">
+                      <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Supporting Context</h4>
+                    </div>
+                    <div className="mt-4 space-y-3">
+                      {reportComposer.supportingContext.map((section, index) => (
+                        <div key={`${section.incident.id}-${index}`} className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="font-semibold text-neutral-900">{section.incident.title || "Untitled incident"}</div>
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                              {section.date || "Undated"} · score {section.score}
+                            </div>
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-neutral-700">
+                            {safeText(section.incident.description).trim() || "No incident description recorded."}
+                          </p>
+                          <div className="mt-2 text-xs text-neutral-500">
+                            {(section.supportingEvidence || []).length} evidence · {(section.supportingRecords || []).length} records · {(section.establishes || []).length} establishes
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+                <section className="print-pack-major break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
+                  <div className="border-b border-neutral-100 pb-3">
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Gaps / Weak Points</h4>
+                  </div>
+                  {reportGapItems.length > 0 ? (
+                    <ul className="mt-4 space-y-2 text-sm leading-6 text-neutral-700">
+                      {reportGapItems.map((item) => (
+                        <li key={item}>- {item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-4 text-sm text-neutral-500">No major weak points are currently flagged.</p>
+                  )}
+                </section>
+                {packAppendixItems.length > 0 && (
+                  <section className="print-pack-major print-pack-appendix break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
+                    <div className="border-b border-neutral-100 pb-3">
+                      <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Next Steps</h4>
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      {packAppendixItems.map((item, index) => (
+                        <div key={`${item.kind}-${index}`} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{item.kind}</div>
+                          <p className="mt-2 text-sm leading-6 text-neutral-700">{item.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {criticalDeadlines.length > 0 && (
+                      <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Critical Deadlines</div>
+                        <ul className="mt-3 space-y-2 text-sm leading-6 text-amber-950">
                           {criticalDeadlines.map((item, idx) => (
                             <li key={idx}>- {typeof item === "string" ? item : item?.title || item?.label || item?.date || "Deadline"}</li>
                           ))}
                         </ul>
-                      ) : <p className="mt-2 text-sm text-neutral-500">None listed.</p>}
-                    </div>
-                    <div>
-                      <h5 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Next Actions</h5>
-                      {nextActions.length > 0 ? (
-                        <ul className="mt-2 space-y-1 text-sm text-neutral-700">
-                          {nextActions.map((item, idx) => <li key={idx}>- {item}</li>)}
-                        </ul>
-                      ) : <p className="mt-2 text-sm text-neutral-500">None listed.</p>}
-                    </div>
-                    <div>
-                      <h5 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Important Reminders</h5>
-                      {importantReminders.length > 0 ? (
-                        <ul className="mt-2 space-y-1 text-sm text-neutral-700">
-                          {importantReminders.map((item, idx) => <li key={idx}>- {item}</li>)}
-                        </ul>
-                      ) : <p className="mt-2 text-sm text-neutral-500">None listed.</p>}
-                    </div>
-                  </div>
-                </section>
-
-                <section className="break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
-                  <div className="border-b border-neutral-100 pb-3">
-                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Main Issues / Incidents</h4>
-                  </div>
-                  {packIncidents.length > 0 ? (
-                    <div className="mt-4 space-y-4">
-                      {packIncidents.map((item) => (
-                        <div key={item.id || item.title} className="border-b border-neutral-100 pb-4 last:border-0 last:pb-0">
-                          <div className="font-semibold leading-snug text-neutral-900">{item.title || "Untitled incident"}</div>
-                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500">
-                            <span>{item.eventDate || item.date || "No date"}</span>
-                            {item.status && <span>Status: {item.status}</span>}
-                            {item.importance && <span>Importance: {item.importance}</span>}
-                          </div>
-                          {packSummaryText(item) && <p className="mt-2 text-sm leading-6 text-neutral-700">{packSummaryText(item)}</p>}
-                        </div>
-                      ))}
-                    </div>
-                  ) : <p className="mt-3 text-sm text-neutral-500">No incidents listed.</p>}
-                </section>
-
-                <section className="break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
-                  <div className="border-b border-neutral-100 pb-3">
-                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Evidence Summary</h4>
-                  </div>
-                  {packEvidence.length > 0 ? (
-                    <div className="mt-4 space-y-4">
-                      {packEvidence.map((item) => (
-                        <div key={item.id || item.title} className="border-b border-neutral-100 pb-4 last:border-0 last:pb-0">
-                          <div className="font-semibold leading-snug text-neutral-900">{item.title || "Untitled evidence"}</div>
-                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500">
-                            <span>{item.eventDate || item.date || item.capturedAt || "No date"}</span>
-                            {item.sourceType && <span>Source: {item.sourceType}</span>}
-                            {item.status && <span>Status: {item.status}</span>}
-                            {item.importance && <span>Importance: {item.importance}</span>}
-                            {item.relevance && <span>Relevance: {item.relevance}</span>}
-                            {Array.isArray(item.attachments) && item.attachments.length > 0 && <span>Attachments: {item.attachments.length}</span>}
-                          </div>
-                          {packSummaryText(item) && <p className="mt-2 text-sm leading-6 text-neutral-700">{packSummaryText(item)}</p>}
-                        </div>
-                      ))}
-                    </div>
-                  ) : <p className="mt-3 text-sm text-neutral-500">No evidence listed.</p>}
-                </section>
-
-                <section className="break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
-                  <div className="border-b border-neutral-100 pb-3">
-                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Documents Summary</h4>
-                  </div>
-                  {packDocuments.length > 0 ? (
-                    <div className="mt-4 space-y-4">
-                      {packDocuments.map((item) => (
-                        <div key={item.id || item.title} className="border-b border-neutral-100 pb-4 last:border-0 last:pb-0">
-                          <div className="font-semibold leading-snug text-neutral-900">{item.title || "Untitled document"}</div>
-                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500">
-                            <span>{item.documentDate || "No date"}</span>
-                            {item.category && <span>Category: {item.category}</span>}
-                            {item.source && <span>Source: {item.source}</span>}
-                            <span>Attachments: {Array.isArray(item.attachments) ? item.attachments.length : 0}</span>
-                          </div>
-                          {packText(item.summary) && <p className="mt-2 text-sm leading-6 text-neutral-700">{item.summary}</p>}
-                        </div>
-                      ))}
-                    </div>
-                  ) : <p className="mt-3 text-sm text-neutral-500">No documents listed.</p>}
-                </section>
-
-                <section className="break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
-                  <div className="border-b border-neutral-100 pb-3">
-                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Strategy / Position</h4>
-                  </div>
-                  {strategyFocus.length > 0 && (
-                    <ul className="mt-4 space-y-1 text-sm text-neutral-700">
-                      {strategyFocus.map((item, idx) => <li key={idx}>- {item}</li>)}
-                    </ul>
-                  )}
-                  {packStrategy.length > 0 ? (
-                    <div className="mt-3 space-y-3">
-                      {packStrategy.map((item) => (
-                        <div key={item.id || item.title} className="border-b border-neutral-100 pb-3 last:border-0 last:pb-0">
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500">
-                            <span>{item.eventDate || item.date || "No date"}</span>
-                            {item.status && <span>Status: {item.status}</span>}
-                          </div>
-                          <div className="mt-1 font-semibold text-neutral-900">{item.title || "Untitled strategy"}</div>
-                          {packSummaryText(item) && <p className="mt-1 text-sm text-neutral-700">{packSummaryText(item)}</p>}
-                        </div>
-                      ))}
-                    </div>
-                  ) : <p className="mt-3 text-sm text-neutral-500">No strategy records listed.</p>}
-                </section>
+                      </div>
+                    )}
+                  </section>
+                )}
                 </article>
+                )}
+                {reportMode === "client" && (
+                  <article className="print-pack-article mx-auto max-w-4xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
+                    <header className="print-pack-header break-inside-avoid border-b border-neutral-200 pb-6 print:pb-5">
+                      <div className="text-xs font-bold uppercase tracking-[0.18em] text-lime-700">Client Report</div>
+                      <h1 className="mt-2 text-3xl font-bold leading-tight text-neutral-950 print:text-2xl">
+                        {selectedCase.name || "Untitled Case"}
+                      </h1>
+                    </header>
+                    <section className="print-pack-major break-inside-avoid py-6 print:py-5">
+                      <div className="border-b border-neutral-100 pb-3">
+                        <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Your Situation</h4>
+                      </div>
+                      <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-neutral-700">
+                        {clientSummary}
+                      </p>
+                    </section>
+
+                    <section className="print-pack-major break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
+                      <div className="border-b border-neutral-100 pb-3">
+                        <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">What This Report Shows</h4>
+                      </div>
+                      {reportComposer.corePosition.length > 0 ? (
+                        <ul className="mt-4 space-y-3">
+                          {reportComposer.corePosition.slice(0, 5).map((statement) => (
+                            <li key={statement} className="rounded-xl border border-lime-200 bg-lime-50 p-4 text-sm leading-6 text-lime-950">
+                              {statement}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-4 text-sm text-neutral-500">
+                          The report does not yet have enough clear support to explain the position confidently.
+                        </p>
+                      )}
+                    </section>
+
+                    <section className="print-pack-major break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
+                      <div className="border-b border-neutral-100 pb-3">
+                        <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Main Parts Of Your Case</h4>
+                      </div>
+                      {clientKeyChains.length > 0 ? (
+                        <div className="mt-4 space-y-5">
+                          {clientKeyChains.map((section, index) => (
+                            <section
+                              key={`${section.incident.id}-${index}`}
+                              className="print-pack-narrative-section break-inside-avoid rounded-2xl border border-neutral-200 bg-neutral-50 p-5"
+                            >
+                              <div className="border-b border-neutral-200 pb-3">
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Issue</div>
+                                <h5 className="mt-2 text-xl font-semibold text-neutral-950">
+                                  {section.incident.title || "Untitled incident"}
+                                </h5>
+                                {section.date && (
+                                  <p className="mt-2 text-sm text-neutral-500">{section.date}</p>
+                                )}
+                              </div>
+
+                              <div className="mt-4">
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">What happened</div>
+                                <p className="mt-2 text-sm leading-6 text-neutral-700">
+                                  {safeText(section.incident.description).trim() || safeText(section.incident.notes).trim() || "There is not yet a clear written summary of what happened here."}
+                                </p>
+                              </div>
+
+                              <div className="print-pack-support-grid mt-5 grid gap-4 lg:grid-cols-2">
+                                <section className="rounded-xl border border-neutral-200 bg-white p-4">
+                                  <h6 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Key proof</h6>
+                                  {section.supportingEvidence.length > 0 ? (
+                                    <div className="mt-3 space-y-3">
+                                      {section.supportingEvidence.slice(0, 2).map((item) => (
+                                        <div key={item.id} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                                          <div className="font-semibold text-neutral-900">{item.title || "Untitled evidence"}</div>
+                                          <p className="mt-2 text-sm leading-6 text-neutral-700">
+                                            {safeText(item.functionSummary).trim() || "There is not yet a clear explanation of why this matters."}
+                                          </p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="mt-3 text-sm italic text-neutral-500">There is not yet enough supporting material shown for this issue.</p>
+                                  )}
+                                </section>
+
+                                {section.supportingRecords.length > 0 && (
+                                  <section className="rounded-xl border border-neutral-200 bg-white p-4">
+                                    <h6 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Supporting document</h6>
+                                    <div className="mt-3 space-y-3">
+                                      {section.supportingRecords.slice(0, 1).map((item) => (
+                                        <div key={item.id} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                                          <div className="font-semibold text-neutral-900">{item.title || "Untitled record"}</div>
+                                          <p className="mt-2 text-sm leading-6 text-neutral-700">
+                                            {safeText(item.summary).trim() || "There is not yet a clear summary of this document."}
+                                          </p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </section>
+                                )}
+                              </div>
+
+                              <section className="mt-5 rounded-xl border border-lime-200 bg-lime-50 p-4">
+                                <h6 className="text-xs font-bold uppercase tracking-wider text-lime-800">What this means</h6>
+                                {section.establishes.length > 0 ? (
+                                  <ul className="mt-3 space-y-2 text-sm leading-6 text-lime-950">
+                                    {section.establishes.slice(0, 3).map((statement) => (
+                                      <li key={statement}>- {statement}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="mt-3 text-sm text-lime-950/80">
+                                    There is some support for this issue, but it is not yet explained clearly.
+                                  </p>
+                                )}
+                              </section>
+                            </section>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-4 text-sm text-neutral-500">
+                          The main issues are not yet clear enough to present here.
+                        </p>
+                      )}
+                    </section>
+
+                    {clientMetricItems.length > 0 && (
+                      <section className="print-pack-major break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
+                        <div className="border-b border-neutral-100 pb-3">
+                          <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Key Facts</h4>
+                        </div>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                          {clientMetricItems.map((item) => (
+                            <div key={item.label} className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{item.label}</div>
+                              <div className="mt-2 text-lg font-semibold text-neutral-950">{item.value}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    )}
+
+                    <section className="print-pack-major break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
+                      <div className="border-b border-neutral-100 pb-3">
+                        <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Recommended Next Steps</h4>
+                      </div>
+                      {clientNextSteps.length > 0 ? (
+                        <ul className="mt-4 space-y-3">
+                          {clientNextSteps.map((item) => (
+                            <li key={item} className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-700">
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-4 text-sm text-neutral-500">
+                          There are no clear next steps to show here yet.
+                        </p>
+                      )}
+                    </section>
+                  </article>
+                )}
+                {reportMode === "lawyer" && (
+                  <article className="print-pack-article mx-auto max-w-4xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
+                    <header className="print-pack-header break-inside-avoid border-b border-neutral-200 pb-6 print:pb-5">
+                      <div className="text-xs font-bold uppercase tracking-[0.18em] text-lime-700">Lawyer Pack</div>
+                      <h1 className="mt-2 text-3xl font-bold leading-tight text-neutral-950 print:text-2xl">
+                        {selectedCase.name || "Untitled Case"}
+                      </h1>
+                    </header>
+                    <section className="print-pack-major break-inside-avoid py-6 print:py-5">
+                      <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                        Lawyer Pack coming later
+                      </div>
+                    </section>
+                  </article>
+                )}
               </div>
             )}
           </div>
         </div>
-        <aside className={`lg:col-span-4 space-y-6 print:hidden ${activeTab === "pack" && isEscalationPack ? "hidden" : ""}`}>
+        <aside className="lg:col-span-4 space-y-6 print:hidden">
           {reviewQueueSection}
         </aside>
       </div>
@@ -2897,7 +3332,7 @@ ${strategyFocus.join("\n") || "—"}`;
       {showScrollTop && (
         <button
           onClick={scrollToTop}
-          className="fixed bottom-6 left-6 z-50 h-12 w-12 rounded-full bg-lime-600 text-white shadow-lg hover:bg-lime-700 transition-all active:scale-95 flex items-center justify-center text-[10px] font-bold leading-none text-center"
+          className="fixed bottom-6 left-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-lime-600 text-[10px] font-bold leading-none text-center text-white shadow-lg transition-all active:scale-95 hover:bg-lime-700 print:hidden"
         >
           {scrollTopLabel}
         </button>

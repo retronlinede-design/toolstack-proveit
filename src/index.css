@@ -1,1 +1,89 @@
 @import "tailwindcss";
+
+@media print {
+  @page {
+    margin: 16mm 14mm 18mm;
+  }
+
+  html,
+  body {
+    background: #ffffff;
+  }
+
+  body {
+    color: #111827;
+    font-size: 11pt;
+    line-height: 1.5;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-pack-shell {
+    background: #ffffff !important;
+    color: #111827 !important;
+  }
+
+  .print-pack-article {
+    margin: 0 auto;
+  }
+
+  .print-pack-header {
+    margin-bottom: 2mm;
+  }
+
+  .print-pack-major {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .print-pack-major + .print-pack-major {
+    margin-top: 3mm;
+  }
+
+  .print-pack-narrative-section {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+    background: #ffffff !important;
+    border-color: #d1d5db !important;
+  }
+
+  .print-pack-support-grid {
+    display: block !important;
+  }
+
+  .print-pack-support-grid > section + section {
+    margin-top: 4mm;
+  }
+
+  .print-pack-appendix {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .print-pack-article h1 {
+    font-size: 22pt;
+    line-height: 1.2;
+  }
+
+  .print-pack-article h4 {
+    font-size: 10pt;
+    letter-spacing: 0.08em;
+  }
+
+  .print-pack-article h5 {
+    font-size: 15pt;
+    line-height: 1.3;
+  }
+
+  .print-pack-article h6 {
+    font-size: 10pt;
+    letter-spacing: 0.06em;
+  }
+
+  .print-pack-article p,
+  .print-pack-article li,
+  .print-pack-article span {
+    orphans: 3;
+    widows: 3;
+  }
+}
