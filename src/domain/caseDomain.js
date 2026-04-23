@@ -34,6 +34,11 @@ export const normalizeCaseName = (value) => {
   return trimmed || "Imported Case";
 };
 
+export const normalizeGeneratedReportText = (value) => {
+  if (typeof value !== "string") return "";
+  return value;
+};
+
 export function normalizeCasePrivacyLock(value) {
   const pin = typeof value?.pin === "string" ? value.pin.trim() : "";
   if (!/^\d{4,6}$/.test(pin)) return null;
@@ -414,6 +419,7 @@ export function normalizeCase(caseItem) {
     documents: documents,
     actionSummary,
     privacyLock,
+    generatedReportText: normalizeGeneratedReportText(caseItem?.generatedReportText),
   };
 }
 
@@ -884,6 +890,7 @@ export function mergeLedgerEntries(existingEntries = [], incomingEntries = []) {
 export function mergeCase(existingCase, incomingCase) {
   const nExisting = normalizeCase(existingCase);
   const nIncoming = normalizeCase(incomingCase);
+  const hasIncomingGeneratedReportText = Object.prototype.hasOwnProperty.call(incomingCase || {}, "generatedReportText");
 
   return {
     ...nExisting,
@@ -918,5 +925,8 @@ export function mergeCase(existingCase, incomingCase) {
         : existingCase?.actionSummary
     ),
     privacyLock: normalizeCasePrivacyLock(incomingCase?.privacyLock) || normalizeCasePrivacyLock(existingCase?.privacyLock),
+    generatedReportText: hasIncomingGeneratedReportText
+      ? normalizeGeneratedReportText(incomingCase?.generatedReportText)
+      : normalizeGeneratedReportText(existingCase?.generatedReportText),
   };
 }

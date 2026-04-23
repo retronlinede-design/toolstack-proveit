@@ -5,6 +5,7 @@ import { isTimelineCapable, getCaseHealthReport } from "../lib/caseHealth";
 import { getIncidentsUsingRecord } from "../domain/caseDomain.js";
 import { getRecordDisplayMeta, resolveRecordById } from "../domain/linkingResolvers.js";
 import { buildNarrativeSections } from "../lib/narrativeBuilder.js";
+import { PROVEIT_REPORT_PROMPT_V1, parseProveItReportV1 } from "../lib/proveitReportFormat.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import LinkedChip from "./LinkedChip";
 import RecordCard from "./RecordCard";
@@ -174,6 +175,16 @@ export default function CaseDetail({
   const [quickActionInput, setQuickActionInput] = useState("");
   const [actionSummaryForm, setActionSummaryForm] = useState(emptyActionSummaryForm);
   const [reportMode, setReportMode] = useState("internal");
+  const [generatedReportDraft, setGeneratedReportDraft] = useState("");
+  const [renderedReportText, setRenderedReportText] = useState("");
+  const [reportPromptFeedback, setReportPromptFeedback] = useState("");
+
+  useEffect(() => {
+    const nextText = safeText(selectedCase?.generatedReportText);
+    setGeneratedReportDraft(nextText);
+    setRenderedReportText(nextText);
+    setReportPromptFeedback("");
+  }, [selectedCase?.id, selectedCase?.generatedReportText]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -1119,10 +1130,307 @@ ${strategyFocus.join("\n") || "—"}`;
 
     return items.filter((item, index) => items.indexOf(item) === index).slice(0, 5);
   }, [displayedWeakPoints, narrativeSections.length, reportComposer]);
-  const clientKeyChains = useMemo(
-    () => reportComposer.keyChains.slice(0, 3),
+  const normalizeClientIdeaKey = (value) =>
+    safeText(value)
+      .toLowerCase()
+      .replace(/this (shows|confirms|indicates|suggests) that\s+/g, "")
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  const toClientMeaning = (value) => {
+    const text = safeText(value).trim();
+    if (!text) return "";
+
+    const cleaned = text
+      .replace(/\b(see document|digitise ?\/ ?upload|follow-up task created)\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const replacements = [
+      {
+        pattern: /provides objective timestamps?/i,
+        replacement: "This shows the timing can be checked clearly.",
+      },
+      {
+        pattern: /establishes formal medical confirmation/i,
+        replacement: "This confirms the medical condition was formally identified.",
+      },
+      {
+        pattern: /^helps prove\s+/i,
+        replacement: "This shows ",
+      },
+      {
+        pattern: /^helps confirm\s+/i,
+        replacement: "This confirms ",
+      },
+      {
+        pattern: /^helps support\s+/i,
+        replacement: "This shows ",
+      },
+      {
+        pattern: /^this supports\s+/i,
+        replacement: "This shows ",
+      },
+      {
+        pattern: /^this indicates\s+/i,
+        replacement: "This suggests ",
+      },
+    ];
+
+    for (const rule of replacements) {
+      if (!rule.pattern.test(cleaned)) continue;
+      const rewritten = rule.pattern.source.startsWith("^")
+        ? cleaned.replace(rule.pattern, rule.replacement)
+        : rule.replacement;
+      const normalized = rewritten
+        .replace(/\b(document|documents|message|messages|photo|photos|letter|letters|evidence|record|records)\b/gi, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/\s([.,!?;:])/g, "$1");
+      return /[.!?]$/.test(normalized) ? normalized : `${normalized}.`;
+    }
+
+    if (/^(this|it)\s+(shows|confirms|suggests)\b/i.test(cleaned)) {
+      return /[.!?]$/.test(cleaned) ? cleaned : `${cleaned}.`;
+    }
+
+    return "";
+  };
+  const toClientConclusion = (value) => {
+    const text = safeText(value).trim();
+    if (!text) return "";
+
+    const explicitRewrites = [
+      {
+        pattern: /provides objective timestamps?/i,
+        replacement: "This shows the timing can be checked objectively.",
+      },
+      {
+        pattern: /establishes formal medical confirmation/i,
+        replacement: "This confirms the medical condition was formally identified.",
+      },
+      {
+        pattern: /^helps prove\s+/i,
+        replacement: "This shows ",
+      },
+      {
+        pattern: /^helps confirm\s+/i,
+        replacement: "This confirms ",
+      },
+      {
+        pattern: /^helps support\s+/i,
+        replacement: "This supports ",
+      },
+    ];
+
+    for (const rule of explicitRewrites) {
+      if (!rule.pattern.test(text)) continue;
+      if (rule.replacement.endsWith(".")) return rule.replacement;
+      const rewritten = text.replace(rule.pattern, rule.replacement);
+      return /[.!?]$/.test(rewritten) ? rewritten : `${rewritten}.`;
+    }
+
+    if (/^(this|it)\s+(shows|confirms|indicates|suggests)\b/i.test(text)) {
+      return /[.!?]$/.test(text) ? text : `${text}.`;
+    }
+
+    return text;
+  };
+  const deriveClientTrack = (section) => {
+    const combinedText = [
+      safeText(section?.incident?.title),
+      safeText(section?.incident?.description),
+      safeText(section?.incident?.notes),
+      ...(section?.establishes || []),
+      ...(section?.supportingEvidence || []).flatMap((item) => [
+        safeText(item?.title),
+        safeText(item?.functionSummary),
+        safeText(item?.sequenceGroup),
+        safeText(item?.evidenceRole),
+      ]),
+      ...(section?.supportingRecords || []).flatMap((item) => [
+        safeText(item?.title),
+        safeText(item?.summary),
+        safeText(item?.recordType),
+      ]),
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    const trackRules = [
+      {
+        id: "workload",
+        label: "Workload and overtime",
+        patterns: [/overtime|workload|shift|duty|rota|roster|schedule|hours|staffing|long hours/gi],
+      },
+      {
+        id: "fatigue",
+        label: "Fatigue and rest",
+        patterns: [/fatigue|rest break|rest period|sleep|exhaust|tired|turnaround|insufficient rest/gi],
+      },
+      {
+        id: "medical",
+        label: "Medical impact",
+        patterns: [/medical|doctor|gp\b|clinic|hospital|diagnos|symptom|injur|treatment|condition|sick note/gi],
+      },
+      {
+        id: "housing",
+        label: "Housing defects",
+        patterns: [/housing|landlord|tenant|repair|leak|heating|boiler|damp|disrepair|property|flat|apartment/gi],
+      },
+      {
+        id: "safety",
+        label: "Safety and mould",
+        patterns: [/safety|unsafe|hazard|mould|mold|danger|risk|exposure|ventilation|fire|carbon monoxide/gi],
+      },
+      {
+        id: "payment",
+        label: "Payment and financial issues",
+        patterns: [/payment|paid|wage|wages|salary|unpaid|invoice|receipt|cost|deposit|refund|bill|arrears|bank/gi],
+      },
+      {
+        id: "communication",
+        label: "Communication and management",
+        patterns: [/manager|management|supervisor|email|whatsapp|message|text|call|communication|complaint|notice|reported|instruction/gi],
+      },
+    ];
+
+    let bestTrack = { id: "other", label: "Other important issue", score: 0 };
+
+    for (const track of trackRules) {
+      let score = 0;
+      for (const pattern of track.patterns) {
+        const matches = combinedText.match(pattern);
+        if (matches) score += matches.length;
+      }
+      if (score > bestTrack.score) {
+        bestTrack = { id: track.id, label: track.label, score };
+      }
+    }
+
+    return bestTrack;
+  };
+  const clientRankedSections = useMemo(
+    () =>
+      reportComposer.keyChains.map((section) => ({
+        ...section,
+        clientTrack: deriveClientTrack(section),
+      })),
     [reportComposer.keyChains]
   );
+  const clientSelectedChains = useMemo(() => {
+    const selections = [];
+    const seenTracks = new Set();
+    const remaining = [];
+
+    for (const section of clientRankedSections) {
+      const trackId = section.clientTrack?.score > 0 ? section.clientTrack.id : "";
+      if (trackId && !seenTracks.has(trackId) && selections.length < 3) {
+        selections.push(section);
+        seenTracks.add(trackId);
+      } else {
+        remaining.push(section);
+      }
+    }
+
+    for (const section of remaining) {
+      if (selections.length >= 3) break;
+      selections.push(section);
+    }
+
+    return selections;
+  }, [clientRankedSections]);
+  const clientConcernTracks = useMemo(() => {
+    const seen = new Set();
+    const tracks = [];
+
+    for (const section of clientSelectedChains) {
+      const track = section.clientTrack;
+      if (!track?.label || track.score <= 0 || seen.has(track.id)) continue;
+      seen.add(track.id);
+      tracks.push(track.label);
+      if (tracks.length >= 5) break;
+    }
+
+    return tracks;
+  }, [clientSelectedChains]);
+  const clientGlobalConclusions = useMemo(() => {
+    const seen = new Set();
+    const results = [];
+
+    for (const section of clientSelectedChains) {
+      for (const statement of section.establishes || []) {
+        const conclusion = toClientMeaning(statement) || toClientConclusion(statement);
+        const key = normalizeClientIdeaKey(conclusion);
+        if (!conclusion || !key || seen.has(key)) continue;
+        seen.add(key);
+        results.push(conclusion);
+        if (results.length >= 5) break;
+      }
+      if (results.length >= 5) break;
+    }
+
+    return results;
+  }, [clientSelectedChains]);
+  const clientChainSections = useMemo(() => {
+    const globalKeys = new Set(clientGlobalConclusions.map(normalizeClientIdeaKey));
+
+    return clientSelectedChains.map((section) => {
+      const seenLocal = new Set();
+      const chainConclusions = [];
+      for (const statement of section.establishes || []) {
+        const conclusion = toClientMeaning(statement) || toClientConclusion(statement);
+        const key = normalizeClientIdeaKey(conclusion);
+        if (!conclusion || !key || globalKeys.has(key) || seenLocal.has(key)) continue;
+        seenLocal.add(key);
+        chainConclusions.push(conclusion);
+        if (chainConclusions.length >= 3) break;
+      }
+
+      const keyProof = [];
+      const seenProof = new Set();
+      for (const item of section.supportingEvidence || []) {
+        const proofText = toClientMeaning(item.functionSummary || "") || "";
+        const proofKey = normalizeClientIdeaKey(proofText || item.title || "");
+        if (!proofText || !proofKey || seenProof.has(proofKey)) continue;
+        seenProof.add(proofKey);
+        keyProof.push({
+          id: item.id,
+          title: item.title || "Untitled evidence",
+          summary: proofText,
+        });
+        if (keyProof.length >= 3) break;
+      }
+
+      const whatHappened = (safeText(section.incident.description).trim() || safeText(section.incident.notes).trim())
+        .replace(/\s+/g, " ")
+        .trim();
+
+      return {
+        ...section,
+        trackLabel: section.clientTrack?.score > 0 ? section.clientTrack.label : "Other important issue",
+        shortWhatHappened: whatHappened,
+        keyProof: keyProof.slice(0, keyProof.length >= 3 ? 3 : 2),
+        chainConclusions: chainConclusions.slice(0, 3),
+      };
+    });
+  }, [clientGlobalConclusions, clientSelectedChains]);
+  const clientTopicGroups = useMemo(() => {
+    const groups = [];
+    const indexByLabel = new Map();
+
+    for (const section of clientChainSections) {
+      const label = safeText(section.trackLabel).trim() || "Other important issue";
+      if (!indexByLabel.has(label)) {
+        indexByLabel.set(label, groups.length);
+        groups.push({ label, sections: [section] });
+      } else {
+        groups[indexByLabel.get(label)].sections.push(section);
+      }
+    }
+
+    return groups;
+  }, [clientChainSections]);
   const clientSummary = useMemo(() => {
     const cleanSentence = (value) =>
       safeText(value)
@@ -1139,7 +1447,7 @@ ${strategyFocus.join("\n") || "—"}`;
 
     const mainProblem = ensureSentence(selectedCase?.caseState?.mainProblem);
     const fallbackDescription = ensureSentence(selectedCase?.description);
-    const keyChainLead = clientKeyChains
+    const keyChainLead = clientChainSections
       .map((section) => {
         const title = safeText(section?.incident?.title).trim();
         const description = cleanSentence(section?.incident?.description);
@@ -1150,7 +1458,7 @@ ${strategyFocus.join("\n") || "—"}`;
       .find(Boolean);
     const keyChainSentence = keyChainLead ? ensureSentence(keyChainLead) : "";
 
-    const positionLead = (reportComposer.corePosition || [])
+    const positionLead = clientGlobalConclusions
       .map((statement) => cleanSentence(statement))
       .find(Boolean);
     const positionSentence = positionLead ? ensureSentence(positionLead) : "";
@@ -1171,35 +1479,65 @@ ${strategyFocus.join("\n") || "—"}`;
       fallbackDescription ||
       "There is not yet enough clear information to explain the situation properly."
     );
-  }, [clientKeyChains, reportComposer.corePosition, selectedCase]);
+  }, [clientChainSections, clientGlobalConclusions, selectedCase]);
   const clientNextSteps = useMemo(() => {
     const actions = [];
     const hasMissingEvidenceGap = reportGapItems.some((item) => /no linked evidence|evidence support is incomplete|weaker proof|proof points/i.test(item));
     const hasMissingRecordsGap = reportGapItems.some((item) => /supporting records|records or documents|documents? are incomplete/i.test(item));
     const hasThinPositionGap = reportGapItems.some((item) => /core position is thin|no incident-based narrative chains/i.test(item));
+    const caseText = [
+      safeText(selectedCase?.category),
+      ...clientSelectedChains.map((section) => `${safeText(section?.incident?.title)} ${safeText(section?.incident?.description)}`),
+    ].join(" ").toLowerCase();
+    const isHousingCase = /housing|landlord|rent|mould|mold|repair|leak|heating|temperature/.test(caseText);
+    const isWorkCase = /work|shift|duty|rota|roster|manager|overtime|rest|hr|employer/.test(caseText);
 
     if (hasMissingEvidenceGap) {
-      actions.push("Gather the strongest messages, photos, letters, or other documents that directly support the main issues.");
+      actions.push(
+        isHousingCase
+          ? "Keep copies of every letter, message, photo, and notice about the problem, especially anything showing when you reported it."
+          : isWorkCase
+            ? "Keep copies of the key messages, duty details, and written instructions that show what happened."
+            : "Keep the clearest messages, photos, and documents that show what happened and when."
+      );
     }
 
     if (hasMissingRecordsGap) {
-      actions.push("Request or collect the documents that confirm dates, payments, decisions, or other key events.");
+      actions.push(
+        isHousingCase
+          ? "Ask for written copies of inspection notes, repair updates, appointments, or any response about the problem."
+          : isWorkCase
+            ? "Ask for written copies of rota changes, shift instructions, or other documents confirming the working arrangements."
+            : "Ask for written copies of the documents that confirm the main dates, decisions, or events."
+      );
     }
 
     if (hasThinPositionGap) {
       actions.push("Write a short timeline of the main events so the case can be explained clearly from start to finish.");
     }
 
-    if (clientKeyChains.length > 0) {
-      const firstChain = clientKeyChains[0];
-      const chainTitle = safeText(firstChain?.incident?.title).trim().toLowerCase();
+    if (clientSelectedChains.length > 0) {
+      const firstChain = clientSelectedChains[0];
+      const chainTitle = safeText(firstChain?.incident?.title).trim();
       if (chainTitle) {
-        actions.push(`Prepare a short statement explaining why "${firstChain.incident.title}" matters and how the documents and messages that show what happened back it up.`);
+        actions.push(
+          isHousingCase
+            ? `Follow up in writing about "${chainTitle}" and keep a copy of what you send and any reply you receive.`
+            : isWorkCase
+              ? `Ask for any instructions about "${chainTitle}" in writing and keep copies of the reply.`
+              : `Write a short, clear note explaining why "${chainTitle}" matters and keep it with the main documents and messages.`
+        );
       }
     }
 
-    if (clientKeyChains.some((section) => (section.establishes || []).length > 0)) {
-      actions.push("Keep the most important documents, messages, and dates together so they can be shared quickly with an adviser, solicitor, or the person or organisation dealing with the matter.");
+    if (clientSelectedChains.some((section) => (section.establishes || []).length > 0)) {
+      actions.push(
+        isHousingCase
+          ? "Keep a dated log of the problem, including changes in condition, missed repairs, and copies of each notice you send."
+          : isWorkCase
+            ? "Keep a dated log of shifts, rest periods, instructions, and any concerns you raise."
+            : "Keep the most important dates, messages, and documents together so they are ready to share if needed."
+      );
     }
 
     if (actions.length < 3) {
@@ -1210,15 +1548,15 @@ ${strategyFocus.join("\n") || "—"}`;
     return actions
       .filter((item, index) => actions.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index)
       .slice(0, 5);
-  }, [clientKeyChains, reportGapItems]);
+  }, [clientSelectedChains, reportGapItems, selectedCase?.category]);
   const clientMetricItems = useMemo(() => {
     const items = [];
-    const keyIncidentCount = clientKeyChains.length;
-    const keyEvidenceCount = clientKeyChains.reduce(
+    const keyIncidentCount = clientSelectedChains.length;
+    const keyEvidenceCount = clientSelectedChains.reduce(
       (total, section) => total + (section.supportingEvidence || []).length,
       0
     );
-    const datedKeyChains = clientKeyChains
+    const datedKeyChains = clientSelectedChains
       .map((section) => safeText(section.date).trim())
       .filter(Boolean)
       .sort((a, b) => a.localeCompare(b));
@@ -1255,7 +1593,57 @@ ${strategyFocus.join("\n") || "—"}`;
     }
 
     return items.slice(0, 4);
-  }, [clientKeyChains, derivedTrackingLedger.length, selectedCase?.category, totalIncoming, totalOutgoing]);
+  }, [clientSelectedChains, derivedTrackingLedger.length, selectedCase?.category, totalIncoming, totalOutgoing]);
+  const parsedGeneratedReport = useMemo(
+    () => parseProveItReportV1(renderedReportText),
+    [renderedReportText]
+  );
+  const generatedReportHasVisibleContent = useMemo(() => {
+    return Boolean(
+      parsedGeneratedReport.reportTitle ||
+      parsedGeneratedReport.yourSituation ||
+      parsedGeneratedReport.mainAreasOfConcern.length > 0 ||
+      parsedGeneratedReport.whatThisReportShows.length > 0 ||
+      parsedGeneratedReport.issues.length > 0 ||
+      parsedGeneratedReport.keyFacts.length > 0 ||
+      parsedGeneratedReport.recommendedNextSteps.length > 0
+    );
+  }, [parsedGeneratedReport]);
+
+  const copyGeneratedReportPrompt = async () => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(PROVEIT_REPORT_PROMPT_V1);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = PROVEIT_REPORT_PROMPT_V1;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "absolute";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setReportPromptFeedback("Prompt copied.");
+    } catch (error) {
+      console.error("Failed to copy report prompt", error);
+      setReportPromptFeedback("Copy failed.");
+    }
+  };
+
+  const handleRenderGeneratedReport = async () => {
+    const nextText = safeText(generatedReportDraft);
+    setRenderedReportText(nextText);
+
+    if (nextText === safeText(selectedCase?.generatedReportText)) return;
+
+    await onUpdateCase({
+      ...selectedCase,
+      generatedReportText: nextText,
+      updatedAt: new Date().toISOString(),
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -1835,6 +2223,207 @@ ${strategyFocus.join("\n") || "—"}`;
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {activeTab === "generate-report" && (
+              <div className="space-y-6">
+                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-neutral-900">Generate Report</h3>
+                      <p className="mt-1 text-sm text-neutral-600">
+                        Copy the strict ProveIt Assistant prompt, paste the structured result here, and render it as a formatted report view.
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-start gap-2 sm:items-end">
+                      <button
+                        type="button"
+                        onClick={copyGeneratedReportPrompt}
+                        className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
+                      >
+                        Copy GPT Prompt
+                      </button>
+                      {reportPromptFeedback ? (
+                        <p className="text-xs font-medium text-neutral-500">{reportPromptFeedback}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+                  <div className="border-b border-neutral-100 pb-3">
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Paste Structured Report</h4>
+                    <p className="mt-1 text-sm text-neutral-600">
+                      Paste a report generated by the ProveIt Assistant using the copied format above.
+                    </p>
+                  </div>
+                  <textarea
+                    value={generatedReportDraft}
+                    onChange={(event) => setGeneratedReportDraft(event.target.value)}
+                    rows={18}
+                    className="mt-4 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 font-mono text-sm leading-6 text-neutral-800 outline-none transition-colors focus:border-lime-500 focus:bg-white"
+                    placeholder={`# REPORT_TITLE\nClient Report\n\n# YOUR_SITUATION\n...`}
+                  />
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-xs text-neutral-500">
+                      The parser reads only the known ProveIt Report Format v1 sections and ignores everything else.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleRenderGeneratedReport}
+                      className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
+                    >
+                      Render Report
+                    </button>
+                  </div>
+                </section>
+
+                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+                  <div className="border-b border-neutral-100 pb-3">
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Rendered Report</h4>
+                  </div>
+
+                  {!generatedReportHasVisibleContent ? (
+                    <div className="mt-4 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                      No report content is rendered yet. Paste a ProveIt Report Format v1 response and use Render Report.
+                    </div>
+                  ) : (
+                    <article className="mt-4 mx-auto max-w-4xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm">
+                      <header className="border-b border-neutral-200 pb-6">
+                        <div className="text-xs font-bold uppercase tracking-[0.18em] text-lime-700">
+                          Structured Report
+                        </div>
+                        <h1 className="mt-2 text-3xl font-bold leading-tight text-neutral-950">
+                          {parsedGeneratedReport.reportTitle || "Client Report"}
+                        </h1>
+                      </header>
+
+                      {parsedGeneratedReport.yourSituation && (
+                        <section className="border-t border-neutral-200 py-6 first:border-t-0 first:pt-6">
+                          <div className="border-b border-neutral-100 pb-3">
+                            <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Your Situation</h4>
+                          </div>
+                          <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-neutral-700">
+                            {parsedGeneratedReport.yourSituation}
+                          </p>
+                        </section>
+                      )}
+
+                      {parsedGeneratedReport.mainAreasOfConcern.length > 0 && (
+                        <section className="border-t border-neutral-200 py-6">
+                          <div className="border-b border-neutral-100 pb-3">
+                            <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Main Areas Of Concern</h4>
+                          </div>
+                          <ul className="mt-4 space-y-3">
+                            {parsedGeneratedReport.mainAreasOfConcern.map((item) => (
+                              <li key={item} className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-700">
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                      )}
+
+                      {parsedGeneratedReport.whatThisReportShows.length > 0 && (
+                        <section className="border-t border-neutral-200 py-6">
+                          <div className="border-b border-neutral-100 pb-3">
+                            <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">What This Report Shows</h4>
+                          </div>
+                          <ul className="mt-4 space-y-3">
+                            {parsedGeneratedReport.whatThisReportShows.map((item) => (
+                              <li key={item} className="rounded-xl border border-lime-200 bg-lime-50 p-4 text-sm leading-6 text-lime-950">
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                      )}
+
+                      {parsedGeneratedReport.issues.length > 0 && (
+                        <section className="border-t border-neutral-200 py-6">
+                          <div className="border-b border-neutral-100 pb-3">
+                            <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Issue Sections</h4>
+                          </div>
+                          <div className="mt-4 space-y-5">
+                            {parsedGeneratedReport.issues.map((issue, index) => (
+                              <section
+                                key={`${issue.title || "issue"}-${index}`}
+                                className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5"
+                              >
+                                <div className="border-b border-neutral-200 pb-3">
+                                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Issue</div>
+                                  <h5 className="mt-2 text-xl font-semibold text-neutral-950">
+                                    {issue.title || "Untitled issue"}
+                                  </h5>
+                                </div>
+
+                                {issue.whatHappened && (
+                                  <div className="mt-4">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">What happened</div>
+                                    <p className="mt-2 text-sm leading-6 text-neutral-700">{issue.whatHappened}</p>
+                                  </div>
+                                )}
+
+                                {issue.keyProof.length > 0 && (
+                                  <div className="mt-5 rounded-xl border border-neutral-200 bg-white p-4">
+                                    <h6 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Key proof</h6>
+                                    <ul className="mt-3 space-y-2 text-sm leading-6 text-neutral-700">
+                                      {issue.keyProof.map((item) => (
+                                        <li key={item}>- {item}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+
+                                {issue.whatThisMeans.length > 0 && (
+                                  <div className="mt-5 rounded-xl border border-lime-200 bg-lime-50 p-4">
+                                    <h6 className="text-xs font-bold uppercase tracking-wider text-lime-800">What this means</h6>
+                                    <ul className="mt-3 space-y-2 text-sm leading-6 text-lime-950">
+                                      {issue.whatThisMeans.map((item) => (
+                                        <li key={item}>- {item}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </section>
+                            ))}
+                          </div>
+                        </section>
+                      )}
+
+                      {parsedGeneratedReport.keyFacts.length > 0 && (
+                        <section className="border-t border-neutral-200 py-6">
+                          <div className="border-b border-neutral-100 pb-3">
+                            <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Key Facts</h4>
+                          </div>
+                          <ul className="mt-4 space-y-3">
+                            {parsedGeneratedReport.keyFacts.map((item) => (
+                              <li key={item} className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-700">
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                      )}
+
+                      {parsedGeneratedReport.recommendedNextSteps.length > 0 && (
+                        <section className="border-t border-neutral-200 py-6">
+                          <div className="border-b border-neutral-100 pb-3">
+                            <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Recommended Next Steps</h4>
+                          </div>
+                          <ul className="mt-4 space-y-3">
+                            {parsedGeneratedReport.recommendedNextSteps.map((item) => (
+                              <li key={item} className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-700">
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                      )}
+                    </article>
+                  )}
+                </section>
               </div>
             )}
 
@@ -3162,103 +3751,117 @@ ${strategyFocus.join("\n") || "—"}`;
                       </p>
                     </section>
 
-                    <section className="print-pack-major break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
-                      <div className="border-b border-neutral-100 pb-3">
-                        <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">What This Report Shows</h4>
-                      </div>
-                      {reportComposer.corePosition.length > 0 ? (
+                    {clientConcernTracks.length > 0 && (
+                      <section className="print-pack-major break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
+                        <div className="border-b border-neutral-100 pb-3">
+                          <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Main Areas Of Concern</h4>
+                        </div>
                         <ul className="mt-4 space-y-3">
-                          {reportComposer.corePosition.slice(0, 5).map((statement) => (
+                          {clientConcernTracks.map((track) => (
+                            <li key={track} className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-700">
+                              {track}
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    )}
+
+                    {clientGlobalConclusions.length > 0 && (
+                      <section className="print-pack-major break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
+                        <div className="border-b border-neutral-100 pb-3">
+                          <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">What This Report Shows</h4>
+                        </div>
+                        <ul className="mt-4 space-y-3">
+                          {clientGlobalConclusions.slice(0, 5).map((statement) => (
                             <li key={statement} className="rounded-xl border border-lime-200 bg-lime-50 p-4 text-sm leading-6 text-lime-950">
                               {statement}
                             </li>
                           ))}
                         </ul>
-                      ) : (
-                        <p className="mt-4 text-sm text-neutral-500">
-                          The report does not yet have enough clear support to explain the position confidently.
-                        </p>
-                      )}
-                    </section>
+                      </section>
+                    )}
 
                     <section className="print-pack-major break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
                       <div className="border-b border-neutral-100 pb-3">
-                        <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Main Parts Of Your Case</h4>
+                        <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Key Issues By Topic</h4>
                       </div>
-                      {clientKeyChains.length > 0 ? (
+                      {clientTopicGroups.length > 0 ? (
                         <div className="mt-4 space-y-5">
-                          {clientKeyChains.map((section, index) => (
-                            <section
-                              key={`${section.incident.id}-${index}`}
-                              className="print-pack-narrative-section break-inside-avoid rounded-2xl border border-neutral-200 bg-neutral-50 p-5"
-                            >
-                              <div className="border-b border-neutral-200 pb-3">
-                                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Issue</div>
-                                <h5 className="mt-2 text-xl font-semibold text-neutral-950">
-                                  {section.incident.title || "Untitled incident"}
-                                </h5>
-                                {section.date && (
-                                  <p className="mt-2 text-sm text-neutral-500">{section.date}</p>
-                                )}
+                          {clientTopicGroups.map((group) => (
+                            <section key={group.label} className="space-y-4">
+                              <div className="rounded-xl border border-neutral-200 bg-white px-4 py-3">
+                                <h5 className="text-sm font-semibold uppercase tracking-wider text-neutral-600">{group.label}</h5>
                               </div>
+                              {group.sections.map((section, index) => (
+                                <section
+                                  key={`${group.label}-${section.incident.id}-${index}`}
+                                  className="print-pack-narrative-section break-inside-avoid rounded-2xl border border-neutral-200 bg-neutral-50 p-5"
+                                >
+                                  <div className="border-b border-neutral-200 pb-3">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Issue</div>
+                                    <h5 className="mt-2 text-xl font-semibold text-neutral-950">
+                                      {section.incident.title || "Untitled incident"}
+                                    </h5>
+                                    {section.date && (
+                                      <p className="mt-2 text-sm text-neutral-500">{section.date}</p>
+                                    )}
+                                  </div>
 
-                              <div className="mt-4">
-                                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">What happened</div>
-                                <p className="mt-2 text-sm leading-6 text-neutral-700">
-                                  {safeText(section.incident.description).trim() || safeText(section.incident.notes).trim() || "There is not yet a clear written summary of what happened here."}
-                                </p>
-                              </div>
+                                  <div className="mt-4">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">What happened</div>
+                                    <p className="mt-2 text-sm leading-6 text-neutral-700">
+                                      {section.shortWhatHappened || "There is not yet a clear written summary of what happened here."}
+                                    </p>
+                                  </div>
 
-                              <div className="print-pack-support-grid mt-5 grid gap-4 lg:grid-cols-2">
-                                <section className="rounded-xl border border-neutral-200 bg-white p-4">
-                                  <h6 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Key proof</h6>
-                                  {section.supportingEvidence.length > 0 ? (
-                                    <div className="mt-3 space-y-3">
-                                      {section.supportingEvidence.slice(0, 2).map((item) => (
-                                        <div key={item.id} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-                                          <div className="font-semibold text-neutral-900">{item.title || "Untitled evidence"}</div>
-                                          <p className="mt-2 text-sm leading-6 text-neutral-700">
-                                            {safeText(item.functionSummary).trim() || "There is not yet a clear explanation of why this matters."}
-                                          </p>
+                                  <div className="print-pack-support-grid mt-5 grid gap-4 lg:grid-cols-2">
+                                    <section className="rounded-xl border border-neutral-200 bg-white p-4">
+                                      <h6 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Key proof</h6>
+                                      {section.keyProof.length > 0 ? (
+                                        <div className="mt-3 space-y-3">
+                                          {section.keyProof.map((item) => (
+                                            <div key={item.id} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                                              <div className="font-semibold text-neutral-900">{item.title || "Untitled document"}</div>
+                                              <p className="mt-2 text-sm leading-6 text-neutral-700">
+                                                {item.summary || "There is not yet a clear explanation of why this matters."}
+                                              </p>
+                                            </div>
+                                          ))}
                                         </div>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <p className="mt-3 text-sm italic text-neutral-500">There is not yet enough supporting material shown for this issue.</p>
+                                      ) : (
+                                        <p className="mt-3 text-sm italic text-neutral-500">There is not yet enough supporting material shown for this issue.</p>
+                                      )}
+                                    </section>
+
+                                    {section.supportingRecords.length > 0 && (
+                                      <section className="rounded-xl border border-neutral-200 bg-white p-4">
+                                        <h6 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Supporting document</h6>
+                                        <div className="mt-3 space-y-3">
+                                          {section.supportingRecords.slice(0, 1).map((item) => (
+                                            <div key={item.id} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                                              <div className="font-semibold text-neutral-900">{item.title || "Untitled record"}</div>
+                                              <p className="mt-2 text-sm leading-6 text-neutral-700">
+                                                {safeText(item.summary).trim() || "There is not yet a clear summary of this document."}
+                                              </p>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </section>
+                                    )}
+                                  </div>
+
+                                  {section.chainConclusions.length > 0 && (
+                                    <section className="mt-5 rounded-xl border border-lime-200 bg-lime-50 p-4">
+                                      <h6 className="text-xs font-bold uppercase tracking-wider text-lime-800">What this means</h6>
+                                      <ul className="mt-3 space-y-2 text-sm leading-6 text-lime-950">
+                                        {section.chainConclusions.slice(0, 3).map((statement) => (
+                                          <li key={statement}>- {statement}</li>
+                                        ))}
+                                      </ul>
+                                    </section>
                                   )}
                                 </section>
-
-                                {section.supportingRecords.length > 0 && (
-                                  <section className="rounded-xl border border-neutral-200 bg-white p-4">
-                                    <h6 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Supporting document</h6>
-                                    <div className="mt-3 space-y-3">
-                                      {section.supportingRecords.slice(0, 1).map((item) => (
-                                        <div key={item.id} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-                                          <div className="font-semibold text-neutral-900">{item.title || "Untitled record"}</div>
-                                          <p className="mt-2 text-sm leading-6 text-neutral-700">
-                                            {safeText(item.summary).trim() || "There is not yet a clear summary of this document."}
-                                          </p>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </section>
-                                )}
-                              </div>
-
-                              <section className="mt-5 rounded-xl border border-lime-200 bg-lime-50 p-4">
-                                <h6 className="text-xs font-bold uppercase tracking-wider text-lime-800">What this means</h6>
-                                {section.establishes.length > 0 ? (
-                                  <ul className="mt-3 space-y-2 text-sm leading-6 text-lime-950">
-                                    {section.establishes.slice(0, 3).map((statement) => (
-                                      <li key={statement}>- {statement}</li>
-                                    ))}
-                                  </ul>
-                                ) : (
-                                  <p className="mt-3 text-sm text-lime-950/80">
-                                    There is some support for this issue, but it is not yet explained clearly.
-                                  </p>
-                                )}
-                              </section>
+                              ))}
                             </section>
                           ))}
                         </div>
