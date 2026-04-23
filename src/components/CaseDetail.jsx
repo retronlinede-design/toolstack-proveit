@@ -1051,7 +1051,7 @@ ${strategyFocus.join("\n") || "—"}`;
     date: getTimelineDate(recordType, item),
     title: getTimelineTitle(recordType, item),
     summary: getTimelineSummary(recordType, item),
-    isMilestone: recordType === "incident" ? !!item?.isMilestone : false,
+    isMilestone: (recordType === "incident" || recordType === "evidence") ? !!item?.isMilestone : false,
     source: item,
   }));
 
@@ -1624,18 +1624,36 @@ ${strategyFocus.join("\n") || "—"}`;
     );
   }, [parsedGeneratedReport]);
   const generatedReportMilestoneTimeline = useMemo(() => {
-    return [...(selectedCase?.incidents || [])]
+    const incidentMilestones = (selectedCase?.incidents || [])
       .filter((incident) => !!incident?.isMilestone)
-      .sort((a, b) =>
-        String(a?.eventDate || a?.date || "").localeCompare(String(b?.eventDate || b?.date || ""))
-      )
-      .map((incident) => ({
+      .map((incident, index) => ({
         id: incident.id,
+        recordType: "incident",
         date: incident.eventDate || incident.date || "",
         title: incident.title || "",
         summary: safeText(incident.description || incident.summary).trim(),
+        originalIndex: index,
       }));
-  }, [selectedCase?.incidents]);
+    const evidenceMilestones = (selectedCase?.evidence || [])
+      .filter((evidence) => !!evidence?.isMilestone)
+      .map((evidence, index) => ({
+        id: evidence.id,
+        recordType: "evidence",
+        date: evidence.eventDate || evidence.date || evidence.capturedAt || "",
+        title: evidence.title || "",
+        summary: safeText(evidence.functionSummary || evidence.description || evidence.reviewNotes).trim(),
+        originalIndex: index,
+      }));
+
+    return [...incidentMilestones, ...evidenceMilestones]
+      .sort((a, b) => {
+        const dateCompare = String(a?.date || "").localeCompare(String(b?.date || ""));
+        if (dateCompare !== 0) return dateCompare;
+        if (a.recordType !== b.recordType) return a.recordType === "incident" ? -1 : 1;
+        return a.originalIndex - b.originalIndex;
+      })
+      .map(({ originalIndex, ...item }) => item);
+  }, [selectedCase?.incidents, selectedCase?.evidence]);
   const generatedReportOrderedIssues = useMemo(() => {
     const normalizeIssueKey = (value) =>
       safeText(value)
@@ -1643,6 +1661,9 @@ ${strategyFocus.join("\n") || "—"}`;
         .replace(/[^a-z0-9\s]/g, " ")
         .replace(/\s+/g, " ")
         .trim();
+    const incidentMilestones = generatedReportMilestoneTimeline.filter(
+      (item) => item.recordType === "incident"
+    );
 
     const matchResults = [];
     const orderedIssues = [...clientChainSections]
@@ -1651,20 +1672,20 @@ ${strategyFocus.join("\n") || "—"}`;
         const normalizedSectionTitle = normalizeIssueKey(sectionTitle);
         const sectionDate = safeText(section?.date).trim();
 
-        let matchedMilestone = generatedReportMilestoneTimeline.find(
+        let matchedMilestone = incidentMilestones.find(
           (milestone) => safeText(milestone.title).trim() && safeText(milestone.title).trim() === sectionTitle
         );
         let matchType = matchedMilestone ? "exact_title" : "";
 
         if (!matchedMilestone && normalizedSectionTitle) {
-          matchedMilestone = generatedReportMilestoneTimeline.find(
+          matchedMilestone = incidentMilestones.find(
             (milestone) => normalizeIssueKey(milestone.title) === normalizedSectionTitle
           );
           if (matchedMilestone) matchType = "normalized_title";
         }
 
         if (!matchedMilestone && sectionDate) {
-          matchedMilestone = generatedReportMilestoneTimeline.find(
+          matchedMilestone = incidentMilestones.find(
             (milestone) => safeText(milestone.date).trim() === sectionDate
           );
           if (matchedMilestone) matchType = "same_date";
@@ -1752,7 +1773,9 @@ ${strategyFocus.join("\n") || "—"}`;
     const milestoneBlock =
       generatedReportMilestoneTimeline.length > 0
         ? generatedReportMilestoneTimeline
-            .map((item) => `- ${compactLine(item.date, "No date")} | ${compactLine(item.title)} | ${compactLine(item.summary)}`)
+            .map((item) =>
+              `- ${safeText(item.date).replace(/\s+/g, " ").trim()} | ${item.recordType === "evidence" ? "Evidence" : "Incident"} | ${compactLine(item.title)} | ${safeText(item.summary).replace(/\s+/g, " ").trim()}`
+            )
             .join("\n")
         : "None";
 
@@ -3762,7 +3785,7 @@ ${milestoneBlock}`;
                     <div className="space-y-2">
                       {filteredTimelineItems.map((item) => {
                         const isTimelineMilestone =
-                          item.recordType === "incident" && item.isMilestone === true;
+                          (item.recordType === "incident" || item.recordType === "evidence") && item.isMilestone === true;
                         return (
                           <div
                             key={`${item.recordType}-${item.id}`}

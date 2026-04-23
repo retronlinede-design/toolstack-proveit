@@ -266,6 +266,7 @@ export function normalizeRecord(item, recordType) {
     return {
       ...base,
       ...timelineData,
+      isMilestone: !!item?.isMilestone,
       sourceType: item?.sourceType || "other",
       capturedAt: item?.capturedAt || item?.date || base.date,
       importance: item?.importance || "unreviewed",

@@ -17,6 +17,8 @@ Rules:
 - # MILESTONE_TIMELINE
 - You MUST use ONLY the items from [MILESTONE_TIMELINE_DATA] to populate this section.
 - If [MILESTONE_TIMELINE_DATA] is "None", you MUST NOT include the section.
+- [MILESTONE_TIMELINE_DATA] may contain both Incident and Evidence milestone entries.
+- Use the provided entries to create one chronological MILESTONE_TIMELINE section.
 - YOUR_SITUATION: brief context only, with no detailed chronology
 - AT_A_GLANCE: bullet list only, with 3-4 bullets maximum, short and factual, no legal wording, and no repetition of full issue explanations
 - WHAT_THIS_REPORT_SHOWS: high-level conclusions only, with no timeline repetition
@@ -37,8 +39,10 @@ Rules:
 - Place it after WHAT_THIS_REPORT_SHOWS
 - Use only bullet lines starting with "- "
 - Use ONLY the entries from [MILESTONE_TIMELINE_DATA]
+- [MILESTONE_TIMELINE_DATA] may include both Incident and Evidence entries
 - Each bullet must be short, factual, and non-analytical
 - Preferred format: <date> - <short event title>: <very short clarification (optional)>
+- When useful, preserve the item type naturally in the wording, especially for evidence entries
 - Maximum one short sentence per bullet
 - Do not repeat full ISSUE explanations
 - Do not include legal wording

@@ -93,6 +93,7 @@ const EVIDENCE_TEMPLATE_CONFIG = {
 const AUTO_SUGGEST_DESCRIPTION_THRESHOLD = 20;
 const CREATE_NEW_SEQUENCE_GROUP_OPTION = "__create_new_sequence_group__";
 const STRUCTURED_EVIDENCE_FIELDS = [
+  "isMilestone",
   "importance",
   "relevance",
   "status",
@@ -162,6 +163,7 @@ function applySafeAutoEvidenceSuggestions(recordForm, selectedCase, userEditedFi
 }
 
 function hasStructuredEvidenceValue(recordForm, field) {
+  if (field === "isMilestone") return !!recordForm?.isMilestone;
   if (field === "evidenceRole") return Boolean(recordForm?.evidenceRole && recordForm.evidenceRole !== "OTHER");
   if (field === "relevance") return Boolean(recordForm?.relevance && recordForm.relevance !== "medium");
   if (field === "importance") return Boolean(recordForm?.importance && recordForm.importance !== "unreviewed");
@@ -865,6 +867,21 @@ export default function RecordModal({
                 </select>
               </div>
             </div>
+
+            <label className="flex items-start gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+              <input
+                type="checkbox"
+                checked={!!recordForm.isMilestone}
+                onChange={(e) => setRecordForm({ ...recordForm, isMilestone: e.target.checked })}
+                className="mt-0.5 h-4 w-4 rounded border-neutral-300 text-lime-600 focus:ring-lime-500"
+              />
+              <div>
+                <div className="text-sm font-medium text-neutral-900">Milestone</div>
+                <div className="mt-1 text-xs text-neutral-500">
+                  Marks this evidence as a major anchor point in the case.
+                </div>
+              </div>
+            </label>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div>

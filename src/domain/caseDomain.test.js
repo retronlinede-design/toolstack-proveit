@@ -70,6 +70,7 @@ test("normalizeRecord preserves valid evidence structural fields", () => {
     id: "ev-1",
     title: "Evidence",
     date: "2024-02-03",
+    isMilestone: true,
     evidenceRole: "ANCHOR_EVIDENCE",
     sequenceGroup: "  Notice sequence  ",
     functionSummary: "  Shows the first written warning.  ",
@@ -77,9 +78,20 @@ test("normalizeRecord preserves valid evidence structural fields", () => {
   }, "evidence");
 
   assert.equal(record.evidenceRole, "ANCHOR_EVIDENCE");
+  assert.equal(record.isMilestone, true);
   assert.equal(record.sequenceGroup, "Notice sequence");
   assert.equal(record.functionSummary, "Shows the first written warning.");
   assert.deepEqual(record.usedIn, ["Legacy use"]);
+});
+
+test("normalizeRecord defaults evidence milestone flag to false", () => {
+  const record = normalizeRecord({
+    id: "ev-2",
+    title: "Evidence",
+    date: "2024-02-03",
+  }, "evidence");
+
+  assert.equal(record.isMilestone, false);
 });
 
 test("normalizeRecord defaults invalid evidenceRole to OTHER", () => {
