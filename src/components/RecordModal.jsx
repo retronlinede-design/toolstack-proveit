@@ -250,6 +250,7 @@ export default function RecordModal({
   const canApplyEvidenceSuggestion = meaningfulSuggestionFields.length > 0;
   const hasStructuredEvidenceDetails = recordType === "evidence" && hasStructuredEvidenceContent(recordForm);
   const hasStructuredIncidentDetails = recordType === "incidents" && (
+    !!recordForm.isMilestone ||
     (recordForm.status && recordForm.status !== "open") ||
     (Array.isArray(recordForm.linkedEvidenceIds) && recordForm.linkedEvidenceIds.length > 0) ||
     (Array.isArray(recordForm.linkedIncidentRefs) && recordForm.linkedIncidentRefs.length > 0) ||
@@ -417,6 +418,15 @@ export default function RecordModal({
 
       return nextForm;
     });
+  };
+  const handleSubmitRecord = () => {
+    const payload = {
+      ...recordForm,
+      isMilestone: !!recordForm.isMilestone,
+    };
+    console.log("FORM", recordForm);
+    console.log("PAYLOAD", payload);
+    saveRecord(payload);
   };
 
   const isEdit = !!recordForm.id;
@@ -1098,6 +1108,20 @@ export default function RecordModal({
                         <option value="archived">Archived</option>
                       </select>
                     </div>
+                    <label className="flex items-start gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                      <input
+                        type="checkbox"
+                        checked={!!recordForm.isMilestone}
+                        onChange={(e) => setRecordForm({ ...recordForm, isMilestone: e.target.checked })}
+                        className="mt-0.5 h-4 w-4 rounded border-neutral-300 text-lime-600 focus:ring-lime-500"
+                      />
+                      <div>
+                        <div className="text-sm font-medium text-neutral-900">Milestone</div>
+                        <div className="mt-1 text-xs text-neutral-500">
+                          Marks this incident as a major turning point in the case.
+                        </div>
+                      </div>
+                    </label>
                   </div>
 
                   <div className="space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
@@ -1390,7 +1414,7 @@ export default function RecordModal({
             </>
           ) : (
             <>
-              <button onClick={saveRecord} className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
+              <button onClick={handleSubmitRecord} className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
                 {isEdit ? "Save Changes" : "Create"}
               </button>
               <button onClick={closeRecordModal} className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">

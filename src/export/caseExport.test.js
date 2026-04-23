@@ -227,6 +227,36 @@ test("buildCaseReasoningExportPayload recentTimeline includes incidents and evid
   );
 });
 
+test("buildCaseReasoningExportPayload includes compact milestoneTimeline entries for milestone incidents only", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.incidents[0] = {
+    ...caseItem.incidents[0],
+    isMilestone: true,
+    summary: "Early incident summary",
+  };
+  caseItem.incidents[1] = {
+    ...caseItem.incidents[1],
+    isMilestone: true,
+  };
+
+  const payload = buildCaseReasoningExportPayload(caseItem);
+
+  assert.deepEqual(payload.data.milestoneTimeline, [
+    {
+      id: "inc-1",
+      date: "2024-01-01",
+      title: "Early incident",
+      summary: "Early incident description",
+    },
+    {
+      id: "inc-2",
+      date: "2024-01-03",
+      title: "Late incident",
+      summary: "Late incident description",
+    },
+  ]);
+});
+
 test("buildCaseReasoningExportPayload activeIssues includes additive recordType without changing existing fields", () => {
   const payload = buildCaseReasoningExportPayload(buildReasoningCase());
 

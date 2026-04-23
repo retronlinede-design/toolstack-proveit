@@ -296,6 +296,7 @@ export function normalizeRecord(item, recordType) {
     return {
       ...base,
       ...timelineData,
+      isMilestone: !!item?.isMilestone,
       linkedIncidentRefs: normalizeIncidentLinkRefs(item?.linkedIncidentRefs, base.id),
     };
   }
@@ -326,7 +327,7 @@ export function normalizeRecordPatch(recordType, patch = {}) {
   const textFields = ["title", "date", "description", "notes", "status", "source", "eventDate", "createdAt", "updatedAt"];
   const listFields = ["attachments", "tags", "linkedRecordIds"];
   const patchableFields = recordType === "incidents"
-    ? [...textFields, ...listFields, "linkedEvidenceIds", "edited"]
+    ? [...textFields, ...listFields, "linkedEvidenceIds", "edited", "isMilestone"]
     : [...textFields, ...listFields, "edited"];
 
   return patchableFields.reduce((normalized, field) => {
@@ -338,6 +339,11 @@ export function normalizeRecordPatch(recordType, patch = {}) {
     }
 
     if (field === "edited") {
+      normalized[field] = !!patch[field];
+      return normalized;
+    }
+
+    if (field === "isMilestone") {
       normalized[field] = !!patch[field];
       return normalized;
     }
@@ -728,6 +734,7 @@ export function upsertRecordInCase(caseItem, recordType, recordInput, editingRec
 
     const updatedRecord = normalizeRecord({
       ...editingRecord,
+      ...recordInput,
       title: recordInput.title.trim(),
       date: recordInput.date || new Date().toISOString().slice(0, 10),
       description: recordInput.description.trim(),
@@ -744,10 +751,11 @@ export function upsertRecordInCase(caseItem, recordType, recordInput, editingRec
       evidenceRole: recordInput.evidenceRole,
       sequenceGroup: recordInput.sequenceGroup,
       functionSummary: recordInput.functionSummary,
-      linkedIncidentIds: recordInput.linkedIncidentIds, // Explicitly pass from form
-      linkedEvidenceIds: recordInput.linkedEvidenceIds, // Explicitly pass from form
+      linkedIncidentIds: recordInput.linkedIncidentIds,
+      linkedEvidenceIds: recordInput.linkedEvidenceIds,
       linkedIncidentRefs: recordInput.linkedIncidentRefs,
       linkedRecordIds: recordInput.linkedRecordIds || editingRecord.linkedRecordIds || [],
+      isMilestone: !!recordInput.isMilestone,
       updatedAt: new Date().toISOString(),
       edited: true,
     }, recordType);
@@ -779,6 +787,7 @@ export function upsertRecordInCase(caseItem, recordType, recordInput, editingRec
     }
 
     const newRecord = normalizeRecord({
+      ...recordInput,
       id: newRecordId,
       title: recordInput.title.trim(),
       date: recordInput.date || new Date().toISOString().slice(0, 10),
@@ -800,6 +809,7 @@ export function upsertRecordInCase(caseItem, recordType, recordInput, editingRec
       linkedEvidenceIds: recordInput.linkedEvidenceIds,
       linkedIncidentRefs: recordInput.linkedIncidentRefs,
       linkedRecordIds: recordInput.linkedRecordIds || [],
+      isMilestone: !!recordInput.isMilestone,
       createdAt: new Date().toISOString(),
     }, recordType);
 

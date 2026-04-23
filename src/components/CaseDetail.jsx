@@ -1051,6 +1051,7 @@ ${strategyFocus.join("\n") || "—"}`;
     date: getTimelineDate(recordType, item),
     title: getTimelineTitle(recordType, item),
     summary: getTimelineSummary(recordType, item),
+    isMilestone: recordType === "incident" ? !!item?.isMilestone : false,
     source: item,
   }));
 
@@ -1612,22 +1613,214 @@ ${strategyFocus.join("\n") || "—"}`;
   const generatedReportHasVisibleContent = useMemo(() => {
     return Boolean(
       parsedGeneratedReport.reportTitle ||
+      parsedGeneratedReport.atAGlance?.length > 0 ||
       parsedGeneratedReport.yourSituation ||
       parsedGeneratedReport.mainAreasOfConcern.length > 0 ||
       parsedGeneratedReport.whatThisReportShows.length > 0 ||
+      parsedGeneratedReport.milestoneTimeline?.length > 0 ||
       parsedGeneratedReport.issues.length > 0 ||
       parsedGeneratedReport.keyFacts.length > 0 ||
       parsedGeneratedReport.recommendedNextSteps.length > 0
     );
   }, [parsedGeneratedReport]);
+  const generatedReportMilestoneTimeline = useMemo(() => {
+    return [...(selectedCase?.incidents || [])]
+      .filter((incident) => !!incident?.isMilestone)
+      .sort((a, b) =>
+        String(a?.eventDate || a?.date || "").localeCompare(String(b?.eventDate || b?.date || ""))
+      )
+      .map((incident) => ({
+        id: incident.id,
+        date: incident.eventDate || incident.date || "",
+        title: incident.title || "",
+        summary: safeText(incident.description || incident.summary).trim(),
+      }));
+  }, [selectedCase?.incidents]);
+  const generatedReportOrderedIssues = useMemo(() => {
+    const normalizeIssueKey = (value) =>
+      safeText(value)
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const matchResults = [];
+    const orderedIssues = [...clientChainSections]
+      .map((section, originalIndex) => {
+        const sectionTitle = safeText(section?.incident?.title).trim();
+        const normalizedSectionTitle = normalizeIssueKey(sectionTitle);
+        const sectionDate = safeText(section?.date).trim();
+
+        let matchedMilestone = generatedReportMilestoneTimeline.find(
+          (milestone) => safeText(milestone.title).trim() && safeText(milestone.title).trim() === sectionTitle
+        );
+        let matchType = matchedMilestone ? "exact_title" : "";
+
+        if (!matchedMilestone && normalizedSectionTitle) {
+          matchedMilestone = generatedReportMilestoneTimeline.find(
+            (milestone) => normalizeIssueKey(milestone.title) === normalizedSectionTitle
+          );
+          if (matchedMilestone) matchType = "normalized_title";
+        }
+
+        if (!matchedMilestone && sectionDate) {
+          matchedMilestone = generatedReportMilestoneTimeline.find(
+            (milestone) => safeText(milestone.date).trim() === sectionDate
+          );
+          if (matchedMilestone) matchType = "same_date";
+        }
+
+        matchResults.push({
+          title: sectionTitle || "Untitled issue",
+          date: sectionDate || "",
+          matchedMilestoneTitle: matchedMilestone?.title || "",
+          matchedMilestoneDate: matchedMilestone?.date || "",
+          matchType: matchType || "unmatched",
+        });
+
+        return {
+          ...section,
+          originalIndex,
+          originalIssueTitle: sectionTitle,
+          matchedMilestoneDate: safeText(matchedMilestone?.date).trim(),
+          matchedMilestoneTitle: safeText(matchedMilestone?.title).trim(),
+          hasMilestoneMatch: !!matchedMilestone,
+        };
+      })
+      .sort((a, b) => {
+        if (a.hasMilestoneMatch && b.hasMilestoneMatch) {
+          const dateCompare = String(a.matchedMilestoneDate || "").localeCompare(String(b.matchedMilestoneDate || ""));
+          if (dateCompare !== 0) return dateCompare;
+          return a.originalIndex - b.originalIndex;
+        }
+        if (a.hasMilestoneMatch) return -1;
+        if (b.hasMilestoneMatch) return 1;
+        return a.originalIndex - b.originalIndex;
+      });
+    const alignedIssues = orderedIssues.map((section) => {
+      const originalTitle = safeText(section.originalIssueTitle).trim();
+      const matchedMilestoneTitle = safeText(section.matchedMilestoneTitle).trim();
+      const normalizedOriginal = normalizeIssueKey(originalTitle);
+      const normalizedMilestone = normalizeIssueKey(matchedMilestoneTitle);
+      const shouldAlignTitle =
+        section.hasMilestoneMatch &&
+        matchedMilestoneTitle &&
+        normalizedMilestone &&
+        normalizedMilestone !== normalizedOriginal;
+
+      return {
+        ...section,
+        finalIssueTitle: shouldAlignTitle ? matchedMilestoneTitle : originalTitle,
+        titleAlignmentApplied: shouldAlignTitle,
+      };
+    });
+
+    return { orderedIssues: alignedIssues, matchResults };
+  }, [clientChainSections, generatedReportMilestoneTimeline]);
+  const generatedReportPromptPackage = useMemo(() => {
+    const compactLine = (value, fallback = "None") => {
+      const text = safeText(value).replace(/\s+/g, " ").trim();
+      return text || fallback;
+    };
+    const formatBullets = (items, fallback = "- None") => {
+      const normalizedItems = (items || [])
+        .map((item) => safeText(item).replace(/\s+/g, " ").trim())
+        .filter(Boolean);
+      if (normalizedItems.length === 0) return fallback;
+      return normalizedItems.map((item) => `- ${item}`).join("\n");
+    };
+    const issueInput = generatedReportOrderedIssues.orderedIssues
+      .slice(0, 3)
+      .map((section, index) => {
+        const lines = [
+          `ISSUE_${index + 1}_TITLE: ${compactLine(section?.finalIssueTitle || section?.incident?.title, "Untitled issue")}`,
+          `ISSUE_${index + 1}_DATE: ${compactLine(section?.date, "No date")}`,
+          `ISSUE_${index + 1}_WHAT_HAPPENED: ${compactLine(section?.shortWhatHappened)}`,
+          `ISSUE_${index + 1}_KEY_PROOF: ${
+            (section?.keyProof || [])
+              .map((item) => compactLine(item?.summary || item?.title))
+              .filter(Boolean)
+              .join(" || ") || "None"
+          }`,
+          `ISSUE_${index + 1}_WHAT_THIS_MEANS: ${
+            (section?.chainConclusions || []).map((item) => compactLine(item)).join(" || ") || "None"
+          }`,
+        ];
+        return lines.join("\n");
+      })
+      .join("\n\n");
+    const milestoneBlock =
+      generatedReportMilestoneTimeline.length > 0
+        ? generatedReportMilestoneTimeline
+            .map((item) => `- ${compactLine(item.date, "No date")} | ${compactLine(item.title)} | ${compactLine(item.summary)}`)
+            .join("\n")
+        : "None";
+
+    return `[REPORT INSTRUCTIONS]
+${PROVEIT_REPORT_PROMPT_V1}
+
+[CASE REPORT INPUT]
+CASE_TITLE: ${compactLine(selectedCase?.name, "Untitled case")}
+CASE_CATEGORY: ${compactLine(selectedCase?.category)}
+CASE_STATUS: ${compactLine(selectedCase?.status)}
+CASE_OVERVIEW: ${compactLine(clientSummary || selectedCase?.caseState?.mainProblem || selectedCase?.description)}
+
+MAIN_AREAS_OF_CONCERN:
+${formatBullets(clientConcernTracks)}
+
+WHAT_THIS_REPORT_SHOWS:
+${formatBullets(clientGlobalConclusions)}
+
+KEY_FACTS:
+${formatBullets(
+  clientMetricItems.map((item) => `${compactLine(item.label)}: ${compactLine(item.value)}`),
+  "- None"
+)}
+
+AT_A_GLANCE_NOTE: Summarize the case in 3-4 quick bullets for an immediate overview.
+
+RECOMMENDED_NEXT_STEPS_CONTEXT:
+${formatBullets(clientNextSteps)}
+
+ISSUE_ORDER_NOTE: The issues below are already arranged in the most useful reading order based on the case timeline and milestone events. Keep this order unless the provided facts clearly require otherwise.
+ISSUE_TITLE_ALIGNMENT_NOTE: Where an issue corresponds to a milestone event, the issue title may be aligned to the milestone wording for consistency and readability.
+
+KEY_ISSUES:
+${issueInput || "None"}
+
+[MILESTONE_TIMELINE_DATA]
+${milestoneBlock}`;
+  }, [
+    clientConcernTracks,
+    clientGlobalConclusions,
+    clientMetricItems,
+    clientNextSteps,
+    clientSummary,
+    generatedReportOrderedIssues,
+    generatedReportMilestoneTimeline,
+    selectedCase?.category,
+    selectedCase?.description,
+    selectedCase?.name,
+    selectedCase?.status,
+    selectedCase?.caseState?.mainProblem,
+  ]);
 
   const copyGeneratedReportPrompt = async () => {
     try {
+      console.log("STATIC PROMPT IS GENERIC", PROVEIT_REPORT_PROMPT_V1);
+      console.log("REPORT PROMPT", PROVEIT_REPORT_PROMPT_V1);
+      console.log("milestoneTimeline exists", Array.isArray(generatedReportMilestoneTimeline));
+      console.log("milestoneTimeline length", generatedReportMilestoneTimeline?.length || 0);
+      console.log("milestoneTimeline payload", generatedReportMilestoneTimeline);
+      console.log("ORDERED ISSUES", generatedReportOrderedIssues.orderedIssues.map((i) => ({ title: i?.incident?.title, date: i?.date })));
+      console.log("MATCHED ISSUE MILESTONES", generatedReportOrderedIssues.matchResults);
+      console.log("ISSUE TITLE ALIGNMENT", generatedReportOrderedIssues.orderedIssues.map((x) => ({ original: x.originalIssueTitle, final: x.finalIssueTitle, matchedMilestone: x.matchedMilestoneTitle })));
+      console.log("COPIED REPORT PACKAGE", generatedReportPromptPackage);
       if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(PROVEIT_REPORT_PROMPT_V1);
+        await navigator.clipboard.writeText(generatedReportPromptPackage);
       } else {
         const textarea = document.createElement("textarea");
-        textarea.value = PROVEIT_REPORT_PROMPT_V1;
+        textarea.value = generatedReportPromptPackage;
         textarea.setAttribute("readonly", "");
         textarea.style.position = "absolute";
         textarea.style.left = "-9999px";
@@ -1645,6 +1838,8 @@ ${strategyFocus.join("\n") || "—"}`;
 
   const handleRenderGeneratedReport = async () => {
     const nextText = safeText(generatedReportDraft);
+    console.log("RAW REPORT RESPONSE", nextText);
+    console.log("RAW REPORT CONTAINS MILESTONE_TIMELINE", /#\s*MILESTONE_TIMELINE\b/i.test(nextText));
     setRenderedReportText(nextText);
 
     if (nextText === safeText(selectedCase?.generatedReportText)) return;
@@ -1654,6 +1849,45 @@ ${strategyFocus.join("\n") || "—"}`;
       generatedReportText: nextText,
       updatedAt: new Date().toISOString(),
     });
+  };
+  const parseMilestoneTimelineEntry = (value) => {
+    const text = safeText(value).replace(/\s+/g, " ").trim();
+    if (!text) return { date: "", title: "", note: "" };
+
+    const separators = [" – ", " — ", " - "];
+    for (const separator of separators) {
+      const separatorIndex = text.indexOf(separator);
+      if (separatorIndex > 0) {
+        const candidateDate = text.slice(0, separatorIndex).trim();
+        const remainder = text.slice(separatorIndex + separator.length).trim();
+        if (candidateDate && remainder) {
+          const colonIndex = remainder.indexOf(":");
+          if (colonIndex > 0) {
+            return {
+              date: candidateDate,
+              title: remainder.slice(0, colonIndex).trim() || remainder,
+              note: remainder.slice(colonIndex + 1).trim(),
+            };
+          }
+          return {
+            date: candidateDate,
+            title: remainder,
+            note: "",
+          };
+        }
+      }
+    }
+
+    const colonIndex = text.indexOf(":");
+    if (colonIndex > 0) {
+      return {
+        date: "",
+        title: text.slice(0, colonIndex).trim() || text,
+        note: text.slice(colonIndex + 1).trim(),
+      };
+    }
+
+    return { date: "", title: text, note: "" };
   };
   const renderGeneratedReportArticle = (className = "", variant = "default") => {
     const isPackVariant = variant === "pack";
@@ -1676,8 +1910,23 @@ ${strategyFocus.join("\n") || "—"}`;
         />
       </header>
 
-      {parsedGeneratedReport.yourSituation && (
+      {parsedGeneratedReport.atAGlance?.length > 0 && (
         <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6 first:pt-7" : "py-6"} first:border-t-0 first:pt-6`}>
+          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-4" : "pb-3"}`}>
+            <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>At A Glance</h4>
+          </div>
+          <ul className={`list-disc pl-5 ${isPackVariant ? "mt-5 space-y-3.5" : "mt-4 space-y-3"}`}>
+            {parsedGeneratedReport.atAGlance.map((item) => (
+              <li key={item} className={`text-neutral-700 marker:text-neutral-400 ${isPackVariant ? "text-[15px] leading-7" : "text-sm leading-6"}`}>
+                {item}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {parsedGeneratedReport.yourSituation && (
+        <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
           <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-4" : "pb-3"}`}>
             <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>Your Situation</h4>
           </div>
@@ -1714,6 +1963,47 @@ ${strategyFocus.join("\n") || "—"}`;
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {parsedGeneratedReport.milestoneTimeline?.length > 0 && (
+        <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
+          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-4" : "pb-3"}`}>
+            <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>Milestone Timeline</h4>
+          </div>
+          <div className={`relative ${isPackVariant ? "mt-5 space-y-4" : "mt-4 space-y-3.5"}`}>
+            {parsedGeneratedReport.milestoneTimeline.map((item, index) => {
+              const timelineItem = parseMilestoneTimelineEntry(item);
+              return (
+                <div
+                  key={`${item}-${index}`}
+                  className={`grid grid-cols-[1.25rem_1fr] gap-3 break-inside-avoid ${isPackVariant ? "items-start" : "items-start"}`}
+                >
+                  <div className="flex h-full flex-col items-center">
+                    <span className={`mt-1 block h-2.5 w-2.5 rounded-full border border-amber-300 bg-amber-100`}></span>
+                    {index < parsedGeneratedReport.milestoneTimeline.length - 1 && (
+                      <span className={`mt-2 w-px flex-1 bg-amber-200/90`}></span>
+                    )}
+                  </div>
+                  <div className={`rounded-xl border border-amber-100 bg-amber-50/35 ${isPackVariant ? "px-4 py-3.5" : "px-3.5 py-3"}`}>
+                    {timelineItem.date && (
+                      <div className={`text-neutral-500 ${isPackVariant ? "text-xs" : "text-[11px]"} font-semibold uppercase tracking-[0.08em]`}>
+                        {timelineItem.date}
+                      </div>
+                    )}
+                    <div className={`text-neutral-950 ${isPackVariant ? "mt-1 text-[15px] leading-6" : "mt-1 text-sm leading-6"} font-semibold`}>
+                      {timelineItem.title || item}
+                    </div>
+                    {timelineItem.note && (
+                      <p className={`text-neutral-700 ${isPackVariant ? "mt-1.5 text-[15px] leading-7" : "mt-1 text-sm leading-6"}`}>
+                        {timelineItem.note}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </section>
       )}
 
@@ -3470,36 +3760,51 @@ ${strategyFocus.join("\n") || "—"}`;
 
                   return (
                     <div className="space-y-2">
-                      {filteredTimelineItems.map((item) => (
-                        <div
-                          key={`${item.recordType}-${item.id}`}
-                          className="grid gap-3 rounded-xl border border-neutral-200 bg-white p-3 shadow-sm sm:grid-cols-[7.5rem_1fr]"
-                        >
-                          <div className="text-xs font-semibold text-neutral-500">
-                            {item.date || "No date"}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className={`rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${badgeClassMap[item.recordType] || "border-neutral-200 bg-neutral-50 text-neutral-600"}`}>
-                                {labelMap[item.recordType] || item.recordType}
-                              </span>
-                              {detailLabelMap[item.typeDetail] && detailLabelMap[item.typeDetail] !== labelMap[item.recordType] && (
-                                <span className="rounded-md border border-neutral-200 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                                  {detailLabelMap[item.typeDetail]}
-                                </span>
-                              )}
-                              <h4 className="min-w-0 flex-1 truncate text-sm font-semibold text-neutral-900">
-                                {item.title}
-                              </h4>
+                      {filteredTimelineItems.map((item) => {
+                        const isTimelineMilestone =
+                          item.recordType === "incident" && item.isMilestone === true;
+                        return (
+                          <div
+                            key={`${item.recordType}-${item.id}`}
+                            className={`grid gap-3 rounded-xl border p-3 shadow-sm sm:grid-cols-[7.5rem_1fr] ${
+                              isTimelineMilestone
+                                ? "border-amber-300 border-l-4 bg-amber-50/50 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]"
+                                : "border-neutral-200 bg-white"
+                            }`}
+                          >
+                            <div className="text-xs font-semibold text-neutral-500">
+                              {item.date || "No date"}
                             </div>
-                            {item.summary ? (
-                              <p className="mt-1 text-sm leading-5 text-neutral-600">{item.summary}</p>
-                            ) : (
-                              <p className="mt-1 text-sm text-neutral-400">No summary yet.</p>
-                            )}
+                            <div className="min-w-0">
+                              {isTimelineMilestone && (
+                                <div className="mb-2">
+                                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-700">
+                                    Milestone
+                                  </span>
+                                </div>
+                              )}
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className={`rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${badgeClassMap[item.recordType] || "border-neutral-200 bg-neutral-50 text-neutral-600"}`}>
+                                  {labelMap[item.recordType] || item.recordType}
+                                </span>
+                                {detailLabelMap[item.typeDetail] && detailLabelMap[item.typeDetail] !== labelMap[item.recordType] && (
+                                  <span className="rounded-md border border-neutral-200 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                                    {detailLabelMap[item.typeDetail]}
+                                  </span>
+                                )}
+                                <h4 className="min-w-0 flex-1 truncate text-sm font-semibold text-neutral-900">
+                                  {item.title}
+                                </h4>
+                              </div>
+                              {item.summary ? (
+                                <p className="mt-1 text-sm leading-5 text-neutral-600">{item.summary}</p>
+                              ) : (
+                                <p className="mt-1 text-sm text-neutral-400">No summary yet.</p>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   );
                 })()}

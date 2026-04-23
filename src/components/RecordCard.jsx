@@ -32,6 +32,8 @@ export default function RecordCard({
   isActionItem = false,
 }) {
   const isEvidence = recordType === "evidence";
+  const isIncident = recordType === "incidents";
+  const isIncidentMilestone = isIncident && (!!item.isMilestone || !!isMilestone);
   const incidentLinkGroups = recordType === "incidents" ? getIncidentLinkGroups(selectedCase, item.id) : null;
   const canCreateTask = ["evidence", "incidents", "strategy"].includes(recordType);
   const isNewRecord =
@@ -90,9 +92,11 @@ export default function RecordCard({
 
   return (
     <div key={item.id} id={`record-${item.id}`} className={`relative rounded-2xl border p-4 ${
-      isNewRecord
-        ? "border-lime-400 bg-lime-50/40 shadow-[0_0_0_1px_rgba(163,230,53,0.35)]"
-        : "border-neutral-200 bg-neutral-50"
+      isIncidentMilestone
+        ? "border-amber-300 border-l-4 bg-amber-50/50 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]"
+        : isNewRecord
+          ? "border-lime-400 bg-lime-50/40 shadow-[0_0_0_1px_rgba(163,230,53,0.35)]"
+          : "border-neutral-200 bg-neutral-50"
     }`}>
       {/* Action Grid */}
       <div className="absolute top-3 right-3 grid grid-cols-2 gap-1 z-10">
@@ -141,13 +145,15 @@ export default function RecordCard({
                 ) : null}
               </div>
             )}
-            {isMilestone && (
-              <div className="mb-1 inline-block rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-lime-100 text-lime-700">
-                Milestone
+            {isIncidentMilestone && (
+              <div className="mb-2">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-700">
+                  Milestone
+                </span>
               </div>
             )}
             {isActionItem && (
-              <div className={`mb-1 inline-block rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 ${isMilestone ? "ml-1" : ""}`}>
+              <div className={`mb-1 inline-block rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 ${isIncidentMilestone ? "ml-1" : ""}`}>
                 Action Required
               </div>
             )}

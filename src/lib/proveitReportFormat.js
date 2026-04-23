@@ -11,11 +11,50 @@ Rules:
 - Do not add text after the last section
 - For list sections, use only bullet lines starting with "- "
 - For issue sections, repeat the ISSUE block as needed
+- CRITICAL INSTRUCTION:
+- You are provided with a data block named [MILESTONE_TIMELINE_DATA].
+- If [MILESTONE_TIMELINE_DATA] is not "None", you MUST create the section:
+- # MILESTONE_TIMELINE
+- You MUST use ONLY the items from [MILESTONE_TIMELINE_DATA] to populate this section.
+- If [MILESTONE_TIMELINE_DATA] is "None", you MUST NOT include the section.
+- YOUR_SITUATION: brief context only, with no detailed chronology
+- AT_A_GLANCE: bullet list only, with 3-4 bullets maximum, short and factual, no legal wording, and no repetition of full issue explanations
+- WHAT_THIS_REPORT_SHOWS: high-level conclusions only, with no timeline repetition
+- ISSUE / WHAT_HAPPENED: explain the issue itself, without repeating the full milestone timeline
+- Rules for KEY_PROOF:
+- Each KEY_PROOF bullet must identify the proof clearly and specifically
+- Prefer concrete proof naming over vague statements
+- Each bullet should make clear what the proof is and why it matters
+- Avoid vague filler such as "This shows...", "It can be seen that...", or "This confirms clearly..."
+- Prefer formats like "Document: Signed overtime approval for 10-15 February 2026", "Record: Medical consultation note following high-intensity work period", or "Log: Work and rest chronology covering February 2026"
+- Keep bullets concise and factual
+- No legal conclusions
+- When possible, begin KEY_PROOF bullets with a simple proof type label such as Document:, Record:, Log:, Email:, Message:, or Photo:
+- Do this only when supported by the provided facts
+- Do not invent proof types
+- Rules for MILESTONE_TIMELINE:
+- Only include this section if [MILESTONE_TIMELINE_DATA] is provided and not "None"
+- Place it after WHAT_THIS_REPORT_SHOWS
+- Use only bullet lines starting with "- "
+- Use ONLY the entries from [MILESTONE_TIMELINE_DATA]
+- Each bullet must be short, factual, and non-analytical
+- Preferred format: <date> - <short event title>: <very short clarification (optional)>
+- Maximum one short sentence per bullet
+- Do not repeat full ISSUE explanations
+- Do not include legal wording
+- Do not turn bullets into paragraphs
+- Keep the whole section concise
 
 ProveIt Report Format v1:
 
 # REPORT_TITLE
 Client Report
+
+# AT_A_GLANCE
+- <main problem in one line>
+- <time period or duration>
+- <current status>
+- <most important impact>
 
 # YOUR_SITUATION
 <2-4 short sentences>
@@ -27,6 +66,10 @@ Client Report
 # WHAT_THIS_REPORT_SHOWS
 - <item>
 - <item>
+
+# MILESTONE_TIMELINE
+- <date> - <event title>: <short explanation>
+- <event title>
 
 # ISSUE
 <issue title>
@@ -99,9 +142,11 @@ function detectReportSection(rawLine, currentTop = null) {
 
   const mappings = [
     { section: "REPORT_TITLE", keywords: ["report title"] },
+    { section: "AT_A_GLANCE", keywords: ["at a glance"] },
     { section: "YOUR_SITUATION", keywords: ["your situation", "situation"] },
     { section: "MAIN_AREAS_OF_CONCERN", keywords: ["main areas of concern", "main areas", "areas of concern"] },
     { section: "WHAT_THIS_REPORT_SHOWS", keywords: ["what this report shows", "report shows"] },
+    { section: "MILESTONE_TIMELINE", keywords: ["milestone timeline", "milestones", "timeline milestones"] },
     { section: "ISSUE", keywords: ["issue"] },
     { section: "WHAT_HAPPENED", keywords: ["what happened", "happened"] },
     { section: "KEY_PROOF", keywords: ["key proof", "proof"] },
@@ -111,7 +156,10 @@ function detectReportSection(rawLine, currentTop = null) {
   ];
 
   const match = mappings.find(({ keywords }) =>
-    keywords.some((keyword) => normalized === keyword || normalized.startsWith(`${keyword} `))
+    keywords.some((keyword) => {
+      if (normalized === keyword) return true;
+      return keyword.includes(" ") && normalized.startsWith(`${keyword} `);
+    })
   );
 
   if (!match) return null;
@@ -141,22 +189,20 @@ function parseBulletList(lines) {
     .map((line) => normalizeWhitespace(line))
     .filter(Boolean);
 
-  const explicitBullets = normalizedLines
-    .filter((line) => /^(-|\*|•)\s+/.test(line))
+  return normalizedLines
     .map((line) => line.replace(/^(-|\*|•)\s+/, "").trim())
     .filter(Boolean);
-
-  if (explicitBullets.length > 0) return explicitBullets;
-  return normalizedLines;
 }
 
 export function parseProveItReportV1(input) {
   const text = safeText(input).replace(/\r\n/g, "\n");
   const report = {
     reportTitle: "",
+    atAGlance: [],
     yourSituation: "",
     mainAreasOfConcern: [],
     whatThisReportShows: [],
+    milestoneTimeline: [],
     issues: [],
     keyFacts: [],
     recommendedNextSteps: [],
@@ -175,12 +221,16 @@ export function parseProveItReportV1(input) {
 
     if (currentTop === "REPORT_TITLE") {
       report.reportTitle = compactParagraph(buffer);
+    } else if (currentTop === "AT_A_GLANCE") {
+      report.atAGlance = parseBulletList(buffer);
     } else if (currentTop === "YOUR_SITUATION") {
       report.yourSituation = compactParagraph(buffer);
     } else if (currentTop === "MAIN_AREAS_OF_CONCERN") {
       report.mainAreasOfConcern = parseBulletList(buffer);
     } else if (currentTop === "WHAT_THIS_REPORT_SHOWS") {
       report.whatThisReportShows = parseBulletList(buffer);
+    } else if (currentTop === "MILESTONE_TIMELINE") {
+      report.milestoneTimeline = parseBulletList(buffer);
     } else if (currentTop === "KEY_FACTS") {
       report.keyFacts = parseBulletList(buffer);
     } else if (currentTop === "RECOMMENDED_NEXT_STEPS") {
@@ -244,6 +294,10 @@ export function parseProveItReportV1(input) {
       setTopSection("REPORT_TITLE");
       continue;
     }
+    if (detectedSection === "AT_A_GLANCE") {
+      setTopSection("AT_A_GLANCE");
+      continue;
+    }
     if (detectedSection === "YOUR_SITUATION") {
       setTopSection("YOUR_SITUATION");
       continue;
@@ -254,6 +308,10 @@ export function parseProveItReportV1(input) {
     }
     if (detectedSection === "WHAT_THIS_REPORT_SHOWS") {
       setTopSection("WHAT_THIS_REPORT_SHOWS");
+      continue;
+    }
+    if (detectedSection === "MILESTONE_TIMELINE") {
+      setTopSection("MILESTONE_TIMELINE");
       continue;
     }
     if (detectedSection === "ISSUE") {

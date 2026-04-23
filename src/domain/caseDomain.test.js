@@ -273,6 +273,24 @@ test("normalizeRecord preserves and dedupes incident linkedRecordIds", () => {
   assert.deepEqual(record.linkedRecordIds, ["doc-1", "doc-2"]);
 });
 
+test("normalizeRecord defaults incident milestone to false and preserves true values", () => {
+  const defaultIncident = normalizeRecord({
+    id: "inc-1",
+    title: "Incident",
+    date: "2024-04-01",
+  }, "incidents");
+
+  const milestoneIncident = normalizeRecord({
+    id: "inc-2",
+    title: "Milestone incident",
+    date: "2024-04-02",
+    isMilestone: true,
+  }, "incidents");
+
+  assert.equal(defaultIncident.isMilestone, false);
+  assert.equal(milestoneIncident.isMilestone, true);
+});
+
 test("normalizeCase builds the current canonical shape and sorts timeline arrays", () => {
   const normalized = normalizeCase({
     id: "case-1",

@@ -159,6 +159,14 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
       title: t.title,
       description: t.description ? t.description.substring(0, 300) : "",
     }));
+  const milestoneTimeline = sortTimelineItems(
+    (c.incidents || []).filter((incident) => !!incident?.isMilestone)
+  ).map((incident) => ({
+    id: incident.id,
+    date: incident.eventDate || incident.date || "",
+    title: incident.title || "",
+    summary: ((incident.description || incident.summary || "").substring(0, 220)).trim(),
+  }));
 
   const resolveLinkedRecords = (linkedRecordIds, mapper) => (Array.isArray(linkedRecordIds) ? linkedRecordIds : [])
     .map((recordId) => getRecordDisplayMeta(c, recordId))
@@ -615,6 +623,7 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
         : (c.incidents || []).slice(0, limits.facts).map(i => i.title).filter(Boolean),
       activeIssues,
       recentTimeline,
+      milestoneTimeline,
       incidentSummary,
       openTasks,
       strategy: {

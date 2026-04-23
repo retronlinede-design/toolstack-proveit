@@ -59,6 +59,7 @@ const EMPTY_RECORD_FORM = {
   linkedIncidentIds: [], // Added for evidence
   linkedEvidenceIds: [], // Added for incidents
   linkedIncidentRefs: [],
+  isMilestone: false,
   importance: "unreviewed",
   relevance: "medium",
   status: "needs_review",
@@ -1611,13 +1612,26 @@ const handleRecordFiles = async (event) => {
     });
   };
 
-  const saveRecord = async () => {
-    if (!selectedCase || !recordType || !recordForm.title.trim()) return;
+  const saveRecord = async (payload = recordForm) => {
+    if (!selectedCase || !recordType || !payload.title.trim()) return;
     
     let updatedCase;
     const shouldShowIssueFeedback = recordOpenedFromIssue;
+    const normalizedPayload = {
+      ...payload,
+      isMilestone: !!payload.isMilestone,
+    };
+    console.log("PAYLOAD", normalizedPayload);
 
-    updatedCase = upsertRecordInCase(selectedCase, recordType, recordForm, editingRecord);
+    updatedCase = upsertRecordInCase(selectedCase, recordType, normalizedPayload, editingRecord);
+    const savedRecordId = editingRecord?.id || normalizedPayload.id;
+    const savedCollection = Array.isArray(updatedCase?.[recordType]) ? updatedCase[recordType] : [];
+    const updatedIncident = recordType === "incidents"
+      ? savedCollection.find((item) => item.id === savedRecordId) || savedCollection[0]
+      : null;
+    if (recordType === "incidents") {
+      console.log("SAVED", updatedIncident);
+    }
 
     setCases((prev) =>
       prev.map((c) =>
