@@ -86,3 +86,53 @@ The heating stopped repeatedly.
   assert.deepEqual(parsed.keyFacts, ["Ongoing issue"]);
   assert.deepEqual(parsed.mainAreasOfConcern, []);
 });
+
+test("parseProveItReportV1 tolerates flexible headings and fallback list lines", () => {
+  const parsed = parseProveItReportV1(`
+Noise before the report should be ignored.
+
+## Your Situation
+The main problem has continued for several weeks.
+
+Main Areas of Concern
+* Lack of rest
+• Medical impact
+
+What This Report Shows
+The work pattern remained unsafe.
+The condition was confirmed formally.
+
+Issue
+Back-to-back duties
+
+What Happened
+Several duties were placed too close together.
+
+Key Proof
+Roster timings show the pattern.
+Messages confirm the instruction.
+
+What This Means
+The work pattern did not allow enough rest.
+
+Key Facts
+Issue duration: 3 weeks
+
+Next Steps
+Request written instructions.
+`);
+
+  assert.equal(parsed.yourSituation, "The main problem has continued for several weeks.");
+  assert.deepEqual(parsed.mainAreasOfConcern, ["Lack of rest", "Medical impact"]);
+  assert.deepEqual(parsed.whatThisReportShows, [
+    "The work pattern remained unsafe.",
+    "The condition was confirmed formally.",
+  ]);
+  assert.equal(parsed.issues.length, 1);
+  assert.equal(parsed.issues[0].title, "Back-to-back duties");
+  assert.deepEqual(parsed.issues[0].keyProof, [
+    "Roster timings show the pattern.",
+    "Messages confirm the instruction.",
+  ]);
+  assert.deepEqual(parsed.recommendedNextSteps, ["Request written instructions."]);
+});
