@@ -11,6 +11,11 @@ Rules:
 - Do not add text after the last section
 - For list sections, use only bullet lines starting with "- "
 - For issue sections, repeat the ISSUE block as needed
+- SECTION BOUNDARY RULES:
+- Each section must do a different job
+- Do not repeat the same information across multiple sections unless essential
+- Prefer one strong mention in the best-fitting section over repeating the same point elsewhere
+- Keep the report concise and readable
 - CRITICAL INSTRUCTION:
 - You are provided with a data block named [MILESTONE_TIMELINE_DATA].
 - If [MILESTONE_TIMELINE_DATA] is not "None", you MUST create the section:
@@ -19,10 +24,27 @@ Rules:
 - If [MILESTONE_TIMELINE_DATA] is "None", you MUST NOT include the section.
 - [MILESTONE_TIMELINE_DATA] may contain both Incident and Evidence milestone entries.
 - Use the provided entries to create one chronological MILESTONE_TIMELINE section.
-- YOUR_SITUATION: brief context only, with no detailed chronology
-- AT_A_GLANCE: bullet list only, with 3-4 bullets maximum, short and factual, no legal wording, and no repetition of full issue explanations
-- WHAT_THIS_REPORT_SHOWS: high-level conclusions only, with no timeline repetition
-- ISSUE / WHAT_HAPPENED: explain the issue itself, without repeating the full milestone timeline
+- AT_A_GLANCE:
+- Instant summary only
+- 3-4 bullets maximum
+- No detailed explanation
+- No timeline detail
+- No proof detail
+- YOUR_SITUATION:
+- Short context only
+- No detailed chronology
+- No recommendation language
+- No repetition of AT_A_GLANCE bullets
+- MAIN_AREAS_OF_CONCERN:
+- Broad concern categories only
+- Not evidence
+- Not mini-issues
+- Not conclusions
+- WHAT_THIS_REPORT_SHOWS:
+- High-level conclusions only
+- No timeline repetition
+- No detailed proof listing
+- No recommendation language
 - Rules for KEY_PROOF:
 - Each KEY_PROOF bullet must identify the proof clearly and specifically
 - Prefer concrete proof naming over vague statements
@@ -40,14 +62,63 @@ Rules:
 - Use only bullet lines starting with "- "
 - Use ONLY the entries from [MILESTONE_TIMELINE_DATA]
 - [MILESTONE_TIMELINE_DATA] may include both Incident and Evidence entries
+- Chronology only
 - Each bullet must be short, factual, and non-analytical
 - Preferred format: <date> - <short event title>: <very short clarification (optional)>
 - When useful, preserve the item type naturally in the wording, especially for evidence entries
 - Maximum one short sentence per bullet
-- Do not repeat full ISSUE explanations
+- No proof discussion
+- No issue explanation
 - Do not include legal wording
 - Do not turn bullets into paragraphs
 - Keep the whole section concise
+- ISSUE / WHAT_HAPPENED:
+- Explain the issue itself
+- Do not restate the full milestone timeline
+- Do not repeat AT_A_GLANCE or WHAT_THIS_REPORT_SHOWS verbatim
+- KEY_PROOF:
+- Proof only
+- Identify what the proof is and why it matters
+- No long explanation of the whole issue
+- WHAT_THIS_MEANS:
+- Impact and significance only
+- No re-listing of proof
+- No timeline repetition
+- KEY_FACTS:
+- Short reference facts only
+- No explanation
+- No conclusions
+- Rules for CURRENT_POSITION:
+- Must describe the present state of the case only
+- No timeline repetition
+- No legal advice
+- No duplication of full ISSUE blocks
+- Keep concise and factual
+- Should answer: "Where does the situation stand now?"
+- No recommendation language
+- No repetition of full issue content
+- RECOMMENDED_NEXT_STEPS:
+- Provide practical, real-world next actions based on the case facts
+- Focus on documentation, follow-up communication, record-keeping, and evidence collection
+- Each bullet must describe a clear action the client can take
+- Prefer concrete phrasing that makes clear what to do, what to request, and what to keep or record
+- Avoid vague advice such as "consider your options", "seek advice", or "be aware"
+- Avoid legal advice or legal conclusions
+- Do not restate the report or issues
+- Keep bullets concise and actionable
+- Each bullet should ideally follow: Action + Object + Context
+- Examples (instructional, not output): "Request written confirmation of overtime approval for the February 2026 period", "Keep copies of all communications regarding the mould issue in the OR", "Maintain a dated log of work hours, rest periods, and any related symptoms"
+- Where appropriate, order steps from most immediate to less urgent
+- Do not label urgency explicitly, but reflect it in ordering
+- Do not repeat items already clearly stated in KEY_FACTS or WHAT_THIS_REPORT_SHOWS
+- Do not rewrite issue descriptions as steps
+- Anti-duplication rules:
+- If a point is already clearly stated in MILESTONE_TIMELINE, do not restate it in detail in WHAT_THIS_REPORT_SHOWS or CURRENT_POSITION unless necessary for clarity.
+- If a proof item is already listed in KEY_PROOF, do not repeat the same wording in WHAT_THIS_REPORT_SHOWS.
+- Issue discipline:
+- Prefer fewer, stronger ISSUE blocks
+- Do not create an ISSUE block for every event
+- An ISSUE block should represent a meaningful problem, condition, or risk supported by the provided facts
 
 ProveIt Report Format v1:
 
@@ -107,6 +178,9 @@ Client Report
 - <item>
 - <item>
 
+# CURRENT_POSITION
+<2-3 short factual sentences>
+
 # RECOMMENDED_NEXT_STEPS
 - <item>
 - <item>`;
@@ -156,6 +230,7 @@ function detectReportSection(rawLine, currentTop = null) {
     { section: "KEY_PROOF", keywords: ["key proof", "proof"] },
     { section: "WHAT_THIS_MEANS", keywords: ["what this means", "this means"] },
     { section: "KEY_FACTS", keywords: ["key facts", "facts"] },
+    { section: "CURRENT_POSITION", keywords: ["current position", "present position", "current status"] },
     { section: "RECOMMENDED_NEXT_STEPS", keywords: ["recommended next steps", "next steps"] },
   ];
 
@@ -209,6 +284,7 @@ export function parseProveItReportV1(input) {
     milestoneTimeline: [],
     issues: [],
     keyFacts: [],
+    currentPosition: "",
     recommendedNextSteps: [],
   };
 
@@ -237,6 +313,8 @@ export function parseProveItReportV1(input) {
       report.milestoneTimeline = parseBulletList(buffer);
     } else if (currentTop === "KEY_FACTS") {
       report.keyFacts = parseBulletList(buffer);
+    } else if (currentTop === "CURRENT_POSITION") {
+      report.currentPosition = compactParagraph(buffer);
     } else if (currentTop === "RECOMMENDED_NEXT_STEPS") {
       report.recommendedNextSteps = parseBulletList(buffer);
     } else if (currentTop === "ISSUE" && currentIssue) {
@@ -324,6 +402,10 @@ export function parseProveItReportV1(input) {
     }
     if (detectedSection === "KEY_FACTS") {
       setTopSection("KEY_FACTS");
+      continue;
+    }
+    if (detectedSection === "CURRENT_POSITION") {
+      setTopSection("CURRENT_POSITION");
       continue;
     }
     if (detectedSection === "RECOMMENDED_NEXT_STEPS") {

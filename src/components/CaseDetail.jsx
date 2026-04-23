@@ -1620,6 +1620,7 @@ ${strategyFocus.join("\n") || "—"}`;
       parsedGeneratedReport.milestoneTimeline?.length > 0 ||
       parsedGeneratedReport.issues.length > 0 ||
       parsedGeneratedReport.keyFacts.length > 0 ||
+      parsedGeneratedReport.currentPosition ||
       parsedGeneratedReport.recommendedNextSteps.length > 0
     );
   }, [parsedGeneratedReport]);
@@ -1801,6 +1802,9 @@ ${formatBullets(
 )}
 
 AT_A_GLANCE_NOTE: Summarize the case in 3-4 quick bullets for an immediate overview.
+CURRENT_POSITION_NOTE: Summarize the current state of the case in 2-3 clear factual sentences.
+SECTION_FOCUS_NOTE: Keep each report section distinct. Avoid repeating the same timeline, proof, or conclusion across multiple sections.
+RECOMMENDED_NEXT_STEPS_NOTE: Focus on clear, practical actions the client can take now. Keep steps concrete, document-focused, and directly tied to the case facts.
 
 RECOMMENDED_NEXT_STEPS_CONTEXT:
 ${formatBullets(clientNextSteps)}
@@ -2094,6 +2098,17 @@ ${milestoneBlock}`;
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {parsedGeneratedReport.currentPosition && (
+        <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
+          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-4" : "pb-3"}`}>
+            <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>Current Position</h4>
+          </div>
+          <p className={`whitespace-pre-wrap text-neutral-700 ${isPackVariant ? "mt-5 text-[15px] leading-7" : "mt-4 text-sm leading-6"}`}>
+            {parsedGeneratedReport.currentPosition}
+          </p>
         </section>
       )}
 
