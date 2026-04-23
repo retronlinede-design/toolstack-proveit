@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import AttachmentPreview from "./AttachmentPreview";
 import { AlertCircle, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, ShieldCheck, X } from "lucide-react";
+import proveItHeaderLogo from "../assets/proveitheader.png";
 import { isTimelineCapable, getCaseHealthReport } from "../lib/caseHealth";
 import { getIncidentsUsingRecord } from "../domain/caseDomain.js";
 import { getRecordDisplayMeta, resolveRecordById } from "../domain/linkingResolvers.js";
@@ -1598,6 +1599,16 @@ ${strategyFocus.join("\n") || "—"}`;
     () => parseProveItReportV1(renderedReportText),
     [renderedReportText]
   );
+  const generatedReportLooksLikePrompt = useMemo(() => {
+    const text = safeText(generatedReportDraft).trim();
+    if (!text) return false;
+
+    return (
+      /^create a client-facing report/i.test(text) ||
+      /\bRules:\b/i.test(text) ||
+      /ProveIt Report Format v1:/i.test(text)
+    );
+  }, [generatedReportDraft]);
   const generatedReportHasVisibleContent = useMemo(() => {
     return Boolean(
       parsedGeneratedReport.reportTitle ||
@@ -1643,6 +1654,152 @@ ${strategyFocus.join("\n") || "—"}`;
       generatedReportText: nextText,
       updatedAt: new Date().toISOString(),
     });
+  };
+  const renderGeneratedReportArticle = (className = "", variant = "default") => {
+    const isPackVariant = variant === "pack";
+
+    return (
+    <article className={className}>
+      <header className={`flex items-start justify-between gap-6 border-b border-neutral-200 ${isPackVariant ? "pb-7 print:pb-6" : "pb-6"}`}>
+        <div className="min-w-0">
+          <div className={`font-bold uppercase tracking-[0.18em] text-lime-700 ${isPackVariant ? "text-[11px]" : "text-xs"}`}>
+            Structured Report
+          </div>
+          <h1 className={`mt-2 font-bold leading-tight text-neutral-950 ${isPackVariant ? "text-4xl print:text-[2rem]" : "text-3xl"}`}>
+            {parsedGeneratedReport.reportTitle || "Client Report"}
+          </h1>
+        </div>
+        <img
+          src={proveItHeaderLogo}
+          alt="ProveIt"
+          className="h-12 w-auto max-w-[12rem] shrink-0 object-contain print:h-10"
+        />
+      </header>
+
+      {parsedGeneratedReport.yourSituation && (
+        <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6 first:pt-7" : "py-6"} first:border-t-0 first:pt-6`}>
+          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-4" : "pb-3"}`}>
+            <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>Your Situation</h4>
+          </div>
+          <p className={`whitespace-pre-wrap text-neutral-700 ${isPackVariant ? "mt-5 text-[15px] leading-7" : "mt-4 text-sm leading-6"}`}>
+            {parsedGeneratedReport.yourSituation}
+          </p>
+        </section>
+      )}
+
+      {parsedGeneratedReport.mainAreasOfConcern.length > 0 && (
+        <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
+          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-4" : "pb-3"}`}>
+            <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>Main Areas Of Concern</h4>
+          </div>
+          <ul className={`list-disc pl-5 ${isPackVariant ? "mt-5 space-y-3.5" : "mt-4 space-y-3"}`}>
+            {parsedGeneratedReport.mainAreasOfConcern.map((item) => (
+              <li key={item} className={`text-neutral-700 marker:text-neutral-400 ${isPackVariant ? "text-[15px] leading-7" : "text-sm leading-6"}`}>
+                {item}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {parsedGeneratedReport.whatThisReportShows.length > 0 && (
+        <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
+          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-4" : "pb-3"}`}>
+            <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>What This Report Shows</h4>
+          </div>
+          <ul className={`list-disc pl-5 ${isPackVariant ? "mt-5 space-y-3.5" : "mt-4 space-y-3"}`}>
+            {parsedGeneratedReport.whatThisReportShows.map((item) => (
+              <li key={item} className={`text-lime-950 marker:text-lime-700 ${isPackVariant ? "text-[15px] leading-7" : "text-sm leading-6"}`}>
+                {item}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {parsedGeneratedReport.issues.length > 0 && (
+        <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
+          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-4" : "pb-3"}`}>
+            <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>Issue Sections</h4>
+          </div>
+          <div className={`${isPackVariant ? "mt-6 space-y-7" : "mt-4 space-y-5"}`}>
+            {parsedGeneratedReport.issues.map((issue, index) => (
+              <section
+                key={`${issue.title || "issue"}-${index}`}
+                className={`rounded-2xl border border-neutral-200 bg-neutral-50 ${isPackVariant ? "p-6 shadow-sm" : "p-5"}`}
+              >
+                <div className={`border-b border-neutral-200 ${isPackVariant ? "pb-4" : "pb-3"}`}>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Issue</div>
+                  <h5 className={`mt-2 font-semibold text-neutral-950 ${isPackVariant ? "text-2xl" : "text-xl"}`}>
+                    {issue.title || "Untitled issue"}
+                  </h5>
+                </div>
+
+                {issue.whatHappened && (
+                  <div className={isPackVariant ? "mt-5" : "mt-4"}>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">What happened</div>
+                    <p className={`mt-2 text-neutral-700 ${isPackVariant ? "text-[15px] leading-7" : "text-sm leading-6"}`}>{issue.whatHappened}</p>
+                  </div>
+                )}
+
+                {issue.keyProof.length > 0 && (
+                  <div className={`rounded-xl border border-neutral-200 bg-white ${isPackVariant ? "mt-6 p-5" : "mt-5 p-4"}`}>
+                    <h6 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Key proof</h6>
+                    <ul className={`list-disc pl-5 text-neutral-700 ${isPackVariant ? "mt-4 space-y-2.5 text-[15px] leading-7" : "mt-3 space-y-2 text-sm leading-6"}`}>
+                      {issue.keyProof.map((item) => (
+                        <li key={item} className="marker:text-neutral-400">{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {issue.whatThisMeans.length > 0 && (
+                  <div className={`rounded-xl border border-lime-200 bg-lime-50 ${isPackVariant ? "mt-6 p-5" : "mt-5 p-4"}`}>
+                    <h6 className="text-xs font-bold uppercase tracking-wider text-lime-800">What this means</h6>
+                    <ul className={`list-disc pl-5 text-lime-950 ${isPackVariant ? "mt-4 space-y-2.5 text-[15px] leading-7" : "mt-3 space-y-2 text-sm leading-6"}`}>
+                      {issue.whatThisMeans.map((item) => (
+                        <li key={item} className="marker:text-lime-700">{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </section>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {parsedGeneratedReport.keyFacts.length > 0 && (
+        <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
+          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-4" : "pb-3"}`}>
+            <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>Key Facts</h4>
+          </div>
+          <ul className={`list-disc pl-5 ${isPackVariant ? "mt-5 space-y-3.5" : "mt-4 space-y-3"}`}>
+            {parsedGeneratedReport.keyFacts.map((item) => (
+              <li key={item} className={`text-neutral-700 marker:text-neutral-400 ${isPackVariant ? "text-[15px] leading-7" : "text-sm leading-6"}`}>
+                {item}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {parsedGeneratedReport.recommendedNextSteps.length > 0 && (
+        <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
+          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-4" : "pb-3"}`}>
+            <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>Recommended Next Steps</h4>
+          </div>
+          <ul className={`list-disc pl-5 ${isPackVariant ? "mt-5 space-y-3.5" : "mt-4 space-y-3"}`}>
+            {parsedGeneratedReport.recommendedNextSteps.map((item) => (
+              <li key={item} className={`text-neutral-700 marker:text-neutral-400 ${isPackVariant ? "text-[15px] leading-7" : "text-sm leading-6"}`}>
+                {item}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </article>
+  );
   };
 
   return (
@@ -2242,7 +2399,7 @@ ${strategyFocus.join("\n") || "—"}`;
                         onClick={copyGeneratedReportPrompt}
                         className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
                       >
-                        Copy GPT Prompt
+                        Copy Prompt for GPT
                       </button>
                       {reportPromptFeedback ? (
                         <p className="text-xs font-medium text-neutral-500">{reportPromptFeedback}</p>
@@ -2253,9 +2410,9 @@ ${strategyFocus.join("\n") || "—"}`;
 
                 <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
                   <div className="border-b border-neutral-100 pb-3">
-                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Paste Structured Report</h4>
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Paste GPT-Generated Report Output</h4>
                     <p className="mt-1 text-sm text-neutral-600">
-                      Paste a report generated by the ProveIt Assistant using the copied format above.
+                      Paste the GPT-generated report here. Do not paste the prompt itself. The pasted text should begin with `# REPORT_TITLE` and the report title section.
                     </p>
                   </div>
                   <textarea
@@ -2265,6 +2422,11 @@ ${strategyFocus.join("\n") || "—"}`;
                     className="mt-4 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 font-mono text-sm leading-6 text-neutral-800 outline-none transition-colors focus:border-lime-500 focus:bg-white"
                     placeholder={`# REPORT_TITLE\nClient Report\n\n# YOUR_SITUATION\n...`}
                   />
+                  {generatedReportLooksLikePrompt && (
+                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+                      This looks like the GPT prompt, not the generated report output. Paste the report that GPT returned, starting with `# REPORT_TITLE`.
+                    </div>
+                  )}
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                     <p className="text-xs text-neutral-500">
                       The parser reads only the known ProveIt Report Format v1 sections and ignores everything else.
@@ -2289,139 +2451,7 @@ ${strategyFocus.join("\n") || "—"}`;
                       No report content is rendered yet. Paste a ProveIt Report Format v1 response and use Render Report.
                     </div>
                   ) : (
-                    <article className="mt-4 mx-auto max-w-4xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm">
-                      <header className="border-b border-neutral-200 pb-6">
-                        <div className="text-xs font-bold uppercase tracking-[0.18em] text-lime-700">
-                          Structured Report
-                        </div>
-                        <h1 className="mt-2 text-3xl font-bold leading-tight text-neutral-950">
-                          {parsedGeneratedReport.reportTitle || "Client Report"}
-                        </h1>
-                      </header>
-
-                      {parsedGeneratedReport.yourSituation && (
-                        <section className="border-t border-neutral-200 py-6 first:border-t-0 first:pt-6">
-                          <div className="border-b border-neutral-100 pb-3">
-                            <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Your Situation</h4>
-                          </div>
-                          <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-neutral-700">
-                            {parsedGeneratedReport.yourSituation}
-                          </p>
-                        </section>
-                      )}
-
-                      {parsedGeneratedReport.mainAreasOfConcern.length > 0 && (
-                        <section className="border-t border-neutral-200 py-6">
-                          <div className="border-b border-neutral-100 pb-3">
-                            <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Main Areas Of Concern</h4>
-                          </div>
-                          <ul className="mt-4 space-y-3">
-                            {parsedGeneratedReport.mainAreasOfConcern.map((item) => (
-                              <li key={item} className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-700">
-                                {item}
-                              </li>
-                            ))}
-                          </ul>
-                        </section>
-                      )}
-
-                      {parsedGeneratedReport.whatThisReportShows.length > 0 && (
-                        <section className="border-t border-neutral-200 py-6">
-                          <div className="border-b border-neutral-100 pb-3">
-                            <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">What This Report Shows</h4>
-                          </div>
-                          <ul className="mt-4 space-y-3">
-                            {parsedGeneratedReport.whatThisReportShows.map((item) => (
-                              <li key={item} className="rounded-xl border border-lime-200 bg-lime-50 p-4 text-sm leading-6 text-lime-950">
-                                {item}
-                              </li>
-                            ))}
-                          </ul>
-                        </section>
-                      )}
-
-                      {parsedGeneratedReport.issues.length > 0 && (
-                        <section className="border-t border-neutral-200 py-6">
-                          <div className="border-b border-neutral-100 pb-3">
-                            <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Issue Sections</h4>
-                          </div>
-                          <div className="mt-4 space-y-5">
-                            {parsedGeneratedReport.issues.map((issue, index) => (
-                              <section
-                                key={`${issue.title || "issue"}-${index}`}
-                                className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5"
-                              >
-                                <div className="border-b border-neutral-200 pb-3">
-                                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Issue</div>
-                                  <h5 className="mt-2 text-xl font-semibold text-neutral-950">
-                                    {issue.title || "Untitled issue"}
-                                  </h5>
-                                </div>
-
-                                {issue.whatHappened && (
-                                  <div className="mt-4">
-                                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">What happened</div>
-                                    <p className="mt-2 text-sm leading-6 text-neutral-700">{issue.whatHappened}</p>
-                                  </div>
-                                )}
-
-                                {issue.keyProof.length > 0 && (
-                                  <div className="mt-5 rounded-xl border border-neutral-200 bg-white p-4">
-                                    <h6 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Key proof</h6>
-                                    <ul className="mt-3 space-y-2 text-sm leading-6 text-neutral-700">
-                                      {issue.keyProof.map((item) => (
-                                        <li key={item}>- {item}</li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                )}
-
-                                {issue.whatThisMeans.length > 0 && (
-                                  <div className="mt-5 rounded-xl border border-lime-200 bg-lime-50 p-4">
-                                    <h6 className="text-xs font-bold uppercase tracking-wider text-lime-800">What this means</h6>
-                                    <ul className="mt-3 space-y-2 text-sm leading-6 text-lime-950">
-                                      {issue.whatThisMeans.map((item) => (
-                                        <li key={item}>- {item}</li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                )}
-                              </section>
-                            ))}
-                          </div>
-                        </section>
-                      )}
-
-                      {parsedGeneratedReport.keyFacts.length > 0 && (
-                        <section className="border-t border-neutral-200 py-6">
-                          <div className="border-b border-neutral-100 pb-3">
-                            <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Key Facts</h4>
-                          </div>
-                          <ul className="mt-4 space-y-3">
-                            {parsedGeneratedReport.keyFacts.map((item) => (
-                              <li key={item} className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-700">
-                                {item}
-                              </li>
-                            ))}
-                          </ul>
-                        </section>
-                      )}
-
-                      {parsedGeneratedReport.recommendedNextSteps.length > 0 && (
-                        <section className="border-t border-neutral-200 py-6">
-                          <div className="border-b border-neutral-100 pb-3">
-                            <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Recommended Next Steps</h4>
-                          </div>
-                          <ul className="mt-4 space-y-3">
-                            {parsedGeneratedReport.recommendedNextSteps.map((item) => (
-                              <li key={item} className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-700">
-                                {item}
-                              </li>
-                            ))}
-                          </ul>
-                        </section>
-                      )}
-                    </article>
+                    renderGeneratedReportArticle("mt-4 mx-auto max-w-4xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm")
                   )}
                 </section>
               </div>
@@ -3734,7 +3764,13 @@ ${strategyFocus.join("\n") || "—"}`;
                 )}
                 </article>
                 )}
-                {reportMode === "client" && (
+                {reportMode === "client" && generatedReportHasVisibleContent && (
+                  renderGeneratedReportArticle(
+                    "print-pack-article mx-auto max-w-4xl rounded-2xl border border-neutral-200 bg-white px-7 py-8 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none",
+                    "pack"
+                  )
+                )}
+                {reportMode === "client" && !generatedReportHasVisibleContent && (
                   <article className="print-pack-article mx-auto max-w-4xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
                     <header className="print-pack-header break-inside-avoid border-b border-neutral-200 pb-6 print:pb-5">
                       <div className="text-xs font-bold uppercase tracking-[0.18em] text-lime-700">Client Report</div>
