@@ -130,6 +130,13 @@ export async function deleteImage(imageId) {
   return db.delete("images", imageId);
 }
 
+export async function deleteImages(imageIds = []) {
+  const uniqueImageIds = [...new Set((imageIds || []).filter(Boolean))];
+  for (const imageId of uniqueImageIds) {
+    await deleteImage(imageId);
+  }
+}
+
 export async function getImageById(id) {
   const db = await getDb();
   return db.get("images", id);

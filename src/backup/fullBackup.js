@@ -82,7 +82,7 @@ export async function buildFullBackupQuickCapture(capture, deps = {}) {
   return cloned;
 }
 
-export async function restoreFullBackupAttachment(att, ownerId, { saveImage, generateId } = {}) {
+export async function restoreFullBackupAttachment(att, ownerId, { saveImage, generateId, restoreStats, caseRestoreKey } = {}) {
   if (!att) return att;
 
   const cloned = { ...att };
@@ -106,9 +106,23 @@ export async function restoreFullBackupAttachment(att, ownerId, { saveImage, gen
       type: "indexeddb",
       imageId,
     };
+    if (restoreStats && caseRestoreKey) {
+      if (!restoreStats.restoredImageIdsByCase) restoreStats.restoredImageIdsByCase = {};
+      if (!Array.isArray(restoreStats.restoredImageIdsByCase[caseRestoreKey])) {
+        restoreStats.restoredImageIdsByCase[caseRestoreKey] = [];
+      }
+      restoreStats.restoredImageIdsByCase[caseRestoreKey].push(imageId);
+    }
     // Remove backupDataUrl after restoring to keep the attachment clean
     delete cloned.backupDataUrl;
   } catch (err) {
+    if (restoreStats && Array.isArray(restoreStats.failedAttachments)) {
+      restoreStats.failedAttachments.push({
+        ownerId: ownerId || "",
+        attachmentId: att?.id || "",
+        name: att?.name || "",
+      });
+    }
     console.error("Failed to restore attachment to IndexedDB", att?.id, err);
   }
 
@@ -159,12 +173,17 @@ export async function restoreFullBackupCase(caseItem, deps = {}) {
   if (!caseItem) return caseItem;
 
   const cloned = { ...caseItem };
+  const caseRestoreKey = caseItem.id || deps.generateId?.() || `case-${Date.now()}`;
+  const scopedDeps = {
+    ...deps,
+    caseRestoreKey,
+  };
 
-  cloned.evidence = await Promise.all((caseItem.evidence || []).map((record) => restoreFullBackupRecord(record, deps)));
-  cloned.incidents = await Promise.all((caseItem.incidents || []).map((record) => restoreFullBackupRecord(record, deps)));
-  cloned.tasks = await Promise.all((caseItem.tasks || []).map((record) => restoreFullBackupRecord(record, deps)));
-  cloned.strategy = await Promise.all((caseItem.strategy || []).map((record) => restoreFullBackupRecord(record, deps)));
-  cloned.documents = await Promise.all((caseItem.documents || []).map((doc) => restoreFullBackupDocument(doc, deps)));
+  cloned.evidence = await Promise.all((caseItem.evidence || []).map((record) => restoreFullBackupRecord(record, scopedDeps)));
+  cloned.incidents = await Promise.all((caseItem.incidents || []).map((record) => restoreFullBackupRecord(record, scopedDeps)));
+  cloned.tasks = await Promise.all((caseItem.tasks || []).map((record) => restoreFullBackupRecord(record, scopedDeps)));
+  cloned.strategy = await Promise.all((caseItem.strategy || []).map((record) => restoreFullBackupRecord(record, scopedDeps)));
+  cloned.documents = await Promise.all((caseItem.documents || []).map((doc) => restoreFullBackupDocument(doc, scopedDeps)));
 
   return cloned;
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { getAllCases, saveCase, deleteCase, saveImage, getImageById } from "./storage";
+import { getAllCases, saveCase, deleteCase, saveImage, getImageById, collectEmbeddedCaseImageIds, deleteImages } from "./storage";
 import AttachmentPreview from "./components/AttachmentPreview";
 import RecordModal from "./components/RecordModal";
 import CaseDetail from "./components/CaseDetail";
@@ -20,10 +20,6 @@ import {
   ingestGptDelta,
   prepareGptDeltaPayloadForSelectedCase,
 } from "./gpt/gptDelta";
-import {
-  exportReasoningCaseToSupabase,
-  sendReasoningSnapshotToSupabase,
-} from "./integrations/supabaseCaseSync";
 import {
   convertQuickCaptureToRecord,
   deleteDocumentEntryFromCase,
@@ -319,6 +315,12 @@ async function fileToSerializable(file, recordId) {
   });
 }
 
+function getNewImageIdsForCaseUpdate(previousCase, nextCase) {
+  const previousIds = collectEmbeddedCaseImageIds(previousCase);
+  const nextIds = collectEmbeddedCaseImageIds(nextCase);
+  return [...nextIds].filter((imageId) => !previousIds.has(imageId));
+}
+
 export default function ProveItApp() {
   const [cases, setCases] = useState([]);
   const [loadingCases, setLoadingCases] = useState(true);
@@ -360,11 +362,6 @@ export default function ProveItApp() {
   const [recordOpenedFromIssue, setRecordOpenedFromIssue] = useState(false);
   const [recordIssueFeedback, setRecordIssueFeedback] = useState("");
   const [parentRecordForNewChild, setParentRecordForNewChild] = useState(null);
-  const [syncStatus, setSyncStatus] = useState("idle"); // idle, syncing, success, error
-  const [syncMessage, setSyncMessage] = useState("");
-
-  const [supabaseReasoningExportStatus, setSupabaseReasoningExportStatus] = useState("idle"); // idle, exporting, success, error
-  const [supabaseReasoningExportMessage, setSupabaseReasoningExportMessage] = useState("");
   const [showGptDeltaModal, setShowGptDeltaModal] = useState(false);
   const [gptDeltaText, setGptDeltaText] = useState("");
   const [gptDeltaError, setGptDeltaError] = useState("");
@@ -382,21 +379,18 @@ export default function ProveItApp() {
   const [documentPromptCopied, setDocumentPromptCopied] = useState(false);
   const [recordPromptCopied, setRecordPromptCopied] = useState(false);
   const [documentModalMode, setDocumentModalMode] = useState("document");
+  const [appNotice, setAppNotice] = useState(null);
 
-  const handleSendReasoningExportToSupabase = async () => {
-    if (!selectedCase) return;
-    setSupabaseReasoningExportStatus("exporting");
-    setSupabaseReasoningExportMessage("Preparing Supabase reasoning export...");
-    try {
-      await exportReasoningCaseToSupabase(selectedCase);
-      setSupabaseReasoningExportStatus("success");
-      setSupabaseReasoningExportMessage("Reasoning export sent to Supabase");
-    } catch (error) {
-      console.error("Supabase reasoning export failed", error);
-      setSupabaseReasoningExportStatus("error");
-      setSupabaseReasoningExportMessage(error.message || "Reasoning case export failed");
-    }
+  const showAppNotice = (tone, message) => {
+    if (!message) return;
+    setAppNotice({ tone, message, id: `${Date.now()}-${Math.random().toString(36).slice(2)}` });
   };
+
+  useEffect(() => {
+    if (!appNotice) return;
+    const timeout = window.setTimeout(() => setAppNotice(null), appNotice.tone === "error" ? 8000 : 6000);
+    return () => window.clearTimeout(timeout);
+  }, [appNotice]);
 
   const handleFullBackup = async () => {
     try {
@@ -415,9 +409,9 @@ export default function ProveItApp() {
           .slice(0, 10)}.json`
       );
 
-      console.log("FULL BACKUP exported");
     } catch (err) {
       console.error("FULL BACKUP failed", err);
+      showAppNotice("error", "Full backup failed.");
       alert("Full backup failed");
     }
   };
@@ -429,6 +423,7 @@ export default function ProveItApp() {
       return true;
     } catch (error) {
       console.error("Failed to update case", error);
+      showAppNotice("error", error.message || "Could not save case changes.");
       return false;
     }
   };
@@ -741,7 +736,7 @@ export default function ProveItApp() {
     setLedgerModalOpen(true);
   };
 
-  function deleteDocumentEntry(entryId) {
+  async function deleteDocumentEntry(entryId) {
     if (!selectedCaseId || !entryId) return;
 
     const confirmed = window.confirm("Delete this document?");
@@ -751,12 +746,16 @@ export default function ProveItApp() {
     if (!targetCase) return;
 
     const updatedCase = deleteDocumentEntryFromCase(targetCase, entryId);
-
-    saveCase(updatedCase);
-    setCases(prev => prev.map(c => (c.id === updatedCase.id ? updatedCase : c)));
+    try {
+      await saveCase(updatedCase);
+      setCases(prev => prev.map(c => (c.id === updatedCase.id ? updatedCase : c)));
+    } catch (error) {
+      console.error("Failed to delete document entry", error);
+      showAppNotice("error", error.message || "Could not delete this document.");
+    }
   }
 
-  function deleteLedgerEntry(entryId) {
+  async function deleteLedgerEntry(entryId) {
     if (!selectedCaseId || !entryId) return;
 
     const confirmed = window.confirm("Delete this ledger entry?");
@@ -766,9 +765,13 @@ export default function ProveItApp() {
     if (!targetCase) return;
 
     const updatedCase = deleteLedgerEntryFromCase(targetCase, entryId);
-
-    saveCase(updatedCase);
-    setCases(prev => prev.map(c => (c.id === updatedCase.id ? updatedCase : c)));
+    try {
+      await saveCase(updatedCase);
+      setCases(prev => prev.map(c => (c.id === updatedCase.id ? updatedCase : c)));
+    } catch (error) {
+      console.error("Failed to delete ledger entry", error);
+      showAppNotice("error", error.message || "Could not delete this ledger entry.");
+    }
   }
 
   const openDocumentModal = (preset = {}, documentId = null, mode = "document") => {
@@ -831,6 +834,7 @@ export default function ProveItApp() {
       window.setTimeout(() => setDocumentPromptCopied(false), 1800);
     } catch (error) {
       console.error("Failed to copy GPT prompt", error);
+      showAppNotice("error", "Could not copy the document GPT prompt.");
     }
   };
 
@@ -841,6 +845,7 @@ export default function ProveItApp() {
       window.setTimeout(() => setRecordPromptCopied(false), 1800);
     } catch (error) {
       console.error("Failed to copy record prompt", error);
+      showAppNotice("error", "Could not copy the record GPT prompt.");
     }
   };
 
@@ -851,13 +856,18 @@ export default function ProveItApp() {
     if (!currentCase) return;
 
     const updatedCase = upsertDocumentEntryInCase(currentCase, documentForm, editingDocumentId);
-
-    setCases((prev) => prev.map((c) => (c.id === currentCase.id ? updatedCase : c)));
+    const newImageIds = getNewImageIdsForCaseUpdate(currentCase, updatedCase);
 
     try {
       await saveCase(updatedCase);
+      setCases((prev) => prev.map((c) => (c.id === currentCase.id ? updatedCase : c)));
     } catch (error) {
       console.error("Failed to save document entry", error);
+      if (newImageIds.length > 0) {
+        await deleteImages(newImageIds);
+      }
+      showAppNotice("error", error.message || "Could not save this document.");
+      return;
     }
 
     closeDocumentModal();
@@ -909,38 +919,17 @@ export default function ProveItApp() {
 
     const updatedCase = upsertLedgerEntryInCase(currentCase, ledgerForm, editingLedgerId);
 
-    setCases((prev) => prev.map((c) => (c.id === currentCase.id ? updatedCase : c)));
-
     try {
       await saveCase(updatedCase);
+      setCases((prev) => prev.map((c) => (c.id === currentCase.id ? updatedCase : c)));
     } catch (error) {
       console.error("Failed to save ledger entry", error);
+      showAppNotice("error", error.message || "Could not save this ledger entry.");
+      return;
     }
 
     closeLedgerModal();
   };
-
-  const handleSendReasoningSnapshotToSupabase = async () => {
-    if (!selectedCase) return;
-    setSyncStatus("syncing");
-    setSyncMessage("Sending reasoning snapshot...");
-    try {
-      await sendReasoningSnapshotToSupabase(selectedCase);
-      setSyncStatus("success");
-      setSyncMessage("Reasoning snapshot sent");
-    } catch (error) {
-      console.error("Sync failed", error);
-      setSyncStatus("error");
-      setSyncMessage(error.message || "Reasoning snapshot send failed");
-    }
-  };
-
-  useEffect(() => {
-    setSyncStatus("idle");
-    setSyncMessage("");
-    setSupabaseReasoningExportStatus("idle");
-    setSupabaseReasoningExportMessage("");
-  }, [selectedCaseId]);
 
   const relatedTasksForViewing = viewingRecord ? (selectedCase?.tasks || []).filter(t => 
     t.linkedRecordIds?.includes(viewingRecord.id)
@@ -1101,6 +1090,9 @@ export default function ProveItApp() {
         }
       } catch (error) {
         console.error("Failed to load cases", error);
+        if (mounted) {
+          showAppNotice("error", "Could not load saved cases.");
+        }
       } finally {
         if (mounted) {
           setLoadingCases(false);
@@ -1191,6 +1183,7 @@ export default function ProveItApp() {
       downloadJson(payload, `proveit-export-${new Date().toISOString().slice(0, 10)}.json`, { space: 2 });
     } catch (error) {
       console.error("Export failed", error);
+      showAppNotice("error", "Could not export data.");
     }
   };
 
@@ -1208,6 +1201,7 @@ export default function ProveItApp() {
       downloadJson(payload, `proveit-full-backup-case-${safeName}-${dateStr}.json`, { space: 2 });
     } catch (error) {
       console.error("Export case failed", error);
+      showAppNotice("error", "Could not export this case backup.");
     }
   };
 
@@ -1262,6 +1256,7 @@ export default function ProveItApp() {
         parsed?.includesBinaryData === true ||
         parsed?.version === "2.1-full-backup";
       const shouldImportQuickCaptures = exportType !== "FULL_BACKUP_CASE";
+      const restoreStats = { failedAttachments: [] };
 
       let incomingCases = imported.cases || [];
       const hasIncomingQuickCaptures = Array.isArray(imported.quickCaptures);
@@ -1269,11 +1264,11 @@ export default function ProveItApp() {
 
       if (isFullBackup) {
         incomingCases = await Promise.all(incomingCases.map((caseItem) =>
-          restoreFullBackupCase(caseItem, { saveImage, generateId })
+          restoreFullBackupCase(caseItem, { saveImage, generateId, restoreStats })
         ));
         if (shouldImportQuickCaptures) {
           incomingQuickCaptures = await Promise.all(incomingQuickCaptures.map((capture) =>
-            restoreFullBackupQuickCapture(capture, { saveImage, generateId })
+            restoreFullBackupQuickCapture(capture, { saveImage, generateId, restoreStats })
           ));
         }
       }
@@ -1293,14 +1288,31 @@ export default function ProveItApp() {
       }
 
       const mergedCases = Array.from(caseMap.values());
+      const importSuccesses = [];
+      const importFailures = [];
 
       for (const caseItem of mergedCases) {
-        await saveCase(caseItem);
+        try {
+          await saveCase(caseItem);
+          importSuccesses.push(caseItem.name || caseItem.id || "Untitled case");
+        } catch (error) {
+          console.error("Failed to save imported case", caseItem?.id, error);
+          importFailures.push({
+            id: caseItem.id,
+            name: caseItem.name || caseItem.id || "Untitled case",
+            message: error.message || "Unknown save error",
+          });
+          const restoredImageIds = restoreStats.restoredImageIdsByCase?.[caseItem.id] || [];
+          if (restoredImageIds.length > 0) {
+            await deleteImages(restoredImageIds);
+          }
+        }
       }
 
-      reconcileUnlockedCaseIds(mergedCases, currentCases);
-      setCases(mergedCases);
-      if (hasIncomingQuickCaptures && shouldImportQuickCaptures) {
+      const persistedCases = (await getAllCases()).map(normalizeCase);
+      reconcileUnlockedCaseIds(persistedCases, currentCases);
+      setCases(persistedCases);
+      if (importFailures.length === 0 && hasIncomingQuickCaptures && shouldImportQuickCaptures) {
         setQuickCaptures((prev) => {
           const captureMap = new Map(prev.map(q => [q.id, q]));
           for (const q of incomingQuickCaptures) {
@@ -1309,10 +1321,29 @@ export default function ProveItApp() {
           return Array.from(captureMap.values());
         });
       }
-      setSelectedCaseId(imported.selectedCaseId ?? null);
-      setActiveTab(imported.activeTab || "overview");
+      if (importFailures.length === 0) {
+        setSelectedCaseId(imported.selectedCaseId ?? null);
+        setActiveTab(imported.activeTab || "overview");
+      }
+      if (restoreStats.failedAttachments.length > 0) {
+        showAppNotice(
+          "warning",
+          `Import completed, but ${restoreStats.failedAttachments.length} attachment(s) could not be restored.`
+        );
+      }
+      if (importFailures.length > 0) {
+        const failedNames = importFailures.map((item) => item.name).slice(0, 3).join(", ");
+        const remainingCount = importFailures.length - Math.min(importFailures.length, 3);
+        showAppNotice(
+          "warning",
+          `Import partially completed. Imported ${importSuccesses.length} case(s); failed ${importFailures.length}: ${failedNames}${remainingCount > 0 ? ` +${remainingCount} more` : ""}.`
+        );
+      } else {
+        showAppNotice("success", `Import completed for ${importSuccesses.length} case(s).`);
+      }
     } catch (error) {
       console.error("Import failed", error);
+      showAppNotice("error", error.message || "Could not import this file.");
       alert("Could not import this file.");
     }
 
@@ -1343,6 +1374,7 @@ export default function ProveItApp() {
       setShowCreate(false);
     } catch (error) {
       console.error("Failed to save case", error);
+      showAppNotice("error", error.message || "Could not create this case.");
     }
   };
 
@@ -1365,6 +1397,7 @@ export default function ProveItApp() {
         setForm({ name: "", category: "general", customCategory: "", notes: "", description: "" });
       } catch (error) {
         console.error("Failed to update case", error);
+        showAppNotice("error", error.message || "Could not update this case.");
       }
     } else {
       const newCase = {
@@ -1391,6 +1424,7 @@ export default function ProveItApp() {
         setForm({ name: "", category: "general", customCategory: "", notes: "", description: "" });
       } catch (error) {
         console.error("Failed to save case", error);
+        showAppNotice("error", error.message || "Could not create this case.");
       }
     }
   };
@@ -1406,6 +1440,7 @@ export default function ProveItApp() {
         }
       } catch (error) {
         console.error("Failed to delete case", error);
+        showAppNotice("error", error.message || "Could not delete this case.");
       }
     }
   };
@@ -1416,11 +1451,12 @@ export default function ProveItApp() {
     if (window.confirm("Delete this record permanently?")) {
       const updatedCase = deleteRecordFromCase(selectedCase, recordType, recordId);
 
-      setCases((prev) => prev.map((c) => (c.id === selectedCase.id ? updatedCase : c)));
       try {
         await saveCase(updatedCase);
+        setCases((prev) => prev.map((c) => (c.id === selectedCase.id ? updatedCase : c)));
       } catch (error) {
         console.error("Failed to save updated case", error);
+        showAppNotice("error", error.message || "Could not delete this record.");
       }
     }
   };
@@ -1594,12 +1630,13 @@ const handleRecordFiles = async (event) => {
 
     updatedCase = syncCaseLinks(updatedCase, updatedIncident, "incidents");
 
-    setCases(prev => prev.map(c => c.id === selectedCase.id ? updatedCase : c));
     try {
       await saveCase(updatedCase);
+      setCases(prev => prev.map(c => c.id === selectedCase.id ? updatedCase : c));
       openEditRecordModal("incidents", updatedIncident);
     } catch (error) {
       console.error("Failed to unlink evidence", error);
+      showAppNotice("error", error.message || "Could not unlink this evidence item.");
     }
   };
 
@@ -1621,32 +1658,28 @@ const handleRecordFiles = async (event) => {
       ...payload,
       isMilestone: !!payload.isMilestone,
     };
-    console.log("PAYLOAD", normalizedPayload);
 
     updatedCase = upsertRecordInCase(selectedCase, recordType, normalizedPayload, editingRecord);
-    const savedRecordId = editingRecord?.id || normalizedPayload.id;
-    const savedCollection = Array.isArray(updatedCase?.[recordType]) ? updatedCase[recordType] : [];
-    const updatedIncident = recordType === "incidents"
-      ? savedCollection.find((item) => item.id === savedRecordId) || savedCollection[0]
-      : null;
-    if (recordType === "incidents") {
-      console.log("SAVED", updatedIncident);
-    }
-
-    setCases((prev) =>
-      prev.map((c) =>
-        c.id === selectedCase.id ? updatedCase : c
-      )
-    );
+    const newImageIds = getNewImageIdsForCaseUpdate(selectedCase, updatedCase);
 
     try {
       await saveCase(updatedCase);
+      setCases((prev) =>
+        prev.map((c) =>
+          c.id === selectedCase.id ? updatedCase : c
+        )
+      );
       if (shouldShowIssueFeedback) {
         setRecordIssueFeedback("Issue fix saved");
         setTimeout(() => setRecordIssueFeedback(""), 1800);
       }
     } catch (error) {
       console.error("Failed to save updated case", error);
+      if (newImageIds.length > 0) {
+        await deleteImages(newImageIds);
+      }
+      showAppNotice("error", error.message || "Could not save this record.");
+      return;
     }
 
     // If we were creating evidence from an incident, prepare to return to the incident view
@@ -1682,31 +1715,32 @@ const handleRecordFiles = async (event) => {
     if (!capture) return;
 
     const caseToUpdate = cases.find(c => c.id === capture.caseId);
+    if (!caseToUpdate) {
+      showAppNotice("error", "Could not find the case for this quick capture.");
+      return;
+    }
     let updatedCapture = markQuickCaptureConverted(capture, targetType);
     
-    if (caseToUpdate) {
-      const result = convertQuickCaptureToRecord(caseToUpdate, capture, targetType);
-      const updatedCase = result.case;
-      updatedCapture = result.capture;
+    const result = convertQuickCaptureToRecord(caseToUpdate, capture, targetType);
+    const updatedCase = result.case;
+    updatedCapture = result.capture;
 
+    try {
+      await saveCase(updatedCase);
       setCases((prev) =>
         prev.map((c) =>
           c.id === capture.caseId ? updatedCase : c
         )
       );
-
-      try {
-        await saveCase(updatedCase);
-      } catch (error) {
-        console.error("Failed to save case after conversion", error);
-      }
+      setQuickCaptures((prev) =>
+        prev.map((item) =>
+          item.id === captureId ? updatedCapture : item
+        )
+      );
+    } catch (error) {
+      console.error("Failed to save case after conversion", error);
+      showAppNotice("error", error.message || "Could not convert this quick capture.");
     }
-
-    setQuickCaptures((prev) =>
-      prev.map((item) =>
-        item.id === captureId ? updatedCapture : item
-      )
-    );
   };
 
   const archiveCapture = (captureId) => {
@@ -1920,6 +1954,30 @@ const handleRecordFiles = async (event) => {
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-800">
+      {appNotice ? (
+        <div className="fixed right-4 top-4 z-[120] max-w-md">
+          <div
+            className={`rounded-2xl border px-4 py-3 shadow-lg ${
+              appNotice.tone === "error"
+                ? "border-red-200 bg-red-50 text-red-800"
+                : appNotice.tone === "warning"
+                  ? "border-amber-200 bg-amber-50 text-amber-900"
+                  : "border-lime-200 bg-lime-50 text-lime-800"
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex-1 text-sm font-medium leading-6">{appNotice.message}</div>
+              <button
+                type="button"
+                onClick={() => setAppNotice(null)}
+                className="rounded-lg border border-current/15 px-2 py-1 text-xs font-semibold opacity-80 hover:opacity-100"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="mx-auto max-w-7xl px-4 py-6">
         <header className="relative mb-6 flex flex-col gap-6 rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -2049,17 +2107,11 @@ const handleRecordFiles = async (event) => {
             deleteRecord={deleteRecord}
             exportSelectedCase={exportSelectedCaseBackup}
             onExportSnapshot={exportCaseReasoningExport}
-            onSendReasoningSnapshotToSupabase={handleSendReasoningSnapshotToSupabase}
-            onSendReasoningExportToSupabase={handleSendReasoningExportToSupabase}
             onExportFullBackup={handleFullBackup}
             onOpenGptDeltaModal={openGptDeltaModal}
             onOpenPinManager={openPinManager}
             isPinLocked={selectedCaseLocked}
             issueFixFeedback={recordIssueFeedback}
-            syncStatus={syncStatus}
-            syncMessage={syncMessage}
-            supabaseReasoningExportStatus={supabaseReasoningExportStatus}
-            supabaseReasoningExportMessage={supabaseReasoningExportMessage}
             onViewRecord={setViewingRecord}
             onPreviewFile={setPreviewFile}
             openLedgerModal={openLedgerModal}
