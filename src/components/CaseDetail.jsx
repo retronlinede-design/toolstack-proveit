@@ -51,6 +51,16 @@ function safeText(value) {
   return typeof value === "string" ? value : "";
 }
 
+function normalizeReportLanguage(value) {
+  return REPORT_DISPLAY_LANGUAGES.includes(value) ? value : DEFAULT_REPORT_DISPLAY_LANGUAGE;
+}
+
+function getGeneratedReportTextForLanguage(caseItem, language) {
+  const lang = normalizeReportLanguage(language);
+  const versionText = safeText(caseItem?.generatedReportVersions?.[lang]);
+  return versionText || safeText(caseItem?.generatedReportText);
+}
+
 function safeTextList(value) {
   return Array.isArray(value) ? value.filter(item => typeof item === "string") : [];
 }
@@ -181,13 +191,20 @@ export default function CaseDetail({
   const [generatedReportDraft, setGeneratedReportDraft] = useState("");
   const [renderedReportText, setRenderedReportText] = useState("");
   const [reportPromptFeedback, setReportPromptFeedback] = useState("");
+  const activeGeneratedReportLanguage = normalizeReportLanguage(selectedCase?.activeGeneratedReportLanguage);
 
   useEffect(() => {
-    const nextText = safeText(selectedCase?.generatedReportText);
+    const nextText = getGeneratedReportTextForLanguage(selectedCase, activeGeneratedReportLanguage);
+    setReportDisplayLanguage(activeGeneratedReportLanguage);
     setGeneratedReportDraft(nextText);
     setRenderedReportText(nextText);
     setReportPromptFeedback("");
-  }, [selectedCase?.id, selectedCase?.generatedReportText]);
+  }, [
+    selectedCase?.id,
+    selectedCase?.generatedReportText,
+    selectedCase?.generatedReportVersions,
+    activeGeneratedReportLanguage,
+  ]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -1848,7 +1865,9 @@ Rules:
 - Do not summarize or restructure the report.`;
 
   const copyGeneratedReportPrompt = async (language = "en") => {
-    const promptToCopy = language === "de"
+    const lang = normalizeReportLanguage(language);
+    await handleGeneratedReportLanguageChange(lang);
+    const promptToCopy = lang === "de"
       ? `${germanReportLanguageInstruction}\n\n${generatedReportPromptPackage}`
       : generatedReportPromptPackage;
 
@@ -1883,16 +1902,42 @@ Rules:
   };
 
   const handleRenderGeneratedReport = async () => {
+    const lang = activeGeneratedReportLanguage;
     const nextText = safeText(generatedReportDraft);
     console.log("RAW REPORT RESPONSE", nextText);
     console.log("RAW REPORT CONTAINS MILESTONE_TIMELINE", /#\s*MILESTONE_TIMELINE\b/i.test(nextText));
     setRenderedReportText(nextText);
 
-    if (nextText === safeText(selectedCase?.generatedReportText)) return;
+    const existingVersions = {
+      en: safeText(selectedCase?.generatedReportVersions?.en),
+      de: safeText(selectedCase?.generatedReportVersions?.de),
+    };
+    if (!existingVersions.en && safeText(selectedCase?.generatedReportText)) {
+      existingVersions.en = safeText(selectedCase.generatedReportText);
+    }
+
+    const currentText = getGeneratedReportTextForLanguage(selectedCase, lang);
+    if (nextText === currentText && existingVersions[lang] === nextText) return;
 
     await onUpdateCase({
       ...selectedCase,
-      generatedReportText: nextText,
+      generatedReportVersions: {
+        ...existingVersions,
+        [lang]: nextText,
+      },
+      activeGeneratedReportLanguage: lang,
+      updatedAt: new Date().toISOString(),
+    });
+  };
+  const handleGeneratedReportLanguageChange = async (language) => {
+    const lang = normalizeReportLanguage(language);
+    setReportDisplayLanguage(lang);
+
+    if (!selectedCase || lang === activeGeneratedReportLanguage) return;
+
+    await onUpdateCase({
+      ...selectedCase,
+      activeGeneratedReportLanguage: lang,
       updatedAt: new Date().toISOString(),
     });
   };
@@ -2154,6 +2199,9 @@ Rules:
           </ul>
         </section>
       )}
+      <footer className="proveit-print-footer">
+        {reportHeaderMeta}
+      </footer>
     </article>
   );
   };
@@ -2774,11 +2822,32 @@ Rules:
                 </div>
 
                 <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-                  <div className="border-b border-neutral-100 pb-3">
-                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Paste GPT-Generated Report Output</h4>
-                    <p className="mt-1 text-sm text-neutral-600">
-                      Paste the GPT-generated report here. Do not paste the prompt itself. The pasted text should begin with `# REPORT_TITLE` and the report title section.
-                    </p>
+                  <div className="flex flex-col gap-3 border-b border-neutral-100 pb-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Paste GPT-Generated Report Output</h4>
+                      <p className="mt-1 text-sm text-neutral-600">
+                        Paste the GPT-generated {activeGeneratedReportLanguage.toUpperCase()} report for the selected report version. Do not paste the prompt itself. The pasted text should begin with `# REPORT_TITLE` and the report title section.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 print:hidden">
+                      <span className="text-xs font-semibold text-neutral-500">Report version</span>
+                      <div className="inline-flex rounded-lg border border-neutral-200 bg-neutral-50 p-1">
+                        {REPORT_DISPLAY_LANGUAGES.map((language) => (
+                          <button
+                            key={language}
+                            type="button"
+                            onClick={() => handleGeneratedReportLanguageChange(language)}
+                            className={`rounded-md px-2.5 py-1 text-xs font-bold uppercase transition-colors ${
+                              activeGeneratedReportLanguage === language
+                                ? "bg-lime-500 text-white shadow-sm"
+                                : "text-neutral-600 hover:bg-white"
+                            }`}
+                          >
+                            {language}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                   <textarea
                     value={generatedReportDraft}
@@ -2801,7 +2870,7 @@ Rules:
                       onClick={handleRenderGeneratedReport}
                       className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
                     >
-                      Render Report
+                      Save & Render {activeGeneratedReportLanguage.toUpperCase()} Report
                     </button>
                   </div>
                 </section>
@@ -2810,15 +2879,15 @@ Rules:
                   <div className="flex flex-col gap-3 border-b border-neutral-100 pb-3 sm:flex-row sm:items-center sm:justify-between">
                     <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Rendered Report</h4>
                     <div className="flex items-center gap-2 print:hidden">
-                      <span className="text-xs font-semibold text-neutral-500">Display language</span>
+                      <span className="text-xs font-semibold text-neutral-500">Report version</span>
                       <div className="inline-flex rounded-lg border border-neutral-200 bg-neutral-50 p-1">
                         {REPORT_DISPLAY_LANGUAGES.map((language) => (
                           <button
                             key={language}
                             type="button"
-                            onClick={() => setReportDisplayLanguage(language)}
+                            onClick={() => handleGeneratedReportLanguageChange(language)}
                             className={`rounded-md px-2.5 py-1 text-xs font-bold uppercase transition-colors ${
-                              reportDisplayLanguage === language
+                              activeGeneratedReportLanguage === language
                                 ? "bg-lime-500 text-white shadow-sm"
                                 : "text-neutral-600 hover:bg-white"
                             }`}
@@ -4346,6 +4415,9 @@ Rules:
                         </p>
                       )}
                     </section>
+                    <footer className="proveit-print-footer">
+                      {reportHeaderMeta}
+                    </footer>
                   </article>
                 )}
                 {reportMode === "lawyer" && (
