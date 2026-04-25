@@ -1498,17 +1498,21 @@ export default function ProveItApp() {
   };
 
   const openEditRecordModal = (type, item, options = {}) => {
-  setRecordForm({
-    ...EMPTY_RECORD_FORM,
-    ...item,
-    attachments: (item.attachments?.length ? item.attachments : null) || (item.files?.length ? item.files : null) || (type === "evidence" ? item.availability?.digital?.files : []) || [],
-    files: (item.files?.length ? item.files : null) || (type === "evidence" ? item.availability?.digital?.files : []) || [],
-  });
-  setRecordFocusField(options.focusField || null);
-  setRecordFocusHint(options.focusHint || "");
-  setRecordOpenedFromIssue(!!options.fromIssue);
-  setRecordType(type);
-  setEditingRecord(item);
+    const currentRecord = item?.id && Array.isArray(selectedCase?.[type])
+      ? selectedCase[type].find((record) => record.id === item.id) || item
+      : item;
+
+    setRecordForm({
+      ...EMPTY_RECORD_FORM,
+      ...currentRecord,
+      attachments: (currentRecord?.attachments?.length ? currentRecord.attachments : null) || (currentRecord?.files?.length ? currentRecord.files : null) || (type === "evidence" ? currentRecord?.availability?.digital?.files : []) || [],
+      files: (currentRecord?.files?.length ? currentRecord.files : null) || (type === "evidence" ? currentRecord?.availability?.digital?.files : []) || [],
+    });
+    setRecordFocusField(options.focusField || null);
+    setRecordFocusHint(options.focusHint || "");
+    setRecordOpenedFromIssue(!!options.fromIssue);
+    setRecordType(type);
+    setEditingRecord(currentRecord);
   };
 
   const closeRecordModal = () => {
@@ -1659,7 +1663,14 @@ const handleRecordFiles = async (event) => {
       isMilestone: !!payload.isMilestone,
     };
 
-    updatedCase = upsertRecordInCase(selectedCase, recordType, normalizedPayload, editingRecord);
+    const currentEditingRecord = editingRecord?.id && Array.isArray(selectedCase?.[recordType])
+      ? selectedCase[recordType].find((record) => record.id === editingRecord.id) || editingRecord
+      : editingRecord;
+    const payloadForUpsert = currentEditingRecord
+      ? { ...currentEditingRecord, ...normalizedPayload }
+      : normalizedPayload;
+
+    updatedCase = upsertRecordInCase(selectedCase, recordType, payloadForUpsert, currentEditingRecord);
     const newImageIds = getNewImageIdsForCaseUpdate(selectedCase, updatedCase);
 
     try {
