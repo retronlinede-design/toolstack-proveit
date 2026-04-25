@@ -2005,7 +2005,7 @@ const handleRecordFiles = async (event) => {
               </div>
             </div>
 
-            <div className="flex flex-col sm:items-end">
+            <div className="flex flex-col sm:items-end print:hidden">
               <div className="inline-flex items-center gap-2 rounded-full bg-lime-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-lime-700 border border-lime-100">
                 <span className="relative flex h-2 w-2">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-lime-400 opacity-75"></span>

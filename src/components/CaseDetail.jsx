@@ -1916,33 +1916,39 @@ ${milestoneBlock}`;
 
     return { date: "", title: text, note: "" };
   };
+  const reportDisplayDate = new Date().toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+  const reportHeaderMeta = `Case: ${selectedCase?.id || "-"} • ${reportDisplayDate}`;
   const renderGeneratedReportArticle = (className = "", variant = "default") => {
     const isPackVariant = variant === "pack";
 
     return (
     <article className={className}>
-      <header className={`flex items-start justify-between gap-6 border-b border-neutral-200 ${isPackVariant ? "pb-7 print:pb-6" : "pb-6"}`}>
+      <header className={`border-b border-neutral-200 ${isPackVariant ? "pb-7 print:pb-5" : "pb-6"}`}>
         <div className="min-w-0">
           <div className={`font-bold uppercase tracking-[0.18em] text-lime-700 ${isPackVariant ? "text-[11px]" : "text-xs"}`}>
             Structured Report
           </div>
-          <h1 className={`mt-2 font-bold leading-tight text-neutral-950 ${isPackVariant ? "text-4xl print:text-[2rem]" : "text-3xl"}`}>
-            {parsedGeneratedReport.reportTitle || "Client Report"}
-          </h1>
+          <div className="mt-2 flex items-center justify-between gap-4">
+            <h1 className={`min-w-0 break-words font-bold leading-tight text-neutral-950 ${isPackVariant ? "text-4xl print:text-[2rem]" : "text-3xl"}`}>
+              {parsedGeneratedReport.reportTitle || "Client Report"}
+            </h1>
+            <div className="shrink-0 whitespace-nowrap text-right text-base font-medium text-neutral-600 print:text-[11pt]">
+              {reportHeaderMeta}
+            </div>
+          </div>
         </div>
-        <img
-          src={proveItHeaderLogo}
-          alt="ProveIt"
-          className="h-12 w-auto max-w-[12rem] shrink-0 object-contain print:h-10"
-        />
       </header>
 
       {parsedGeneratedReport.atAGlance?.length > 0 && (
         <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6 first:pt-7" : "py-6"} first:border-t-0 first:pt-6`}>
-          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-4" : "pb-3"}`}>
+          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-3" : "pb-3"}`}>
             <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>At A Glance</h4>
           </div>
-          <ul className={`list-disc pl-5 ${isPackVariant ? "mt-5 space-y-3.5" : "mt-4 space-y-3"}`}>
+          <ul className={`list-disc pl-5 ${isPackVariant ? "mt-5 space-y-3" : "mt-4 space-y-3"}`}>
             {parsedGeneratedReport.atAGlance.map((item) => (
               <li key={item} className={`text-neutral-700 marker:text-neutral-400 ${isPackVariant ? "text-[15px] leading-7" : "text-sm leading-6"}`}>
                 {item}
@@ -1954,7 +1960,7 @@ ${milestoneBlock}`;
 
       {parsedGeneratedReport.yourSituation && (
         <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
-          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-4" : "pb-3"}`}>
+          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-3" : "pb-3"}`}>
             <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>Your Situation</h4>
           </div>
           <p className={`whitespace-pre-wrap text-neutral-700 ${isPackVariant ? "mt-5 text-[15px] leading-7" : "mt-4 text-sm leading-6"}`}>
@@ -1965,10 +1971,10 @@ ${milestoneBlock}`;
 
       {parsedGeneratedReport.mainAreasOfConcern.length > 0 && (
         <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
-          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-4" : "pb-3"}`}>
+          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-3" : "pb-3"}`}>
             <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>Main Areas Of Concern</h4>
           </div>
-          <ul className={`list-disc pl-5 ${isPackVariant ? "mt-5 space-y-3.5" : "mt-4 space-y-3"}`}>
+          <ul className={`list-disc pl-5 ${isPackVariant ? "mt-5 space-y-3" : "mt-4 space-y-3"}`}>
             {parsedGeneratedReport.mainAreasOfConcern.map((item) => (
               <li key={item} className={`text-neutral-700 marker:text-neutral-400 ${isPackVariant ? "text-[15px] leading-7" : "text-sm leading-6"}`}>
                 {item}
@@ -1980,10 +1986,10 @@ ${milestoneBlock}`;
 
       {parsedGeneratedReport.whatThisReportShows.length > 0 && (
         <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
-          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-4" : "pb-3"}`}>
+          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-3" : "pb-3"}`}>
             <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>What This Report Shows</h4>
           </div>
-          <ul className={`list-disc pl-5 ${isPackVariant ? "mt-5 space-y-3.5" : "mt-4 space-y-3"}`}>
+          <ul className={`list-disc pl-5 ${isPackVariant ? "mt-5 space-y-3" : "mt-4 space-y-3"}`}>
             {parsedGeneratedReport.whatThisReportShows.map((item) => (
               <li key={item} className={`text-lime-950 marker:text-lime-700 ${isPackVariant ? "text-[15px] leading-7" : "text-sm leading-6"}`}>
                 {item}
@@ -1994,25 +2000,25 @@ ${milestoneBlock}`;
       )}
 
       {parsedGeneratedReport.milestoneTimeline?.length > 0 && (
-        <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
-          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-4" : "pb-3"}`}>
+        <section className={`proveit-print-section proveit-print-section-break border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
+          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-3" : "pb-3"}`}>
             <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>Milestone Timeline</h4>
           </div>
-          <div className={`relative ${isPackVariant ? "mt-5 space-y-4" : "mt-4 space-y-3.5"}`}>
+          <div className={`relative ${isPackVariant ? "mt-5 space-y-3.5" : "mt-4 space-y-3.5"}`}>
             {parsedGeneratedReport.milestoneTimeline.map((item, index) => {
               const timelineItem = parseMilestoneTimelineEntry(item);
               return (
                 <div
                   key={`${item}-${index}`}
-                  className={`grid grid-cols-[1.25rem_1fr] gap-3 break-inside-avoid ${isPackVariant ? "items-start" : "items-start"}`}
+                  className={`proveit-print-avoid-break print-pack-timeline-entry grid grid-cols-[1.25rem_1fr] gap-3 break-inside-avoid ${isPackVariant ? "items-start" : "items-start"}`}
                 >
                   <div className="flex h-full flex-col items-center">
-                    <span className={`mt-1 block h-2.5 w-2.5 rounded-full border border-amber-300 bg-amber-100`}></span>
+                    <span className={`mt-1 block h-2.5 w-2.5 rounded-full border border-amber-300 bg-white`}></span>
                     {index < parsedGeneratedReport.milestoneTimeline.length - 1 && (
-                      <span className={`mt-2 w-px flex-1 bg-amber-200/90`}></span>
+                      <span className={`mt-2 w-px flex-1 bg-amber-200/70`}></span>
                     )}
                   </div>
-                  <div className={`rounded-xl border border-amber-100 bg-amber-50/35 ${isPackVariant ? "px-4 py-3.5" : "px-3.5 py-3"}`}>
+                  <div className={`rounded-lg border border-amber-100 bg-white ${isPackVariant ? "px-4 py-3.5" : "px-3.5 py-3"}`}>
                     {timelineItem.date && (
                       <div className={`text-neutral-500 ${isPackVariant ? "text-xs" : "text-[11px]"} font-semibold uppercase tracking-[0.08em]`}>
                         {timelineItem.date}
@@ -2035,19 +2041,19 @@ ${milestoneBlock}`;
       )}
 
       {parsedGeneratedReport.issues.length > 0 && (
-        <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
-          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-4" : "pb-3"}`}>
+        <section className={`proveit-print-section proveit-print-section-break border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
+          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-3" : "pb-3"}`}>
             <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>Issue Sections</h4>
           </div>
-          <div className={`${isPackVariant ? "mt-6 space-y-7" : "mt-4 space-y-5"}`}>
+          <div className={`${isPackVariant ? "mt-6 space-y-6" : "mt-4 space-y-5"}`}>
             {parsedGeneratedReport.issues.map((issue, index) => (
               <section
                 key={`${issue.title || "issue"}-${index}`}
-                className={`rounded-2xl border border-neutral-200 bg-neutral-50 ${isPackVariant ? "p-6 shadow-sm" : "p-5"}`}
+                className={`proveit-print-issue print-pack-issue-section break-inside-avoid rounded-lg border border-l-4 border-neutral-200 border-l-lime-500 bg-white ${isPackVariant ? "p-6 shadow-sm shadow-neutral-100" : "p-5"}`}
               >
-                <div className={`border-b border-neutral-200 ${isPackVariant ? "pb-4" : "pb-3"}`}>
+                <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-4" : "pb-3"}`}>
                   <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Issue</div>
-                  <h5 className={`mt-2 font-semibold text-neutral-950 ${isPackVariant ? "text-2xl" : "text-xl"}`}>
+                  <h5 className={`mt-2 break-words font-semibold leading-tight text-neutral-950 ${isPackVariant ? "text-2xl" : "text-xl"}`}>
                     {issue.title || "Untitled issue"}
                   </h5>
                 </div>
@@ -2060,7 +2066,7 @@ ${milestoneBlock}`;
                 )}
 
                 {issue.keyProof.length > 0 && (
-                  <div className={`rounded-xl border border-neutral-200 bg-white ${isPackVariant ? "mt-6 p-5" : "mt-5 p-4"}`}>
+                  <div className={`proveit-print-avoid-break rounded-lg border border-neutral-200 bg-neutral-50/60 ${isPackVariant ? "mt-6 p-5" : "mt-5 p-4"}`}>
                     <h6 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Key proof</h6>
                     <ul className={`list-disc pl-5 text-neutral-700 ${isPackVariant ? "mt-4 space-y-2.5 text-[15px] leading-7" : "mt-3 space-y-2 text-sm leading-6"}`}>
                       {issue.keyProof.map((item) => (
@@ -2071,7 +2077,7 @@ ${milestoneBlock}`;
                 )}
 
                 {issue.whatThisMeans.length > 0 && (
-                  <div className={`rounded-xl border border-lime-200 bg-lime-50 ${isPackVariant ? "mt-6 p-5" : "mt-5 p-4"}`}>
+                  <div className={`proveit-print-avoid-break rounded-lg border border-lime-200 bg-lime-50/70 ${isPackVariant ? "mt-6 p-5" : "mt-5 p-4"}`}>
                     <h6 className="text-xs font-bold uppercase tracking-wider text-lime-800">What this means</h6>
                     <ul className={`list-disc pl-5 text-lime-950 ${isPackVariant ? "mt-4 space-y-2.5 text-[15px] leading-7" : "mt-3 space-y-2 text-sm leading-6"}`}>
                       {issue.whatThisMeans.map((item) => (
@@ -2087,11 +2093,11 @@ ${milestoneBlock}`;
       )}
 
       {parsedGeneratedReport.keyFacts.length > 0 && (
-        <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
-          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-4" : "pb-3"}`}>
+        <section className={`proveit-print-section proveit-print-section-break border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
+          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-3" : "pb-3"}`}>
             <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>Key Facts</h4>
           </div>
-          <ul className={`list-disc pl-5 ${isPackVariant ? "mt-5 space-y-3.5" : "mt-4 space-y-3"}`}>
+          <ul className={`list-disc pl-5 ${isPackVariant ? "mt-5 space-y-3" : "mt-4 space-y-3"}`}>
             {parsedGeneratedReport.keyFacts.map((item) => (
               <li key={item} className={`text-neutral-700 marker:text-neutral-400 ${isPackVariant ? "text-[15px] leading-7" : "text-sm leading-6"}`}>
                 {item}
@@ -2103,7 +2109,7 @@ ${milestoneBlock}`;
 
       {parsedGeneratedReport.currentPosition && (
         <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
-          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-4" : "pb-3"}`}>
+          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-3" : "pb-3"}`}>
             <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>Current Position</h4>
           </div>
           <p className={`whitespace-pre-wrap text-neutral-700 ${isPackVariant ? "mt-5 text-[15px] leading-7" : "mt-4 text-sm leading-6"}`}>
@@ -2114,10 +2120,10 @@ ${milestoneBlock}`;
 
       {parsedGeneratedReport.recommendedNextSteps.length > 0 && (
         <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
-          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-4" : "pb-3"}`}>
+          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-3" : "pb-3"}`}>
             <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>Recommended Next Steps</h4>
           </div>
-          <ul className={`list-disc pl-5 ${isPackVariant ? "mt-5 space-y-3.5" : "mt-4 space-y-3"}`}>
+          <ul className={`list-disc pl-5 ${isPackVariant ? "mt-5 space-y-3" : "mt-4 space-y-3"}`}>
             {parsedGeneratedReport.recommendedNextSteps.map((item) => (
               <li key={item} className={`text-neutral-700 marker:text-neutral-400 ${isPackVariant ? "text-[15px] leading-7" : "text-sm leading-6"}`}>
                 {item}
@@ -4109,17 +4115,22 @@ ${milestoneBlock}`;
                 )}
                 {reportMode === "client" && generatedReportHasVisibleContent && (
                   renderGeneratedReportArticle(
-                    "print-pack-article mx-auto max-w-4xl rounded-2xl border border-neutral-200 bg-white px-7 py-8 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none",
+                    "print-pack-article mx-auto max-w-4xl rounded-xl border border-neutral-200 bg-white px-7 py-8 shadow-sm shadow-neutral-100 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none",
                     "pack"
                   )
                 )}
                 {reportMode === "client" && !generatedReportHasVisibleContent && (
-                  <article className="print-pack-article mx-auto max-w-4xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
+                  <article className="print-pack-article mx-auto max-w-4xl rounded-xl border border-neutral-200 bg-white px-6 py-7 shadow-sm shadow-neutral-100 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
                     <header className="print-pack-header break-inside-avoid border-b border-neutral-200 pb-6 print:pb-5">
                       <div className="text-xs font-bold uppercase tracking-[0.18em] text-lime-700">Client Report</div>
-                      <h1 className="mt-2 text-3xl font-bold leading-tight text-neutral-950 print:text-2xl">
-                        {selectedCase.name || "Untitled Case"}
-                      </h1>
+                      <div className="mt-2 flex items-center justify-between gap-4">
+                        <h1 className="min-w-0 break-words text-3xl font-bold leading-tight text-neutral-950 print:text-2xl">
+                          {selectedCase.name || "Untitled Case"}
+                        </h1>
+                        <div className="shrink-0 whitespace-nowrap text-right text-base font-medium text-neutral-600 print:text-[11pt]">
+                          {reportHeaderMeta}
+                        </div>
+                      </div>
                     </header>
                     <section className="print-pack-major break-inside-avoid py-6 print:py-5">
                       <div className="border-b border-neutral-100 pb-3">
@@ -4174,11 +4185,11 @@ ${milestoneBlock}`;
                               {group.sections.map((section, index) => (
                                 <section
                                   key={`${group.label}-${section.incident.id}-${index}`}
-                                  className="print-pack-narrative-section break-inside-avoid rounded-2xl border border-neutral-200 bg-neutral-50 p-5"
+                                  className="print-pack-issue-section print-pack-narrative-section break-inside-avoid rounded-lg border border-l-4 border-neutral-200 border-l-lime-500 bg-white p-5"
                                 >
-                                  <div className="border-b border-neutral-200 pb-3">
+                                  <div className="border-b border-neutral-100 pb-3">
                                     <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Issue</div>
-                                    <h5 className="mt-2 text-xl font-semibold text-neutral-950">
+                                    <h5 className="mt-2 break-words text-xl font-semibold leading-tight text-neutral-950">
                                       {section.incident.title || "Untitled incident"}
                                     </h5>
                                     {section.date && (
@@ -4194,12 +4205,12 @@ ${milestoneBlock}`;
                                   </div>
 
                                   <div className="print-pack-support-grid mt-5 grid gap-4 lg:grid-cols-2">
-                                    <section className="rounded-xl border border-neutral-200 bg-white p-4">
+                                    <section className="rounded-lg border border-neutral-200 bg-neutral-50/60 p-4">
                                       <h6 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Key proof</h6>
                                       {section.keyProof.length > 0 ? (
                                         <div className="mt-3 space-y-3">
                                           {section.keyProof.map((item) => (
-                                            <div key={item.id} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                                            <div key={item.id} className="rounded-lg border border-neutral-200 bg-white p-3">
                                               <div className="font-semibold text-neutral-900">{item.title || "Untitled document"}</div>
                                               <p className="mt-2 text-sm leading-6 text-neutral-700">
                                                 {item.summary || "There is not yet a clear explanation of why this matters."}
@@ -4213,11 +4224,11 @@ ${milestoneBlock}`;
                                     </section>
 
                                     {section.supportingRecords.length > 0 && (
-                                      <section className="rounded-xl border border-neutral-200 bg-white p-4">
+                                      <section className="rounded-lg border border-neutral-200 bg-neutral-50/60 p-4">
                                         <h6 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Supporting document</h6>
                                         <div className="mt-3 space-y-3">
                                           {section.supportingRecords.slice(0, 1).map((item) => (
-                                            <div key={item.id} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                                            <div key={item.id} className="rounded-lg border border-neutral-200 bg-white p-3">
                                               <div className="font-semibold text-neutral-900">{item.title || "Untitled record"}</div>
                                               <p className="mt-2 text-sm leading-6 text-neutral-700">
                                                 {safeText(item.summary).trim() || "There is not yet a clear summary of this document."}
@@ -4230,7 +4241,7 @@ ${milestoneBlock}`;
                                   </div>
 
                                   {section.chainConclusions.length > 0 && (
-                                    <section className="mt-5 rounded-xl border border-lime-200 bg-lime-50 p-4">
+                                    <section className="mt-5 rounded-lg border border-lime-200 bg-lime-50/70 p-4">
                                       <h6 className="text-xs font-bold uppercase tracking-wider text-lime-800">What this means</h6>
                                       <ul className="mt-3 space-y-2 text-sm leading-6 text-lime-950">
                                         {section.chainConclusions.slice(0, 3).map((statement) => (
@@ -4252,7 +4263,7 @@ ${milestoneBlock}`;
                     </section>
 
                     {clientMetricItems.length > 0 && (
-                      <section className="print-pack-major break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
+                      <section className="proveit-print-section proveit-print-section-break print-pack-major break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
                         <div className="border-b border-neutral-100 pb-3">
                           <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Key Facts</h4>
                         </div>

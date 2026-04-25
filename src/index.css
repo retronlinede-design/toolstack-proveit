@@ -47,6 +47,39 @@
     border-color: #d1d5db !important;
   }
 
+  .print-pack-issue-section {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+    box-shadow: none !important;
+  }
+
+  .print-pack-timeline-entry {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .proveit-print-section-break {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .print-pack-article > .proveit-print-section-break:first-of-type,
+  .print-pack-header + .proveit-print-section-break {
+    break-before: auto;
+    page-break-before: auto;
+  }
+
+  .proveit-print-issue,
+  .proveit-print-avoid-break {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .proveit-print-issue + .proveit-print-issue {
+    break-before: page;
+    page-break-before: always;
+  }
+
   .print-pack-support-grid {
     display: block !important;
   }
