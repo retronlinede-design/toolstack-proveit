@@ -566,7 +566,7 @@ export default function RecordModal({
               {(() => {
                 const candidates = selectedCase.evidence;
 
-                if (candidates.length === 0) return <p className="text-sm text-neutral-500 italic py-4 text-center">No records available to link.</p>;
+                if (candidates.length === 0) return <p className="text-sm text-neutral-500 italic py-4 text-center">No evidence available to link.</p>;
 
                 return candidates.map(rec => {
                   if (rec.id === recordForm.id) return null;
@@ -1286,7 +1286,7 @@ export default function RecordModal({
                     )}
                     <div className="grid grid-cols-2 gap-2">
                       <button onClick={() => setIsLinking(true)} className="rounded-xl border border-lime-500 bg-white py-2 text-xs font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
-                        Link Existing
+                        Link Existing Evidence
                       </button>
                       <button onClick={() => onCreateEvidenceFromIncident(recordForm)} className="rounded-xl border border-lime-500 bg-white py-2 text-xs font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
                         + Create New
@@ -1296,8 +1296,8 @@ export default function RecordModal({
 
                   <div className="space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                     <div>
-                      <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Linked Records</h4>
-                      <p className="mt-1 text-sm text-neutral-600">Connect this incident to structured records from the Records tab when they help explain context or impact.</p>
+                      <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Supporting Records</h4>
+                      <p className="mt-1 text-sm text-neutral-600">Connect this incident to records, documents, or payments when they help explain context or impact.</p>
                     </div>
 
                     {linkedTrackingRecords.length > 0 ? (

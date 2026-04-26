@@ -49,17 +49,26 @@ export default function RecordCard({
 
   const renderCompactChipRow = (label, items, renderChip) => {
     if (!items || items.length === 0) return null;
-    const visibleItems = items.slice(0, 4);
-    const remainingCount = items.length - visibleItems.length;
+    const renderedChips = items.map(renderChip).filter(Boolean);
+    const visibleChips = renderedChips.slice(0, 4);
+    const remainingCount = renderedChips.length - visibleChips.length;
+    const missingCount = items.length - renderedChips.length;
+
+    if (renderedChips.length === 0 && missingCount === 0) return null;
 
     return (
       <div className="mt-1 flex items-start gap-2">
         <div className="w-24 shrink-0 pt-0.5 text-[11px] text-neutral-500">{label}</div>
         <div className="flex flex-wrap gap-1">
-          {visibleItems.map(renderChip)}
+          {visibleChips}
           {remainingCount > 0 && (
             <span className={getLinkChipClasses("neutral")}>
               +{remainingCount}
+            </span>
+          )}
+          {missingCount > 0 && (
+            <span className={getLinkChipClasses("neutral", "cursor-default opacity-70")}>
+              {missingCount} missing link{missingCount === 1 ? "" : "s"}
             </span>
           )}
         </div>
@@ -351,7 +360,7 @@ export default function RecordCard({
         badgeClass: "border-red-200 bg-red-50 text-red-700",
       })}
       {recordType === "incidents" && Array.isArray(item.linkedRecordIds) && item.linkedRecordIds.length > 0 && (
-        renderCompactChipRow("Linked Records", item.linkedRecordIds, (recordId) => {
+        renderCompactChipRow("Supporting Records", item.linkedRecordIds, (recordId) => {
           const linkedRecord = getRecordDisplayMeta(selectedCase, recordId);
           if (!linkedRecord) return null;
 

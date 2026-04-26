@@ -1,3 +1,5 @@
+import { resolveRecordById } from "../domain/linkingResolvers.js";
+
 export const isTimelineCapable = (type) =>
   ["evidence", "incidents", "strategy"].includes(type?.toLowerCase());
 
@@ -7,7 +9,52 @@ export const getCaseHealthReport = (selectedCase) => {
   const evidence = selectedCase.evidence || [];
   const tasks = selectedCase.tasks || [];
   const strategy = selectedCase.strategy || [];
+  const documents = selectedCase.documents || [];
+  const ledger = selectedCase.ledger || [];
   const incidentIds = new Set(incidents.map((i) => i.id));
+
+  const collectMissingLinks = (item) => {
+    const missing = [];
+    const checkIds = (field, ids) => {
+      if (!Array.isArray(ids)) return;
+      ids.forEach((id) => {
+        if (!resolveRecordById(selectedCase, id)) {
+          missing.push({ field, id });
+        }
+      });
+    };
+
+    checkIds("linkedRecordIds", item?.linkedRecordIds);
+    checkIds("linkedEvidenceIds", item?.linkedEvidenceIds);
+    checkIds("linkedIncidentIds", item?.linkedIncidentIds);
+
+    if (Array.isArray(item?.linkedIncidentRefs)) {
+      item.linkedIncidentRefs.forEach((ref) => {
+        if (ref?.incidentId && !resolveRecordById(selectedCase, ref.incidentId)) {
+          missing.push({ field: "linkedIncidentRefs", id: ref.incidentId });
+        }
+      });
+    }
+
+    return missing;
+  };
+
+  const makeMissingLinkIssue = (item, type, tab) => {
+    const missingLinks = collectMissingLinks(item);
+    if (missingLinks.length === 0) return null;
+
+    return makeGap({
+      id: item.id,
+      title: "Missing linked records",
+      detail: `${missingLinks.length} missing linked record${missingLinks.length === 1 ? "" : "s"}`,
+      date: item.eventDate || item.date || item.documentDate || item.dueDate || item.paymentDate || item.createdAt,
+      record: item,
+      type,
+      tab,
+      missingLinkCount: missingLinks.length,
+      missingLinks,
+    });
+  };
 
   const taskMap = new Map(tasks.map((t) => [t.id, t]));
   const isResolved = (item) => {
@@ -211,6 +258,20 @@ export const getCaseHealthReport = (selectedCase) => {
     }));
 
   if (strategyIssues.length) issues.push({ category: "Strategy", items: strategyIssues });
+
+  const staleLinkSources = [
+    ...incidents.map((item) => ({ item, type: "incidents", tab: "incidents" })),
+    ...evidence.map((item) => ({ item, type: "evidence", tab: "evidence" })),
+    ...strategy.map((item) => ({ item, type: "strategy", tab: "strategy" })),
+    ...tasks.map((item) => ({ item, type: "tasks", tab: "tasks" })),
+    ...documents.map((item) => ({ item, type: "documents", tab: "documents" })),
+    ...ledger.map((item) => ({ item, type: "ledger", tab: "ledger" })),
+  ];
+  const staleLinkIssues = staleLinkSources
+    .map(({ item, type, tab }) => makeMissingLinkIssue(item, type, tab))
+    .filter(Boolean);
+
+  if (staleLinkIssues.length) issues.push({ category: "Links", items: staleLinkIssues });
 
   const timelineItems = [
     ...activeEvidence.map((item) => ({ ...item, _kind: "Evidence" })),

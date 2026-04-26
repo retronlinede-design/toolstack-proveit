@@ -15,6 +15,7 @@ import {
   buildCaseReasoningExportPayload,
   sanitizeCaseForExport,
 } from "./export/caseExport";
+import { buildCaseLinkMapExportPayload } from "./export/linkMapExport";
 import {
   buildGptDeltaPreview,
   ingestGptDelta,
@@ -1215,6 +1216,23 @@ export default function ProveItApp() {
     downloadJson(payload, `proveit-case-reasoning-export-${safeName}-${mode}.json`, { space: 2 });
   };
 
+  const handleCopyLinkMapExport = async (caseId) => {
+    const c = cases.find((item) => item.id === caseId);
+    if (!c) {
+      showAppNotice("error", "Could not find the selected case.");
+      return;
+    }
+
+    try {
+      const payload = buildCaseLinkMapExportPayload(c);
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      showAppNotice("success", "Link Map JSON copied.");
+    } catch (error) {
+      console.error("Could not copy link map export", error);
+      showAppNotice("error", "Could not copy Link Map JSON.");
+    }
+  };
+
   const importData = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -1990,7 +2008,7 @@ const handleRecordFiles = async (event) => {
         </div>
       ) : null}
       <div className="mx-auto max-w-7xl px-4 py-6">
-        <header className="relative mb-6 flex flex-col gap-6 rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm">
+        <header className="proveit-app-header relative mb-6 flex flex-col gap-6 rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-lime-500 text-white shadow-lg shadow-lime-100">
@@ -2118,6 +2136,7 @@ const handleRecordFiles = async (event) => {
             deleteRecord={deleteRecord}
             exportSelectedCase={exportSelectedCaseBackup}
             onExportSnapshot={exportCaseReasoningExport}
+            onCopyLinkMapExport={handleCopyLinkMapExport}
             onExportFullBackup={handleFullBackup}
             onOpenGptDeltaModal={openGptDeltaModal}
             onOpenPinManager={openPinManager}

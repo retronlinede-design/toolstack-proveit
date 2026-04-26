@@ -4,6 +4,14 @@
   display: none;
 }
 
+.proveit-print-cover {
+  display: none;
+}
+
+.proveit-print-body-header {
+  display: block;
+}
+
 @media print {
   @page {
     margin: 16mm 14mm 22mm;
@@ -30,6 +38,51 @@
   .print-pack-article {
     margin: 0 auto;
     padding-bottom: 18mm;
+  }
+
+  .proveit-app-header {
+    display: none !important;
+  }
+
+  .proveit-print-cover {
+    display: flex !important;
+    position: relative;
+    height: 240mm;
+    min-height: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8mm;
+    text-align: center;
+  }
+
+  .proveit-print-cover-brand {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    align-items: center;
+    gap: 4mm;
+    text-align: left;
+  }
+
+  .proveit-print-cover-brand img {
+    width: auto;
+    height: 12mm;
+    object-fit: contain;
+  }
+
+  .proveit-print-cover-title {
+    max-width: 150mm;
+  }
+
+  .proveit-print-cover-break {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .proveit-print-body-header {
+    display: none !important;
   }
 
   .proveit-print-footer {

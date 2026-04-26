@@ -194,3 +194,62 @@ test("getCaseHealthReport keeps blocker thresholds dominant", () => {
   assert.equal(highRiskReport.totalIssues, 6);
   assert.equal(highRiskReport.status, "High risk");
 });
+
+test("getCaseHealthReport flags one stale-link issue per affected record", () => {
+  const report = getCaseHealthReport({
+    incidents: [
+      {
+        id: "inc-1",
+        title: "Incident",
+        description: "Known incident",
+        eventDate: "2024-01-01",
+        linkedEvidenceIds: ["ev-missing", "ev-missing-2"],
+        linkedIncidentRefs: [{ incidentId: "inc-missing", type: "RELATED_TO" }],
+      },
+    ],
+    evidence: [],
+    tasks: [],
+    strategy: [],
+    documents: [],
+    ledger: [],
+  });
+
+  const linkIssues = report.issues.find((group) => group.category === "Links")?.items || [];
+  const incidentIssue = linkIssues.find((item) => item.id === "inc-1");
+
+  assert.equal(incidentIssue?.title, "Missing linked records");
+  assert.equal(incidentIssue?.type, "incidents");
+  assert.equal(incidentIssue?.tab, "incidents");
+  assert.equal(incidentIssue?.severity, "advisory");
+  assert.equal(incidentIssue?.classification, "gap");
+  assert.equal(incidentIssue?.missingLinkCount, 3);
+  assert.match(incidentIssue?.detail || "", /3 missing linked records/);
+});
+
+test("getCaseHealthReport flags stale document and ledger linked records", () => {
+  const documentRecord = { id: "doc-1", title: "Document", linkedRecordIds: ["ev-1", "missing-doc-link"] };
+  const ledgerRecord = { id: "ledger-1", label: "Ledger", linkedRecordIds: ["missing-ledger-link"] };
+  const report = getCaseHealthReport({
+    incidents: [],
+    evidence: [{ id: "ev-1", title: "Evidence", eventDate: "2024-01-01" }],
+    tasks: [],
+    strategy: [],
+    documents: [documentRecord],
+    ledger: [ledgerRecord],
+  });
+
+  const linkIssues = report.issues.find((group) => group.category === "Links")?.items || [];
+  const documentIssue = linkIssues.find((item) => item.id === "doc-1");
+  const ledgerIssue = linkIssues.find((item) => item.id === "ledger-1");
+
+  assert.equal(documentIssue?.title, "Missing linked records");
+  assert.equal(documentIssue?.type, "documents");
+  assert.equal(documentIssue?.tab, "documents");
+  assert.equal(documentIssue?.record, documentRecord);
+  assert.equal(documentIssue?.missingLinkCount, 1);
+  assert.equal(ledgerIssue?.title, "Missing linked records");
+  assert.equal(ledgerIssue?.type, "ledger");
+  assert.equal(ledgerIssue?.tab, "ledger");
+  assert.equal(ledgerIssue?.record, ledgerRecord);
+  assert.equal(ledgerIssue?.missingLinkCount, 1);
+});

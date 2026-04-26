@@ -160,6 +160,7 @@ export default function CaseDetail({
   exportSelectedCase,
   onUpdateCase,
   onExportSnapshot,
+  onCopyLinkMapExport,
   onSendReasoningSnapshotToSupabase,
   onSendReasoningExportToSupabase,
   onExportFullBackup,
@@ -2375,6 +2376,12 @@ Rules:
                     className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50"
                   >
                     GPT Reasoning Export (Not Backup)
+                  </button>
+                  <button
+                    onClick={() => { onCopyLinkMapExport?.(selectedCase.id); setShowExportMenu(false); }}
+                    className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50"
+                  >
+                    Copy Link Map JSON
                   </button>
                   <div className="mt-2 border-t border-neutral-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                     Supabase
