@@ -2849,7 +2849,6 @@ const handleRecordFiles = async (event) => {
                       ...(selectedCase?.evidence || []).map(r => ({ ...r, _type: 'evidence', _label: 'Evidence' })),
                       ...(selectedCase?.incidents || []).map(r => ({ ...r, _type: 'incidents', _label: 'Incident' })),
                       ...(selectedCase?.strategy || []).map(r => ({ ...r, _type: 'strategy', _label: 'Strategy' })),
-                      ...(selectedCase?.tasks || []).map(r => ({ ...r, _type: 'tasks', _label: 'Task' })),
                     ].map(rec => (
                       <label key={rec.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white border border-transparent hover:border-neutral-200 transition-all cursor-pointer">
                         <input 
@@ -2877,7 +2876,7 @@ const handleRecordFiles = async (event) => {
                         </div>
                       </label>
                     ))}
-                    {(!selectedCase?.evidence?.length && !selectedCase?.incidents?.length && !selectedCase?.strategy?.length && !selectedCase?.tasks?.length) && (
+                    {(!selectedCase?.evidence?.length && !selectedCase?.incidents?.length && !selectedCase?.strategy?.length) && (
                       <p className="text-[10px] text-neutral-400 italic text-center py-2">No records available to link.</p>
                     )}
                   </div>

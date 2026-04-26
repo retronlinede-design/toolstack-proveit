@@ -1215,7 +1215,7 @@ export default function RecordModal({
                               >
                                 {INCIDENT_LINK_TYPES.map((type) => (
                                   <option key={type} value={type}>
-                                    {type === "CAUSES" ? "Caused by / outcome" : "Related"}
+                                    {type === "CAUSES" ? "This led to selected incident" : "Related"}
                                   </option>
                                 ))}
                               </select>
@@ -1316,7 +1316,7 @@ export default function RecordModal({
 
                   <div className="space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                     <div>
-                      <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Supporting Records</h4>
+                      <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Linked Tracking Records</h4>
                       <p className="mt-1 text-sm text-neutral-600">Connect this incident to records, documents, or payments when they help explain context or impact.</p>
                     </div>
 
