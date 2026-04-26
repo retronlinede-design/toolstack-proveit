@@ -1,13 +1,18 @@
 import { X, Download, FileText } from "lucide-react";
 import { useEffect, useState } from "react";
+import {
+  getPreviewMimeType,
+  isAllowedPreviewImageMimeType,
+} from "../lib/fileSecurity.js";
 
 export default function FilePreviewModal({ file, onClose, imageCache = {} }) {
   const [url, setUrl] = useState(null);
 
   const type = file?.type || file?.mimeType || "";
   const name = file?.name || file?.fileName || "file";
-  const isImage = type.startsWith("image/");
-  const isPDF = type === "application/pdf";
+  const previewType = getPreviewMimeType(url, type);
+  const isImage = isAllowedPreviewImageMimeType(previewType);
+  const isPDF = previewType === "application/pdf";
 
   useEffect(() => {
     if (!file) return;
@@ -65,23 +70,23 @@ export default function FilePreviewModal({ file, onClose, imageCache = {} }) {
           {isPDF && url && (
             <iframe src={url} className="h-full w-full rounded-lg bg-white shadow-2xl" title={name} />
           )}
-          {!isImage && !isPDF && (
+          {(!isImage && !isPDF) || !url ? (
             <div className="flex flex-col items-center gap-4 rounded-3xl bg-white p-12 text-center shadow-2xl">
               <div className="rounded-full bg-neutral-100 p-6">
                 <FileText className="h-12 w-12 text-neutral-400" />
               </div>
               <div>
                 <h3 className="text-xl font-bold text-neutral-800">{name}</h3>
-                <p className="text-sm text-neutral-500">{type || "Unknown file type"}</p>
+                <p className="text-sm text-neutral-500">Preview not available for this file type</p>
               </div>
             </div>
-          )}
+          ) : null}
         </div>
 
         <div className="flex w-full items-center justify-between rounded-2xl bg-white/10 px-6 py-4 text-white backdrop-blur-md">
           <div className="truncate pr-4">
             <div className="text-sm font-semibold">{name}</div>
-            <div className="text-xs opacity-70">{type}</div>
+            <div className="text-xs opacity-70">{previewType || type}</div>
           </div>
           <button
             onClick={handleDownload}

@@ -41,6 +41,7 @@ import {
   markQuickCaptureConverted,
   normalizeQuickCapture,
 } from "./domain/quickCaptureDomain";
+import { getFileSizeWarning } from "./lib/fileSecurity.js";
 import { removeRecordAttachmentFromForm } from "./domain/recordFormDomain";
 import { ShieldCheck } from "lucide-react";
 
@@ -393,6 +394,13 @@ export default function ProveItApp() {
   const showAppNotice = (tone, message) => {
     if (!message) return;
     setAppNotice({ tone, message, id: `${Date.now()}-${Math.random().toString(36).slice(2)}` });
+  };
+
+  const showFileSizeWarnings = (files) => {
+    const warnings = Array.from(files || []).map(getFileSizeWarning).filter(Boolean);
+    if (warnings.length > 0) {
+      showAppNotice("warning", warnings[0]);
+    }
   };
 
   useEffect(() => {
@@ -886,6 +894,7 @@ export default function ProveItApp() {
   const handleDocumentFiles = async (event) => {
     const files = Array.from(event.target.files || []);
     if (!files.length) return;
+    showFileSizeWarnings(files);
 
     const documentId = documentForm.id || generateId();
 
@@ -1327,6 +1336,10 @@ export default function ProveItApp() {
   const importData = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    const importSizeWarning = getFileSizeWarning(file);
+    if (importSizeWarning) {
+      showAppNotice("warning", importSizeWarning);
+    }
 
     try {
       const text = await file.text();
@@ -1653,6 +1666,7 @@ export default function ProveItApp() {
 const handleRecordFiles = async (event) => {
   const files = Array.from(event.target.files || []);
   if (!files.length) return;
+  showFileSizeWarnings(files);
 
   const targetRecordId = editingRecord?.id || recordForm.id || generateId();
 
@@ -1688,6 +1702,8 @@ const handleRecordFiles = async (event) => {
 
   const handleCaptureFiles = async (event) => {
     const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+    showFileSizeWarnings(files);
     const targetCaptureId = captureForm.id || generateId();
     const serializable = await Promise.all(files.map(file => fileToSerializable(file, targetCaptureId)));
     setCaptureForm(prev => ({ 

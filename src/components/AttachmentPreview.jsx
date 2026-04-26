@@ -1,8 +1,12 @@
 import { useState, useEffect } from "react";
 import { Eye } from "lucide-react";
+import {
+  getPreviewMimeType,
+  isAllowedPreviewImageMimeType,
+} from "../lib/fileSecurity.js";
 
-function isImageAttachment(type = "") {
-  return type.startsWith("image/");
+function isPreviewableImageAttachment(attachment, imageUrl) {
+  return isAllowedPreviewImageMimeType(getPreviewMimeType(imageUrl, attachment?.type || attachment?.mimeType));
 }
 
 function AttachmentImage({ attachment, alt, onClick, imageCache = {} }) {
@@ -28,7 +32,7 @@ function AttachmentImage({ attachment, alt, onClick, imageCache = {} }) {
     setImageUrl(null);
   }, [attachment, imageCache]);
 
-  if (!imageUrl) return null;
+  if (!imageUrl || !isPreviewableImageAttachment(attachment, imageUrl)) return null;
 
   return (
     <img
@@ -55,7 +59,7 @@ export default function AttachmentPreview({ attachments = [], onPreview, imageCa
 
           return (
             <div key={file.id || idx} className="rounded-2xl border border-neutral-200 bg-white p-3 flex flex-col">
-              {isImageAttachment(type) ? (
+              {isAllowedPreviewImageMimeType(type) ? (
                 <AttachmentImage attachment={file} alt={name} onClick={() => onPreview?.(file)} imageCache={imageCache} />
               ) : (
                 <div 
