@@ -3060,52 +3060,52 @@ ${ungroupedSequenceText}
                 </div>
 
                 <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <button
-                      type="button"
-                      onClick={() => setCaseStructureReportOpen((open) => !open)}
-                      className="flex items-center gap-2 text-left"
-                    >
-                      {caseStructureReportOpen ? (
-                        <ChevronDown className="h-4 w-4 text-neutral-400" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-neutral-400" />
-                      )}
-                      <span className="text-sm font-bold uppercase tracking-wider text-neutral-500">
-                        Case Structure Report
-                      </span>
-                    </button>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={handleGenerateCaseStructureReport}
-                        className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
-                      >
-                        Generate Case Structure Report
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleCopyCaseStructureReport}
-                        className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
-                      >
-                        Copy Case Structure Report
-                      </button>
-                    </div>
-                  </div>
-                  {caseStructureReportFeedback ? (
-                    <p className="mt-2 text-xs font-medium text-neutral-500">{caseStructureReportFeedback}</p>
-                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setCaseStructureReportOpen((open) => !open)}
+                    className="flex items-center gap-2 text-left"
+                  >
+                    {caseStructureReportOpen ? (
+                      <ChevronDown className="h-4 w-4 text-neutral-400" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-neutral-400" />
+                    )}
+                    <span className="text-sm font-bold uppercase tracking-wider text-neutral-500">
+                      Case Structure Report
+                    </span>
+                  </button>
                   {caseStructureReportOpen && (
-                    <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                      {caseStructureReportText ? (
-                        <pre className="max-h-96 overflow-auto whitespace-pre-wrap font-mono text-xs leading-5 text-neutral-800">
-                          {caseStructureReportText}
-                        </pre>
-                      ) : (
-                        <p className="text-sm text-neutral-600">
-                          Generate a deterministic structure report from the current case link map.
-                        </p>
-                      )}
+                    <div className="mt-4 space-y-4">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={handleGenerateCaseStructureReport}
+                          className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
+                        >
+                          Generate Case Structure Report
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCopyCaseStructureReport}
+                          className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
+                        >
+                          Copy Case Structure Report
+                        </button>
+                      </div>
+                      {caseStructureReportFeedback ? (
+                        <p className="text-xs font-medium text-neutral-500">{caseStructureReportFeedback}</p>
+                      ) : null}
+                      <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                        {caseStructureReportText ? (
+                          <pre className="max-h-96 overflow-auto whitespace-pre-wrap font-mono text-xs leading-5 text-neutral-800">
+                            {caseStructureReportText}
+                          </pre>
+                        ) : (
+                          <p className="text-sm text-neutral-600">
+                            Generate a deterministic structure report from the current case link map.
+                          </p>
+                        )}
+                      </div>
                     </div>
                   )}
                 </section>
@@ -3133,46 +3133,44 @@ ${ungroupedSequenceText}
                 </section>
 
                 <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <button
-                      type="button"
-                      onClick={() => setClientReportGeneratorOpen((open) => !open)}
-                      className="flex items-center gap-2 text-left"
-                    >
-                      {clientReportGeneratorOpen ? (
-                        <ChevronDown className="h-4 w-4 text-neutral-400" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-neutral-400" />
-                      )}
-                      <span className="text-sm font-bold uppercase tracking-wider text-neutral-500">
-                        Client Report
-                      </span>
-                    </button>
-                    <div className="flex flex-col items-start gap-2 sm:items-end print:hidden">
-                      <div className="flex flex-wrap justify-start gap-2 sm:justify-end">
-                        <button
-                          type="button"
-                          onClick={() => copyGeneratedReportPrompt("en")}
-                          className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
-                        >
-                          Copy GPT Prompt (EN)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => copyGeneratedReportPrompt("de")}
-                          className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
-                        >
-                          Copy GPT Prompt (DE)
-                        </button>
-                      </div>
-                      {reportPromptFeedback ? (
-                        <p className="text-xs font-medium text-neutral-500">{reportPromptFeedback}</p>
-                      ) : null}
-                    </div>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setClientReportGeneratorOpen((open) => !open)}
+                    className="flex items-center gap-2 text-left"
+                  >
+                    {clientReportGeneratorOpen ? (
+                      <ChevronDown className="h-4 w-4 text-neutral-400" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-neutral-400" />
+                    )}
+                    <span className="text-sm font-bold uppercase tracking-wider text-neutral-500">
+                      Client Report
+                    </span>
+                  </button>
 
                   {clientReportGeneratorOpen && (
                     <div className="mt-4 space-y-5">
+                      <div className="flex flex-col items-start gap-2 print:hidden">
+                        <div className="flex flex-wrap justify-start gap-2">
+                          <button
+                            type="button"
+                            onClick={() => copyGeneratedReportPrompt("en")}
+                            className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
+                          >
+                            Copy GPT Prompt (EN)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => copyGeneratedReportPrompt("de")}
+                            className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
+                          >
+                            Copy GPT Prompt (DE)
+                          </button>
+                        </div>
+                        {reportPromptFeedback ? (
+                          <p className="text-xs font-medium text-neutral-500">{reportPromptFeedback}</p>
+                        ) : null}
+                      </div>
                 <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
                   <div className="flex flex-col gap-3 border-b border-neutral-100 pb-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
