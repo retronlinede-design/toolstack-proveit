@@ -15,6 +15,8 @@ Rules:
 - Each section must do a different job
 - Do not repeat the same information across multiple sections unless essential
 - Prefer one strong mention in the best-fitting section over repeating the same point elsewhere
+- Before writing the final report, check whether the same fact, date, document, or conclusion appears in more than one section; remove the weaker duplicate
+- Do not copy the same sentence structure from one section into another
 - Keep the report concise and readable
 - CRITICAL INSTRUCTION:
 - You are provided with a data block named [MILESTONE_TIMELINE_DATA].
@@ -46,12 +48,13 @@ Rules:
 - No detailed proof listing
 - No recommendation language
 - Rules for KEY_PROOF:
-- Each KEY_PROOF bullet must identify the proof clearly and specifically
-- Prefer concrete proof naming over vague statements
-- Each bullet should make clear what the proof is and why it matters
-- Avoid vague filler such as "This shows...", "It can be seen that...", or "This confirms clearly..."
+- Each KEY_PROOF bullet must name the proof clearly and specifically, such as Document, Photo, Log, Email, Message, Record, Receipt, Screenshot, or Statement
+- Each bullet should identify the actual proof item first, then state the narrow fact it supports
+- Prefer concrete proof naming over vague statements or generic references
+- Avoid vague filler such as "this shows", "this proves", "it can be seen that", "this confirms clearly", or "the evidence indicates"
 - Prefer formats like "Document: Signed overtime approval for 10-15 February 2026", "Record: Medical consultation note following high-intensity work period", or "Log: Work and rest chronology covering February 2026"
 - Keep bullets concise and factual
+- Maximum one short sentence per bullet
 - No legal conclusions
 - When possible, begin KEY_PROOF bullets with a simple proof type label such as Document:, Record:, Log:, Email:, Message:, or Photo:
 - Do this only when supported by the provided facts
@@ -73,17 +76,25 @@ Rules:
 - Do not turn bullets into paragraphs
 - Keep the whole section concise
 - ISSUE / WHAT_HAPPENED:
-- Explain the issue itself
+- Explain the problem directly in plain language
+- Focus on what is wrong, disputed, missing, delayed, unsafe, unpaid, unclear, or otherwise significant
+- Use only the timeline detail needed to understand the problem
 - Do not restate the full milestone timeline
 - Do not repeat AT_A_GLANCE or WHAT_THIS_REPORT_SHOWS verbatim
+- Keep this to one focused paragraph
 - KEY_PROOF:
 - Proof only
-- Identify what the proof is and why it matters
+- Name the proof item and the specific fact it supports
+- Do not use vague proof wording
 - No long explanation of the whole issue
 - WHAT_THIS_MEANS:
 - Impact and significance only
+- Explain why the issue matters to the client or the case position
+- Do not repeat KEY_PROOF facts, document names, or dates unless absolutely necessary
 - No re-listing of proof
 - No timeline repetition
+- No new facts
+- 2-3 strong bullets maximum
 - KEY_FACTS:
 - Short reference facts only
 - No explanation
@@ -115,6 +126,9 @@ Rules:
 - Anti-duplication rules:
 - If a point is already clearly stated in MILESTONE_TIMELINE, do not restate it in detail in WHAT_THIS_REPORT_SHOWS or CURRENT_POSITION unless necessary for clarity.
 - If a proof item is already listed in KEY_PROOF, do not repeat the same wording in WHAT_THIS_REPORT_SHOWS.
+- Do not repeat the same fact in both WHAT_HAPPENED and WHAT_THIS_MEANS; WHAT_HAPPENED states the problem, WHAT_THIS_MEANS states the impact.
+- Do not repeat the same proof item across multiple ISSUE blocks unless it genuinely supports each issue in a different way.
+- If two sections would say the same thing, keep it only in the section where it is most useful to the client.
 - Issue discipline:
 - Prefer fewer, stronger ISSUE blocks
 - Do not create an ISSUE block for every event

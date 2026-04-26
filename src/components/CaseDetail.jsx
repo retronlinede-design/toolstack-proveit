@@ -1851,6 +1851,10 @@ ${formatBullets(
 AT_A_GLANCE_NOTE: Summarize the case in 3-4 quick bullets for an immediate overview.
 CURRENT_POSITION_NOTE: Summarize the current state of the case in 2-3 clear factual sentences.
 SECTION_FOCUS_NOTE: Keep each report section distinct. Avoid repeating the same timeline, proof, or conclusion across multiple sections.
+ISSUE_WHAT_HAPPENED_NOTE: Describe the issue directly and briefly. Focus on the problem, not a full timeline.
+KEY_PROOF_NOTE: Name each proof item clearly by type where supported, such as Document, Photo, Log, Email, Message, Record, Receipt, or Screenshot. Keep each point factual and concise.
+WHAT_THIS_MEANS_NOTE: Explain only impact and significance. Do not repeat proof names, dates, or timeline details from KEY_PROOF or MILESTONE_TIMELINE.
+ANTI_DUPLICATION_NOTE: If the same fact would appear in more than one section, keep it only in the section where it is most useful.
 RECOMMENDED_NEXT_STEPS_NOTE: Focus on clear, practical actions the client can take now. Keep steps concrete, document-focused, and directly tied to the case facts.
 
 RECOMMENDED_NEXT_STEPS_CONTEXT:
@@ -2015,6 +2019,10 @@ Rules:
   });
   const reportHeadingLabel = (key) => getReportHeadingLabel(key, reportDisplayLanguage);
   const reportHeaderMeta = `Case: ${selectedCase?.id || "-"} - ${reportDisplayDate}`;
+  const reportCoverSubtitle = [selectedCase?.category, selectedCase?.status]
+    .map((item) => safeText(item).trim())
+    .filter(Boolean)
+    .join(" - ");
   const renderGeneratedReportArticle = (className = "", variant = "default") => {
     const isPackVariant = variant === "pack";
     const displayLanguage = reportDisplayLanguage;
@@ -2022,16 +2030,38 @@ Rules:
 
     return (
     <article className={className}>
-      <header className={`print-pack-header border-b border-neutral-200 print:mt-4 ${isPackVariant ? "pb-7 print:pb-5" : "pb-6"}`}>
+      <div className="proveit-print-cover proveit-print-cover-break print:block hidden">
+        <div className="proveit-print-cover-brand">
+          <img src={proveItHeaderLogo} alt="ProveIt" />
+          <div>
+            <div className="text-sm font-bold uppercase tracking-[0.18em] text-neutral-900">ProveIt</div>
+            <div className="mt-1 text-[9pt] font-medium text-neutral-500">Evidence Management & Case Engine</div>
+          </div>
+        </div>
+        <div className="proveit-print-cover-title">
+          <div className="text-xs font-bold uppercase tracking-[0.24em] text-neutral-500">CLIENT REPORT</div>
+          <h1 className="mt-5 text-4xl font-bold leading-tight text-neutral-950 print:text-[26pt]">Client Report</h1>
+          <p className="mt-5 text-lg font-semibold text-neutral-800 print:text-[15pt]">
+            {selectedCase?.name || selectedCase?.id || "Untitled Case"}
+          </p>
+          <p className="mt-3 text-sm font-medium text-neutral-500 print:text-[11pt]">{reportHeaderMeta}</p>
+          {reportCoverSubtitle && (
+            <p className="mt-6 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500 print:text-[9pt]">
+              {reportCoverSubtitle}
+            </p>
+          )}
+        </div>
+      </div>
+      <header className={`proveit-print-body-header print-pack-header border-b border-neutral-200 print:hidden ${isPackVariant ? "pb-7" : "pb-6"}`}>
         <div className="min-w-0">
-          <div className={`font-bold uppercase tracking-[0.18em] text-lime-700 ${isPackVariant ? "text-[11px]" : "text-xs"}`}>
-            Structured Report
+          <div className={`font-bold uppercase tracking-[0.18em] text-neutral-500 ${isPackVariant ? "text-[11px]" : "text-xs"}`}>
+            CLIENT REPORT
           </div>
           <div className="mt-2 flex items-center justify-between gap-4 print:mt-4">
-            <h1 className={`min-w-0 break-words font-bold leading-tight text-neutral-950 ${isPackVariant ? "text-4xl print:text-[2rem]" : "text-3xl"}`}>
+            <h1 className={`min-w-0 break-words font-bold leading-tight text-neutral-950 print:text-[22pt] ${isPackVariant ? "text-4xl" : "text-3xl"}`}>
               {parsedGeneratedReport.reportTitle || headingLabel("REPORT_TITLE")}
             </h1>
-            <div className="shrink-0 whitespace-nowrap text-right text-base font-medium text-neutral-600 print:text-[11pt]">
+            <div className="shrink-0 whitespace-nowrap text-right text-base font-medium text-neutral-500 print:mt-2 print:text-[11pt]">
               {reportHeaderMeta}
             </div>
           </div>
@@ -4268,13 +4298,35 @@ Rules:
                 )}
                 {reportMode === "client" && !generatedReportHasVisibleContent && (
                   <article className="print-pack-article mx-auto max-w-4xl rounded-xl border border-neutral-200 bg-white px-6 py-7 shadow-sm shadow-neutral-100 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
-                    <header className="print-pack-header break-inside-avoid border-b border-neutral-200 pb-6 print:mt-4 print:pb-5">
-                      <div className="text-xs font-bold uppercase tracking-[0.18em] text-lime-700">{reportHeadingLabel("REPORT_TITLE")}</div>
+                    <div className="proveit-print-cover proveit-print-cover-break print:block hidden">
+                      <div className="proveit-print-cover-brand">
+                        <img src={proveItHeaderLogo} alt="ProveIt" />
+                        <div>
+                          <div className="text-sm font-bold uppercase tracking-[0.18em] text-neutral-900">ProveIt</div>
+                          <div className="mt-1 text-[9pt] font-medium text-neutral-500">Evidence Management & Case Engine</div>
+                        </div>
+                      </div>
+                      <div className="proveit-print-cover-title">
+                        <div className="text-xs font-bold uppercase tracking-[0.24em] text-neutral-500">CLIENT REPORT</div>
+                        <h1 className="mt-5 text-4xl font-bold leading-tight text-neutral-950 print:text-[26pt]">Client Report</h1>
+                        <p className="mt-5 text-lg font-semibold text-neutral-800 print:text-[15pt]">
+                          {selectedCase?.name || selectedCase?.id || "Untitled Case"}
+                        </p>
+                        <p className="mt-3 text-sm font-medium text-neutral-500 print:text-[11pt]">{reportHeaderMeta}</p>
+                        {reportCoverSubtitle && (
+                          <p className="mt-6 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500 print:text-[9pt]">
+                            {reportCoverSubtitle}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <header className="proveit-print-body-header print-pack-header break-inside-avoid border-b border-neutral-200 pb-6 print:hidden">
+                      <div className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">CLIENT REPORT</div>
                       <div className="mt-2 flex items-center justify-between gap-4 print:mt-4">
-                        <h1 className="min-w-0 break-words text-3xl font-bold leading-tight text-neutral-950 print:text-2xl">
+                        <h1 className="min-w-0 break-words text-3xl font-bold leading-tight text-neutral-950 print:text-[22pt]">
                           {selectedCase.name || "Untitled Case"}
                         </h1>
-                        <div className="shrink-0 whitespace-nowrap text-right text-base font-medium text-neutral-600 print:text-[11pt]">
+                        <div className="shrink-0 whitespace-nowrap text-right text-base font-medium text-neutral-500 print:mt-2 print:text-[11pt]">
                           {reportHeaderMeta}
                         </div>
                       </div>
