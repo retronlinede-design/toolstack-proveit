@@ -8,6 +8,7 @@ import { getRecordDisplayMeta, resolveRecordById } from "../domain/linkingResolv
 import { buildNarrativeSections } from "../lib/narrativeBuilder.js";
 import { PROVEIT_REPORT_PROMPT_V1, parseProveItReportV1 } from "../lib/proveitReportFormat.js";
 import { DEFAULT_REPORT_DISPLAY_LANGUAGE, REPORT_DISPLAY_LANGUAGES, getReportHeadingLabel } from "../lib/reportHeadingLabels.js";
+import { buildCaseLinkMapExportPayload } from "../export/linkMapExport.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import LinkedChip from "./LinkedChip";
 import RecordCard from "./RecordCard";
@@ -201,6 +202,9 @@ export default function CaseDetail({
   const [generatedReportDraft, setGeneratedReportDraft] = useState("");
   const [renderedReportText, setRenderedReportText] = useState("");
   const [reportPromptFeedback, setReportPromptFeedback] = useState("");
+  const [caseStructureReportOpen, setCaseStructureReportOpen] = useState(false);
+  const [caseStructureReportText, setCaseStructureReportText] = useState("");
+  const [caseStructureReportFeedback, setCaseStructureReportFeedback] = useState("");
   const activeGeneratedReportLanguage = normalizeReportLanguage(selectedCase?.activeGeneratedReportLanguage);
 
   useEffect(() => {
@@ -1934,6 +1938,187 @@ Rules:
     }
   };
 
+  const formatCaseStructureReport = (caseItem) => {
+    const payload = buildCaseLinkMapExportPayload(caseItem);
+    const validEdges = payload.edges.filter((edge) => edge.status === "resolved");
+    const linkCounts = new Map(payload.nodes.map((node) => [node.id, 0]));
+
+    validEdges.forEach((edge) => {
+      linkCounts.set(edge.sourceId, (linkCounts.get(edge.sourceId) || 0) + 1);
+      linkCounts.set(edge.targetId, (linkCounts.get(edge.targetId) || 0) + 1);
+    });
+
+    const formatNode = (node) => `- ${node.title || node.id || "Untitled record"} [${node.type || "record"}]`;
+    const formatNodeList = (nodes) => nodes.length > 0 ? nodes.map(formatNode).join("\n") : "- None";
+    const totalRecords = payload.nodes.length;
+    const totalLinks = validEdges.length;
+    const averageLinks = totalRecords > 0 ? (totalLinks / totalRecords).toFixed(2) : "0.00";
+    const nodeCounts = payload.summary.nodeCountsByType || {};
+    const documentCount = (nodeCounts.document || 0) + (nodeCounts.tracking_record || 0);
+    const nodesByLinkCount = payload.nodes.map((node) => ({
+      ...node,
+      linkCount: linkCounts.get(node.id) || 0,
+    }));
+
+    const unlinkedRecords = nodesByLinkCount.filter((node) => node.linkCount === 0);
+    const weakRecords = nodesByLinkCount.filter((node) => node.linkCount === 1);
+    const highlyConnectedRecords = nodesByLinkCount.filter((node) => node.linkCount >= 5);
+    const incidentNodes = payload.nodes.filter((node) => node.type === "incident");
+    const evidenceNodes = payload.nodes.filter((node) => node.type === "evidence");
+    const incidentEvidenceCounts = new Map(incidentNodes.map((node) => [node.id, 0]));
+    const evidenceLinkedToIncidentIds = new Set();
+
+    validEdges.forEach((edge) => {
+      const incidentToEvidence = edge.sourceType === "incident" && edge.targetType === "evidence";
+      const evidenceToIncident = edge.sourceType === "evidence" && edge.targetType === "incident";
+
+      if (incidentToEvidence && incidentEvidenceCounts.has(edge.sourceId)) {
+        incidentEvidenceCounts.set(edge.sourceId, incidentEvidenceCounts.get(edge.sourceId) + 1);
+        evidenceLinkedToIncidentIds.add(edge.targetId);
+      }
+      if (evidenceToIncident && incidentEvidenceCounts.has(edge.targetId)) {
+        incidentEvidenceCounts.set(edge.targetId, incidentEvidenceCounts.get(edge.targetId) + 1);
+        evidenceLinkedToIncidentIds.add(edge.sourceId);
+      }
+    });
+
+    const incidentsWithoutEvidence = incidentNodes.filter((node) => incidentEvidenceCounts.get(node.id) === 0);
+    const incidentsWithEvidence = incidentNodes.filter((node) => incidentEvidenceCounts.get(node.id) > 0);
+    const unusedEvidence = evidenceNodes.filter((node) => !evidenceLinkedToIncidentIds.has(node.id));
+    const formatTitleList = (nodes) =>
+      nodes.length > 0 ? nodes.map((node) => `- ${node.title || node.id || "Untitled record"}`).join("\n") : "- None";
+    const formatIncidentEvidenceCountList = (nodes) =>
+      nodes.length > 0
+        ? nodes.map((node) => `- ${node.title || node.id || "Untitled record"} — ${incidentEvidenceCounts.get(node.id) || 0}`).join("\n")
+        : "- None";
+    const sequenceRecords = [
+      ...(caseItem?.incidents || []).map((record) => ({ ...record, sequenceType: "incident" })),
+      ...(caseItem?.evidence || []).map((record) => ({ ...record, sequenceType: "evidence" })),
+      ...(caseItem?.documents || []).map((record) => ({ ...record, sequenceType: "document" })),
+      ...(caseItem?.strategy || []).map((record) => ({ ...record, sequenceType: "strategy" })),
+      ...(caseItem?.tasks || []).map((record) => ({ ...record, sequenceType: "task" })),
+    ];
+    const getSequenceRecordTitle = (record) => record.title || record.label || record.id || "Untitled record";
+    const getSequenceRecordDate = (record) =>
+      record.eventDate || record.date || record.documentDate || record.dueDate || record.paymentDate || record.period || record.createdAt || "";
+    const sortSequenceRecords = (a, b) => {
+      const dateA = getSequenceRecordDate(a);
+      const dateB = getSequenceRecordDate(b);
+      if (dateA && dateB && dateA !== dateB) return dateA.localeCompare(dateB);
+      if (dateA && !dateB) return -1;
+      if (!dateA && dateB) return 1;
+      return getSequenceRecordTitle(a).localeCompare(getSequenceRecordTitle(b));
+    };
+    const sequenceGroups = new Map();
+    const ungroupedSequenceRecords = [];
+
+    sequenceRecords.forEach((record) => {
+      const groupName = safeText(record.sequenceGroup).trim();
+      if (!groupName) {
+        ungroupedSequenceRecords.push(record);
+        return;
+      }
+      if (!sequenceGroups.has(groupName)) sequenceGroups.set(groupName, []);
+      sequenceGroups.get(groupName).push(record);
+    });
+
+    const formatSequenceRecord = (record) => `  - ${getSequenceRecordTitle(record)} [${record.sequenceType}]`;
+    const groupedSequenceText = [...sequenceGroups.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([groupName, records]) => `- ${groupName}:\n${records.sort(sortSequenceRecords).map(formatSequenceRecord).join("\n")}`)
+      .join("\n");
+    const ungroupedSequenceText = ungroupedSequenceRecords.length > 0
+      ? ungroupedSequenceRecords.sort(sortSequenceRecords).map((record) => `- ${getSequenceRecordTitle(record)} [${record.sequenceType}]`).join("\n")
+      : "- None";
+
+    return `# CASE_STRUCTURE_REPORT
+
+## OVERVIEW
+- Total Records: ${totalRecords}
+- Total Links: ${totalLinks}
+- Average Links per Record: ${averageLinks}
+- Broken Links: ${payload.missingLinks.length}
+
+## RECORD DISTRIBUTION
+- Incidents: ${nodeCounts.incident || 0}
+- Evidence: ${nodeCounts.evidence || 0}
+- Documents: ${documentCount}
+- Strategy: ${nodeCounts.strategy || 0}
+- Tasks: ${nodeCounts.task || 0}
+
+## LINK INTEGRITY
+
+Unlinked Records (0 links):
+${formatNodeList(unlinkedRecords)}
+
+Weak Records (1 link):
+${formatNodeList(weakRecords)}
+
+Highly Connected Records (5+ links):
+${formatNodeList(highlyConnectedRecords)}
+
+## EVIDENCE COVERAGE
+
+Incidents without Evidence:
+${formatTitleList(incidentsWithoutEvidence)}
+
+Incidents with Evidence Count:
+${formatIncidentEvidenceCountList(incidentsWithEvidence)}
+
+Unused Evidence (not linked to incidents):
+${formatTitleList(unusedEvidence)}
+
+## SEQUENCE GROUPS
+
+Grouped Records:
+${groupedSequenceText || "- None"}
+
+Ungrouped Records:
+${ungroupedSequenceText}
+
+## ACTION LIST
+- Link unlinked records to relevant incidents or evidence
+- Add evidence to incidents without proof
+- Strengthen weak records by adding cause/outcome links
+- Assign sequenceGroup to ungrouped records
+- Review highly connected records for relevance/noise`;
+  };
+
+  const handleGenerateCaseStructureReport = () => {
+    try {
+      const report = formatCaseStructureReport(selectedCase);
+      setCaseStructureReportText(report);
+      setCaseStructureReportFeedback("Case structure report generated.");
+    } catch (error) {
+      console.error("Failed to generate case structure report", error);
+      setCaseStructureReportFeedback("Could not generate case structure report.");
+    }
+  };
+
+  const handleCopyCaseStructureReport = async () => {
+    try {
+      const report = caseStructureReportText || formatCaseStructureReport(selectedCase);
+      if (!caseStructureReportText) setCaseStructureReportText(report);
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(report);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = report;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "absolute";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setCaseStructureReportFeedback("Case structure report copied.");
+    } catch (error) {
+      console.error("Failed to copy case structure report", error);
+      setCaseStructureReportFeedback("Copy failed.");
+    }
+  };
+
   const handleRenderGeneratedReport = async () => {
     const lang = activeGeneratedReportLanguage;
     const nextText = safeText(generatedReportDraft);
@@ -2885,6 +3070,57 @@ Rules:
                     </div>
                   </div>
                 </div>
+
+                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setCaseStructureReportOpen((open) => !open)}
+                      className="flex items-center gap-2 text-left"
+                    >
+                      {caseStructureReportOpen ? (
+                        <ChevronDown className="h-4 w-4 text-neutral-400" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-neutral-400" />
+                      )}
+                      <span className="text-sm font-bold uppercase tracking-wider text-neutral-500">
+                        Case Structure Report
+                      </span>
+                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={handleGenerateCaseStructureReport}
+                        className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
+                      >
+                        Generate Case Structure Report
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCopyCaseStructureReport}
+                        className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
+                      >
+                        Copy Case Structure Report
+                      </button>
+                    </div>
+                  </div>
+                  {caseStructureReportFeedback ? (
+                    <p className="mt-2 text-xs font-medium text-neutral-500">{caseStructureReportFeedback}</p>
+                  ) : null}
+                  {caseStructureReportOpen && (
+                    <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                      {caseStructureReportText ? (
+                        <pre className="max-h-96 overflow-auto whitespace-pre-wrap font-mono text-xs leading-5 text-neutral-800">
+                          {caseStructureReportText}
+                        </pre>
+                      ) : (
+                        <p className="text-sm text-neutral-600">
+                          Generate a deterministic structure report from the current case link map.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </section>
 
                 <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
                   <div className="flex flex-col gap-3 border-b border-neutral-100 pb-3 sm:flex-row sm:items-start sm:justify-between">
