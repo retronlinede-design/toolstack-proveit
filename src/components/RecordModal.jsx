@@ -435,8 +435,6 @@ export default function RecordModal({
       ...recordForm,
       isMilestone: !!recordForm.isMilestone,
     };
-    console.log("FORM", recordForm);
-    console.log("PAYLOAD", payload);
     saveRecord(payload);
   };
 

@@ -87,7 +87,7 @@ test("sendReasoningSnapshotToSupabase posts the current snapshot payload shape a
     assert.equal(body.snapshot.app, "proveit");
     assert.equal(body.snapshot.exportType, "CASE_REASONING_EXPORT");
     assert.equal(body.snapshot.contractVersion, "2.0");
-    assert.deepEqual(logs[0], ["sync success", { ok: true, id: "remote-1" }]);
+    assert.deepEqual(logs, []);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -149,8 +149,7 @@ test("exportReasoningCaseToSupabase posts current export payload shape headers a
     assert.match(body.exported_at, /^\d{4}-\d{2}-\d{2}T/);
     assert.equal(body.case_json.app, "proveit");
     assert.equal(body.case_json.exportType, "CASE_REASONING_EXPORT");
-    assert.equal(logs[0][0], "Reasoning export size");
-    assert.deepEqual(logs[1], ["full case export success", { exported: true }]);
+    assert.deepEqual(logs, []);
   } finally {
     globalThis.fetch = originalFetch;
   }

@@ -1930,15 +1930,6 @@ Rules:
       : generatedReportPromptPackage;
 
     try {
-      console.log("STATIC PROMPT IS GENERIC", PROVEIT_REPORT_PROMPT_V1);
-      console.log("REPORT PROMPT", PROVEIT_REPORT_PROMPT_V1);
-      console.log("milestoneTimeline exists", Array.isArray(generatedReportMilestoneTimeline));
-      console.log("milestoneTimeline length", generatedReportMilestoneTimeline?.length || 0);
-      console.log("milestoneTimeline payload", generatedReportMilestoneTimeline);
-      console.log("ORDERED ISSUES", generatedReportOrderedIssues.orderedIssues.map((i) => ({ title: i?.incident?.title, date: i?.date })));
-      console.log("MATCHED ISSUE MILESTONES", generatedReportOrderedIssues.matchResults);
-      console.log("ISSUE TITLE ALIGNMENT", generatedReportOrderedIssues.orderedIssues.map((x) => ({ original: x.originalIssueTitle, final: x.finalIssueTitle, matchedMilestone: x.matchedMilestoneTitle })));
-      console.log("COPIED REPORT PACKAGE", promptToCopy);
       if (navigator?.clipboard?.writeText) {
         await navigator.clipboard.writeText(promptToCopy);
       } else {
@@ -2143,8 +2134,6 @@ ${ungroupedSequenceText}
   const handleRenderGeneratedReport = async () => {
     const lang = activeGeneratedReportLanguage;
     const nextText = safeText(generatedReportDraft);
-    console.log("RAW REPORT RESPONSE", nextText);
-    console.log("RAW REPORT CONTAINS MILESTONE_TIMELINE", /#\s*MILESTONE_TIMELINE\b/i.test(nextText));
     setRenderedReportText(nextText);
 
     const existingVersions = {

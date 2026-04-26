@@ -31,18 +31,12 @@ export async function sendReasoningSnapshotToSupabase(caseItem) {
     throw new Error(`Sync to Supabase failed: ${response.status} ${response.statusText}`);
   }
 
-  console.log("sync success", returnedData);
   return returnedData;
 }
 
 export async function exportReasoningCaseToSupabase(caseItem) {
   try {
     const reasoningPayload = buildCaseReasoningExportPayload(caseItem, "detailed");
-
-    console.log("Reasoning export size", {
-      original: JSON.stringify(caseItem).length,
-      reasoning: JSON.stringify(reasoningPayload).length,
-    });
 
     const response = await fetch(
       SUPABASE_REASONING_EXPORT_URL,
@@ -68,7 +62,6 @@ export async function exportReasoningCaseToSupabase(caseItem) {
       throw new Error(`Full case export failed: ${response.status}`);
     }
 
-    console.log("full case export success", data);
     return data;
 
   } catch (err) {
