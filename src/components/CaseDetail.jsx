@@ -701,6 +701,69 @@ export default function CaseDetail({
     .flatMap(group => group.items)
     .filter(item => item.severity === "blocking")
     .slice(0, 3);
+  const structuralHealthSummary = useMemo(() => {
+    if (!selectedCase) {
+      return {
+        structure: "Weak",
+        evidenceCoverage: "Poor",
+        linkIntegrity: "Weak",
+        chains: "Ungrouped",
+      };
+    }
+
+    const payload = buildCaseLinkMapExportPayload(selectedCase);
+    const validEdges = payload.edges.filter((edge) => edge.status === "resolved");
+    const linkCounts = new Map(payload.nodes.map((node) => [node.id, 0]));
+
+    validEdges.forEach((edge) => {
+      linkCounts.set(edge.sourceId, (linkCounts.get(edge.sourceId) || 0) + 1);
+      linkCounts.set(edge.targetId, (linkCounts.get(edge.targetId) || 0) + 1);
+    });
+
+    const unlinkedCount = payload.nodes.filter((node) => (linkCounts.get(node.id) || 0) === 0).length;
+    const weakCount = payload.nodes.filter((node) => (linkCounts.get(node.id) || 0) === 1).length;
+    const averageLinks = payload.nodes.length > 0 ? validEdges.length / payload.nodes.length : 0;
+    const incidentNodes = payload.nodes.filter((node) => node.type === "incident");
+    const evidenceNodes = payload.nodes.filter((node) => node.type === "evidence");
+    const incidentEvidenceIds = new Map(incidentNodes.map((node) => [node.id, new Set()]));
+    const evidenceLinkedToIncidentIds = new Set();
+
+    validEdges.forEach((edge) => {
+      if (edge.sourceType === "incident" && edge.targetType === "evidence" && incidentEvidenceIds.has(edge.sourceId)) {
+        incidentEvidenceIds.get(edge.sourceId).add(edge.targetId);
+        evidenceLinkedToIncidentIds.add(edge.targetId);
+      }
+      if (edge.sourceType === "evidence" && edge.targetType === "incident" && incidentEvidenceIds.has(edge.targetId)) {
+        incidentEvidenceIds.get(edge.targetId).add(edge.sourceId);
+        evidenceLinkedToIncidentIds.add(edge.sourceId);
+      }
+    });
+
+    const incidentsWithoutEvidenceCount = incidentNodes.filter((node) => (incidentEvidenceIds.get(node.id)?.size || 0) === 0).length;
+    const unusedEvidenceCount = evidenceNodes.filter((node) => !evidenceLinkedToIncidentIds.has(node.id)).length;
+    const sequenceRecords = [
+      ...(selectedCase.incidents || []),
+      ...(selectedCase.evidence || []),
+      ...(selectedCase.documents || []),
+      ...(selectedCase.strategy || []),
+      ...(selectedCase.tasks || []),
+    ];
+    const groupedSequenceCount = sequenceRecords.filter((record) => safeText(record.sequenceGroup).trim()).length;
+    const ungroupedSequenceCount = sequenceRecords.length - groupedSequenceCount;
+
+    return {
+      structure: unlinkedCount > 0 ? "Weak" : weakCount > 0 ? "Developing" : "Strong",
+      evidenceCoverage: incidentsWithoutEvidenceCount > 0 ? "Poor" : unusedEvidenceCount > 0 ? "Partial" : "Good",
+      linkIntegrity: payload.missingLinks.length > 0 ? "Weak" : averageLinks < 2 ? "Developing" : "Strong",
+      chains: ungroupedSequenceCount > 0
+        ? "Ungrouped"
+        : groupedSequenceCount > sequenceRecords.length / 2
+          ? "Structured"
+          : groupedSequenceCount > 0
+            ? "Developing"
+            : "Ungrouped",
+    };
+  }, [selectedCase]);
 
   const rawActionSummary = selectedCase?.actionSummary || {};
   const actionSummary = normalizeActionSummary(rawActionSummary);
@@ -2759,6 +2822,23 @@ ${ungroupedSequenceText}
                     </div>
                   </div>
 
+                  <div className="mb-4 rounded-xl border border-neutral-200 bg-white p-3">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Case Health</div>
+                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {[
+                        ["Structure", structuralHealthSummary.structure],
+                        ["Evidence Coverage", structuralHealthSummary.evidenceCoverage],
+                        ["Link Integrity", structuralHealthSummary.linkIntegrity],
+                        ["Chains", structuralHealthSummary.chains],
+                      ].map(([label, value]) => (
+                        <div key={label} className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{label}</div>
+                          <div className="mt-1 text-sm font-semibold text-neutral-900">{value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
                       Key Weak Points
@@ -4814,9 +4894,11 @@ ${ungroupedSequenceText}
             )}
           </div>
         </div>
-        <aside className="lg:col-span-4 space-y-6 print:hidden">
-          {reviewQueueSection}
-        </aside>
+        {reviewQueueSection && (
+          <aside className="lg:col-span-4 space-y-6 print:hidden">
+            {reviewQueueSection}
+          </aside>
+        )}
       </div>
 
       {showScrollTop && (
