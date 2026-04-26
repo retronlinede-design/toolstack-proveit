@@ -262,17 +262,28 @@ test("normalizeRecord dedupes incident link refs by target incident id", () => {
   ]);
 });
 
-test("normalizeRecord keeps incident linkedEvidenceIds unchanged with linkedIncidentRefs", () => {
+test("normalizeRecord normalizes incident linkedEvidenceIds while preserving linkedIncidentRefs", () => {
   const record = normalizeRecord({
     id: "inc-1",
     title: "Incident",
     date: "2024-04-01",
-    linkedEvidenceIds: ["ev-1"],
+    linkedEvidenceIds: [" ev-1 ", "ev-1", "", null, "ev-2"],
     linkedIncidentRefs: [{ incidentId: "inc-2", type: "CAUSES" }],
   }, "incidents");
 
-  assert.deepEqual(record.linkedEvidenceIds, ["ev-1"]);
+  assert.deepEqual(record.linkedEvidenceIds, ["ev-1", "ev-2"]);
   assert.deepEqual(record.linkedIncidentRefs, [{ incidentId: "inc-2", type: "CAUSES" }]);
+});
+
+test("normalizeRecord normalizes evidence linkedIncidentIds", () => {
+  const record = normalizeRecord({
+    id: "ev-1",
+    title: "Evidence",
+    date: "2024-04-01",
+    linkedIncidentIds: [" inc-1 ", "inc-1", "", null, "inc-2"],
+  }, "evidence");
+
+  assert.deepEqual(record.linkedIncidentIds, ["inc-1", "inc-2"]);
 });
 
 test("normalizeRecord preserves and dedupes incident linkedRecordIds", () => {
@@ -359,6 +370,51 @@ test("normalizeCase builds the current canonical shape and sorts timeline arrays
   });
 });
 
+test("normalizeCase migrates legacy generatedReportText into English report version", () => {
+  const normalized = normalizeCase({
+    id: "case-report-legacy",
+    name: "Report Case",
+    generatedReportText: "# REPORT_TITLE\nClient Report",
+  });
+
+  assert.equal(normalized.generatedReportText, "# REPORT_TITLE\nClient Report");
+  assert.deepEqual(normalized.generatedReportVersions, {
+    en: "# REPORT_TITLE\nClient Report",
+    de: "",
+  });
+  assert.equal(normalized.activeGeneratedReportLanguage, "en");
+});
+
+test("normalizeCase preserves existing generated report versions", () => {
+  const normalized = normalizeCase({
+    id: "case-report-versions",
+    name: "Report Case",
+    generatedReportText: "Legacy report",
+    generatedReportVersions: {
+      en: "English report",
+      de: "German report",
+    },
+    activeGeneratedReportLanguage: "de",
+  });
+
+  assert.equal(normalized.generatedReportText, "Legacy report");
+  assert.deepEqual(normalized.generatedReportVersions, {
+    en: "English report",
+    de: "German report",
+  });
+  assert.equal(normalized.activeGeneratedReportLanguage, "de");
+});
+
+test("normalizeCase falls back invalid active generated report language to English", () => {
+  const normalized = normalizeCase({
+    id: "case-report-language",
+    name: "Report Case",
+    activeGeneratedReportLanguage: "fr",
+  });
+
+  assert.equal(normalized.activeGeneratedReportLanguage, "en");
+});
+
 test("syncCaseLinks updates incident-to-evidence reverse links and preserves unneeded records", () => {
   const caseItem = {
     id: "case-1",
@@ -431,6 +487,25 @@ test("applyRecordPatchToCase patches incidents and syncs evidence links", () => 
   assert.equal(updated.incidents[0].edited, true);
   assert.deepEqual(updated.evidence[0].linkedIncidentIds, ["inc-1"]);
   assert.match(updated.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
+});
+
+test("applyRecordPatchToCase normalizes linkedEvidenceIds from incident patches", () => {
+  const caseItem = normalizeCase({
+    id: "case-patch-links",
+    incidents: [{ id: "inc-1", title: "Incident", linkedEvidenceIds: [] }],
+    evidence: [
+      { id: "ev-1", title: "Evidence 1", linkedIncidentIds: [] },
+      { id: "ev-2", title: "Evidence 2", linkedIncidentIds: [] },
+    ],
+  });
+
+  const updated = applyRecordPatchToCase(caseItem, "incidents", "inc-1", {
+    linkedEvidenceIds: [" ev-1 ", "ev-1", "", null, "ev-2"],
+  });
+
+  assert.deepEqual(updated.incidents[0].linkedEvidenceIds, ["ev-1", "ev-2"]);
+  assert.deepEqual(updated.evidence.find((item) => item.id === "ev-1").linkedIncidentIds, ["inc-1"]);
+  assert.deepEqual(updated.evidence.find((item) => item.id === "ev-2").linkedIncidentIds, ["inc-1"]);
 });
 
 test("applyRecordPatchToCase preserves current unsupported-type and missing-record behavior", () => {
@@ -721,6 +796,74 @@ test("deleteRecordFromCase removes deleted evidence id from linked incidents onl
   assert.match(updated.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
 });
 
+test("deleteRecordFromCase deleting evidence removes generic links and incident linkedEvidenceIds", () => {
+  const caseItem = {
+    id: "case-delete-evidence-links",
+    updatedAt: iso("2024-01-01"),
+    evidence: [
+      { id: "ev-delete", title: "Deleted Evidence", eventDate: "2024-01-01" },
+      { id: "ev-keep", title: "Kept Evidence", eventDate: "2024-01-02", linkedRecordIds: ["ev-delete", "doc-1"] },
+    ],
+    incidents: [
+      { id: "inc-1", title: "Incident", eventDate: "2024-01-03", linkedEvidenceIds: ["ev-delete", "ev-other"], linkedRecordIds: ["ev-delete"] },
+    ],
+    tasks: [{ id: "task-1", title: "Task", linkedRecordIds: ["ev-delete", "inc-1"] }],
+    strategy: [{ id: "str-1", title: "Strategy", eventDate: "2024-01-04", linkedRecordIds: ["ev-delete"] }],
+    documents: [{ id: "doc-1", title: "Doc", linkedRecordIds: ["ev-delete"] }],
+    ledger: [{ id: "ledger-1", label: "Ledger", linkedRecordIds: ["ev-delete"] }],
+  };
+
+  const updated = deleteRecordFromCase(caseItem, "evidence", "ev-delete");
+
+  assert.deepEqual(updated.evidence.map((item) => item.id), ["ev-keep"]);
+  assert.deepEqual(updated.evidence[0].linkedRecordIds, ["doc-1"]);
+  assert.deepEqual(updated.incidents[0].linkedEvidenceIds, ["ev-other"]);
+  assert.deepEqual(updated.incidents[0].linkedRecordIds, []);
+  assert.deepEqual(updated.tasks[0].linkedRecordIds, ["inc-1"]);
+  assert.deepEqual(updated.strategy[0].linkedRecordIds, []);
+  assert.deepEqual(updated.documents[0].linkedRecordIds, []);
+  assert.deepEqual(updated.ledger[0].linkedRecordIds, []);
+});
+
+test("deleteRecordFromCase deleting incident removes generic links, evidence linkedIncidentIds, and incident refs", () => {
+  const caseItem = {
+    id: "case-delete-incident-links",
+    updatedAt: iso("2024-01-01"),
+    evidence: [
+      { id: "ev-1", title: "Evidence", eventDate: "2024-01-02", linkedIncidentIds: ["inc-delete", "inc-keep"], linkedRecordIds: ["inc-delete"] },
+    ],
+    incidents: [
+      { id: "inc-delete", title: "Deleted Incident", eventDate: "2024-01-01" },
+      {
+        id: "inc-keep",
+        title: "Kept Incident",
+        eventDate: "2024-01-03",
+        linkedRecordIds: ["inc-delete", "ev-1"],
+        linkedIncidentRefs: [
+          { incidentId: "inc-delete", type: "RELATED_TO" },
+          { incidentId: "inc-other", type: "CAUSES" },
+        ],
+      },
+    ],
+    tasks: [{ id: "task-1", title: "Task", linkedRecordIds: ["inc-delete"] }],
+    strategy: [{ id: "str-1", title: "Strategy", eventDate: "2024-01-04", linkedRecordIds: ["inc-delete"] }],
+    documents: [{ id: "doc-1", title: "Doc", linkedRecordIds: ["inc-delete"] }],
+    ledger: [{ id: "ledger-1", label: "Ledger", linkedRecordIds: ["inc-delete"] }],
+  };
+
+  const updated = deleteRecordFromCase(caseItem, "incidents", "inc-delete");
+
+  assert.deepEqual(updated.incidents.map((item) => item.id), ["inc-keep"]);
+  assert.deepEqual(updated.evidence[0].linkedIncidentIds, ["inc-keep"]);
+  assert.deepEqual(updated.evidence[0].linkedRecordIds, []);
+  assert.deepEqual(updated.incidents[0].linkedRecordIds, ["ev-1"]);
+  assert.deepEqual(updated.incidents[0].linkedIncidentRefs, [{ incidentId: "inc-other", type: "CAUSES" }]);
+  assert.deepEqual(updated.tasks[0].linkedRecordIds, []);
+  assert.deepEqual(updated.strategy[0].linkedRecordIds, []);
+  assert.deepEqual(updated.documents[0].linkedRecordIds, []);
+  assert.deepEqual(updated.ledger[0].linkedRecordIds, []);
+});
+
 test("deleteRecordFromCase preserves non-linking record type delete behavior", () => {
   const evidence = [{ id: "ev-1", linkedIncidentIds: ["inc-1"] }];
   const incidents = [{ id: "inc-1", linkedEvidenceIds: ["ev-1"] }];
@@ -776,6 +919,32 @@ test("deleteLedgerEntryFromCase removes target ledger entry and preserves unrela
   assert.equal(updated.documents[0].linkedRecordIds, "not-normalized");
 });
 
+test("deleteLedgerEntryFromCase removes linkedRecordIds pointing to the deleted ledger entry", () => {
+  const caseItem = {
+    id: "case-delete-ledger-links",
+    updatedAt: iso("2024-01-01"),
+    evidence: [{ id: "ev-1", title: "Evidence", eventDate: "2024-01-01", linkedRecordIds: ["ledger-delete", "doc-1"] }],
+    incidents: [{ id: "inc-1", title: "Incident", eventDate: "2024-01-02", linkedRecordIds: ["ledger-delete"] }],
+    tasks: [{ id: "task-1", title: "Task", linkedRecordIds: ["ledger-delete"] }],
+    strategy: [{ id: "str-1", title: "Strategy", eventDate: "2024-01-03", linkedRecordIds: ["ledger-delete"] }],
+    documents: [{ id: "doc-1", title: "Doc", linkedRecordIds: ["ledger-delete"] }],
+    ledger: [
+      { id: "ledger-delete", label: "Deleted Ledger" },
+      { id: "ledger-keep", label: "Kept Ledger", linkedRecordIds: ["ledger-delete"] },
+    ],
+  };
+
+  const updated = deleteLedgerEntryFromCase(caseItem, "ledger-delete");
+
+  assert.deepEqual(updated.ledger.map((item) => item.id), ["ledger-keep"]);
+  assert.deepEqual(updated.evidence[0].linkedRecordIds, ["doc-1"]);
+  assert.deepEqual(updated.incidents[0].linkedRecordIds, []);
+  assert.deepEqual(updated.tasks[0].linkedRecordIds, []);
+  assert.deepEqual(updated.strategy[0].linkedRecordIds, []);
+  assert.deepEqual(updated.documents[0].linkedRecordIds, []);
+  assert.deepEqual(updated.ledger[0].linkedRecordIds, []);
+});
+
 test("deleteDocumentEntryFromCase removes target document entry and preserves unrelated unnormalized data", () => {
   const incidents = [{ id: "inc-1", title: "Incident without normalized timeline fields" }];
   const actionSummary = {
@@ -807,6 +976,32 @@ test("deleteDocumentEntryFromCase removes target document entry and preserves un
   assert.equal(updated.incidents[0].eventDate, undefined);
   assert.equal(updated.actionSummary.nextActions, "not-normalized");
   assert.equal(updated.ledger[0].expectedAmount, "not-normalized");
+});
+
+test("deleteDocumentEntryFromCase removes linkedRecordIds pointing to the deleted document", () => {
+  const caseItem = {
+    id: "case-delete-document-links",
+    updatedAt: iso("2024-01-01"),
+    evidence: [{ id: "ev-1", title: "Evidence", eventDate: "2024-01-01", linkedRecordIds: ["doc-delete", "ledger-1"] }],
+    incidents: [{ id: "inc-1", title: "Incident", eventDate: "2024-01-02", linkedRecordIds: ["doc-delete"] }],
+    tasks: [{ id: "task-1", title: "Task", linkedRecordIds: ["doc-delete"] }],
+    strategy: [{ id: "str-1", title: "Strategy", eventDate: "2024-01-03", linkedRecordIds: ["doc-delete"] }],
+    documents: [
+      { id: "doc-delete", title: "Deleted Doc" },
+      { id: "doc-keep", title: "Kept Doc", linkedRecordIds: ["doc-delete"] },
+    ],
+    ledger: [{ id: "ledger-1", label: "Ledger", linkedRecordIds: ["doc-delete"] }],
+  };
+
+  const updated = deleteDocumentEntryFromCase(caseItem, "doc-delete");
+
+  assert.deepEqual(updated.documents.map((item) => item.id), ["doc-keep"]);
+  assert.deepEqual(updated.evidence[0].linkedRecordIds, ["ledger-1"]);
+  assert.deepEqual(updated.incidents[0].linkedRecordIds, []);
+  assert.deepEqual(updated.tasks[0].linkedRecordIds, []);
+  assert.deepEqual(updated.strategy[0].linkedRecordIds, []);
+  assert.deepEqual(updated.documents[0].linkedRecordIds, []);
+  assert.deepEqual(updated.ledger[0].linkedRecordIds, []);
 });
 
 test("upsertRecordInCase create prepends non-timeline records and preserves unrelated sections", () => {
@@ -1495,6 +1690,12 @@ test("mergeCase normalizes both sides, merges collections by id, and keeps curre
     strategy: [{ id: "str-1", title: "Existing strategy", date: "2024-01-04", createdAt: iso("2024-01-04T09:00:00Z") }],
     ledger: [{ id: "ledger-1", label: "Old ledger", expectedAmount: "5", paidAmount: "2" }],
     documents: [{ id: "doc-1", title: "Old doc", summary: "old" }],
+    generatedReportText: "Existing legacy report",
+    generatedReportVersions: {
+      en: "Existing English report",
+      de: "",
+    },
+    activeGeneratedReportLanguage: "de",
     actionSummary: {
       currentFocus: "Existing focus",
       nextActions: ["Existing action"],
@@ -1520,6 +1721,9 @@ test("mergeCase normalizes both sides, merges collections by id, and keeps curre
     evidence: [{ id: "ev-2", title: "Incoming evidence" }],
     ledger: [{ id: "ledger-1", label: "New ledger", expectedAmount: "9", paidAmount: "3" }],
     documents: [{ id: "doc-1", title: "New doc" }],
+    generatedReportVersions: {
+      de: "Incoming German report",
+    },
     actionSummary: {
       currentFocus: "",
       nextActions: [],
@@ -1554,4 +1758,10 @@ test("mergeCase normalizes both sides, merges collections by id, and keeps curre
     criticalDeadlines: [],
     updatedAt: "existing-summary-time",
   });
+  assert.equal(merged.generatedReportText, "Existing legacy report");
+  assert.deepEqual(merged.generatedReportVersions, {
+    en: "Existing English report",
+    de: "Incoming German report",
+  });
+  assert.equal(merged.activeGeneratedReportLanguage, "de");
 });

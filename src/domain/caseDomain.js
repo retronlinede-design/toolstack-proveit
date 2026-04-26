@@ -39,6 +39,24 @@ export const normalizeGeneratedReportText = (value) => {
   return value;
 };
 
+export const normalizeGeneratedReportVersions = (value, legacyGeneratedReportText = "") => {
+  const legacyText = normalizeGeneratedReportText(legacyGeneratedReportText);
+  const versions = {
+    en: normalizeGeneratedReportText(value?.en),
+    de: normalizeGeneratedReportText(value?.de),
+  };
+
+  if (!versions.en && legacyText) {
+    versions.en = legacyText;
+  }
+
+  return versions;
+};
+
+export const normalizeActiveGeneratedReportLanguage = (value) => {
+  return value === "de" ? "de" : "en";
+};
+
 export function normalizeCasePrivacyLock(value) {
   const pin = typeof value?.pin === "string" ? value.pin.trim() : "";
   if (!/^\d{4,6}$/.test(pin)) return null;
@@ -253,8 +271,8 @@ export function normalizeRecord(item, recordType) {
     attachments: Array.isArray(item?.attachments) ? item.attachments : [],
     tags: Array.isArray(item?.tags) ? item.tags : [],
     linkedRecordIds: normalizeLinkedRecordIds(item?.linkedRecordIds),
-    linkedIncidentIds: Array.isArray(item?.linkedIncidentIds) ? item.linkedIncidentIds : [], // For evidence
-    linkedEvidenceIds: Array.isArray(item?.linkedEvidenceIds) ? item.linkedEvidenceIds : [], // For incidents
+    linkedIncidentIds: normalizeLinkedRecordIds(item?.linkedIncidentIds), // For evidence
+    linkedEvidenceIds: normalizeLinkedRecordIds(item?.linkedEvidenceIds), // For incidents
     status: normalizeRecordStatus(item?.status, recordType),
     source: item?.source || "manual",
     edited: !!item?.edited,
@@ -335,7 +353,9 @@ export function normalizeRecordPatch(recordType, patch = {}) {
     if (!Object.prototype.hasOwnProperty.call(patch, field)) return normalized;
 
     if (listFields.includes(field) || field === "linkedEvidenceIds") {
-      normalized[field] = Array.isArray(patch[field]) ? patch[field] : [];
+      normalized[field] = field === "attachments" || field === "tags"
+        ? (Array.isArray(patch[field]) ? patch[field] : [])
+        : normalizeLinkedRecordIds(patch[field]);
       return normalized;
     }
 
@@ -407,6 +427,7 @@ export function normalizeCase(caseItem) {
   const documents = Array.isArray(caseItem?.documents) ? caseItem.documents.map(normalizeDocumentEntry) : [];
   const actionSummary = normalizeActionSummary(caseItem?.actionSummary || {});
   const privacyLock = normalizeCasePrivacyLock(caseItem?.privacyLock);
+  const generatedReportText = normalizeGeneratedReportText(caseItem?.generatedReportText);
 
   return {
     id: caseItem?.id || generateId(),
@@ -426,7 +447,9 @@ export function normalizeCase(caseItem) {
     documents: documents,
     actionSummary,
     privacyLock,
-    generatedReportText: normalizeGeneratedReportText(caseItem?.generatedReportText),
+    generatedReportText,
+    generatedReportVersions: normalizeGeneratedReportVersions(caseItem?.generatedReportVersions, generatedReportText),
+    activeGeneratedReportLanguage: normalizeActiveGeneratedReportLanguage(caseItem?.activeGeneratedReportLanguage),
   };
 }
 
@@ -603,6 +626,74 @@ export function getIncidentsUsingRecord(caseItem, recordId) {
   );
 }
 
+function removeDeletedIdFromArray(value, deletedId) {
+  if (!Array.isArray(value)) return { value, changed: false };
+  const nextValue = value.filter((id) => id !== deletedId);
+  return {
+    value: nextValue,
+    changed: nextValue.length !== value.length,
+  };
+}
+
+function removeDeletedIncidentRefs(value, deletedId) {
+  if (!Array.isArray(value)) return { value, changed: false };
+  const nextValue = value.filter((ref) => ref?.incidentId !== deletedId);
+  return {
+    value: nextValue,
+    changed: nextValue.length !== value.length,
+  };
+}
+
+function cleanupLinkedFields(item, deletedId, updatedAt) {
+  if (!item || !deletedId) return item;
+
+  let changed = false;
+  const nextItem = { ...item };
+  const arrayFields = ["linkedRecordIds", "linkedEvidenceIds", "linkedIncidentIds"];
+
+  arrayFields.forEach((field) => {
+    const result = removeDeletedIdFromArray(nextItem[field], deletedId);
+    if (result.changed) {
+      nextItem[field] = result.value;
+      changed = true;
+    }
+  });
+
+  const incidentRefsResult = removeDeletedIncidentRefs(nextItem.linkedIncidentRefs, deletedId);
+  if (incidentRefsResult.changed) {
+    nextItem.linkedIncidentRefs = incidentRefsResult.value;
+    changed = true;
+  }
+
+  return changed ? { ...nextItem, updatedAt } : item;
+}
+
+export function cleanupDeletedRecordLinks(caseItem, deletedType, deletedId) {
+  if (!caseItem || !deletedId) return caseItem;
+
+  const updatedAt = new Date().toISOString();
+  const cleanupCollection = (items = [], { timeline = false } = {}) => {
+    let changed = false;
+    const cleanedItems = items.map((item) => cleanupLinkedFields(item, deletedId, updatedAt));
+    cleanedItems.forEach((item, index) => {
+      if (item !== items[index]) changed = true;
+    });
+    if (!changed) return items;
+    return timeline ? sortTimelineItems(cleanedItems) : cleanedItems;
+  };
+
+  return {
+    ...caseItem,
+    evidence: cleanupCollection(caseItem.evidence || [], { timeline: true }),
+    incidents: cleanupCollection(caseItem.incidents || [], { timeline: true }),
+    tasks: cleanupCollection(caseItem.tasks || []),
+    strategy: cleanupCollection(caseItem.strategy || [], { timeline: true }),
+    documents: cleanupCollection(caseItem.documents || []),
+    ledger: cleanupCollection(caseItem.ledger || []),
+    updatedAt: caseItem.updatedAt,
+  };
+}
+
 export function deleteRecordFromCase(caseItem, recordType, recordId) {
   let updatedCase = {
     ...caseItem,
@@ -610,44 +701,27 @@ export function deleteRecordFromCase(caseItem, recordType, recordId) {
     updatedAt: new Date().toISOString(),
   };
 
-  if (recordType === "incidents") {
-    updatedCase = removeIncidentRefsToIncident(updatedCase, recordId);
-    updatedCase.evidence = sortTimelineItems((updatedCase.evidence || []).map(ev => {
-      const isCurrentlyLinked = (ev.linkedIncidentIds || []).includes(recordId);
-
-      if (isCurrentlyLinked) {
-        return { ...ev, linkedIncidentIds: (ev.linkedIncidentIds || []).filter(id => id !== recordId), updatedAt: new Date().toISOString() };
-      }
-      return ev;
-    }));
-  } else if (recordType === "evidence") {
-    updatedCase.incidents = sortTimelineItems((updatedCase.incidents || []).map(inc => {
-      const isCurrentlyLinked = (inc.linkedEvidenceIds || []).includes(recordId);
-
-      if (isCurrentlyLinked) {
-        return { ...inc, linkedEvidenceIds: (inc.linkedEvidenceIds || []).filter(id => id !== recordId), updatedAt: new Date().toISOString() };
-      }
-      return inc;
-    }));
-  }
-
-  return updatedCase;
+  return cleanupDeletedRecordLinks(updatedCase, recordType, recordId);
 }
 
 export function deleteLedgerEntryFromCase(caseItem, entryId) {
-  return {
+  const updatedCase = {
     ...caseItem,
     ledger: (caseItem.ledger || []).filter(item => item.id !== entryId),
     updatedAt: new Date().toISOString(),
   };
+
+  return cleanupDeletedRecordLinks(updatedCase, "ledger", entryId);
 }
 
 export function deleteDocumentEntryFromCase(caseItem, entryId) {
-  return {
+  const updatedCase = {
     ...caseItem,
     documents: (caseItem.documents || []).filter(item => item.id !== entryId),
     updatedAt: new Date().toISOString(),
   };
+
+  return cleanupDeletedRecordLinks(updatedCase, "document", entryId);
 }
 
 export function upsertLedgerEntryInCase(caseItem, ledgerInput, editingLedgerId = null) {
@@ -902,6 +976,14 @@ export function mergeCase(existingCase, incomingCase) {
   const nExisting = normalizeCase(existingCase);
   const nIncoming = normalizeCase(incomingCase);
   const hasIncomingGeneratedReportText = Object.prototype.hasOwnProperty.call(incomingCase || {}, "generatedReportText");
+  const hasIncomingGeneratedReportVersions = Object.prototype.hasOwnProperty.call(incomingCase || {}, "generatedReportVersions");
+  const hasIncomingActiveGeneratedReportLanguage = Object.prototype.hasOwnProperty.call(incomingCase || {}, "activeGeneratedReportLanguage");
+  const generatedReportVersions = hasIncomingGeneratedReportVersions
+    ? {
+        en: nIncoming.generatedReportVersions.en || nExisting.generatedReportVersions.en,
+        de: nIncoming.generatedReportVersions.de || nExisting.generatedReportVersions.de,
+      }
+    : nExisting.generatedReportVersions;
 
   return {
     ...nExisting,
@@ -939,5 +1021,9 @@ export function mergeCase(existingCase, incomingCase) {
     generatedReportText: hasIncomingGeneratedReportText
       ? normalizeGeneratedReportText(incomingCase?.generatedReportText)
       : normalizeGeneratedReportText(existingCase?.generatedReportText),
+    generatedReportVersions,
+    activeGeneratedReportLanguage: hasIncomingActiveGeneratedReportLanguage
+      ? normalizeActiveGeneratedReportLanguage(incomingCase?.activeGeneratedReportLanguage)
+      : normalizeActiveGeneratedReportLanguage(existingCase?.activeGeneratedReportLanguage),
   };
 }
