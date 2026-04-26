@@ -45,6 +45,7 @@ import { removeRecordAttachmentFromForm } from "./domain/recordFormDomain";
 import { ShieldCheck } from "lucide-react";
 
 const lastUsedGroupByType = {};
+const SHOW_REVIEW_QUEUE = false;
 
 const EMPTY_RECORD_FORM = {
   title: "",
@@ -2149,7 +2150,7 @@ const handleRecordFiles = async (event) => {
             duplicateLedgerEntry={duplicateLedgerEntry}
             openDocumentModal={openDocumentModal}
             deleteDocumentEntry={deleteDocumentEntry}
-            reviewQueueSection={(
+            reviewQueueSection={SHOW_REVIEW_QUEUE ? (
               <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div>
@@ -2162,7 +2163,7 @@ const handleRecordFiles = async (event) => {
                 </div>
                 {renderReviewQueue()}
               </div>
-            )}
+            ) : null}
           />
         ) : (
           renderCaseList()
@@ -2547,7 +2548,7 @@ const handleRecordFiles = async (event) => {
           />
         )}
 
-        {showQuickCapture && (
+        {SHOW_REVIEW_QUEUE && showQuickCapture && (
           <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
             <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl">
               <h2 className="mb-4 text-xl font-semibold">Quick Capture</h2>
