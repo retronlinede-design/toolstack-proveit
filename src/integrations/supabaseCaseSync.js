@@ -1,11 +1,33 @@
 import { buildCaseReasoningExportPayload } from "../export/caseExport.js";
 
-export const SUPABASE_REASONING_SNAPSHOT_URL = "https://aftbtklrlkccngjiaacv.supabase.co/functions/v1/proveit-upsert-case";
-export const SUPABASE_REASONING_SNAPSHOT_API_KEY = "proveit-live-read-123456";
-export const SUPABASE_REASONING_EXPORT_URL = "https://aftbtklrlkccngjiaacv.supabase.co/functions/v1/export-full-case";
-export const SUPABASE_REASONING_EXPORT_KEY = "sb_publishable_jVKAQYEpeh1G5MY1yRvPJA_iYUUCPFy";
+export const REMOTE_SYNC_NOT_CONFIGURED_ERROR = "Remote sync is not configured.";
 
-export async function sendReasoningSnapshotToSupabase(caseItem) {
+function getSupabaseRemoteConfig(config = {}) {
+  const env = config.env || import.meta.env || {};
+  return {
+    functionUrl: config.functionUrl || env.VITE_SUPABASE_FUNCTION_URL || "",
+    anonKey: config.anonKey || env.VITE_SUPABASE_ANON_KEY || "",
+  };
+}
+
+function getConfiguredRemote(config) {
+  const remoteConfig = getSupabaseRemoteConfig(config);
+  if (!remoteConfig.functionUrl || !remoteConfig.anonKey) {
+    throw new Error(REMOTE_SYNC_NOT_CONFIGURED_ERROR);
+  }
+  return remoteConfig;
+}
+
+function getRemoteHeaders(anonKey) {
+  return {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${anonKey}`,
+    "apikey": anonKey,
+  };
+}
+
+export async function sendReasoningSnapshotToSupabase(caseItem, config) {
+  const { functionUrl, anonKey } = getConfiguredRemote(config);
   const reasoningPayload = buildCaseReasoningExportPayload(caseItem, "detailed");
 
   const payload = {
@@ -17,12 +39,9 @@ export async function sendReasoningSnapshotToSupabase(caseItem) {
     snapshot: reasoningPayload,
   };
 
-  const response = await fetch(SUPABASE_REASONING_SNAPSHOT_URL, {
+  const response = await fetch(functionUrl, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": SUPABASE_REASONING_SNAPSHOT_API_KEY,
-    },
+    headers: getRemoteHeaders(anonKey),
     body: JSON.stringify(payload),
   });
 
@@ -34,20 +53,16 @@ export async function sendReasoningSnapshotToSupabase(caseItem) {
   return returnedData;
 }
 
-export async function exportReasoningCaseToSupabase(caseItem) {
+export async function exportReasoningCaseToSupabase(caseItem, config) {
   try {
+    const { functionUrl, anonKey } = getConfiguredRemote(config);
     const reasoningPayload = buildCaseReasoningExportPayload(caseItem, "detailed");
 
     const response = await fetch(
-      SUPABASE_REASONING_EXPORT_URL,
+      functionUrl,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${SUPABASE_REASONING_EXPORT_KEY}`,
-          "apikey": SUPABASE_REASONING_EXPORT_KEY,
-          "x-api-key": SUPABASE_REASONING_SNAPSHOT_API_KEY,
-        },
+        headers: getRemoteHeaders(anonKey),
         body: JSON.stringify({
           case_id: caseItem.id,
           exported_at: new Date().toISOString(),

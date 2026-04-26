@@ -1,11 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 
 import {
-  SUPABASE_REASONING_EXPORT_KEY,
-  SUPABASE_REASONING_EXPORT_URL,
-  SUPABASE_REASONING_SNAPSHOT_API_KEY,
-  SUPABASE_REASONING_SNAPSHOT_URL,
+  REMOTE_SYNC_NOT_CONFIGURED_ERROR,
   exportReasoningCaseToSupabase,
   sendReasoningSnapshotToSupabase,
 } from "./supabaseCaseSync.js";
@@ -53,7 +51,19 @@ function withConsoleStubs(fn) {
   };
 }
 
-test("sendReasoningSnapshotToSupabase posts the current snapshot payload shape and returns response JSON", withConsoleStubs(async ({ logs }) => {
+const configuredRemote = () => ({
+  functionUrl: "https://example.test/functions/v1/proveit-remote",
+  anonKey: "test-anon-key",
+});
+
+test("sendReasoningSnapshotToSupabase fails safely when remote sync is not configured", async () => {
+  await assert.rejects(
+    sendReasoningSnapshotToSupabase(baseCase()),
+    new RegExp(REMOTE_SYNC_NOT_CONFIGURED_ERROR)
+  );
+});
+
+test("sendReasoningSnapshotToSupabase posts the current snapshot payload shape and returns response JSON when configured", withConsoleStubs(async ({ logs }) => {
   const fetchCalls = [];
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (...args) => {
@@ -67,15 +77,16 @@ test("sendReasoningSnapshotToSupabase posts the current snapshot payload shape a
   };
 
   try {
-    const result = await sendReasoningSnapshotToSupabase(baseCase());
+    const result = await sendReasoningSnapshotToSupabase(baseCase(), configuredRemote());
 
     assert.deepEqual(result, { ok: true, id: "remote-1" });
     assert.equal(fetchCalls.length, 1);
-    assert.equal(fetchCalls[0][0], SUPABASE_REASONING_SNAPSHOT_URL);
+    assert.equal(fetchCalls[0][0], configuredRemote().functionUrl);
     assert.equal(fetchCalls[0][1].method, "POST");
     assert.deepEqual(fetchCalls[0][1].headers, {
       "Content-Type": "application/json",
-      "x-api-key": SUPABASE_REASONING_SNAPSHOT_API_KEY,
+      "Authorization": `Bearer ${configuredRemote().anonKey}`,
+      "apikey": configuredRemote().anonKey,
     });
 
     const body = JSON.parse(fetchCalls[0][1].body);
@@ -108,7 +119,7 @@ test("sendReasoningSnapshotToSupabase preserves current error handling after rea
 
   try {
     await assert.rejects(
-      sendReasoningSnapshotToSupabase(baseCase()),
+      sendReasoningSnapshotToSupabase(baseCase(), configuredRemote()),
       /Sync to Supabase failed: 500 Server Error/
     );
     assert.equal(jsonRead, true);
@@ -117,7 +128,17 @@ test("sendReasoningSnapshotToSupabase preserves current error handling after rea
   }
 });
 
-test("exportReasoningCaseToSupabase posts current export payload shape headers and returns response JSON", withConsoleStubs(async ({ logs }) => {
+test("exportReasoningCaseToSupabase fails safely when remote sync is not configured", withConsoleStubs(async ({ errors }) => {
+  await assert.rejects(
+    exportReasoningCaseToSupabase(baseCase()),
+    new RegExp(REMOTE_SYNC_NOT_CONFIGURED_ERROR)
+  );
+  assert.equal(errors.length, 1);
+  assert.equal(errors[0][0], "Full case export failed");
+  assert.match(errors[0][1].message, new RegExp(REMOTE_SYNC_NOT_CONFIGURED_ERROR));
+}));
+
+test("exportReasoningCaseToSupabase posts current export payload shape headers and returns response JSON when configured", withConsoleStubs(async ({ logs }) => {
   const fetchCalls = [];
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (...args) => {
@@ -131,17 +152,16 @@ test("exportReasoningCaseToSupabase posts current export payload shape headers a
   };
 
   try {
-    const result = await exportReasoningCaseToSupabase(baseCase());
+    const result = await exportReasoningCaseToSupabase(baseCase(), configuredRemote());
 
     assert.deepEqual(result, { exported: true });
     assert.equal(fetchCalls.length, 1);
-    assert.equal(fetchCalls[0][0], SUPABASE_REASONING_EXPORT_URL);
+    assert.equal(fetchCalls[0][0], configuredRemote().functionUrl);
     assert.equal(fetchCalls[0][1].method, "POST");
     assert.deepEqual(fetchCalls[0][1].headers, {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${SUPABASE_REASONING_EXPORT_KEY}`,
-      "apikey": SUPABASE_REASONING_EXPORT_KEY,
-      "x-api-key": SUPABASE_REASONING_SNAPSHOT_API_KEY,
+      "Authorization": `Bearer ${configuredRemote().anonKey}`,
+      "apikey": configuredRemote().anonKey,
     });
 
     const body = JSON.parse(fetchCalls[0][1].body);
@@ -166,7 +186,7 @@ test("exportReasoningCaseToSupabase preserves current catch log and rethrow beha
 
   try {
     await assert.rejects(
-      exportReasoningCaseToSupabase(baseCase()),
+      exportReasoningCaseToSupabase(baseCase(), configuredRemote()),
       /Full case export failed: 503/
     );
     assert.equal(errors.length, 1);
@@ -176,3 +196,14 @@ test("exportReasoningCaseToSupabase preserves current catch log and rethrow beha
     globalThis.fetch = originalFetch;
   }
 }));
+
+test("supabaseCaseSync source does not contain removed frontend secrets", async () => {
+  const source = await readFile(new URL("./supabaseCaseSync.js", import.meta.url), "utf8");
+  const removedCustomSecret = ["proveit-live", "read", "123456"].join("-");
+  const removedPublishablePrefix = ["sb", "publishable", ""].join("_");
+  const removedProjectId = ["aftbtklrlkccng", "jiaacv"].join("");
+
+  assert.equal(source.includes(removedCustomSecret), false);
+  assert.equal(source.includes(removedPublishablePrefix), false);
+  assert.equal(source.includes(removedProjectId), false);
+});
