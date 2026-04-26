@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import AttachmentPreview from "./AttachmentPreview";
-import { AlertCircle, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, ShieldCheck, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, ShieldCheck, Tags, X } from "lucide-react";
 import proveItHeaderLogo from "../assets/proveitheader.png";
 import { isTimelineCapable, getCaseHealthReport } from "../lib/caseHealth";
 import { getIncidentsUsingRecord } from "../domain/caseDomain.js";
@@ -39,6 +39,18 @@ function renderCompactLinkRow(label, items, renderChip) {
         )}
       </div>
     </div>
+  );
+}
+
+function renderSequenceGroupChip(value) {
+  const sequenceGroup = typeof value === "string" ? value.trim() : "";
+  if (!sequenceGroup) return null;
+
+  return (
+    <span className="inline-flex max-w-full items-center gap-1 rounded border border-neutral-200 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-600">
+      <Tags className="h-3 w-3 shrink-0 text-neutral-400" aria-hidden="true" />
+      <span className="truncate">{sequenceGroup}</span>
+    </span>
   );
 }
 
@@ -3706,6 +3718,7 @@ ${ungroupedSequenceText}
                                   <span className={`shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${getDocumentStatusClasses(textStatus.tone)}`}>
                                     {textStatus.label}
                                   </span>
+                                  {renderSequenceGroupChip(doc.sequenceGroup)}
                                 </div>
                                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                                   <span className="text-neutral-600">{doc.documentDate || "No date"}</span>
@@ -3897,6 +3910,7 @@ ${ungroupedSequenceText}
                                       {record.meta.status}
                                     </span>
                                   )}
+                                  {renderSequenceGroupChip(record.rawDocument?.sequenceGroup)}
                                 </div>
 
                                 <div className="mt-2 grid gap-1 text-xs text-neutral-600 sm:grid-cols-2">
@@ -4024,6 +4038,7 @@ ${ungroupedSequenceText}
                                     {record.meta.status}
                                   </span>
                                 )}
+                                {renderSequenceGroupChip(record.rawDocument?.sequenceGroup)}
                               </div>
 
                               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-600">

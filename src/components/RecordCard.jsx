@@ -3,6 +3,7 @@ import { getLinkChipClasses } from "./linkChipStyles";
 import LinkedChip from "./LinkedChip";
 import { getIncidentLinkGroups } from "../domain/caseDomain.js";
 import { getEvidenceDisplayMeta, getIncidentDisplayMeta, getRecordDisplayMeta } from "../domain/linkingResolvers.js";
+import { Tags } from "lucide-react";
 
 const EVIDENCE_ROLE_LABELS = {
   ANCHOR_EVIDENCE: "Anchor Evidence",
@@ -37,6 +38,7 @@ export default function RecordCard({
   const isRecordMilestone = isSupportedMilestoneType && (!!item.isMilestone || !!isMilestone);
   const incidentLinkGroups = recordType === "incidents" ? getIncidentLinkGroups(selectedCase, item.id) : null;
   const canCreateTask = ["evidence", "incidents", "strategy"].includes(recordType);
+  const sequenceGroup = typeof item.sequenceGroup === "string" ? item.sequenceGroup.trim() : "";
   const isNewRecord =
     (recordType === "evidence" || recordType === "incidents") &&
     item.edited !== true;
@@ -98,6 +100,17 @@ export default function RecordCard({
         {incident.title || "Untitled incident"}
       </LinkedChip>
     ));
+  };
+
+  const renderSequenceGroupChip = () => {
+    if (!sequenceGroup) return null;
+
+    return (
+      <span className="inline-flex max-w-full items-center gap-1 rounded border border-neutral-200 bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-600">
+        <Tags className="h-3 w-3 shrink-0 text-neutral-400" aria-hidden="true" />
+        <span className="truncate">{sequenceGroup}</span>
+      </span>
+    );
   };
 
   return (
@@ -179,6 +192,7 @@ export default function RecordCard({
                   New
                 </span>
               )}
+              {!isEvidence && renderSequenceGroupChip()}
             </div>
 
             {isEvidence && (item.description || item.notes) && (
@@ -193,11 +207,7 @@ export default function RecordCard({
                   <span className="inline-block rounded border border-lime-200 bg-lime-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-lime-700">
                     {EVIDENCE_ROLE_LABELS[item.evidenceRole] || EVIDENCE_ROLE_LABELS.OTHER}
                   </span>
-                  {item.sequenceGroup && (
-                    <span className="inline-block rounded border border-neutral-200 bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-600">
-                      {item.sequenceGroup}
-                    </span>
-                  )}
+                  {renderSequenceGroupChip()}
                 </div>
                 {item.functionSummary && (
                   <div className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-700">
