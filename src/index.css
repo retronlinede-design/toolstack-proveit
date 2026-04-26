@@ -1,8 +1,12 @@
 @import "tailwindcss";
 
+.proveit-print-footer {
+  display: none;
+}
+
 @media print {
   @page {
-    margin: 16mm 14mm 18mm;
+    margin: 16mm 14mm 22mm;
   }
 
   html,
@@ -25,6 +29,21 @@
 
   .print-pack-article {
     margin: 0 auto;
+    padding-bottom: 18mm;
+  }
+
+  .proveit-print-footer {
+    display: block;
+    position: fixed;
+    right: 14mm;
+    bottom: 8mm;
+    left: 14mm;
+    border-top: 1px solid #e5e5e5;
+    padding-top: 3mm;
+    color: #525252;
+    font-size: 9pt;
+    line-height: 1.2;
+    text-align: right;
   }
 
   .print-pack-header {

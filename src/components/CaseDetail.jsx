@@ -14,17 +14,26 @@ import RecordCard from "./RecordCard";
 
 function renderCompactLinkRow(label, items, renderChip) {
   if (!items || items.length === 0) return null;
-  const visibleItems = items.slice(0, 4);
-  const remainingCount = items.length - visibleItems.length;
+  const renderedChips = items.map(renderChip).filter(Boolean);
+  const visibleChips = renderedChips.slice(0, 4);
+  const remainingCount = renderedChips.length - visibleChips.length;
+  const missingCount = items.length - renderedChips.length;
+
+  if (renderedChips.length === 0 && missingCount === 0) return null;
 
   return (
     <div className="mt-1 flex items-start gap-2">
       <div className="w-24 shrink-0 pt-0.5 text-[11px] text-neutral-500">{label}</div>
       <div className="flex flex-wrap gap-1">
-        {visibleItems.map(renderChip)}
+        {visibleChips}
         {remainingCount > 0 && (
           <span className={getLinkChipClasses("neutral")}>
             +{remainingCount}
+          </span>
+        )}
+        {missingCount > 0 && (
+          <span className={getLinkChipClasses("neutral", "cursor-default opacity-70")}>
+            {missingCount} missing link{missingCount === 1 ? "" : "s"}
           </span>
         )}
       </div>
@@ -750,7 +759,20 @@ ${strategyFocus.join("\n") || "—"}`;
 
   const handleOpenIssue = (issue) => {
     if (issue.tab) setActiveTab(issue.tab);
+    if (issue.record && issue.type === "documents") {
+      openDocumentModal(issue.record, issue.record.id, isTrackingRecord(issue.record) ? "record" : "document");
+      return;
+    }
+
+    if (issue.record && issue.type === "ledger") {
+      openLedgerModal(issue.record, issue.record.id);
+      return;
+    }
+
     if (issue.record && issue.type) {
+      const editableRecordTypes = new Set(["incidents", "evidence", "strategy", "tasks"]);
+      if (!editableRecordTypes.has(issue.type)) return;
+
       const detail = (issue.detail || "").toLowerCase();
       const missingParts = detail.startsWith("missing:")
         ? detail.replace(/^missing:\s*/, "").split(",").map(part => part.trim()).filter(Boolean)
@@ -788,6 +810,12 @@ ${strategyFocus.join("\n") || "—"}`;
 
     if (found.recordType === "document") {
       openDocumentModal(found.record, found.record.id, found.typeLabel === "Document" ? "document" : "record");
+      return;
+    }
+
+    if (found.recordType === "ledger") {
+      setActiveTab("ledger");
+      openLedgerModal(found.record, found.record.id);
       return;
     }
 
@@ -1986,7 +2014,7 @@ Rules:
     year: "numeric",
   });
   const reportHeadingLabel = (key) => getReportHeadingLabel(key, reportDisplayLanguage);
-  const reportHeaderMeta = `Case: ${selectedCase?.id || "-"} • ${reportDisplayDate}`;
+  const reportHeaderMeta = `Case: ${selectedCase?.id || "-"} - ${reportDisplayDate}`;
   const renderGeneratedReportArticle = (className = "", variant = "default") => {
     const isPackVariant = variant === "pack";
     const displayLanguage = reportDisplayLanguage;
@@ -1994,12 +2022,12 @@ Rules:
 
     return (
     <article className={className}>
-      <header className={`border-b border-neutral-200 ${isPackVariant ? "pb-7 print:pb-5" : "pb-6"}`}>
+      <header className={`print-pack-header border-b border-neutral-200 print:mt-4 ${isPackVariant ? "pb-7 print:pb-5" : "pb-6"}`}>
         <div className="min-w-0">
           <div className={`font-bold uppercase tracking-[0.18em] text-lime-700 ${isPackVariant ? "text-[11px]" : "text-xs"}`}>
             Structured Report
           </div>
-          <div className="mt-2 flex items-center justify-between gap-4">
+          <div className="mt-2 flex items-center justify-between gap-4 print:mt-4">
             <h1 className={`min-w-0 break-words font-bold leading-tight text-neutral-950 ${isPackVariant ? "text-4xl print:text-[2rem]" : "text-3xl"}`}>
               {parsedGeneratedReport.reportTitle || headingLabel("REPORT_TITLE")}
             </h1>
@@ -3092,7 +3120,7 @@ Rules:
 
                                   {item.linkedRecordIds && item.linkedRecordIds.length > 0 && (
                                     <div className="mt-1 border-t border-neutral-100 pt-1">
-                                      {renderCompactLinkRow("Linked Records", item.linkedRecordIds, (rid) => {
+                                      {renderCompactLinkRow("Supporting Links", item.linkedRecordIds, (rid) => {
                                         const linkedRecord = getRecordDisplayMeta(selectedCase, rid);
                                         if (!linkedRecord) return null;
                                         return (
@@ -3438,7 +3466,7 @@ Rules:
 
                           {doc.linkedRecordIds && doc.linkedRecordIds.length > 0 && (
                             <div className="mt-1 border-t border-neutral-100 pt-1">
-                              {renderCompactLinkRow("Supports", doc.linkedRecordIds, (rid) => {
+                              {renderCompactLinkRow("Linked Case Items", doc.linkedRecordIds, (rid) => {
                                 const linkedRecord = getRecordDisplayMeta(selectedCase, rid);
                                 if (!linkedRecord) return null;
                                 return (
@@ -4240,9 +4268,9 @@ Rules:
                 )}
                 {reportMode === "client" && !generatedReportHasVisibleContent && (
                   <article className="print-pack-article mx-auto max-w-4xl rounded-xl border border-neutral-200 bg-white px-6 py-7 shadow-sm shadow-neutral-100 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
-                    <header className="print-pack-header break-inside-avoid border-b border-neutral-200 pb-6 print:pb-5">
+                    <header className="print-pack-header break-inside-avoid border-b border-neutral-200 pb-6 print:mt-4 print:pb-5">
                       <div className="text-xs font-bold uppercase tracking-[0.18em] text-lime-700">{reportHeadingLabel("REPORT_TITLE")}</div>
-                      <div className="mt-2 flex items-center justify-between gap-4">
+                      <div className="mt-2 flex items-center justify-between gap-4 print:mt-4">
                         <h1 className="min-w-0 break-words text-3xl font-bold leading-tight text-neutral-950 print:text-2xl">
                           {selectedCase.name || "Untitled Case"}
                         </h1>
@@ -4324,7 +4352,7 @@ Rules:
                                   </div>
 
                                   <div className="print-pack-support-grid mt-5 grid gap-4 lg:grid-cols-2">
-                                    <section className="rounded-lg border border-neutral-200 bg-neutral-50/60 p-4">
+                                    <section className="proveit-print-avoid-break rounded-lg border border-neutral-200 bg-neutral-50/60 p-4">
                                       <h6 className="text-xs font-bold uppercase tracking-wider text-neutral-500">{reportHeadingLabel("KEY_PROOF")}</h6>
                                       {section.keyProof.length > 0 ? (
                                         <div className="mt-3 space-y-3">
@@ -4343,7 +4371,7 @@ Rules:
                                     </section>
 
                                     {section.supportingRecords.length > 0 && (
-                                      <section className="rounded-lg border border-neutral-200 bg-neutral-50/60 p-4">
+                                      <section className="proveit-print-avoid-break rounded-lg border border-neutral-200 bg-neutral-50/60 p-4">
                                         <h6 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Supporting document</h6>
                                         <div className="mt-3 space-y-3">
                                           {section.supportingRecords.slice(0, 1).map((item) => (
@@ -4360,7 +4388,7 @@ Rules:
                                   </div>
 
                                   {section.chainConclusions.length > 0 && (
-                                    <section className="mt-5 rounded-lg border border-lime-200 bg-lime-50/70 p-4">
+                                    <section className="proveit-print-avoid-break mt-5 rounded-lg border border-lime-200 bg-lime-50/70 p-4">
                                       <h6 className="text-xs font-bold uppercase tracking-wider text-lime-800">{reportHeadingLabel("WHAT_THIS_MEANS")}</h6>
                                       <ul className="mt-3 space-y-2 text-sm leading-6 text-lime-950">
                                         {section.chainConclusions.slice(0, 3).map((statement) => (
