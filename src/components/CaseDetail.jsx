@@ -3059,6 +3059,135 @@ ${ungroupedSequenceText}
                   </div>
                 </div>
 
+                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setClientReportGeneratorOpen((open) => !open)}
+                    className="flex items-center gap-2 text-left"
+                  >
+                    {clientReportGeneratorOpen ? (
+                      <ChevronDown className="h-4 w-4 text-neutral-400" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-neutral-400" />
+                    )}
+                    <span className="text-sm font-bold uppercase tracking-wider text-neutral-500">
+                      Client Report
+                    </span>
+                  </button>
+
+                  {clientReportGeneratorOpen && (
+                    <div className="mt-4 space-y-5">
+                      <div className="flex flex-col items-start gap-2 print:hidden">
+                        <div className="flex flex-wrap justify-start gap-2">
+                          <button
+                            type="button"
+                            onClick={() => copyGeneratedReportPrompt("en")}
+                            className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
+                          >
+                            Copy GPT Prompt (EN)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => copyGeneratedReportPrompt("de")}
+                            className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
+                          >
+                            Copy GPT Prompt (DE)
+                          </button>
+                        </div>
+                        {reportPromptFeedback ? (
+                          <p className="text-xs font-medium text-neutral-500">{reportPromptFeedback}</p>
+                        ) : null}
+                      </div>
+                      <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+                        <div className="flex flex-col gap-3 border-b border-neutral-100 pb-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Paste GPT-Generated Report Output</h4>
+                            <p className="mt-1 text-sm text-neutral-600">
+                              Paste the GPT-generated {activeGeneratedReportLanguage.toUpperCase()} report for the selected report version. Do not paste the prompt itself. The pasted text should begin with `# REPORT_TITLE` and the report title section.
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 print:hidden">
+                            <span className="text-xs font-semibold text-neutral-500">Report version</span>
+                            <div className="inline-flex rounded-lg border border-neutral-200 bg-neutral-50 p-1">
+                              {REPORT_DISPLAY_LANGUAGES.map((language) => (
+                                <button
+                                  key={language}
+                                  type="button"
+                                  onClick={() => handleGeneratedReportLanguageChange(language)}
+                                  className={`rounded-md px-2.5 py-1 text-xs font-bold uppercase transition-colors ${
+                                    activeGeneratedReportLanguage === language
+                                      ? "bg-lime-500 text-white shadow-sm"
+                                      : "text-neutral-600 hover:bg-white"
+                                  }`}
+                                >
+                                  {language}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        <textarea
+                          value={generatedReportDraft}
+                          onChange={(event) => setGeneratedReportDraft(event.target.value)}
+                          rows={18}
+                          className="mt-4 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 font-mono text-sm leading-6 text-neutral-800 outline-none transition-colors focus:border-lime-500 focus:bg-white"
+                          placeholder={`# REPORT_TITLE\nClient Report\n\n# YOUR_SITUATION\n...`}
+                        />
+                        {generatedReportLooksLikePrompt && (
+                          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+                            This looks like the GPT prompt, not the generated report output. Paste the report that GPT returned, starting with `# REPORT_TITLE`.
+                          </div>
+                        )}
+                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                          <p className="text-xs text-neutral-500">
+                            The parser reads only the known ProveIt Report Format v1 sections and ignores everything else.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={handleRenderGeneratedReport}
+                            className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
+                          >
+                            Save & Render {activeGeneratedReportLanguage.toUpperCase()} Report
+                          </button>
+                        </div>
+                      </section>
+
+                      <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+                        <div className="flex flex-col gap-3 border-b border-neutral-100 pb-3 sm:flex-row sm:items-center sm:justify-between">
+                          <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Rendered Report</h4>
+                          <div className="flex items-center gap-2 print:hidden">
+                            <span className="text-xs font-semibold text-neutral-500">Report version</span>
+                            <div className="inline-flex rounded-lg border border-neutral-200 bg-neutral-50 p-1">
+                              {REPORT_DISPLAY_LANGUAGES.map((language) => (
+                                <button
+                                  key={language}
+                                  type="button"
+                                  onClick={() => handleGeneratedReportLanguageChange(language)}
+                                  className={`rounded-md px-2.5 py-1 text-xs font-bold uppercase transition-colors ${
+                                    activeGeneratedReportLanguage === language
+                                      ? "bg-lime-500 text-white shadow-sm"
+                                      : "text-neutral-600 hover:bg-white"
+                                  }`}
+                                >
+                                  {language}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {!generatedReportHasVisibleContent ? (
+                          <div className="mt-4 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                            No report content is rendered yet. Paste a ProveIt Report Format v1 response and use Render Report.
+                          </div>
+                        ) : (
+                          renderGeneratedReportArticle("mt-4 mx-auto max-w-4xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm")
+                        )}
+                      </section>
+                    </div>
+                  )}
+                </section>
+
                 <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden">
                   <button
                     type="button"
@@ -3122,141 +3251,12 @@ ${ungroupedSequenceText}
                       <ChevronRight className="h-4 w-4 text-neutral-400" />
                     )}
                     <span className="text-sm font-bold uppercase tracking-wider text-neutral-500">
-                      Internal Report
+                      Internal Report (Coming Soon)
                     </span>
                   </button>
                   {internalReportGeneratorOpen && (
                     <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600">
                       Internal report output is available in the Print Pack internal view.
-                    </div>
-                  )}
-                </section>
-
-                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-                  <button
-                    type="button"
-                    onClick={() => setClientReportGeneratorOpen((open) => !open)}
-                    className="flex items-center gap-2 text-left"
-                  >
-                    {clientReportGeneratorOpen ? (
-                      <ChevronDown className="h-4 w-4 text-neutral-400" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 text-neutral-400" />
-                    )}
-                    <span className="text-sm font-bold uppercase tracking-wider text-neutral-500">
-                      Client Report
-                    </span>
-                  </button>
-
-                  {clientReportGeneratorOpen && (
-                    <div className="mt-4 space-y-5">
-                      <div className="flex flex-col items-start gap-2 print:hidden">
-                        <div className="flex flex-wrap justify-start gap-2">
-                          <button
-                            type="button"
-                            onClick={() => copyGeneratedReportPrompt("en")}
-                            className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
-                          >
-                            Copy GPT Prompt (EN)
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => copyGeneratedReportPrompt("de")}
-                            className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
-                          >
-                            Copy GPT Prompt (DE)
-                          </button>
-                        </div>
-                        {reportPromptFeedback ? (
-                          <p className="text-xs font-medium text-neutral-500">{reportPromptFeedback}</p>
-                        ) : null}
-                      </div>
-                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-                  <div className="flex flex-col gap-3 border-b border-neutral-100 pb-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Paste GPT-Generated Report Output</h4>
-                      <p className="mt-1 text-sm text-neutral-600">
-                        Paste the GPT-generated {activeGeneratedReportLanguage.toUpperCase()} report for the selected report version. Do not paste the prompt itself. The pasted text should begin with `# REPORT_TITLE` and the report title section.
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 print:hidden">
-                      <span className="text-xs font-semibold text-neutral-500">Report version</span>
-                      <div className="inline-flex rounded-lg border border-neutral-200 bg-neutral-50 p-1">
-                        {REPORT_DISPLAY_LANGUAGES.map((language) => (
-                          <button
-                            key={language}
-                            type="button"
-                            onClick={() => handleGeneratedReportLanguageChange(language)}
-                            className={`rounded-md px-2.5 py-1 text-xs font-bold uppercase transition-colors ${
-                              activeGeneratedReportLanguage === language
-                                ? "bg-lime-500 text-white shadow-sm"
-                                : "text-neutral-600 hover:bg-white"
-                            }`}
-                          >
-                            {language}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <textarea
-                    value={generatedReportDraft}
-                    onChange={(event) => setGeneratedReportDraft(event.target.value)}
-                    rows={18}
-                    className="mt-4 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 font-mono text-sm leading-6 text-neutral-800 outline-none transition-colors focus:border-lime-500 focus:bg-white"
-                    placeholder={`# REPORT_TITLE\nClient Report\n\n# YOUR_SITUATION\n...`}
-                  />
-                  {generatedReportLooksLikePrompt && (
-                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-                      This looks like the GPT prompt, not the generated report output. Paste the report that GPT returned, starting with `# REPORT_TITLE`.
-                    </div>
-                  )}
-                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-xs text-neutral-500">
-                      The parser reads only the known ProveIt Report Format v1 sections and ignores everything else.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleRenderGeneratedReport}
-                      className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
-                    >
-                      Save & Render {activeGeneratedReportLanguage.toUpperCase()} Report
-                    </button>
-                  </div>
-                </section>
-
-                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-                  <div className="flex flex-col gap-3 border-b border-neutral-100 pb-3 sm:flex-row sm:items-center sm:justify-between">
-                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Rendered Report</h4>
-                    <div className="flex items-center gap-2 print:hidden">
-                      <span className="text-xs font-semibold text-neutral-500">Report version</span>
-                      <div className="inline-flex rounded-lg border border-neutral-200 bg-neutral-50 p-1">
-                        {REPORT_DISPLAY_LANGUAGES.map((language) => (
-                          <button
-                            key={language}
-                            type="button"
-                            onClick={() => handleGeneratedReportLanguageChange(language)}
-                            className={`rounded-md px-2.5 py-1 text-xs font-bold uppercase transition-colors ${
-                              activeGeneratedReportLanguage === language
-                                ? "bg-lime-500 text-white shadow-sm"
-                                : "text-neutral-600 hover:bg-white"
-                            }`}
-                          >
-                            {language}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {!generatedReportHasVisibleContent ? (
-                    <div className="mt-4 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-                      No report content is rendered yet. Paste a ProveIt Report Format v1 response and use Render Report.
-                    </div>
-                  ) : (
-                    renderGeneratedReportArticle("mt-4 mx-auto max-w-4xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm")
-                  )}
-                </section>
                     </div>
                   )}
                 </section>
