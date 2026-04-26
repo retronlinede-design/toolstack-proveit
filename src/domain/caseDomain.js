@@ -146,6 +146,10 @@ export function normalizeLinkedRecordIds(value) {
   }, []);
 }
 
+function normalizeSequenceGroup(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 /**
  * Normalizes timeline-specific fields with priority-based fallback logic.
  */
@@ -254,6 +258,7 @@ export function normalizeDocumentEntry(item) {
     textContent: item?.textContent || "",
     attachments: Array.isArray(item?.attachments) ? item.attachments : [],
     linkedRecordIds: normalizeLinkedRecordIds(item?.linkedRecordIds),
+    sequenceGroup: normalizeSequenceGroup(item?.sequenceGroup),
     edited: !!item?.edited,
     createdAt: item?.createdAt || new Date().toISOString(),
     updatedAt: item?.updatedAt || item?.createdAt || new Date().toISOString(),
@@ -293,7 +298,7 @@ export function normalizeRecord(item, recordType) {
       usedIn: Array.isArray(item?.usedIn) ? item.usedIn : [],
       reviewNotes: item?.reviewNotes || "",
       evidenceRole: normalizeEvidenceRole(item?.evidenceRole),
-      sequenceGroup: typeof item?.sequenceGroup === "string" ? item.sequenceGroup.trim() : "",
+      sequenceGroup: normalizeSequenceGroup(item?.sequenceGroup),
       functionSummary: typeof item?.functionSummary === "string" ? item.functionSummary.trim() : "",
       // linkedIncidentIds is now handled in base, no need to re-add here
       availability: { 
@@ -316,13 +321,14 @@ export function normalizeRecord(item, recordType) {
       ...base,
       ...timelineData,
       isMilestone: !!item?.isMilestone,
+      sequenceGroup: normalizeSequenceGroup(item?.sequenceGroup),
       linkedIncidentRefs: normalizeIncidentLinkRefs(item?.linkedIncidentRefs, base.id),
     };
   }
 
   if (isTimelineCapable(recordType)) {
     const timelineData = normalizeTimelineFields(item);
-    return { ...base, ...timelineData };
+    return { ...base, ...timelineData, sequenceGroup: normalizeSequenceGroup(item?.sequenceGroup) };
   }
 
   return {

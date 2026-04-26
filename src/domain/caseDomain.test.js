@@ -84,6 +84,24 @@ test("normalizeRecord preserves valid evidence structural fields", () => {
   assert.deepEqual(record.usedIn, ["Legacy use"]);
 });
 
+test("normalizeRecord preserves sequenceGroup on active non-evidence records", () => {
+  const incident = normalizeRecord({
+    id: "inc-1",
+    title: "Incident",
+    date: "2024-02-03",
+    sequenceGroup: "  Notice sequence  ",
+  }, "incidents");
+  const strategy = normalizeRecord({
+    id: "str-1",
+    title: "Strategy",
+    date: "2024-02-04",
+    sequenceGroup: "  Repair plan  ",
+  }, "strategy");
+
+  assert.equal(incident.sequenceGroup, "Notice sequence");
+  assert.equal(strategy.sequenceGroup, "Repair plan");
+});
+
 test("normalizeRecord defaults evidence milestone flag to false", () => {
   const record = normalizeRecord({
     id: "ev-2",
@@ -1603,6 +1621,7 @@ test("upsertDocumentEntryInCase create appends a normalized document entry with 
     title: "Lease",
     attachments: [attachment],
     linkedRecordIds: "not-array",
+    sequenceGroup: "  Notice sequence  ",
   });
 
   assert.equal(updated.documents.length, 2);
@@ -1615,6 +1634,7 @@ test("upsertDocumentEntryInCase create appends a normalized document entry with 
   assert.equal(updated.documents[1].textContent, "");
   assert.deepEqual(updated.documents[1].attachments, [attachment]);
   assert.deepEqual(updated.documents[1].linkedRecordIds, []);
+  assert.equal(updated.documents[1].sequenceGroup, "Notice sequence");
   assert.equal(updated.documents[1].edited, false);
   assert.match(updated.documents[1].id, /.+/);
   assert.match(updated.documents[1].createdAt, /^\d{4}-\d{2}-\d{2}T/);
@@ -1643,6 +1663,7 @@ test("upsertDocumentEntryInCase edit replaces an existing document entry by id a
         category: "notice",
         attachments: [existingAttachment],
         linkedRecordIds: ["ev-1"],
+        sequenceGroup: "Old sequence",
         createdAt: iso("2024-01-01T09:00:00Z"),
         updatedAt: iso("2024-01-01T09:00:00Z"),
       },
@@ -1653,6 +1674,7 @@ test("upsertDocumentEntryInCase edit replaces an existing document entry by id a
   const updated = upsertDocumentEntryInCase(caseItem, {
     title: "Updated title",
     attachments: [newAttachment],
+    sequenceGroup: "  Updated sequence  ",
   }, "doc-1");
 
   assert.equal(updated.documents.length, 2);
@@ -1661,6 +1683,7 @@ test("upsertDocumentEntryInCase edit replaces an existing document entry by id a
   assert.equal(updated.documents[0].category, "notice");
   assert.deepEqual(updated.documents[0].attachments, [newAttachment]);
   assert.deepEqual(updated.documents[0].linkedRecordIds, ["ev-1"]);
+  assert.equal(updated.documents[0].sequenceGroup, "Updated sequence");
   assert.equal(updated.documents[0].edited, true);
   assert.equal(updated.documents[0].createdAt, iso("2024-01-01T09:00:00Z"));
   assert.match(updated.documents[0].updatedAt, /^\d{4}-\d{2}-\d{2}T/);

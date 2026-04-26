@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { EVIDENCE_ROLES, INCIDENT_LINK_TYPES } from "../domain/caseDomain.js";
 import { suggestEvidenceMetadataForForm } from "../domain/recordFormDomain.js";
 
@@ -91,7 +91,9 @@ const EVIDENCE_TEMPLATE_CONFIG = {
 };
 
 const AUTO_SUGGEST_DESCRIPTION_THRESHOLD = 20;
+const SHOW_METADATA_SUGGESTIONS = false;
 const CREATE_NEW_SEQUENCE_GROUP_OPTION = "__create_new_sequence_group__";
+const SEQUENCE_GROUP_RECORD_TYPES = ["evidence", "incidents", "strategy"];
 const STRUCTURED_EVIDENCE_FIELDS = [
   "isMilestone",
   "importance",
@@ -236,14 +238,14 @@ export default function RecordModal({
   const incidentOptions = (selectedCase.incidents || []).filter((incident) => incident.id !== recordForm.id);
   const linkedEvidenceIncidentIds = Array.isArray(recordForm.linkedIncidentIds) ? recordForm.linkedIncidentIds : [];
   const linkedIncidentRecordIds = Array.isArray(recordForm.linkedRecordIds) ? recordForm.linkedRecordIds : [];
-  const allCaseEvidence = Array.isArray(selectedCase.evidence) ? selectedCase.evidence : [];
+  const supportsSequenceGroup = SEQUENCE_GROUP_RECORD_TYPES.includes(recordType);
   const trackingRecords = (selectedCase.documents || []).filter(isTrackingRecordDocument);
   const linkedTrackingRecords = linkedIncidentRecordIds
     .map((recordId) => trackingRecords.find((record) => record.id === recordId))
     .filter(Boolean);
   const availableTrackingRecords = trackingRecords.filter((record) => !linkedIncidentRecordIds.includes(record.id));
   const evidenceAttachmentCount = getEvidenceAttachmentCount(recordForm);
-  const evidenceSuggestion = recordType === "evidence"
+  const evidenceSuggestion = SHOW_METADATA_SUGGESTIONS && recordType === "evidence"
     ? suggestEvidenceMetadataForForm(recordForm, selectedCase)
     : null;
   const meaningfulSuggestionFields = evidenceSuggestion
@@ -254,14 +256,22 @@ export default function RecordModal({
   const hasStructuredIncidentDetails = recordType === "incidents" && (
     !!recordForm.isMilestone ||
     (recordForm.status && recordForm.status !== "open") ||
+    safeText(recordForm.sequenceGroup).trim() ||
     (Array.isArray(recordForm.linkedEvidenceIds) && recordForm.linkedEvidenceIds.length > 0) ||
     (Array.isArray(recordForm.linkedIncidentRefs) && recordForm.linkedIncidentRefs.length > 0) ||
     (Array.isArray(recordForm.linkedRecordIds) && recordForm.linkedRecordIds.length > 0)
   );
-  const existingSequenceGroups = recordType === "evidence"
-    ? (() => {
+  const existingSequenceGroups = useMemo(() => {
+    if (!supportsSequenceGroup) return [];
+
         const normalizedCurrentValue = safeText(recordForm.sequenceGroup).trim().toLowerCase();
-        const sorted = allCaseEvidence
+        const activeSequenceRecords = [
+          ...(Array.isArray(selectedCase?.evidence) ? selectedCase.evidence : []),
+          ...(Array.isArray(selectedCase?.incidents) ? selectedCase.incidents : []),
+          ...(Array.isArray(selectedCase?.documents) ? selectedCase.documents : []),
+          ...(Array.isArray(selectedCase?.strategy) ? selectedCase.strategy : []),
+        ];
+        const sorted = activeSequenceRecords
           .filter((item) => item?.id !== recordForm.id)
           .map((item) => safeText(item?.sequenceGroup).trim())
           .filter((value) => value && value.toLowerCase() !== normalizedCurrentValue)
@@ -274,8 +284,7 @@ export default function RecordModal({
           seen.add(key);
           return true;
         });
-      })()
-    : [];
+  }, [recordForm.id, recordForm.sequenceGroup, selectedCase, supportsSequenceGroup]);
   const activeEvidenceTemplate = recordType === "evidence" && selectedEvidenceTemplate
     ? EVIDENCE_TEMPLATE_CONFIG[selectedEvidenceTemplate]
     : null;
@@ -476,6 +485,7 @@ export default function RecordModal({
   }, [focusField, isLinking]);
 
   useEffect(() => {
+    if (!SHOW_METADATA_SUGGESTIONS) return;
     if (recordType !== "evidence" || hasAutoSuggested) return;
 
     const initialInputs = initialAutoSuggestInputsRef.current;
@@ -525,7 +535,7 @@ export default function RecordModal({
   }, [recordType, selectedEvidenceTemplate]);
 
   useEffect(() => {
-    if (recordType !== "evidence") return;
+    if (!supportsSequenceGroup) return;
 
     const currentValue = safeText(recordForm.sequenceGroup).trim();
     if (!currentValue) {
@@ -539,7 +549,49 @@ export default function RecordModal({
     }
 
     setSequenceGroupMode(CREATE_NEW_SEQUENCE_GROUP_OPTION);
-  }, [existingSequenceGroups, recordForm.sequenceGroup, recordType]);
+  }, [existingSequenceGroups, recordForm.sequenceGroup, supportsSequenceGroup]);
+
+  const renderSequenceGroupField = () => (
+    <div>
+      <label className="text-xs font-semibold text-neutral-600">Sequence Group</label>
+      <p className="mt-1 text-xs text-neutral-500">Use this to group related items that belong to the same chain, timeline, or document sequence.</p>
+      <select
+        value={sequenceGroupMode}
+        onChange={(e) => {
+          const nextValue = e.target.value;
+          setSequenceGroupMode(nextValue);
+          if (nextValue === "") {
+            updateSuggestedMetadataField("sequenceGroup", "");
+            return;
+          }
+          if (nextValue === CREATE_NEW_SEQUENCE_GROUP_OPTION) {
+            if (existingSequenceGroups.includes(safeText(recordForm.sequenceGroup).trim())) {
+              updateSuggestedMetadataField("sequenceGroup", "");
+            }
+            return;
+          }
+          updateSuggestedMetadataField("sequenceGroup", nextValue);
+        }}
+        className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm"
+      >
+        <option value="">Select existing group or create new</option>
+        {existingSequenceGroups.map((group) => (
+          <option key={group} value={group}>
+            {group}
+          </option>
+        ))}
+        <option value={CREATE_NEW_SEQUENCE_GROUP_OPTION}>Create new sequence group</option>
+      </select>
+      {sequenceGroupMode === CREATE_NEW_SEQUENCE_GROUP_OPTION && (
+        <input
+          placeholder="e.g. Repair timeline, Notice sequence, Payment chain"
+          value={recordForm.sequenceGroup || ""}
+          onChange={(e) => updateSuggestedMetadataField("sequenceGroup", e.target.value)}
+          className="mt-2 w-full rounded-lg border border-neutral-300 p-2 text-sm"
+        />
+      )}
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
@@ -768,6 +820,7 @@ export default function RecordModal({
 
         {recordType === "evidence" && (
           <div className="mb-4 space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+            {SHOW_METADATA_SUGGESTIONS && (
             <div className="rounded-2xl border border-lime-100 bg-lime-50/60 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -807,6 +860,7 @@ export default function RecordModal({
                 )}
               </div>
             </div>
+            )}
 
             <div className="rounded-2xl border border-neutral-200 bg-white">
               <button
@@ -899,45 +953,7 @@ export default function RecordModal({
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="text-xs font-semibold text-neutral-600">Sequence Group</label>
-                <p className="mt-1 text-xs text-neutral-500">Use this to group related evidence items that belong to the same chain, timeline, or document sequence.</p>
-                <select
-                  value={sequenceGroupMode}
-                  onChange={(e) => {
-                    const nextValue = e.target.value;
-                    setSequenceGroupMode(nextValue);
-                    if (nextValue === "") {
-                      updateSuggestedMetadataField("sequenceGroup", "");
-                      return;
-                    }
-                    if (nextValue === CREATE_NEW_SEQUENCE_GROUP_OPTION) {
-                      if (existingSequenceGroups.includes(safeText(recordForm.sequenceGroup).trim())) {
-                        updateSuggestedMetadataField("sequenceGroup", "");
-                      }
-                      return;
-                    }
-                    updateSuggestedMetadataField("sequenceGroup", nextValue);
-                  }}
-                  className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm"
-                >
-                  <option value="">Select existing group or create new</option>
-                  {existingSequenceGroups.map((group) => (
-                    <option key={group} value={group}>
-                      {group}
-                    </option>
-                  ))}
-                  <option value={CREATE_NEW_SEQUENCE_GROUP_OPTION}>Create new sequence group</option>
-                </select>
-                {sequenceGroupMode === CREATE_NEW_SEQUENCE_GROUP_OPTION && (
-                  <input
-                    placeholder="e.g. Repair timeline, Notice sequence, Payment chain"
-                    value={recordForm.sequenceGroup || ""}
-                    onChange={(e) => updateSuggestedMetadataField("sequenceGroup", e.target.value)}
-                    className="mt-2 w-full rounded-lg border border-neutral-300 p-2 text-sm"
-                  />
-                )}
-              </div>
+              {renderSequenceGroupField()}
             </div>
 
             <div>
@@ -1139,6 +1155,10 @@ export default function RecordModal({
                         </div>
                       </div>
                     </label>
+                  </div>
+
+                  <div className="space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                    {renderSequenceGroupField()}
                   </div>
 
                   <div className="space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
@@ -1374,6 +1394,12 @@ export default function RecordModal({
           </div>
         ) : (
           <>
+            {recordType === "strategy" && (
+              <div className="mb-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                {renderSequenceGroupField()}
+              </div>
+            )}
+
             <label className="mb-3 block cursor-pointer rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-600">
               Upload attachments (images, PDFs, documents)
               <input

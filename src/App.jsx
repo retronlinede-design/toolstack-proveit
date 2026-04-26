@@ -46,6 +46,11 @@ import { ShieldCheck } from "lucide-react";
 
 const lastUsedGroupByType = {};
 const SHOW_REVIEW_QUEUE = false;
+const CREATE_NEW_SEQUENCE_GROUP_OPTION = "__create_new_sequence_group__";
+
+function safeText(value) {
+  return typeof value === "string" ? value : "";
+}
 
 const EMPTY_RECORD_FORM = {
   title: "",
@@ -117,6 +122,7 @@ const EMPTY_DOCUMENT_FORM = {
   textContent: "",
   attachments: [],
   linkedRecordIds: [],
+  sequenceGroup: "",
 };
 
 const DOCUMENT_GPT_SUMMARY_PROMPT = `Read this uploaded document and produce a ProveIt-ready document summary.
@@ -378,6 +384,7 @@ export default function ProveItApp() {
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
   const [documentForm, setDocumentForm] = useState(EMPTY_DOCUMENT_FORM);
   const [editingDocumentId, setEditingDocumentId] = useState(null);
+  const [documentSequenceGroupMode, setDocumentSequenceGroupMode] = useState("");
   const [documentPromptCopied, setDocumentPromptCopied] = useState(false);
   const [recordPromptCopied, setRecordPromptCopied] = useState(false);
   const [documentModalMode, setDocumentModalMode] = useState("document");
@@ -807,6 +814,7 @@ export default function ProveItApp() {
     setDocumentModalOpen(false);
     setDocumentForm(EMPTY_DOCUMENT_FORM);
     setEditingDocumentId(null);
+    setDocumentSequenceGroupMode("");
     setDocumentPromptCopied(false);
     setRecordPromptCopied(false);
     setDocumentModalMode("document");
@@ -982,6 +990,88 @@ export default function ProveItApp() {
   const selectedCase = useMemo(
     () => cases.find((c) => c.id === selectedCaseId) || null,
     [cases, selectedCaseId]
+  );
+
+  const existingDocumentSequenceGroups = useMemo(() => {
+    const normalizedCurrentValue = safeText(documentForm.sequenceGroup).trim().toLowerCase();
+    const activeSequenceRecords = [
+      ...(Array.isArray(selectedCase?.evidence) ? selectedCase.evidence : []),
+      ...(Array.isArray(selectedCase?.incidents) ? selectedCase.incidents : []),
+      ...(Array.isArray(selectedCase?.documents) ? selectedCase.documents : []),
+      ...(Array.isArray(selectedCase?.strategy) ? selectedCase.strategy : []),
+    ];
+    const sorted = activeSequenceRecords
+      .filter((item) => item?.id !== documentForm.id)
+      .map((item) => safeText(item?.sequenceGroup).trim())
+      .filter((value) => value && value.toLowerCase() !== normalizedCurrentValue)
+      .sort((a, b) => a.localeCompare(b));
+
+    const seen = new Set();
+    return sorted.filter((value) => {
+      const key = value.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [documentForm.id, documentForm.sequenceGroup, selectedCase]);
+
+  useEffect(() => {
+    if (!documentModalOpen) return;
+
+    const currentValue = safeText(documentForm.sequenceGroup).trim();
+    if (!currentValue) {
+      setDocumentSequenceGroupMode("");
+      return;
+    }
+
+    if (existingDocumentSequenceGroups.includes(currentValue)) {
+      setDocumentSequenceGroupMode(currentValue);
+      return;
+    }
+
+    setDocumentSequenceGroupMode(CREATE_NEW_SEQUENCE_GROUP_OPTION);
+  }, [documentForm.sequenceGroup, documentModalOpen, existingDocumentSequenceGroups]);
+
+  const renderDocumentSequenceGroupField = () => (
+    <div>
+      <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Sequence Group</label>
+      <p className="mb-2 text-xs text-neutral-500">Use this to group related items that belong to the same chain, timeline, or document sequence.</p>
+      <select
+        value={documentSequenceGroupMode}
+        onChange={(e) => {
+          const nextValue = e.target.value;
+          setDocumentSequenceGroupMode(nextValue);
+          if (nextValue === "") {
+            setDocumentForm((prev) => ({ ...prev, sequenceGroup: "" }));
+            return;
+          }
+          if (nextValue === CREATE_NEW_SEQUENCE_GROUP_OPTION) {
+            if (existingDocumentSequenceGroups.includes(safeText(documentForm.sequenceGroup).trim())) {
+              setDocumentForm((prev) => ({ ...prev, sequenceGroup: "" }));
+            }
+            return;
+          }
+          setDocumentForm((prev) => ({ ...prev, sequenceGroup: nextValue }));
+        }}
+        className="w-full rounded-xl border border-neutral-300 p-3 bg-white"
+      >
+        <option value="">Select existing group or create new</option>
+        {existingDocumentSequenceGroups.map((group) => (
+          <option key={group} value={group}>
+            {group}
+          </option>
+        ))}
+        <option value={CREATE_NEW_SEQUENCE_GROUP_OPTION}>Create new sequence group</option>
+      </select>
+      {documentSequenceGroupMode === CREATE_NEW_SEQUENCE_GROUP_OPTION && (
+        <input
+          value={documentForm.sequenceGroup || ""}
+          onChange={(e) => setDocumentForm((prev) => ({ ...prev, sequenceGroup: e.target.value }))}
+          placeholder="e.g. Repair timeline, Notice sequence, Payment chain"
+          className="mt-2 w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
+        />
+      )}
+    </div>
   );
 
   const pinManagerCase = useMemo(
@@ -2841,6 +2931,8 @@ const handleRecordFiles = async (event) => {
                   />
                 </div>
 
+                {renderDocumentSequenceGroupField()}
+
                 <div>
                   <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Record Type</label>
                   <select
@@ -2913,6 +3005,8 @@ const handleRecordFiles = async (event) => {
                     className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
                   />
                 </div>
+
+                {renderDocumentSequenceGroupField()}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
