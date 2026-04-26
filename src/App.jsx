@@ -973,8 +973,8 @@ export default function ProveItApp() {
     { id: "ledger", label: "Ledger" },
     { id: "documents", label: "Documents" },
     { id: "narrative", label: "Narrative" },
-    { id: "generate-report", label: "Generate Report" },
     { id: "timeline", label: "Timeline" },
+    { id: "generate-report", label: "Generate Report" },
     { id: "pack", label: "Print Pack" },
   ];
 
