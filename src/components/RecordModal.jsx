@@ -683,6 +683,7 @@ export default function RecordModal({
               <p className="mt-1 text-sm text-neutral-600">Start with the essentials. You can add structured evidence metadata below if needed.</p>
             </div>
 
+            {false && (
             <div>
               <label className="mb-1 block text-xs font-semibold text-neutral-600">Evidence Template</label>
               <select
@@ -699,6 +700,7 @@ export default function RecordModal({
               </select>
               <p className="mt-2 text-xs text-neutral-500">Templates suggest a starting role, source type, and clearer writing prompts without locking anything in.</p>
             </div>
+            )}
 
             <div>
               <label className="mb-1 block text-xs font-semibold text-neutral-600">Title</label>
@@ -723,6 +725,33 @@ export default function RecordModal({
                   accept="image/*,application/pdf,.pdf,.doc,.docx,.txt,.eml,message/rfc822"
                 />
               </label>
+              {recordForm.attachments?.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {recordForm.attachments.map((file) => (
+                    <div key={file.id} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm">
+                      <span className="min-w-0 flex-1 truncate text-neutral-800">{file.name || file.fileName || "Untitled file"}</span>
+                      <div className="flex shrink-0 gap-2">
+                        {onPreviewFile && (
+                          <button
+                            type="button"
+                            onClick={() => onPreviewFile(file)}
+                            className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                          >
+                            Preview
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeRecordAttachment(file.id)}
+                          className="rounded-lg border border-red-300 bg-white px-2 py-1 text-[10px] font-bold text-red-700 shadow-sm hover:bg-red-50 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div>
@@ -749,6 +778,35 @@ export default function RecordModal({
                 className="w-full rounded-xl border border-neutral-300 p-3"
                 rows={4}
               />
+            </div>
+
+            <div className="space-y-2">
+              <div>
+                <label className="text-xs font-semibold text-neutral-600">Linked Incidents</label>
+                <p className="mt-1 text-xs text-neutral-500">Connect this evidence to the incident records it supports.</p>
+              </div>
+              {(selectedCase.incidents || []).length > 0 ? (
+                <div className="max-h-40 space-y-2 overflow-y-auto rounded-lg border border-neutral-200 bg-neutral-50 p-2">
+                  {(selectedCase.incidents || []).map((incident) => (
+                    <label key={incident.id} className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-neutral-100 bg-white px-3 py-2 text-sm hover:border-lime-300 hover:bg-lime-50/40">
+                      <span className="min-w-0 flex-1 truncate text-neutral-800">{incident.title || "Untitled incident"}</span>
+                      {(incident.eventDate || incident.date) && (
+                        <span className="shrink-0 text-[10px] font-bold uppercase text-neutral-400">{incident.eventDate || incident.date}</span>
+                      )}
+                      <input
+                        type="checkbox"
+                        checked={linkedEvidenceIncidentIds.includes(incident.id)}
+                        onChange={() => toggleLinkedEvidenceIncident(incident.id)}
+                        className="h-4 w-4 rounded border-neutral-300 text-lime-600 focus:ring-lime-500"
+                      />
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-lg border border-dashed border-neutral-200 bg-neutral-50 p-3 text-xs text-neutral-500 italic">
+                  No incidents available to link yet.
+                </p>
+              )}
             </div>
           </div>
         ) : recordType === "incidents" ? (
@@ -996,35 +1054,6 @@ export default function RecordModal({
               />
             </div>
 
-            <div className="space-y-2">
-              <div>
-                <label className="text-xs font-semibold text-neutral-600">Linked Incidents</label>
-                <p className="mt-1 text-xs text-neutral-500">Connect this evidence to the incident records it supports.</p>
-              </div>
-              {(selectedCase.incidents || []).length > 0 ? (
-                <div className="max-h-40 space-y-2 overflow-y-auto rounded-lg border border-neutral-200 bg-white p-2">
-                  {(selectedCase.incidents || []).map((incident) => (
-                    <label key={incident.id} className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2 text-sm hover:border-lime-300 hover:bg-lime-50/40">
-                      <span className="min-w-0 flex-1 truncate text-neutral-800">{incident.title || "Untitled incident"}</span>
-                      {(incident.eventDate || incident.date) && (
-                        <span className="shrink-0 text-[10px] font-bold uppercase text-neutral-400">{incident.eventDate || incident.date}</span>
-                      )}
-                      <input
-                        type="checkbox"
-                        checked={linkedEvidenceIncidentIds.includes(incident.id)}
-                        onChange={() => toggleLinkedEvidenceIncident(incident.id)}
-                        className="h-4 w-4 rounded border-neutral-300 text-lime-600 focus:ring-lime-500"
-                      />
-                    </label>
-                  ))}
-                </div>
-              ) : (
-                <p className="rounded-lg border border-dashed border-neutral-200 bg-white p-3 text-xs text-neutral-500 italic">
-                  No incidents available to link yet.
-                </p>
-              )}
-            </div>
-
             <div>
               <label className="text-xs font-semibold text-neutral-600">Review Note</label>
               <p className="mt-1 text-xs text-neutral-500">For internal quality checks or follow-up notes about this evidence item, not the main description.</p>
@@ -1117,20 +1146,9 @@ export default function RecordModal({
               )}
             </div>
 
-            <div className="flex items-center gap-2 border-t border-neutral-200 pt-3">
-              <input 
-                type="checkbox" 
-                id="hasDigital"
-                checked={recordForm.availability?.digital?.hasDigital}
-                onChange={(e) => setRecordForm({
-                  ...recordForm,
-                  availability: {
-                    ...(recordForm.availability || {}),
-                    digital: { ...(recordForm.availability?.digital || {}), hasDigital: e.target.checked }
-                  }
-                })}
-              />
-              <label htmlFor="hasDigital" className="text-sm font-medium">Digital copy available</label>
+            <div className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700">
+              <span className="font-medium text-neutral-900">Digital copy:</span>{" "}
+              {(recordForm.attachments || []).length > 0 ? "Yes" : "No"}
             </div>
           </div>
         )}
@@ -1444,31 +1462,35 @@ export default function RecordModal({
               </div>
             )}
 
-            <label className="mb-3 block cursor-pointer rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-600">
-              Upload attachments (images, PDFs, documents)
-              <input
-                type="file"
-                multiple
-                className="hidden"
-                onChange={handleRecordFiles}
-                accept="image/*,application/pdf,.pdf,.doc,.docx,.txt,.eml,message/rfc822"
-              />
-            </label>
+            {recordType !== "evidence" && (
+              <>
+                <label className="mb-3 block cursor-pointer rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-600">
+                  Upload attachments (images, PDFs, documents)
+                  <input
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={handleRecordFiles}
+                    accept="image/*,application/pdf,.pdf,.doc,.docx,.txt,.eml,message/rfc822"
+                  />
+                </label>
 
-            {recordForm.attachments.length > 0 && (
-              <div className="mb-4 space-y-2">
-                {recordForm.attachments.map((file) => (
-                  <div key={file.id} className="flex items-center justify-between rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm">
-                    <span className="truncate pr-3">{file.name}</span>
-                    <button
-                      onClick={() => removeRecordAttachment(file.id)}
-                      className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-xs text-neutral-700 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
-                    >
-                      Remove
-                    </button>
+                {recordForm.attachments.length > 0 && (
+                  <div className="mb-4 space-y-2">
+                    {recordForm.attachments.map((file) => (
+                      <div key={file.id} className="flex items-center justify-between rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm">
+                        <span className="truncate pr-3">{file.name}</span>
+                        <button
+                          onClick={() => removeRecordAttachment(file.id)}
+                          className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-xs text-neutral-700 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </>
         )}
