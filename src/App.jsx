@@ -1090,6 +1090,23 @@ export default function ProveItApp() {
           className="mt-2 w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
         />
       )}
+      {safeText(documentForm.sequenceGroup).trim() && (
+        <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2">
+          <span className="min-w-0 truncate text-xs text-neutral-500">
+            Current group: {safeText(documentForm.sequenceGroup).trim()}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setDocumentSequenceGroupMode("");
+              setDocumentForm((prev) => ({ ...prev, sequenceGroup: "" }));
+            }}
+            className="shrink-0 rounded-lg border border-neutral-300 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors"
+          >
+            Clear group
+          </button>
+        </div>
+      )}
     </div>
   );
 
