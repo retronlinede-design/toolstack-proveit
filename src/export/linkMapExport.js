@@ -74,6 +74,9 @@ function getSourceFields(item = {}) {
       fields[field] = [...item[field]];
     }
   });
+  if (isTrackingRecordDocument(item) && Array.isArray(item.basedOnEvidenceIds) && item.basedOnEvidenceIds.length > 0) {
+    fields.basedOnEvidenceIds = [...item.basedOnEvidenceIds];
+  }
   if (Array.isArray(item.linkedIncidentRefs) && item.linkedIncidentRefs.length > 0) {
     fields.linkedIncidentRefs = item.linkedIncidentRefs
       .filter((ref) => ref?.incidentId)
@@ -219,6 +222,14 @@ function collectEdges(caseItem, nodes) {
       pushIdEdges(caseItem, edges, missingLinks, sourceNode, item.linkedRecordIds, "linkedRecordIds", "linked_record");
     });
   };
+  const addTrackingRecordProvenanceEdges = (items = []) => {
+    items.forEach((item) => {
+      if (!isTrackingRecordDocument(item)) return;
+      const sourceNode = nodeIndex.get(item.id);
+      if (!sourceNode) return;
+      pushIdEdges(caseItem, edges, missingLinks, sourceNode, item.basedOnEvidenceIds, "basedOnEvidenceIds", "provenance");
+    });
+  };
 
   (caseItem.incidents || []).forEach((incident) => {
     const sourceNode = nodeIndex.get(incident.id);
@@ -241,6 +252,7 @@ function collectEdges(caseItem, nodes) {
   addGenericEdges(caseItem.documents || []);
   addGenericEdges(caseItem.ledger || []);
   if (Array.isArray(caseItem.tasks) && caseItem.tasks.length > 0) addGenericEdges(caseItem.tasks);
+  addTrackingRecordProvenanceEdges(caseItem.documents || []);
 
   return { edges, missingLinks };
 }

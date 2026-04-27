@@ -13,6 +13,8 @@ import { getLinkChipClasses } from "./linkChipStyles";
 import LinkedChip from "./LinkedChip";
 import RecordCard from "./RecordCard";
 
+const ENABLE_SUPABASE_REMOTE = false;
+
 function renderCompactLinkRow(label, items, renderChip) {
   if (!items || items.length === 0) return null;
   const renderedChips = items.map(renderChip).filter(Boolean);
@@ -874,6 +876,15 @@ ${strategyFocus.join("\n") || "—"}`;
   const parsedTrackingRecords = useMemo(() => {
     return trackingDocuments.map(parseTrackingRecord);
   }, [trackingDocuments]);
+
+  const getBasedOnEvidenceForTrackingRecord = (record) => {
+    const evidenceIds = Array.isArray(record?.rawDocument?.basedOnEvidenceIds)
+      ? record.rawDocument.basedOnEvidenceIds
+      : [];
+    return evidenceIds
+      .map((evidenceId) => (selectedCase?.evidence || []).find((item) => item.id === evidenceId))
+      .filter(Boolean);
+  };
 
   const derivedTrackingLedger = useMemo(() => {
     return generateLedgerEntries(parsedTrackingRecords);
@@ -2581,13 +2592,23 @@ ${ungroupedSequenceText}
                   <div className="mt-2 border-t border-neutral-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                     Supabase
                   </div>
-                  <button 
-                    onClick={() => { onSendReasoningSnapshotToSupabase(); setShowExportMenu(false); }}
-                    disabled={syncStatus === "syncing"}
-                    className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
-                  >
-                    Send Reasoning Snapshot to Supabase
-                  </button>
+                  {ENABLE_SUPABASE_REMOTE ? (
+                    <button
+                      onClick={() => { onSendReasoningSnapshotToSupabase(); setShowExportMenu(false); }}
+                      disabled={syncStatus === "syncing"}
+                      className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
+                    >
+                      Send Reasoning Snapshot to Supabase
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      className="flex min-h-11 w-full cursor-not-allowed items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-400"
+                    >
+                      Remote sync disabled until secure auth is configured.
+                    </button>
+                  )}
                 </div>
               </>
             )}
@@ -3550,6 +3571,7 @@ ${ungroupedSequenceText}
                         const tableHeaders = getRecordTableHeaders(tableRows);
                         const previewRows = tableRows.slice(0, 5);
                         const usedByIncidents = getIncidentsUsingRecord(selectedCase, record.id);
+                        const basedOnEvidence = getBasedOnEvidenceForTrackingRecord(record);
 
                         return (
                         <div key={record.id} className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
@@ -3599,6 +3621,23 @@ ${ungroupedSequenceText}
 
                           {record.summary && (
                             <p className="mt-3 border-l-2 border-blue-100 pl-3 text-sm text-neutral-700 line-clamp-3">{record.summary}</p>
+                          )}
+
+                          {basedOnEvidence.length > 0 && (
+                            <div className="mt-1 border-t border-neutral-100 pt-1">
+                              {renderCompactLinkRow("Based on Evidence", basedOnEvidence, (evidenceItem) => (
+                                <LinkedChip
+                                  key={evidenceItem.id}
+                                  onClick={() => openLinkedRecord(evidenceItem.id)}
+                                  titleText={evidenceItem.title || "Untitled evidence"}
+                                  variant="evidence"
+                                  className="flex items-center gap-1 text-left transition-colors"
+                                  leading={<span className="font-bold uppercase opacity-50">Evidence</span>}
+                                >
+                                  {evidenceItem.title || "Untitled evidence"}
+                                </LinkedChip>
+                              ))}
+                            </div>
                           )}
 
                           {usedByIncidents.length > 0 && (
@@ -4012,6 +4051,7 @@ ${ungroupedSequenceText}
                         const tableHeaders = getRecordTableHeaders(tableRows);
                         const previewRows = tableRows.slice(0, 5);
                         const usedByIncidents = getIncidentsUsingRecord(selectedCase, record.id);
+                        const basedOnEvidence = getBasedOnEvidenceForTrackingRecord(record);
 
                         return (
                         <div key={record.id} className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
@@ -4062,6 +4102,23 @@ ${ungroupedSequenceText}
 
                           {record.summary && (
                             <p className="mt-3 border-l-2 border-blue-100 pl-3 text-sm text-neutral-700 line-clamp-3">{record.summary}</p>
+                          )}
+
+                          {basedOnEvidence.length > 0 && (
+                            <div className="mt-1 border-t border-neutral-100 pt-1">
+                              {renderCompactLinkRow("Based on Evidence", basedOnEvidence, (evidenceItem) => (
+                                <LinkedChip
+                                  key={evidenceItem.id}
+                                  onClick={() => openLinkedRecord(evidenceItem.id)}
+                                  titleText={evidenceItem.title || "Untitled evidence"}
+                                  variant="evidence"
+                                  className="flex items-center gap-1 text-left transition-colors"
+                                  leading={<span className="font-bold uppercase opacity-50">Evidence</span>}
+                                >
+                                  {evidenceItem.title || "Untitled evidence"}
+                                </LinkedChip>
+                              ))}
+                            </div>
                           )}
 
                           {usedByIncidents.length > 0 && (

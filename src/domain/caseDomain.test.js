@@ -1645,6 +1645,27 @@ test("upsertDocumentEntryInCase create appends a normalized document entry with 
   assert.equal(updated.ledger, ledger);
 });
 
+test("upsertDocumentEntryInCase only keeps basedOnEvidenceIds for tracking records", () => {
+  const caseItem = {
+    id: "case-1",
+    documents: [],
+  };
+
+  const normalDocumentCase = upsertDocumentEntryInCase(caseItem, {
+    title: "Normal document",
+    textContent: "Plain document text",
+    basedOnEvidenceIds: ["ev-1"],
+  });
+  const trackingRecordCase = upsertDocumentEntryInCase(caseItem, {
+    title: "Tracking record",
+    textContent: "[TRACK RECORD]\nmeta:\ntype: compliance\n--- TABLE ---",
+    basedOnEvidenceIds: ["ev-1", "ev-1", "", "ev-2"],
+  });
+
+  assert.equal(Object.prototype.hasOwnProperty.call(normalDocumentCase.documents[0], "basedOnEvidenceIds"), false);
+  assert.deepEqual(trackingRecordCase.documents[0].basedOnEvidenceIds, ["ev-1", "ev-2"]);
+});
+
 test("upsertDocumentEntryInCase edit replaces an existing document entry by id and preserves unrelated sections", () => {
   const incidents = [{ id: "inc-1", title: "Incident" }];
   const strategy = [{ id: "str-1", title: "Strategy" }];

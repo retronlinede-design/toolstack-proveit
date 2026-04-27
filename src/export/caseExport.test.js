@@ -390,6 +390,40 @@ test("buildCaseReasoningExportPayload documentSummary includes bounded textExcer
   ]);
 });
 
+test("buildCaseReasoningExportPayload includes provenance for tracking record documents", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.documents.push({
+    id: "track-1",
+    title: "Tracking record",
+    documentDate: "2024-01-07",
+    textContent: "[TRACK RECORD]\nmeta:\ntype: compliance\nsubject: Repairs\n--- TABLE ---\n| Date | Status |\n--- SUMMARY (GPT READY) ---\nRepair tracker.",
+    basedOnEvidenceIds: ["ev-1", "missing"],
+  });
+
+  const payload = buildCaseReasoningExportPayload(caseItem, "detailed");
+  const normalDocument = payload.data.documentSummary.find((item) => item.id === "doc-1");
+  const trackingRecord = payload.data.documentSummary.find((item) => item.id === "track-1");
+
+  assert.equal(normalDocument.isTrackingRecord, false);
+  assert.equal(Object.prototype.hasOwnProperty.call(normalDocument, "basedOnEvidenceIds"), false);
+  assert.equal(trackingRecord.isTrackingRecord, true);
+  assert.deepEqual(trackingRecord.basedOnEvidenceIds, ["ev-1", "missing"]);
+  assert.deepEqual(trackingRecord.basedOnEvidence, [
+    {
+      id: "ev-1",
+      title: "Middle evidence",
+      date: "2024-01-02",
+      status: "needs_review",
+      importance: "critical",
+      relevance: "high",
+      evidenceRole: undefined,
+      recordType: "evidence",
+      summary: "Middle evidence description",
+    },
+  ]);
+  assert.deepEqual(trackingRecord.resolvedLinks.provenanceEvidence, trackingRecord.basedOnEvidence);
+});
+
 test("buildCaseReasoningExportPayload documentSummary uses empty textExcerpt when textContent is missing", () => {
   const caseItem = buildReasoningCase();
   delete caseItem.documents[0].textContent;

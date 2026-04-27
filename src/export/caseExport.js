@@ -87,6 +87,10 @@ export function sanitizeCaseForExport(caseItem) {
   };
 }
 
+function isTrackingRecordDocument(doc) {
+  return typeof doc?.textContent === "string" && doc.textContent.includes("[TRACK RECORD]");
+}
+
 export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
   if (!caseItem) {
     throw new Error("caseItem is required for CASE_REASONING_EXPORT");
@@ -527,6 +531,12 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
       title: record.title || "",
       date: record.date || "",
     }));
+    const isTrackingRecord = isTrackingRecordDocument(d);
+    const basedOnEvidenceIds = isTrackingRecord && Array.isArray(d.basedOnEvidenceIds) ? d.basedOnEvidenceIds : [];
+    const basedOnEvidence = basedOnEvidenceIds
+      .map((evidenceId) => getEvidenceDisplayMeta(c, evidenceId))
+      .filter(Boolean)
+      .map(mapResolvedEvidence);
 
     return {
       id: d.id,
@@ -543,8 +553,14 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
         : [],
       linkedRecordIds: Array.isArray(d.linkedRecordIds) ? d.linkedRecordIds : [],
       linkedRecords,
+      isTrackingRecord,
+      ...(isTrackingRecord ? {
+        basedOnEvidenceIds,
+        basedOnEvidence,
+      } : {}),
       resolvedLinks: {
         records: linkedRecords,
+        ...(isTrackingRecord ? { provenanceEvidence: basedOnEvidence } : {}),
       },
     };
   });

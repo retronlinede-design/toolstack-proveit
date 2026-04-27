@@ -146,6 +146,10 @@ export function normalizeLinkedRecordIds(value) {
   }, []);
 }
 
+function isTrackingRecordDocument(item) {
+  return typeof item?.textContent === "string" && item.textContent.includes("[TRACK RECORD]");
+}
+
 function normalizeSequenceGroup(value) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -248,7 +252,7 @@ export function normalizeActionSummary(summary) {
 }
 
 export function normalizeDocumentEntry(item) {
-  return {
+  const normalized = {
     id: item?.id || generateId(),
     title: item?.title || "",
     category: item?.category || "other",
@@ -263,6 +267,12 @@ export function normalizeDocumentEntry(item) {
     createdAt: item?.createdAt || new Date().toISOString(),
     updatedAt: item?.updatedAt || item?.createdAt || new Date().toISOString(),
   };
+
+  if (isTrackingRecordDocument(normalized)) {
+    normalized.basedOnEvidenceIds = normalizeLinkedRecordIds(item?.basedOnEvidenceIds);
+  }
+
+  return normalized;
 }
 
 export function normalizeRecord(item, recordType) {
@@ -655,7 +665,7 @@ function cleanupLinkedFields(item, deletedId, updatedAt) {
 
   let changed = false;
   const nextItem = { ...item };
-  const arrayFields = ["linkedRecordIds", "linkedEvidenceIds", "linkedIncidentIds"];
+  const arrayFields = ["linkedRecordIds", "linkedEvidenceIds", "linkedIncidentIds", "basedOnEvidenceIds"];
 
   arrayFields.forEach((field) => {
     const result = removeDeletedIdFromArray(nextItem[field], deletedId);

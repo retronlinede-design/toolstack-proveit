@@ -74,6 +74,7 @@ function buildLinkMapCase() {
         documentDate: "2024-01-03",
         textContent: "[TRACK RECORD]\nmeta:\ntype: compliance\nsubject: Repair actions\n--- TABLE ---\nDate | Action\n--- SUMMARY (GPT READY) ---\nTracks repair promises and actions.",
         linkedRecordIds: ["ev-1"],
+        basedOnEvidenceIds: ["ev-1"],
       },
     ],
     ledger: [
@@ -182,6 +183,23 @@ test("buildCaseLinkMapExportPayload creates generic linkedRecordIds edges", () =
     edge.field === "linkedRecordIds" &&
     edge.targetType === "incident"
   ));
+});
+
+test("buildCaseLinkMapExportPayload creates tracking record provenance edges", () => {
+  const payload = buildCaseLinkMapExportPayload(buildLinkMapCase());
+
+  assert.ok(payload.edges.find((edge) =>
+    edge.sourceId === "track-1" &&
+    edge.sourceType === "tracking_record" &&
+    edge.targetId === "ev-1" &&
+    edge.targetType === "evidence" &&
+    edge.field === "basedOnEvidenceIds" &&
+    edge.relationship === "provenance" &&
+    edge.status === "resolved"
+  ));
+
+  const trackingNode = payload.nodes.find((node) => node.id === "track-1");
+  assert.deepEqual(trackingNode.sourceFields.basedOnEvidenceIds, ["ev-1"]);
 });
 
 test("buildCaseLinkMapExportPayload preserves missing links as edges and missingLinks entries", () => {

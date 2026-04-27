@@ -123,6 +123,7 @@ const EMPTY_DOCUMENT_FORM = {
   textContent: "",
   attachments: [],
   linkedRecordIds: [],
+  basedOnEvidenceIds: [],
   sequenceGroup: "",
 };
 
@@ -1314,6 +1315,18 @@ export default function ProveItApp() {
 
     const safeName = c.name.toLowerCase().replace(/[^a-z0-9]/g, "-");
     downloadJson(payload, `proveit-case-reasoning-export-${safeName}-${mode}.json`, { space: 2 });
+  };
+
+  const toggleDocumentBasedOnEvidence = (evidenceId) => {
+    setDocumentForm((prev) => {
+      const currentIds = Array.isArray(prev.basedOnEvidenceIds) ? prev.basedOnEvidenceIds : [];
+      return {
+        ...prev,
+        basedOnEvidenceIds: currentIds.includes(evidenceId)
+          ? currentIds.filter((id) => id !== evidenceId)
+          : [...currentIds, evidenceId],
+      };
+    });
   };
 
   const handleCopyLinkMapExport = async (caseId) => {
@@ -3006,6 +3019,35 @@ const handleRecordFiles = async (event) => {
                     rows={3}
                     className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
                   />
+                </div>
+
+                <div className="pt-2">
+                  <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Based on Evidence</label>
+                  <p className="mb-3 text-xs text-neutral-500">Select evidence items used to calculate or create this tracking record.</p>
+                  <div className="max-h-44 overflow-y-auto space-y-2 rounded-xl border border-neutral-200 bg-neutral-50/50 p-2 pr-1">
+                    {(selectedCase?.evidence || []).map((evidenceItem) => (
+                      <label key={evidenceItem.id} className="flex cursor-pointer items-center gap-3 rounded-lg border border-transparent p-2 transition-all hover:border-neutral-200 hover:bg-white">
+                        <input
+                          type="checkbox"
+                          checked={(documentForm.basedOnEvidenceIds || []).includes(evidenceItem.id)}
+                          onChange={() => toggleDocumentBasedOnEvidence(evidenceItem.id)}
+                          className="h-4 w-4 rounded border-neutral-300 text-lime-600 focus:ring-lime-500"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate text-xs font-medium text-neutral-800">{evidenceItem.title || "Untitled Evidence"}</span>
+                            <span className="rounded bg-neutral-100 px-1 text-[9px] font-bold uppercase text-neutral-400">Evidence</span>
+                          </div>
+                          {(evidenceItem.eventDate || evidenceItem.date || evidenceItem.capturedAt) && (
+                            <div className="text-[10px] text-neutral-500">{evidenceItem.eventDate || evidenceItem.date || evidenceItem.capturedAt}</div>
+                          )}
+                        </div>
+                      </label>
+                    ))}
+                    {!(selectedCase?.evidence || []).length && (
+                      <p className="py-2 text-center text-[10px] italic text-neutral-400">No evidence available.</p>
+                    )}
+                  </div>
                 </div>
               </div>
               ) : (
