@@ -53,6 +53,10 @@ function safeText(value) {
   return typeof value === "string" ? value : "";
 }
 
+function isTrackingRecordDocument(doc) {
+  return typeof doc?.textContent === "string" && doc.textContent.includes("[TRACK RECORD]");
+}
+
 const EMPTY_RECORD_FORM = {
   title: "",
   date: "",
@@ -953,6 +957,11 @@ export default function ProveItApp() {
 
   const relatedTasksForViewing = viewingRecord ? (selectedCase?.tasks || []).filter(t => 
     t.linkedRecordIds?.includes(viewingRecord.id)
+  ) : [];
+  const relatedTrackingRecordsForViewing = viewingRecord ? (selectedCase?.documents || []).filter((doc) =>
+    isTrackingRecordDocument(doc) &&
+    Array.isArray(doc.basedOnEvidenceIds) &&
+    doc.basedOnEvidenceIds.includes(viewingRecord.id)
   ) : [];
 
   const [quickCaptures, setQuickCaptures] = useState(() => {
@@ -3316,6 +3325,33 @@ const handleRecordFiles = async (event) => {
                               // Give it a tiny bit of time for the detail modal to close before opening the next
                               setTimeout(() => {
                                 openEditRecordModal("tasks", task);
+                              }, 50);
+                            }}
+                            className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
+                          >
+                            Open
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {relatedTrackingRecordsForViewing.length > 0 && (
+                  <div className="space-y-3 pt-4 border-t border-neutral-100">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Used by Tracking Records</span>
+                    <div className="space-y-2">
+                      {relatedTrackingRecordsForViewing.map((record) => (
+                        <div key={record.id} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm font-semibold text-neutral-800">{record.title || "Untitled Tracking Record"}</div>
+                            <div className="text-[10px] font-bold uppercase text-neutral-400">Tracking Record</div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setViewingRecord(null);
+                              window.setTimeout(() => {
+                                openDocumentModal(record, record.id, "record");
                               }, 50);
                             }}
                             className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"

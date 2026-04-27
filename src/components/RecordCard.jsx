@@ -16,6 +16,10 @@ const EVIDENCE_ROLE_LABELS = {
   OTHER: "Other",
 };
 
+function isTrackingRecordDocument(doc) {
+  return typeof doc?.textContent === "string" && doc.textContent.includes("[TRACK RECORD]");
+}
+
 export default function RecordCard({
   item,
   recordType,
@@ -42,6 +46,13 @@ export default function RecordCard({
   const isNewRecord =
     (recordType === "evidence" || recordType === "incidents") &&
     item.edited !== true;
+  const trackingRecordsUsingEvidence = isEvidence
+    ? (selectedCase?.documents || []).filter((doc) =>
+        isTrackingRecordDocument(doc) &&
+        Array.isArray(doc.basedOnEvidenceIds) &&
+        doc.basedOnEvidenceIds.includes(item.id)
+      )
+    : [];
 
   const badgeColors = {
     evidence: "bg-purple-50 text-purple-700 border-purple-200",
@@ -315,6 +326,20 @@ export default function RecordCard({
                   </LinkedChip>
                 );
               })
+            )}
+            {isEvidence && trackingRecordsUsingEvidence.length > 0 && (
+              renderCompactChipRow("Used by Tracking Records", trackingRecordsUsingEvidence, (trackingRecord) => (
+                <LinkedChip
+                  key={trackingRecord.id}
+                  onClick={() => openLinkedRecord?.(trackingRecord.id)}
+                  titleText={trackingRecord.title || "Untitled Tracking Record"}
+                  variant="record"
+                  className="flex items-center gap-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 active:scale-[0.99]"
+                  leading={<span className="shrink-0 font-bold uppercase opacity-50">Tracking Record</span>}
+                >
+                  {trackingRecord.title || "Untitled Tracking Record"}
+                </LinkedChip>
+              ))
             )}
           </div>
         </div>
