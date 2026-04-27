@@ -16,6 +16,14 @@ const EVIDENCE_ROLE_LABELS = {
   OTHER: "Other",
 };
 
+const EVIDENCE_TYPE_LABELS = {
+  documented: "Documented",
+  witnessed: "Witness",
+  observed: "Observed",
+  verbal: "Verbal",
+  derived: "Derived",
+};
+
 function isTrackingRecordDocument(doc) {
   return typeof doc?.textContent === "string" && doc.textContent.includes("[TRACK RECORD]");
 }
@@ -215,6 +223,9 @@ export default function RecordCard({
             {isEvidence && (
               <div className="mt-2 space-y-2">
                 <div className="flex flex-wrap gap-1.5">
+                  <span className="inline-block rounded border border-blue-200 bg-blue-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-700">
+                    {EVIDENCE_TYPE_LABELS[item.evidenceType] || EVIDENCE_TYPE_LABELS.observed}
+                  </span>
                   <span className="inline-block rounded border border-lime-200 bg-lime-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-lime-700">
                     {EVIDENCE_ROLE_LABELS[item.evidenceRole] || EVIDENCE_ROLE_LABELS.OTHER}
                   </span>

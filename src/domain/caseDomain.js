@@ -107,8 +107,21 @@ export const INCIDENT_EVIDENCE_STATUSES = [
   "needs_evidence",
 ];
 
+export const EVIDENCE_TYPES = [
+  "documented",
+  "witnessed",
+  "observed",
+  "verbal",
+  "derived",
+];
+
 export function normalizeEvidenceRole(value) {
   return EVIDENCE_ROLES.includes(value) ? value : "OTHER";
+}
+
+export function normalizeEvidenceType(value, attachments = []) {
+  if (EVIDENCE_TYPES.includes(value)) return value;
+  return Array.isArray(attachments) && attachments.length > 0 ? "documented" : "observed";
 }
 
 export function normalizeIncidentEvidenceStatus(value, linkedEvidenceIds = []) {
@@ -321,6 +334,7 @@ export function normalizeRecord(item, recordType) {
       usedIn: Array.isArray(item?.usedIn) ? item.usedIn : [],
       reviewNotes: item?.reviewNotes || "",
       evidenceRole: normalizeEvidenceRole(item?.evidenceRole),
+      evidenceType: normalizeEvidenceType(item?.evidenceType, base.attachments),
       sequenceGroup: normalizeSequenceGroup(item?.sequenceGroup),
       functionSummary: typeof item?.functionSummary === "string" ? item.functionSummary.trim() : "",
       // linkedIncidentIds is now handled in base, no need to re-add here
@@ -854,6 +868,7 @@ export function upsertRecordInCase(caseItem, recordType, recordInput, editingRec
       usedIn: recordInput.usedIn,
       reviewNotes: recordInput.reviewNotes,
       evidenceRole: recordInput.evidenceRole,
+      evidenceType: recordInput.evidenceType,
       sequenceGroup: recordInput.sequenceGroup,
       functionSummary: recordInput.functionSummary,
       linkedIncidentIds: recordInput.linkedIncidentIds,
@@ -909,6 +924,7 @@ export function upsertRecordInCase(caseItem, recordType, recordInput, editingRec
       usedIn: recordInput.usedIn,
       reviewNotes: recordInput.reviewNotes,
       evidenceRole: recordInput.evidenceRole,
+      evidenceType: recordInput.evidenceType,
       sequenceGroup: recordInput.sequenceGroup,
       functionSummary: recordInput.functionSummary,
       linkedIncidentIds: recordInput.linkedIncidentIds,

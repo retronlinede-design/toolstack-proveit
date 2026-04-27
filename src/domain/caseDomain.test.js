@@ -72,16 +72,42 @@ test("normalizeRecord preserves valid evidence structural fields", () => {
     date: "2024-02-03",
     isMilestone: true,
     evidenceRole: "ANCHOR_EVIDENCE",
+    evidenceType: "witnessed",
     sequenceGroup: "  Notice sequence  ",
     functionSummary: "  Shows the first written warning.  ",
     usedIn: ["Legacy use"],
   }, "evidence");
 
   assert.equal(record.evidenceRole, "ANCHOR_EVIDENCE");
+  assert.equal(record.evidenceType, "witnessed");
   assert.equal(record.isMilestone, true);
   assert.equal(record.sequenceGroup, "Notice sequence");
   assert.equal(record.functionSummary, "Shows the first written warning.");
   assert.deepEqual(record.usedIn, ["Legacy use"]);
+});
+
+test("normalizeRecord defaults evidenceType from attachments", () => {
+  const withoutAttachment = normalizeRecord({
+    id: "ev-1",
+    title: "Observed Evidence",
+    date: "2024-02-03",
+  }, "evidence");
+  const withAttachment = normalizeRecord({
+    id: "ev-2",
+    title: "Documented Evidence",
+    date: "2024-02-03",
+    attachments: [{ id: "att-1", name: "photo.png" }],
+  }, "evidence");
+  const invalid = normalizeRecord({
+    id: "ev-3",
+    title: "Invalid Evidence",
+    date: "2024-02-03",
+    evidenceType: "hearsay",
+  }, "evidence");
+
+  assert.equal(withoutAttachment.evidenceType, "observed");
+  assert.equal(withAttachment.evidenceType, "documented");
+  assert.equal(invalid.evidenceType, "observed");
 });
 
 test("normalizeRecord preserves sequenceGroup on active non-evidence records", () => {
@@ -1231,6 +1257,7 @@ test("upsertRecordInCase persists evidence structural fields on create", () => {
     usedIn: ["Legacy"],
     reviewNotes: "Review note",
     evidenceRole: "TIMELINE_EVIDENCE",
+    evidenceType: "derived",
     sequenceGroup: "  Repair sequence  ",
     functionSummary: "  Places the repair request in sequence.  ",
     linkedIncidentIds: ["inc-1"],
@@ -1239,6 +1266,7 @@ test("upsertRecordInCase persists evidence structural fields on create", () => {
   });
 
   assert.equal(updated.evidence[0].evidenceRole, "TIMELINE_EVIDENCE");
+  assert.equal(updated.evidence[0].evidenceType, "derived");
   assert.equal(updated.evidence[0].sequenceGroup, "Repair sequence");
   assert.equal(updated.evidence[0].functionSummary, "Places the repair request in sequence.");
   assert.deepEqual(updated.evidence[0].usedIn, ["Legacy"]);
@@ -1257,6 +1285,7 @@ test("upsertRecordInCase persists evidence structural fields on edit", () => {
       digital: { hasDigital: false, files: [] },
     },
     evidenceRole: "OTHER",
+    evidenceType: "observed",
     sequenceGroup: "Old sequence",
     functionSummary: "Old function",
     linkedIncidentIds: [],
@@ -1281,6 +1310,7 @@ test("upsertRecordInCase persists evidence structural fields on edit", () => {
       digital: { hasDigital: false, files: [] },
     },
     evidenceRole: "CORROBORATING_EVIDENCE",
+    evidenceType: "verbal",
     sequenceGroup: "  Updated sequence  ",
     functionSummary: "  Corroborates the incident report.  ",
     linkedIncidentIds: ["inc-1"],
@@ -1288,6 +1318,7 @@ test("upsertRecordInCase persists evidence structural fields on edit", () => {
   }, editingRecord);
 
   assert.equal(updated.evidence[0].evidenceRole, "CORROBORATING_EVIDENCE");
+  assert.equal(updated.evidence[0].evidenceType, "verbal");
   assert.equal(updated.evidence[0].sequenceGroup, "Updated sequence");
   assert.equal(updated.evidence[0].functionSummary, "Corroborates the incident report.");
   assert.deepEqual(updated.evidence[0].linkedIncidentIds, ["inc-1"]);

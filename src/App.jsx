@@ -57,6 +57,14 @@ function isTrackingRecordDocument(doc) {
   return typeof doc?.textContent === "string" && doc.textContent.includes("[TRACK RECORD]");
 }
 
+const EVIDENCE_TYPE_LABELS = {
+  documented: "Documented",
+  witnessed: "Witness Statement",
+  observed: "Observation",
+  verbal: "Verbal / Meeting",
+  derived: "Derived / Calculated",
+};
+
 const EMPTY_RECORD_FORM = {
   title: "",
   date: "",
@@ -75,6 +83,7 @@ const EMPTY_RECORD_FORM = {
   usedIn: [],
   reviewNotes: "",
   evidenceRole: "OTHER",
+  evidenceType: "",
   sequenceGroup: "",
   functionSummary: "",
   sourceType: "other",
@@ -1734,6 +1743,9 @@ const handleRecordFiles = async (event) => {
           files: updatedAttachments,
         },
       };
+      if (!prev.evidenceType) {
+        newState.evidenceType = "documented";
+      }
     }
 
     return newState;
@@ -3305,6 +3317,10 @@ const handleRecordFiles = async (event) => {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Evidence Type</span>
+                    <div className="text-sm font-semibold">{EVIDENCE_TYPE_LABELS[viewingRecord.evidenceType] || EVIDENCE_TYPE_LABELS.observed}</div>
+                  </div>
                   <div className="space-y-1">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Source Type</span>
                     <div className="text-sm capitalize">{viewingRecord.sourceType}</div>

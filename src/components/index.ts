@@ -82,6 +82,7 @@ serve(async (req) => {
             status: item.status || 'needs_review',
             source: 'manual',
             edited: false,
+            evidenceType: item.evidenceType || (Array.isArray(item.attachments) && item.attachments.length > 0 ? 'documented' : 'observed'),
             sourceType: item.sourceType || 'other',
             capturedAt: new Date().toISOString().slice(0, 10),
             importance: item.importance || 'unreviewed',

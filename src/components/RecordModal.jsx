@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { EVIDENCE_ROLES, INCIDENT_LINK_TYPES } from "../domain/caseDomain.js";
+import { EVIDENCE_ROLES, EVIDENCE_TYPES, INCIDENT_LINK_TYPES } from "../domain/caseDomain.js";
 import { suggestEvidenceMetadataForForm } from "../domain/recordFormDomain.js";
 
 const INCIDENT_EVIDENCE_STATUS_OPTIONS = [
@@ -9,6 +9,14 @@ const INCIDENT_EVIDENCE_STATUS_OPTIONS = [
   { value: "unverified", label: "Unverified" },
   { value: "needs_evidence", label: "Needs Evidence" },
 ];
+
+const EVIDENCE_TYPE_LABELS = {
+  documented: "Documented (file, screenshot, log)",
+  witnessed: "Witness Statement",
+  observed: "Observation (personal)",
+  verbal: "Verbal / Meeting",
+  derived: "Derived / Calculated",
+};
 
 const EVIDENCE_ROLE_LABELS = {
   ANCHOR_EVIDENCE: "Anchor Evidence",
@@ -253,6 +261,7 @@ export default function RecordModal({
     .filter(Boolean);
   const availableTrackingRecords = trackingRecords.filter((record) => !linkedIncidentRecordIds.includes(record.id));
   const evidenceAttachmentCount = getEvidenceAttachmentCount(recordForm);
+  const evidenceTypeValue = recordForm.evidenceType || (evidenceAttachmentCount > 0 ? "documented" : "observed");
   const evidenceSuggestion = SHOW_METADATA_SUGGESTIONS && recordType === "evidence"
     ? suggestEvidenceMetadataForForm(recordForm, selectedCase)
     : null;
@@ -752,6 +761,22 @@ export default function RecordModal({
                   ))}
                 </div>
               )}
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-neutral-600">Evidence Type</label>
+              <p className="mb-2 text-xs text-neutral-500">Classify what kind of evidence this is (file, witness, observation, etc.).</p>
+              <select
+                value={evidenceTypeValue}
+                onChange={(e) => setRecordForm({ ...recordForm, evidenceType: e.target.value })}
+                className="w-full rounded-xl border border-neutral-300 p-3 text-sm"
+              >
+                {EVIDENCE_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {EVIDENCE_TYPE_LABELS[type] || type}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
