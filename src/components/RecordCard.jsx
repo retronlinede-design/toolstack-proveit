@@ -49,7 +49,6 @@ export default function RecordCard({
   const isSupportedMilestoneType = isIncident || isEvidence;
   const isRecordMilestone = isSupportedMilestoneType && (!!item.isMilestone || !!isMilestone);
   const incidentLinkGroups = recordType === "incidents" ? getIncidentLinkGroups(selectedCase, item.id) : null;
-  const canCreateTask = ["evidence", "incidents", "strategy"].includes(recordType);
   const sequenceGroup = typeof item.sequenceGroup === "string" ? item.sequenceGroup.trim() : "";
   const isNewRecord =
     (recordType === "evidence" || recordType === "incidents") &&

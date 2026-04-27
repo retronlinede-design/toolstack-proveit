@@ -146,6 +146,36 @@ function getTrackingRecordSummary(doc) {
   return safeText(doc?.summary) || safeText(doc?.source) || safeText(doc?.textContent).slice(0, 160);
 }
 
+function buildStrategyLinkableItems(selectedCase, currentRecordId) {
+  const documents = Array.isArray(selectedCase?.documents) ? selectedCase.documents : [];
+  const trackingRecords = documents.filter(isTrackingRecordDocument);
+  const trackingRecordIds = new Set(trackingRecords.map((record) => record.id));
+  const regularDocuments = documents.filter((record) => !trackingRecordIds.has(record.id));
+
+  return [
+    ...(Array.isArray(selectedCase?.incidents) ? selectedCase.incidents : []).map((record) => ({
+      ...record,
+      _linkType: "incidents",
+      _linkLabel: "Incident",
+    })),
+    ...(Array.isArray(selectedCase?.evidence) ? selectedCase.evidence : []).map((record) => ({
+      ...record,
+      _linkType: "evidence",
+      _linkLabel: "Evidence",
+    })),
+    ...regularDocuments.map((record) => ({
+      ...record,
+      _linkType: "documents",
+      _linkLabel: "Document",
+    })),
+    ...trackingRecords.map((record) => ({
+      ...record,
+      _linkType: "tracking",
+      _linkLabel: getTrackingRecordTypeLabel(record),
+    })),
+  ].filter((record) => record.id && record.id !== currentRecordId);
+}
+
 function getEvidenceAttachmentCount(recordForm) {
   const attachments = [
     ...(Array.isArray(recordForm?.attachments) ? recordForm.attachments : []),
@@ -260,6 +290,10 @@ export default function RecordModal({
     .map((recordId) => trackingRecords.find((record) => record.id === recordId))
     .filter(Boolean);
   const availableTrackingRecords = trackingRecords.filter((record) => !linkedIncidentRecordIds.includes(record.id));
+  const strategyLinkableItems = useMemo(
+    () => buildStrategyLinkableItems(selectedCase, recordForm.id),
+    [selectedCase, recordForm.id]
+  );
   const evidenceAttachmentCount = getEvidenceAttachmentCount(recordForm);
   const evidenceTypeValue = recordForm.evidenceType || (evidenceAttachmentCount > 0 ? "documented" : "observed");
   const evidenceSuggestion = SHOW_METADATA_SUGGESTIONS && recordType === "evidence"
@@ -326,7 +360,6 @@ export default function RecordModal({
       ].filter(Boolean)
     : [];
 
-  // Follow-up task helper logic for new records
   const toggleEvidenceLink = (id) => {
     setTempSelection(prev => 
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
@@ -418,6 +451,15 @@ export default function RecordModal({
     setRecordForm({
       ...recordForm,
       linkedRecordIds: linkedIncidentRecordIds.filter((id) => id !== recordId),
+    });
+  };
+
+  const toggleStrategyLinkedRecord = (recordId) => {
+    setRecordForm({
+      ...recordForm,
+      linkedRecordIds: linkedIncidentRecordIds.includes(recordId)
+        ? linkedIncidentRecordIds.filter((id) => id !== recordId)
+        : [...linkedIncidentRecordIds, recordId],
     });
   };
 
@@ -1482,8 +1524,38 @@ export default function RecordModal({
         ) : (
           <>
             {recordType === "strategy" && (
-              <div className="mb-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+              <div className="mb-4 space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                 {renderSequenceGroupField()}
+
+                <div>
+                  <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Linked Case Items</h4>
+                  <p className="mt-1 text-sm text-neutral-600">Connect this strategy to incidents, evidence, documents, or tracking records.</p>
+                  <div className="mt-3 max-h-52 space-y-2 overflow-y-auto rounded-xl border border-neutral-200 bg-white p-2">
+                    {strategyLinkableItems.length > 0 ? (
+                      strategyLinkableItems.map((record) => (
+                        <label key={record.id} className="flex cursor-pointer items-start gap-3 rounded-lg border border-transparent p-2 transition-colors hover:border-neutral-200 hover:bg-neutral-50">
+                          <input
+                            type="checkbox"
+                            checked={linkedIncidentRecordIds.includes(record.id)}
+                            onChange={() => toggleStrategyLinkedRecord(record.id)}
+                            className="mt-0.5 h-4 w-4 rounded border-neutral-300 text-lime-600 focus:ring-lime-500"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate text-sm font-medium text-neutral-800">{record.title || record.label || "Untitled Record"}</span>
+                              <span className="shrink-0 rounded bg-neutral-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-neutral-500">{record._linkLabel}</span>
+                            </div>
+                            {(record.eventDate || record.date || record.documentDate) && (
+                              <div className="mt-0.5 text-[10px] text-neutral-500">{record.eventDate || record.date || record.documentDate}</div>
+                            )}
+                          </div>
+                        </label>
+                      ))
+                    ) : (
+                      <p className="py-2 text-center text-xs italic text-neutral-500">No case items available to link.</p>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 

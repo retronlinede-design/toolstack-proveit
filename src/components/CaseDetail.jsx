@@ -798,7 +798,7 @@ ${strategyFocus.join("\n") || "—"}`;
     }
 
     if (issue.record && issue.type) {
-      const editableRecordTypes = new Set(["incidents", "evidence", "strategy", "tasks"]);
+      const editableRecordTypes = new Set(["incidents", "evidence", "strategy"]);
       if (!editableRecordTypes.has(issue.type)) return;
 
       const detail = (issue.detail || "").toLowerCase();
@@ -832,7 +832,6 @@ ${strategyFocus.join("\n") || "—"}`;
       incident: "incidents",
       evidence: "evidence",
       strategy: "strategy",
-      task: "tasks",
       ledger: "ledger",
     };
 
@@ -865,7 +864,6 @@ ${strategyFocus.join("\n") || "—"}`;
     { id: "evidence", label: "Evidence" },
     { id: "document", label: "Documents" },
     { id: "payment", label: "Payments" },
-    { id: "task", label: "Tasks" },
     { id: "strategy", label: "Strategy" },
   ];
 
@@ -1100,14 +1098,12 @@ ${strategyFocus.join("\n") || "—"}`;
   const getTimelineDate = (recordType, item) => {
     if (recordType === "document") return item.documentDate || item.date || item.createdAt || "";
     if (recordType === "ledger") return item.paymentDate || item.dueDate || item.period || item.createdAt || "";
-    if (recordType === "task") return item.dueDate || item.date || item.createdAt || "";
     return item.eventDate || item.date || item.capturedAt || item.createdAt || "";
   };
 
   const getTimelineTitle = (recordType, item) => {
     if (recordType === "ledger") return item.label || item.category || "Untitled ledger entry";
     if (recordType === "document") return item.title || "Untitled document";
-    if (recordType === "task") return item.title || "Untitled task";
     if (recordType === "strategy") return item.title || "Untitled strategy";
     if (recordType === "incident") return item.title || "Untitled incident";
     return item.title || "Untitled evidence";
@@ -1123,7 +1119,6 @@ ${strategyFocus.join("\n") || "—"}`;
       return truncateTimelineText([amounts, item.status, item.proofStatus, item.notes].filter(Boolean).join(" · "));
     }
     if (recordType === "document") return truncateTimelineText(item.summary || item.textContent || item.notes);
-    if (recordType === "task") return truncateTimelineText([item.status, item.description || item.notes].filter(Boolean).join(" · "));
     if (recordType === "evidence") return truncateTimelineText(item.functionSummary || item.description || item.notes || item.reviewNotes);
     return truncateTimelineText(item.summary || item.description || item.notes);
   };
@@ -1144,7 +1139,6 @@ ${strategyFocus.join("\n") || "—"}`;
     ...toTimelineItems(selectedCase?.evidence, "evidence"),
     ...toTimelineItems(selectedCase?.documents, "document"),
     ...toTimelineItems(selectedCase?.ledger, "ledger"),
-    ...toTimelineItems(selectedCase?.tasks, "task"),
     ...toTimelineItems(selectedCase?.strategy, "strategy"),
   ].sort((a, b) => {
     if (!a.date && b.date) return 1;
@@ -2057,7 +2051,6 @@ Rules:
       ...(caseItem?.evidence || []).map((record) => ({ ...record, sequenceType: "evidence" })),
       ...(caseItem?.documents || []).map((record) => ({ ...record, sequenceType: "document" })),
       ...(caseItem?.strategy || []).map((record) => ({ ...record, sequenceType: "strategy" })),
-      ...(caseItem?.tasks || []).map((record) => ({ ...record, sequenceType: "task" })),
     ];
     const getSequenceRecordTitle = (record) => record.title || record.label || record.id || "Untitled record";
     const getSequenceRecordDate = (record) =>
@@ -2105,7 +2098,6 @@ Rules:
 - Evidence: ${nodeCounts.evidence || 0}
 - Documents: ${documentCount}
 - Strategy: ${nodeCounts.strategy || 0}
-- Tasks: ${nodeCounts.task || 0}
 
 ## LINK INTEGRITY
 
@@ -4326,7 +4318,7 @@ ${ungroupedSequenceText}
                     <div>
                       <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Case Timeline</h3>
                       <p className="mt-1 text-sm text-neutral-600">
-                        Incidents, evidence, documents, payments, tasks, and strategy in one chronological view.
+                        Incidents, evidence, documents, payments, and strategy in one chronological view.
                       </p>
                     </div>
                     <div className="text-xs font-medium text-neutral-500">
@@ -4371,7 +4363,6 @@ ${ungroupedSequenceText}
                     evidence: "border-lime-200 bg-lime-50 text-lime-700",
                     document: "border-sky-200 bg-sky-50 text-sky-700",
                     ledger: "border-amber-200 bg-amber-50 text-amber-700",
-                    task: "border-violet-200 bg-violet-50 text-violet-700",
                     strategy: "border-neutral-300 bg-neutral-100 text-neutral-700",
                   };
                   const labelMap = {
@@ -4379,7 +4370,6 @@ ${ungroupedSequenceText}
                     evidence: "Evidence",
                     document: "Document",
                     ledger: "Payment",
-                    task: "Task",
                     strategy: "Strategy",
                   };
                   const detailLabelMap = {

@@ -965,9 +965,6 @@ export default function ProveItApp() {
     closeLedgerModal();
   };
 
-  const relatedTasksForViewing = viewingRecord ? (selectedCase?.tasks || []).filter(t => 
-    t.linkedRecordIds?.includes(viewingRecord.id)
-  ) : [];
   const relatedTrackingRecordsForViewing = viewingRecord ? (selectedCase?.documents || []).filter((doc) =>
     isTrackingRecordDocument(doc) &&
     Array.isArray(doc.basedOnEvidenceIds) &&
@@ -990,7 +987,7 @@ export default function ProveItApp() {
 
   const setupSteps = [
     { step: "1", title: "Create your first case", text: "Start with one case file using a generic template or create your own custom case from scratch." },
-    { step: "2", title: "Add core records", text: "Add your first evidence, incident, task, or strategy note. Upload a phone photo, PDF, screenshot, or document." },
+    { step: "2", title: "Add core records", text: "Add your first evidence, incident, or strategy note. Upload a phone photo, PDF, screenshot, or document." },
     { step: "3", title: "Build the timeline", text: "Add dated incidents, evidence, documents, and records so the case story is easy to follow." },
     { step: "4", title: "Prepare your print pack", text: "Use the Print Pack view when you need a printable case summary or want to save it as PDF." },
   ];
@@ -2132,7 +2129,6 @@ const handleRecordFiles = async (event) => {
             <div className="mt-4 flex flex-wrap gap-2">
               <button onClick={() => convertCapture(item.id, "evidence")} className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-xs font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">Save as Evidence</button>
               <button onClick={() => convertCapture(item.id, "incidents")} className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-xs font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">Save as Incident</button>
-              <button onClick={() => convertCapture(item.id, "tasks")} className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-xs font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">Save as Task</button>
               <button onClick={() => convertCapture(item.id, "strategy")} className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-xs font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">Save as Strategy</button>
               <button onClick={() => archiveCapture(item.id)} className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-xs font-medium text-neutral-700 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">Archive</button>
             </div>
@@ -3229,7 +3225,6 @@ const handleRecordFiles = async (event) => {
                       ...(selectedCase?.evidence || []).map(r => ({ ...r, _type: 'evidence', _label: 'Evidence' })),
                       ...(selectedCase?.incidents || []).map(r => ({ ...r, _type: 'incidents', _label: 'Incident' })),
                       ...(selectedCase?.strategy || []).map(r => ({ ...r, _type: 'strategy', _label: 'Strategy' })),
-                      ...(selectedCase?.tasks || []).map(r => ({ ...r, _type: 'tasks', _label: 'Task' })),
                     ].map(rec => (
                       <label key={rec.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white border border-transparent hover:border-neutral-200 transition-all cursor-pointer">
                         <input 
@@ -3257,7 +3252,7 @@ const handleRecordFiles = async (event) => {
                         </div>
                       </label>
                     ))}
-                    {(!selectedCase?.evidence?.length && !selectedCase?.incidents?.length && !selectedCase?.strategy?.length && !selectedCase?.tasks?.length) && (
+                    {(!selectedCase?.evidence?.length && !selectedCase?.incidents?.length && !selectedCase?.strategy?.length) && (
                       <p className="text-[10px] text-neutral-400 italic text-center py-2">No records available to link.</p>
                     )}
                   </div>
@@ -3342,34 +3337,6 @@ const handleRecordFiles = async (event) => {
                   <div className="space-y-1">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Internal Notes</span>
                     <p className="text-sm text-neutral-500 bg-neutral-50 p-3 rounded-xl border border-neutral-100 italic">{viewingRecord.notes}</p>
-                  </div>
-                )}
-
-                {relatedTasksForViewing.length > 0 && (
-                  <div className="space-y-3 pt-4 border-t border-neutral-100">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Related Tasks</span>
-                    <div className="space-y-2">
-                      {relatedTasksForViewing.map((task) => (
-                        <div key={task.id} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 flex items-center justify-between gap-3">
-                          <div className="truncate">
-                            <div className="text-sm font-semibold text-neutral-800 truncate">{task.title}</div>
-                            <div className="text-[10px] font-bold text-neutral-400 uppercase">Status: {task.status}</div>
-                          </div>
-                          <button
-                            onClick={() => {
-                              setViewingRecord(null);
-                              // Give it a tiny bit of time for the detail modal to close before opening the next
-                              setTimeout(() => {
-                                openEditRecordModal("tasks", task);
-                              }, 50);
-                            }}
-                            className="rounded-lg border border-lime-500 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
-                          >
-                            Open
-                          </button>
-                        </div>
-                      ))}
-                    </div>
                   </div>
                 )}
 
