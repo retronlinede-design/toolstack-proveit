@@ -66,6 +66,7 @@ const EMPTY_RECORD_FORM = {
   linkedRecordIds: [],
   linkedIncidentIds: [], // Added for evidence
   linkedEvidenceIds: [], // Added for incidents
+  evidenceStatus: "needs_evidence",
   linkedIncidentRefs: [],
   isMilestone: false,
   importance: "unreviewed",
@@ -1648,12 +1649,14 @@ export default function ProveItApp() {
   };
 
   const openRecordModal = (type, initialFormState = {}) => {
+    const initialLinkedEvidenceIds = Array.isArray(initialFormState.linkedEvidenceIds) ? initialFormState.linkedEvidenceIds : [];
     setRecordType(type);
     setEditingRecord(null);
     setRecordForm({ 
       ...EMPTY_RECORD_FORM, 
       date: new Date().toISOString().slice(0, 10),
       capturedAt: new Date().toISOString().slice(0, 10),
+      evidenceStatus: type === "incidents" && initialLinkedEvidenceIds.length > 0 ? "documented" : EMPTY_RECORD_FORM.evidenceStatus,
       ...initialFormState
     });
   };

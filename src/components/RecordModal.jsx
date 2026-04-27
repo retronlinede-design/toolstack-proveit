@@ -2,6 +2,14 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { EVIDENCE_ROLES, INCIDENT_LINK_TYPES } from "../domain/caseDomain.js";
 import { suggestEvidenceMetadataForForm } from "../domain/recordFormDomain.js";
 
+const INCIDENT_EVIDENCE_STATUS_OPTIONS = [
+  { value: "documented", label: "Documented" },
+  { value: "witnessed", label: "Witnessed" },
+  { value: "contextual", label: "Contextual" },
+  { value: "unverified", label: "Unverified" },
+  { value: "needs_evidence", label: "Needs Evidence" },
+];
+
 const EVIDENCE_ROLE_LABELS = {
   ANCHOR_EVIDENCE: "Anchor Evidence",
   SUPPORTING_EVIDENCE: "Supporting Evidence",
@@ -256,6 +264,7 @@ export default function RecordModal({
   const hasStructuredIncidentDetails = recordType === "incidents" && (
     !!recordForm.isMilestone ||
     (recordForm.status && recordForm.status !== "open") ||
+    (recordForm.evidenceStatus && recordForm.evidenceStatus !== "needs_evidence") ||
     safeText(recordForm.sequenceGroup).trim() ||
     (Array.isArray(recordForm.linkedEvidenceIds) && recordForm.linkedEvidenceIds.length > 0) ||
     (Array.isArray(recordForm.linkedIncidentRefs) && recordForm.linkedIncidentRefs.length > 0) ||
@@ -317,9 +326,13 @@ export default function RecordModal({
 
   const handleConfirmLinks = () => {
     const targetField = "linkedEvidenceIds";
+    const nextLinkedEvidenceIds = Array.from(new Set([...(recordForm[targetField] || []), ...tempSelection]));
     setRecordForm({
       ...recordForm,
-      [targetField]: Array.from(new Set([...(recordForm[targetField] || []), ...tempSelection]))
+      [targetField]: nextLinkedEvidenceIds,
+      evidenceStatus: recordType === "incidents" && nextLinkedEvidenceIds.length > 0 && (!recordForm.evidenceStatus || recordForm.evidenceStatus === "needs_evidence")
+        ? "documented"
+        : recordForm.evidenceStatus,
     });
     setIsLinking(false);
     setTempSelection([]);
@@ -1170,6 +1183,22 @@ export default function RecordModal({
                         </div>
                       </div>
                     </label>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-neutral-600">Evidence Status</label>
+                    <p className="mt-1 text-xs text-neutral-500">Use this to classify how strong the incident support is when direct evidence is missing or partial.</p>
+                    <select
+                      value={recordForm.evidenceStatus || "needs_evidence"}
+                      onChange={(e) => setRecordForm({ ...recordForm, evidenceStatus: e.target.value })}
+                      className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm"
+                    >
+                      {INCIDENT_EVIDENCE_STATUS_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">

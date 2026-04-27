@@ -293,6 +293,37 @@ test("normalizeRecord normalizes incident linkedEvidenceIds while preserving lin
   assert.deepEqual(record.linkedIncidentRefs, [{ incidentId: "inc-2", type: "CAUSES" }]);
 });
 
+test("normalizeRecord defaults incident evidenceStatus from linked evidence", () => {
+  const withoutEvidence = normalizeRecord({
+    id: "inc-1",
+    title: "Incident without evidence",
+  }, "incidents");
+  const withEvidence = normalizeRecord({
+    id: "inc-2",
+    title: "Incident with evidence",
+    linkedEvidenceIds: ["ev-1"],
+  }, "incidents");
+
+  assert.equal(withoutEvidence.evidenceStatus, "needs_evidence");
+  assert.equal(withEvidence.evidenceStatus, "documented");
+});
+
+test("normalizeRecord preserves valid incident evidenceStatus and rejects invalid values", () => {
+  const witnessed = normalizeRecord({
+    id: "inc-1",
+    title: "Witnessed incident",
+    evidenceStatus: "witnessed",
+  }, "incidents");
+  const invalid = normalizeRecord({
+    id: "inc-2",
+    title: "Invalid incident",
+    evidenceStatus: "not-valid",
+  }, "incidents");
+
+  assert.equal(witnessed.evidenceStatus, "witnessed");
+  assert.equal(invalid.evidenceStatus, "needs_evidence");
+});
+
 test("normalizeRecord normalizes evidence linkedIncidentIds", () => {
   const record = normalizeRecord({
     id: "ev-1",

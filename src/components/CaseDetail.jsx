@@ -2008,6 +2008,15 @@ Rules:
     const incidentsWithoutEvidence = incidentNodes.filter((node) => incidentEvidenceCounts.get(node.id) === 0);
     const incidentsWithEvidence = incidentNodes.filter((node) => incidentEvidenceCounts.get(node.id) > 0);
     const unusedEvidence = evidenceNodes.filter((node) => !evidenceLinkedToIncidentIds.has(node.id));
+    const incidentsById = new Map((caseItem?.incidents || []).map((incident) => [incident.id, incident]));
+    const getIncidentEvidenceStatus = (node) => incidentsById.get(node.id)?.evidenceStatus || "needs_evidence";
+    const incidentsNeedingEvidence = incidentsWithoutEvidence.filter((node) =>
+      ["needs_evidence", "documented"].includes(getIncidentEvidenceStatus(node))
+    );
+    const witnessedContextualIncidents = incidentsWithoutEvidence.filter((node) =>
+      ["witnessed", "contextual"].includes(getIncidentEvidenceStatus(node))
+    );
+    const unverifiedIncidents = incidentsWithoutEvidence.filter((node) => getIncidentEvidenceStatus(node) === "unverified");
     const formatTitleList = (nodes) =>
       nodes.length > 0 ? nodes.map((node) => `- ${node.title || node.id || "Untitled record"}`).join("\n") : "- None";
     const formatIncidentEvidenceCountList = (nodes) =>
@@ -2111,8 +2120,14 @@ ${formatNodeList(highlyConnectedRecords)}
 
 ## EVIDENCE COVERAGE
 
-Incidents without Evidence:
-${formatTitleList(incidentsWithoutEvidence)}
+Incidents Needing Evidence:
+${formatTitleList(incidentsNeedingEvidence)}
+
+Witnessed / Contextual Incidents:
+${formatTitleList(witnessedContextualIncidents)}
+
+Unverified Incidents:
+${formatTitleList(unverifiedIncidents)}
 
 Incidents with Evidence Count:
 ${formatIncidentEvidenceCountList(incidentsWithEvidence)}

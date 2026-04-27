@@ -99,8 +99,21 @@ export const EVIDENCE_ROLES = [
   "OTHER",
 ];
 
+export const INCIDENT_EVIDENCE_STATUSES = [
+  "documented",
+  "witnessed",
+  "contextual",
+  "unverified",
+  "needs_evidence",
+];
+
 export function normalizeEvidenceRole(value) {
   return EVIDENCE_ROLES.includes(value) ? value : "OTHER";
+}
+
+export function normalizeIncidentEvidenceStatus(value, linkedEvidenceIds = []) {
+  if (INCIDENT_EVIDENCE_STATUSES.includes(value)) return value;
+  return normalizeLinkedRecordIds(linkedEvidenceIds).length > 0 ? "documented" : "needs_evidence";
 }
 
 export function normalizeIncidentLinkRef(ref) {
@@ -331,6 +344,7 @@ export function normalizeRecord(item, recordType) {
       ...base,
       ...timelineData,
       isMilestone: !!item?.isMilestone,
+      evidenceStatus: normalizeIncidentEvidenceStatus(item?.evidenceStatus, base.linkedEvidenceIds),
       sequenceGroup: normalizeSequenceGroup(item?.sequenceGroup),
       linkedIncidentRefs: normalizeIncidentLinkRefs(item?.linkedIncidentRefs, base.id),
     };
@@ -844,6 +858,7 @@ export function upsertRecordInCase(caseItem, recordType, recordInput, editingRec
       functionSummary: recordInput.functionSummary,
       linkedIncidentIds: recordInput.linkedIncidentIds,
       linkedEvidenceIds: recordInput.linkedEvidenceIds,
+      evidenceStatus: recordInput.evidenceStatus,
       linkedIncidentRefs: recordInput.linkedIncidentRefs,
       linkedRecordIds: recordInput.linkedRecordIds || editingRecord.linkedRecordIds || [],
       isMilestone: !!recordInput.isMilestone,
@@ -898,6 +913,7 @@ export function upsertRecordInCase(caseItem, recordType, recordInput, editingRec
       functionSummary: recordInput.functionSummary,
       linkedIncidentIds: recordInput.linkedIncidentIds,
       linkedEvidenceIds: recordInput.linkedEvidenceIds,
+      evidenceStatus: recordInput.evidenceStatus,
       linkedIncidentRefs: recordInput.linkedIncidentRefs,
       linkedRecordIds: recordInput.linkedRecordIds || [],
       isMilestone: !!recordInput.isMilestone,
