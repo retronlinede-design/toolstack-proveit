@@ -2014,6 +2014,35 @@ Rules:
       nodes.length > 0
         ? nodes.map((node) => `- ${node.title || node.id || "Untitled record"} — ${incidentEvidenceCounts.get(node.id) || 0}`).join("\n")
         : "- None";
+    const evidenceById = new Map((caseItem?.evidence || []).map((evidence) => [evidence.id, evidence]));
+    const trackingRecordProvenance = (caseItem?.documents || [])
+      .filter((doc) => isTrackingRecord(doc) && Array.isArray(doc.basedOnEvidenceIds) && doc.basedOnEvidenceIds.length > 0)
+      .map((doc) => ({
+        doc,
+        evidence: doc.basedOnEvidenceIds
+          .map((evidenceId) => evidenceById.get(evidenceId))
+          .filter(Boolean),
+      }))
+      .filter((entry) => entry.evidence.length > 0);
+    const trackingRecordProvenanceText = trackingRecordProvenance.length > 0
+      ? trackingRecordProvenance.map(({ doc, evidence }) =>
+          `- ${doc.title || doc.id || "Untitled tracking record"}\n${evidence.map((item) => `  - ${item.title || item.id || "Untitled evidence"}`).join("\n")}`
+        ).join("\n")
+      : "- No tracking record provenance recorded.";
+    const trackingRecordsByEvidence = new Map();
+    trackingRecordProvenance.forEach(({ doc, evidence }) => {
+      evidence.forEach((item) => {
+        if (!trackingRecordsByEvidence.has(item.id)) {
+          trackingRecordsByEvidence.set(item.id, { evidence: item, records: [] });
+        }
+        trackingRecordsByEvidence.get(item.id).records.push(doc);
+      });
+    });
+    const evidenceUsedByTrackingRecordsText = trackingRecordsByEvidence.size > 0
+      ? [...trackingRecordsByEvidence.values()].map(({ evidence, records }) =>
+          `- ${evidence.title || evidence.id || "Untitled evidence"}\n${records.map((doc) => `  - ${doc.title || doc.id || "Untitled tracking record"}`).join("\n")}`
+        ).join("\n")
+      : "- No tracking record provenance recorded.";
     const sequenceRecords = [
       ...(caseItem?.incidents || []).map((record) => ({ ...record, sequenceType: "incident" })),
       ...(caseItem?.evidence || []).map((record) => ({ ...record, sequenceType: "evidence" })),
@@ -2090,6 +2119,14 @@ ${formatIncidentEvidenceCountList(incidentsWithEvidence)}
 
 Unused Evidence (not linked to incidents):
 ${formatTitleList(unusedEvidence)}
+
+## TRACKING RECORD PROVENANCE
+
+Tracking Records Based on Evidence:
+${trackingRecordProvenanceText}
+
+Evidence Used by Tracking Records:
+${evidenceUsedByTrackingRecordsText}
 
 ## SEQUENCE GROUPS
 
