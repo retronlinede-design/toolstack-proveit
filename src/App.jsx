@@ -141,14 +141,16 @@ const EMPTY_DOCUMENT_FORM = {
   sequenceGroup: "",
 };
 
-const DOCUMENT_GPT_SUMMARY_PROMPT = `Read this uploaded document and produce a ProveIt-ready document summary.
+const DOCUMENT_GPT_SUMMARY_PROMPT = `Read this uploaded document and produce ProveIt-ready source text.
 
 Requirements:
 - Max about 1000 characters
 - Keep names, dates, amounts, duties, deadlines, and key clauses
 - Use bullets or very short sections
 - Do not be vague
-- Focus on facts that matter for later legal/case reasoning
+- Focus on facts that matter for CASE_REASONING_EXPORT
+- Documents are source or working documents. Identify which incidents, evidence, ledger entries, or strategy threads they may support.
+- If a sequence/thread is clear, suggest a short sequenceGroup label.
 
 Structure:
 - Document type
@@ -156,6 +158,7 @@ Structure:
 - Parties / sender
 - Key facts
 - Key clause(s)
+- Links or sequenceGroup to consider
 - Why it matters`;
 
 const RECORD_GPT_PROMPT = `Convert the information I gave you into a ProveIt tracking record.
@@ -166,10 +169,18 @@ Requirements:
 - Keep it clean, structured, and updateable
 - Use consistent units (EUR for money, hours for time)
 - Keep rows chronological
+- Tracking records become documents in ProveIt. They summarize measurable financial, time, compliance, or custom records for CASE_REASONING_EXPORT.
+- If source evidence is known, mention it in the summary so it can be linked in ProveIt.
 
 Use this format:
 
 [TRACK RECORD]
+
+meta:
+type: <payment_tracker / work_time / compliance / custom>
+subject: <what this tracks>
+period:
+status:
 
 Title:
 <short clear title>
@@ -185,7 +196,7 @@ Purpose:
 |-------------|----------|--------|------------|------|--------|-------|
 | ...         | ...      | ...    | ...        | ...  | ...    | ...   |
 
---- SUMMARY ---
+--- SUMMARY (GPT READY) ---
 <short explanation of totals, patterns, and key issues>`;
 
 const RECORD_TYPE_OPTIONS = [
@@ -688,7 +699,7 @@ export default function ProveItApp() {
     }
 
     setGptDeltaValidatedCase(result.case);
-    setGptDeltaPreview(buildGptDeltaPreview(payloadForValidation, selectedCase, result.case));
+    setGptDeltaPreview(buildGptDeltaPreview(payloadForValidation, selectedCase, result.case, result.warnings || []));
   };
 
   const handleApplyGptDelta = async () => {
@@ -2332,10 +2343,14 @@ const handleRecordFiles = async (event) => {
                 <h2 className="text-xl font-semibold text-neutral-900">GPT Update</h2>
                 <p className="mt-1 text-sm text-neutral-600">
                   Paste a ProveIt GPT delta, validate it, then review the supported changes before applying.
+                  The current importer accepts actionSummary patches and strategy patches only.
                 </p>
               </div>
 
               <div className="flex-1 space-y-4 overflow-y-auto p-5">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+                  Do not paste create or patch operations for incidents, evidence, documents, or ledger yet. Put those suggested changes in actionSummary or a strategy note for manual review.
+                </div>
                 <textarea
                   value={gptDeltaText}
                   onChange={handleGptDeltaTextChange}
@@ -2352,6 +2367,16 @@ const handleRecordFiles = async (event) => {
                 {gptDeltaPreview && (
                   <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
                     <h3 className="font-semibold text-neutral-900">Preview</h3>
+                    {gptDeltaPreview.warnings?.length > 0 && (
+                      <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs font-medium text-amber-900">
+                        <div className="mb-1 font-bold uppercase tracking-wide">Warnings</div>
+                        <ul className="space-y-1">
+                          {gptDeltaPreview.warnings.map((warning, index) => (
+                            <li key={`${warning}-${index}`}>- {warning}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
                       <div>
                         <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">Case</span>
@@ -2380,6 +2405,31 @@ const handleRecordFiles = async (event) => {
                       </div>
                     )}
 
+                    {gptDeltaPreview.actionSummaryChanges?.length > 0 && (
+                      <div className="mt-4">
+                        <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">
+                          Action Summary Changes
+                        </span>
+                        <div className="mt-2 space-y-2">
+                          {gptDeltaPreview.actionSummaryChanges.map((change) => (
+                            <div key={change.field} className="rounded-md bg-white p-2">
+                              <div className="text-xs font-bold text-neutral-800">{change.field}</div>
+                              <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                                <div>
+                                  <span className="block text-[10px] font-bold uppercase text-neutral-400">Before</span>
+                                  <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-600">{change.before || "—"}</pre>
+                                </div>
+                                <div>
+                                  <span className="block text-[10px] font-bold uppercase text-neutral-400">After</span>
+                                  <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-900">{change.after || "—"}</pre>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {gptDeltaPreview.strategyItems.length > 0 && (
                       <div className="mt-4">
                         <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">
@@ -2391,6 +2441,25 @@ const handleRecordFiles = async (event) => {
                             <li key={item.id} className="rounded-md bg-white px-2 py-1">
                               <span className="font-medium">{item.title}</span>
                               <span className="ml-2 break-all font-mono text-xs text-neutral-500">{item.id}</span>
+                              {item.changes?.length > 0 && (
+                                <div className="mt-2 space-y-2">
+                                  {item.changes.map((change) => (
+                                    <div key={`${item.id}-${change.field}`} className="rounded border border-neutral-100 bg-neutral-50 p-2">
+                                      <div className="text-xs font-bold text-neutral-800">{change.field}</div>
+                                      <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                                        <div>
+                                          <span className="block text-[10px] font-bold uppercase text-neutral-400">Before</span>
+                                          <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-600">{change.before || "—"}</pre>
+                                        </div>
+                                        <div>
+                                          <span className="block text-[10px] font-bold uppercase text-neutral-400">After</span>
+                                          <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-900">{change.after || "—"}</pre>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </li>
                           ))}
                         </ul>
@@ -2398,7 +2467,7 @@ const handleRecordFiles = async (event) => {
                     )}
 
                     <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs font-medium text-amber-800">
-                      Unsupported sections and fields are ignored.
+                      gpt-delta-1.0 applies only supported actionSummary and strategy fields. Unsupported sections are rejected; unsupported fields are shown as warnings and not applied.
                     </p>
                   </div>
                 )}

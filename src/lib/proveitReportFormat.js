@@ -24,7 +24,7 @@ Rules:
 - # MILESTONE_TIMELINE
 - You MUST use ONLY the items from [MILESTONE_TIMELINE_DATA] to populate this section.
 - If [MILESTONE_TIMELINE_DATA] is "None", you MUST NOT include the section.
-- [MILESTONE_TIMELINE_DATA] may contain both Incident and Evidence milestone entries.
+- [MILESTONE_TIMELINE_DATA] may contain both Incident and Evidence milestone entries. Use recordType to distinguish timeline anchors from proof milestones.
 - Use the provided entries to create one chronological MILESTONE_TIMELINE section.
 - AT_A_GLANCE:
 - Instant summary only
@@ -64,7 +64,7 @@ Rules:
 - Place it after WHAT_THIS_REPORT_SHOWS
 - Use only bullet lines starting with "- "
 - Use ONLY the entries from [MILESTONE_TIMELINE_DATA]
-- [MILESTONE_TIMELINE_DATA] may include both Incident and Evidence entries
+- [MILESTONE_TIMELINE_DATA] may include both Incident and Evidence entries; preserve the item type naturally when it helps clarity.
 - Chronology only
 - Each bullet must be short, factual, and non-analytical
 - Preferred format: <date> - <short event title>: <very short clarification (optional)>

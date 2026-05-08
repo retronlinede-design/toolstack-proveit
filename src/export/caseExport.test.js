@@ -227,7 +227,7 @@ test("buildCaseReasoningExportPayload recentTimeline includes incidents and evid
   );
 });
 
-test("buildCaseReasoningExportPayload includes compact milestoneTimeline entries for milestone incidents only", () => {
+test("buildCaseReasoningExportPayload includes compact milestoneTimeline entries for milestone incidents and evidence", () => {
   const caseItem = buildReasoningCase();
   caseItem.incidents[0] = {
     ...caseItem.incidents[0],
@@ -238,18 +238,32 @@ test("buildCaseReasoningExportPayload includes compact milestoneTimeline entries
     ...caseItem.incidents[1],
     isMilestone: true,
   };
+  caseItem.evidence[0] = {
+    ...caseItem.evidence[0],
+    isMilestone: true,
+    functionSummary: "Milestone evidence function.",
+  };
 
   const payload = buildCaseReasoningExportPayload(caseItem);
 
   assert.deepEqual(payload.data.milestoneTimeline, [
     {
       id: "inc-1",
+      recordType: "incident",
       date: "2024-01-01",
       title: "Early incident",
       summary: "Early incident description",
     },
     {
+      id: "ev-1",
+      recordType: "evidence",
+      date: "2024-01-02",
+      title: "Middle evidence",
+      summary: "Milestone evidence function.",
+    },
+    {
       id: "inc-2",
+      recordType: "incident",
       date: "2024-01-03",
       title: "Late incident",
       summary: "Late incident description",
@@ -284,23 +298,81 @@ test("buildCaseReasoningExportPayload activeIssues includes additive recordType 
   });
 });
 
+test("buildCaseReasoningExportPayload incidentSummary includes reasoning completeness fields", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.incidents[0] = {
+    ...caseItem.incidents[0],
+    createdAt: "2024-01-01T08:00:00.000Z",
+    updatedAt: "2024-01-01T09:00:00.000Z",
+    isMilestone: true,
+    evidenceStatus: "documented",
+    sequenceGroup: "Repair sequence",
+    tags: ["repair", "notice"],
+    source: "manual",
+  };
+
+  const payload = buildCaseReasoningExportPayload(caseItem);
+  const incident = payload.data.incidentSummary.find((item) => item.id === "inc-1");
+
+  assert.equal(incident.type, "incidents");
+  assert.equal(incident.eventDate, "2024-01-01");
+  assert.equal(incident.createdAt, "2024-01-01T08:00:00.000Z");
+  assert.equal(incident.updatedAt, "2024-01-01T09:00:00.000Z");
+  assert.equal(incident.isMilestone, true);
+  assert.equal(incident.evidenceStatus, "documented");
+  assert.equal(incident.sequenceGroup, "Repair sequence");
+  assert.deepEqual(incident.tags, ["repair", "notice"]);
+  assert.equal(incident.source, "manual");
+  assert.equal(incident.attachmentCount, 1);
+});
+
 test("buildCaseReasoningExportPayload evidenceSummary includes structured evidence metadata", () => {
   const caseItem = buildReasoningCase();
   caseItem.evidence[0] = {
     ...caseItem.evidence[0],
     evidenceRole: "ANCHOR_EVIDENCE",
+    evidenceType: "documented",
+    capturedAt: "2024-01-02T10:00:00.000Z",
     sequenceGroup: "Repair sequence",
     functionSummary: "Shows when the repair issue first became documented.",
+    linkedRecordIds: ["doc-1"],
+    linkedEvidenceIds: ["ev-2"],
+    usedIn: ["report"],
+    reviewNotes: "Review note",
   };
 
   const payload = buildCaseReasoningExportPayload(caseItem);
   const evidence = payload.data.evidenceSummary.find((item) => item.id === "ev-1");
 
+  assert.equal(evidence.date, "2024-01-02");
+  assert.equal(evidence.eventDate, "2024-01-02");
+  assert.equal(evidence.capturedAt, "2024-01-02T10:00:00.000Z");
   assert.equal(evidence.evidenceRole, "ANCHOR_EVIDENCE");
+  assert.equal(evidence.evidenceType, "documented");
   assert.equal(evidence.sequenceGroup, "Repair sequence");
   assert.equal(evidence.functionSummary, "Shows when the repair issue first became documented.");
   assert.equal(evidence.title, "Middle evidence");
   assert.equal(evidence.attachmentCount, 1);
+  assert.deepEqual(evidence.attachmentNames, ["photo.png"]);
+  assert.deepEqual(evidence.linkedRecordIds, ["doc-1"]);
+  assert.deepEqual(evidence.linkedRecords, [
+    { id: "doc-1", recordType: "document", title: "Document", date: "2024-01-06" },
+  ]);
+  assert.deepEqual(evidence.linkedEvidenceIds, ["ev-2"]);
+  assert.deepEqual(evidence.usedIn, ["report"]);
+  assert.equal(evidence.reviewNotes, "Review note");
+  assert.deepEqual(evidence.availabilitySummary, {
+    physical: {
+      hasOriginal: false,
+      location: "",
+      notes: "",
+    },
+    digital: {
+      hasDigital: true,
+      fileCount: 1,
+      fileNames: ["photo.png"],
+    },
+  });
 });
 
 test("buildCaseReasoningExportPayload evidenceSummary includes compact linkedIncidents from linkedIncidentIds", () => {
@@ -371,7 +443,7 @@ test("buildCaseReasoningExportPayload documentSummary includes bounded textExcer
   const caseItem = buildReasoningCase();
   caseItem.documents[0] = {
     ...caseItem.documents[0],
-    textContent: "A".repeat(1200),
+    textContent: "A".repeat(1800),
     linkedRecordIds: ["ev-1", "inc-2", "task-1", "str-1", "missing"],
   };
 
@@ -379,8 +451,8 @@ test("buildCaseReasoningExportPayload documentSummary includes bounded textExcer
   const document = payload.data.documentSummary.find((item) => item.id === "doc-1");
 
   assert.equal(document.hasTextContent, true);
-  assert.equal(document.textExcerpt, "A".repeat(1000));
-  assert.equal(document.textExcerpt.length, 1000);
+  assert.equal(document.textExcerpt, "A".repeat(1500));
+  assert.equal(document.textExcerpt.length, 1500);
   assert.deepEqual(document.linkedRecordIds, ["ev-1", "inc-2", "task-1", "str-1", "missing"]);
   assert.deepEqual(document.linkedRecords, [
     { id: "ev-1", recordType: "evidence", title: "Middle evidence", date: "2024-01-02" },
@@ -455,10 +527,53 @@ test("buildCaseReasoningExportPayload documentSummary includes attachmentNames o
 
   assert.equal(document.attachmentCount, 2);
   assert.deepEqual(document.attachmentNames, ["photo.png", "lease.pdf"]);
+  assert.deepEqual(document.attachmentMetadata, [
+    {
+      id: "att-1",
+      name: "photo.png",
+      type: "image/png",
+      mimeType: "image/png",
+      size: 123,
+      kind: "image",
+      createdAt: "2024-01-01T09:00:00.000Z",
+      emailMeta: { subject: "Subject" },
+      storage: { type: "indexeddb", imageId: "img-1" },
+    },
+    {
+      id: "att-2",
+      name: "lease.pdf",
+      type: "",
+      mimeType: "",
+      size: undefined,
+      kind: "",
+      createdAt: "",
+      emailMeta: null,
+      storage: { type: "indexeddb", imageId: "img-2" },
+    },
+  ]);
   assert.equal(document.attachments, undefined);
   assert.equal(document.storage, undefined);
   assert.equal(document.dataUrl, undefined);
   assert.equal(document.backupDataUrl, undefined);
+});
+
+test("buildCaseReasoningExportPayload documentSummary includes document completeness metadata", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.documents[0] = {
+    ...caseItem.documents[0],
+    sequenceGroup: "Notice sequence",
+    createdAt: "2024-01-06T08:00:00.000Z",
+    updatedAt: "2024-01-06T09:00:00.000Z",
+    edited: true,
+  };
+
+  const payload = buildCaseReasoningExportPayload(caseItem);
+  const document = payload.data.documentSummary.find((item) => item.id === "doc-1");
+
+  assert.equal(document.sequenceGroup, "Notice sequence");
+  assert.equal(document.createdAt, "2024-01-06T08:00:00.000Z");
+  assert.equal(document.updatedAt, "2024-01-06T09:00:00.000Z");
+  assert.equal(document.edited, true);
 });
 
 test("buildCaseReasoningExportPayload ledgerSummary includes totals and readable entries", () => {
@@ -467,6 +582,7 @@ test("buildCaseReasoningExportPayload ledgerSummary includes totals and readable
     {
       id: "ledger-1",
       category: "rent",
+      subType: "monthly",
       label: "January rent",
       period: "2024-01",
       expectedAmount: 1000,
@@ -476,9 +592,15 @@ test("buildCaseReasoningExportPayload ledgerSummary includes totals and readable
       dueDate: "2024-01-05",
       paymentDate: "2024-01-06",
       status: "part-paid",
+      method: "bank_transfer",
+      reference: "REF-1",
+      proofType: "receipt",
       proofStatus: "partial",
       counterparty: "Landlord",
       notes: "Part payment with evidence link",
+      batchLabel: "Rent",
+      createdAt: "2024-01-06T08:00:00.000Z",
+      updatedAt: "2024-01-06T09:00:00.000Z",
       linkedRecordIds: ["ev-1", "inc-1", "doc-1", "missing"],
     },
     {
@@ -511,6 +633,7 @@ test("buildCaseReasoningExportPayload ledgerSummary includes totals and readable
   assert.deepEqual(payload.data.ledgerSummary.entries[0], {
     id: "ledger-1",
     category: "rent",
+    subType: "monthly",
     label: "January rent",
     period: "2024-01",
     expectedAmount: 1000,
@@ -520,9 +643,15 @@ test("buildCaseReasoningExportPayload ledgerSummary includes totals and readable
     dueDate: "2024-01-05",
     paymentDate: "2024-01-06",
     status: "part-paid",
+    method: "bank_transfer",
+    reference: "REF-1",
+    proofType: "receipt",
     proofStatus: "partial",
     counterparty: "Landlord",
     notes: "Part payment with evidence link",
+    batchLabel: "Rent",
+    createdAt: "2024-01-06T08:00:00.000Z",
+    updatedAt: "2024-01-06T09:00:00.000Z",
     linkedRecordIds: ["ev-1", "inc-1", "doc-1", "missing"],
     linkedRecords: [
       { id: "ev-1", recordType: "evidence", title: "Middle evidence", date: "2024-01-02" },
@@ -559,8 +688,8 @@ test("buildCaseReasoningExportPayload ledgerSummary entries are bounded by mode 
   const compact = buildCaseReasoningExportPayload(caseItem, "compact");
   const detailed = buildCaseReasoningExportPayload(caseItem, "detailed");
 
-  assert.equal(compact.data.ledgerSummary.entries.length, 10);
-  assert.equal(detailed.data.ledgerSummary.entries.length, 25);
+  assert.equal(compact.data.ledgerSummary.entries.length, 20);
+  assert.equal(detailed.data.ledgerSummary.entries.length, 30);
   assert.equal(compact.data.ledgerSummary.totals.entryCount, 30);
   assert.equal(detailed.data.ledgerSummary.totals.entryCount, 30);
   assert.equal(compact.data.ledgerSummary.totals.expectedTotal, 300);
@@ -655,8 +784,8 @@ test("buildCaseReasoningExportPayload chronology entries are bounded by mode whi
 
   assert.equal(compact.data.chronology.totalItems, 76);
   assert.equal(detailed.data.chronology.totalItems, 76);
-  assert.equal(compact.data.chronology.items.length, 20);
-  assert.equal(detailed.data.chronology.items.length, 50);
+  assert.equal(compact.data.chronology.items.length, 40);
+  assert.equal(detailed.data.chronology.items.length, 76);
 });
 
 test("buildCaseReasoningExportPayload chronology does not change recentTimeline", () => {
@@ -874,6 +1003,11 @@ test("buildCaseReasoningExportPayload strategy current and openTasks preserve ra
   const caseItem = buildReasoningCase();
   caseItem.strategy[0] = {
     ...caseItem.strategy[0],
+    sequenceGroup: "Repair strategy",
+    tags: ["urgent"],
+    source: "manual",
+    createdAt: "2024-01-05T08:00:00.000Z",
+    updatedAt: "2024-01-05T09:00:00.000Z",
     linkedRecordIds: ["inc-1", "doc-1"],
   };
   caseItem.tasks[0] = {
@@ -884,6 +1018,12 @@ test("buildCaseReasoningExportPayload strategy current and openTasks preserve ra
   const payload = buildCaseReasoningExportPayload(caseItem, "detailed");
 
   assert.deepEqual(payload.data.strategy.current[0].linkedRecordIds, ["inc-1", "doc-1"]);
+  assert.equal(payload.data.strategy.current[0].sequenceGroup, "Repair strategy");
+  assert.deepEqual(payload.data.strategy.current[0].tags, ["urgent"]);
+  assert.equal(payload.data.strategy.current[0].source, "manual");
+  assert.equal(payload.data.strategy.current[0].eventDate, "2024-01-05");
+  assert.equal(payload.data.strategy.current[0].createdAt, "2024-01-05T08:00:00.000Z");
+  assert.equal(payload.data.strategy.current[0].updatedAt, "2024-01-05T09:00:00.000Z");
   assert.deepEqual(payload.data.strategy.current[0].linkedRecords, [
     { id: "inc-1", recordType: "incident", title: "Early incident", date: "2024-01-01" },
     { id: "doc-1", recordType: "document", title: "Document", date: "2024-01-06" },
@@ -993,15 +1133,66 @@ test("buildCaseReasoningExportPayload linked incident entries remain compact", (
 });
 
 test("buildCaseReasoningExportPayload locks compact and detailed limits", () => {
-  const compact = buildCaseReasoningExportPayload(buildReasoningCase(), "compact");
-  const detailed = buildCaseReasoningExportPayload(buildReasoningCase(), "detailed");
+  const caseItem = buildReasoningCase();
+  caseItem.incidents = Array.from({ length: 70 }, (_, index) => ({
+    id: `inc-${index + 1}`,
+    type: "incidents",
+    title: `Incident ${index + 1}`,
+    eventDate: `2024-01-${String((index % 28) + 1).padStart(2, "0")}`,
+    date: `2024-01-${String((index % 28) + 1).padStart(2, "0")}`,
+    description: `Incident ${index + 1} description`,
+  }));
+  caseItem.evidence = Array.from({ length: 90 }, (_, index) => ({
+    id: `ev-${index + 1}`,
+    type: "evidence",
+    title: `Evidence ${index + 1}`,
+    eventDate: `2024-02-${String((index % 28) + 1).padStart(2, "0")}`,
+    date: `2024-02-${String((index % 28) + 1).padStart(2, "0")}`,
+    description: `Evidence ${index + 1} description`,
+  }));
+  caseItem.documents = Array.from({ length: 90 }, (_, index) => ({
+    id: `doc-${index + 1}`,
+    title: `Document ${index + 1}`,
+    documentDate: `2024-03-${String((index % 28) + 1).padStart(2, "0")}`,
+    textContent: "D".repeat(2000),
+  }));
+
+  const compact = buildCaseReasoningExportPayload(caseItem, "compact");
+  const detailed = buildCaseReasoningExportPayload(caseItem, "detailed");
 
   assert.equal(compact.data.openTasks.length, 8);
   assert.equal(detailed.data.openTasks.length, 9);
-  assert.equal(compact.data.recentTimeline.length, 4);
-  assert.equal(detailed.data.recentTimeline.length, 4);
-  assert.equal(compact.data.incidentSummary.length, 2);
-  assert.equal(detailed.data.incidentSummary.length, 2);
-  assert.equal(compact.data.evidenceSummary.length, 2);
-  assert.equal(detailed.data.evidenceSummary.length, 2);
+  assert.equal(compact.data.recentTimeline.length, 5);
+  assert.equal(detailed.data.recentTimeline.length, 12);
+  assert.equal(compact.data.incidentSummary.length, 20);
+  assert.equal(detailed.data.incidentSummary.length, 60);
+  assert.equal(compact.data.evidenceSummary.length, 30);
+  assert.equal(detailed.data.evidenceSummary.length, 80);
+  assert.equal(compact.data.documentSummary.length, 30);
+  assert.equal(detailed.data.documentSummary.length, 80);
+  assert.equal(compact.data.documentSummary[0].textExcerpt.length, 600);
+  assert.equal(detailed.data.documentSummary[0].textExcerpt.length, 1500);
+});
+
+test("buildCaseReasoningExportPayload handles missing optional completeness fields", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.incidents = [{ id: "inc-optional", title: "Optional incident" }];
+  caseItem.evidence = [{ id: "ev-optional", title: "Optional evidence" }];
+  caseItem.documents = [{ id: "doc-optional", title: "Optional document" }];
+  caseItem.ledger = [{ id: "ledger-optional", label: "Optional ledger" }];
+  caseItem.strategy = [{ id: "str-optional", title: "Optional strategy" }];
+
+  const payload = buildCaseReasoningExportPayload(caseItem);
+
+  assert.equal(payload.importable, false);
+  assert.equal(payload.exportType, "CASE_REASONING_EXPORT");
+  assert.equal(payload.data.incidentSummary[0].sequenceGroup, "");
+  assert.deepEqual(payload.data.incidentSummary[0].tags, []);
+  assert.deepEqual(payload.data.evidenceSummary[0].availabilitySummary, {
+    physical: { hasOriginal: false, location: "", notes: "" },
+    digital: { hasDigital: false, fileCount: 0, fileNames: [] },
+  });
+  assert.equal(payload.data.documentSummary[0].sequenceGroup, "");
+  assert.equal(payload.data.ledgerSummary.entries[0].createdAt, "");
+  assert.equal(payload.data.strategy.current[0].sequenceGroup, "");
 });

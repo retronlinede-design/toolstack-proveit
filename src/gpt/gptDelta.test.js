@@ -100,6 +100,7 @@ test("ingestGptDelta actionSummary patch applies only supported fields", () => {
   }));
 
   assert.equal(result.ok, true);
+  assert.deepEqual(result.warnings, ["actionSummary has unsupported field(s) for gpt-delta-1.0: unsupportedField."]);
   assert.equal(result.case.actionSummary.currentFocus, "New focus");
   assert.deepEqual(result.case.actionSummary.nextActions, ["New action"]);
   assert.deepEqual(result.case.actionSummary.importantReminders, ["New reminder"]);
@@ -122,7 +123,7 @@ test("ingestGptDelta strategy patch applies only supported fields", () => {
           notes: "New notes",
           status: "archived",
           tags: ["new"],
-          linkedRecordIds: ["inc-2"],
+          linkedRecordIds: ["inc-1"],
           linkedEvidenceIds: ["ignored"],
           unsupportedField: "ignored",
         },
@@ -131,6 +132,7 @@ test("ingestGptDelta strategy patch applies only supported fields", () => {
   }));
 
   assert.equal(result.ok, true);
+  assert.deepEqual(result.warnings, ["Strategy str-1 has unsupported field(s) for gpt-delta-1.0: linkedEvidenceIds, unsupportedField."]);
   const updated = result.case.strategy[0];
   assert.equal(updated.title, "New strategy record");
   assert.equal(updated.date, "2024-02-01");
@@ -139,23 +141,86 @@ test("ingestGptDelta strategy patch applies only supported fields", () => {
   assert.equal(updated.notes, "New notes");
   assert.equal(updated.status, "archived");
   assert.deepEqual(updated.tags, ["new"]);
-  assert.deepEqual(updated.linkedRecordIds, ["inc-2"]);
+  assert.deepEqual(updated.linkedRecordIds, ["inc-1"]);
   assert.deepEqual(updated.linkedEvidenceIds, []);
   assert.equal(Object.hasOwn(updated, "unsupportedField"), false);
   assert.match(updated.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
 });
 
-test("ingestGptDelta unsupported patch sections return current rejection behavior", () => {
+test("ingestGptDelta unsupported patch sections return clear rejection behavior", () => {
   assert.deepEqual(
     ingestGptDelta(baseCase(), delta({ incidents: [{ id: "inc-1", patch: { title: "Ignored" } }] })),
-    { ok: false, reason: "GPT delta has no supported patch sections." }
+    {
+      ok: false,
+      reason: "Unsupported gpt-delta-1.0 patch section(s): incidents. Current importer supports only actionSummary and strategy patches.",
+    }
   );
+});
+
+test("ingestGptDelta detects duplicate strategy patch ids", () => {
+  assert.deepEqual(
+    ingestGptDelta(baseCase(), delta({
+      strategy: [
+        { id: "str-1", patch: { title: "First" } },
+        { id: "str-1", patch: { title: "Second" } },
+      ],
+    })),
+    { ok: false, reason: "Duplicate strategy patch id: str-1" }
+  );
+});
+
+test("ingestGptDelta reports duplicate actionSummary list entries as warnings", () => {
+  const result = ingestGptDelta(baseCase(), delta({
+    actionSummary: {
+      nextActions: ["Call office", "call office", "Send email"],
+      importantReminders: ["Keep receipt", "Keep receipt"],
+      strategyFocus: ["Proof", "proof"],
+      criticalDeadlines: ["2024-01-10", "2024-01-10"],
+    },
+  }));
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.warnings, [
+    "actionSummary.nextActions contains duplicate item(s): call office.",
+    "actionSummary.importantReminders contains duplicate item(s): Keep receipt.",
+    "actionSummary.strategyFocus contains duplicate item(s): proof.",
+    "actionSummary.criticalDeadlines contains duplicate item(s): 2024-01-10.",
+  ]);
+});
+
+test("ingestGptDelta rejects unknown strategy linkedRecordIds", () => {
+  assert.deepEqual(
+    ingestGptDelta(baseCase(), delta({
+      strategy: [
+        { id: "str-1", patch: { linkedRecordIds: ["inc-1", "missing-record"] } },
+      ],
+    })),
+    { ok: false, reason: "Strategy str-1 has unknown linkedRecordIds: missing-record." }
+  );
+});
+
+test("ingestGptDelta reports unsupported strategy fields without applying them", () => {
+  const result = ingestGptDelta(baseCase(), delta({
+    strategy: [
+      { id: "str-1", patch: { title: "Updated", sequenceGroup: "Unsupported sequence" } },
+    ],
+  }));
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.warnings, ["Strategy str-1 has unsupported field(s) for gpt-delta-1.0: sequenceGroup."]);
+  assert.equal(result.case.strategy[0].title, "Updated");
+  assert.equal(result.case.strategy[0].sequenceGroup, "");
 });
 
 test("buildGptDeltaPreview returns expected core preview shape", () => {
   const currentCase = baseCase();
   const updatedCase = {
     ...currentCase,
+    actionSummary: {
+      ...currentCase.actionSummary,
+      currentFocus: "New focus",
+      nextActions: ["New action"],
+    },
     strategy: [{ ...currentCase.strategy[0], title: "Updated preview title" }],
   };
   const payload = delta({
@@ -170,15 +235,26 @@ test("buildGptDeltaPreview returns expected core preview shape", () => {
     ],
   });
 
-  assert.deepEqual(buildGptDeltaPreview(payload, currentCase, updatedCase), {
+  assert.deepEqual(buildGptDeltaPreview(payload, currentCase, updatedCase, ["Warning"]), {
     caseName: "Case One",
     caseId: "case-1",
     contractVersion: "gpt-delta-1.0",
     supportedSections: ["Action Summary", "Strategy"],
     actionSummaryFields: ["currentFocus", "nextActions"],
-    strategyItems: [
-      { id: "str-1", title: "Updated preview title" },
+    actionSummaryChanges: [
+      { field: "currentFocus", before: "Old focus", after: "New focus" },
+      { field: "nextActions", before: "Old action", after: "New action" },
     ],
+    strategyItems: [
+      {
+        id: "str-1",
+        title: "Updated preview title",
+        changes: [
+          { field: "title", before: "Old strategy record", after: "Updated preview title" },
+        ],
+      },
+    ],
+    warnings: ["Warning"],
   });
 });
 
@@ -198,4 +274,3 @@ test("prepareGptDeltaPayloadForSelectedCase fills missing blank and AUTO target.
     { app: "proveit", target: { caseId: "selected-1" } }
   );
 });
-

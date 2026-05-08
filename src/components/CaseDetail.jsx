@@ -1861,6 +1861,12 @@ ${strategyFocus.join("\n") || "—"}`;
     return `[REPORT INSTRUCTIONS]
 ${PROVEIT_REPORT_PROMPT_V1}
 
+[PROVEIT DATA NOTES]
+CASE_REASONING_EXPORT is the AI-facing, non-importable reasoning snapshot. It contains incidents, evidence, documents, ledger, strategy, actionSummary, chronology, milestones, links, and resolvedLinks.
+Incidents are timeline anchors. Evidence proves or supports incidents. Documents are source or working documents. Ledger entries are measurable financial, time, or compliance records. Strategy records are analysis and planning notes. actionSummary is the active operational summary.
+functionSummary says what evidence proves. evidenceRole says how evidence functions in the case. evidenceStatus on incidents describes proof coverage or gaps. sequenceGroup can connect incidents, evidence, documents, and strategy into one issue or thread.
+GPT delta updates are currently limited to actionSummary and strategy patches. Do not output create or patch operations for incidents, evidence, documents, or ledger; list those as proposed next actions or strategy notes instead.
+
 [CASE REPORT INPUT]
 CASE_TITLE: ${compactLine(selectedCase?.name, "Untitled case")}
 CASE_CATEGORY: ${compactLine(selectedCase?.category)}
@@ -1893,6 +1899,7 @@ ${formatBullets(clientNextSteps)}
 
 ISSUE_ORDER_NOTE: The issues below are already arranged in the most useful reading order based on the case timeline and milestone events. Keep this order unless the provided facts clearly require otherwise.
 ISSUE_TITLE_ALIGNMENT_NOTE: Where an issue corresponds to a milestone event, the issue title may be aligned to the milestone wording for consistency and readability.
+MILESTONE_NOTE: Milestone entries can be incidents or evidence; use the record type in the milestone line when it prevents ambiguity.
 
 KEY_ISSUES:
 ${issueInput || "None"}
@@ -2625,7 +2632,7 @@ ${ungroupedSequenceText}
                     onClick={() => { onExportSnapshot(selectedCase.id, "detailed"); setShowExportMenu(false); }}
                     className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50"
                   >
-                    GPT Reasoning Export (Not Backup)
+                    GPT Reasoning Export (Non-importable AI Snapshot)
                   </button>
                   <button
                     onClick={() => { onCopyLinkMapExport?.(selectedCase.id); setShowExportMenu(false); }}
@@ -4984,7 +4991,7 @@ ${ungroupedSequenceText}
                     Critical Deadlines
                   </div>
                   <div className="min-h-32 rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-3 text-sm text-neutral-500">
-                    No dedicated deadline field yet. Keep deadline notes in Important Reminders until deadline storage is added.
+                    GPT updates may include criticalDeadlines in actionSummary. Manual deadline editing is not wired in this panel yet.
                   </div>
                 </div>
               </section>
