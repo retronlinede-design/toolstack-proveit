@@ -786,7 +786,7 @@ export function upsertLedgerEntryInCase(caseItem, ledgerInput, editingLedgerId =
   } else {
     const newEntry = normalizeLedgerEntry({
       ...ledgerInput,
-      id: generateId(),
+      id: ledgerInput?.id || generateId(),
       edited: false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -821,7 +821,7 @@ export function upsertDocumentEntryInCase(caseItem, documentInput, editingDocume
   } else {
     const newEntry = normalizeDocumentEntry({
       ...documentInput,
-      id: generateId(),
+      id: documentInput?.id || generateId(),
       edited: false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

@@ -43,6 +43,9 @@ function baseCase() {
         linkedEvidenceIds: [],
       },
     ],
+    evidence: [],
+    documents: [],
+    ledger: [],
   };
 }
 
@@ -70,9 +73,193 @@ test("ingestGptDelta rejects wrong app", () => {
 });
 
 test("ingestGptDelta rejects wrong contractVersion", () => {
-  const result = ingestGptDelta(baseCase(), delta({}, { contractVersion: "gpt-delta-2.0" }));
+  const result = ingestGptDelta(baseCase(), delta({}, { contractVersion: "gpt-delta-3.0" }));
 
   assert.deepEqual(result, { ok: false, reason: "Unsupported GPT delta contract." });
+});
+
+test("ingestGptDelta gpt-delta-2.0 creates an incident", () => {
+  const result = ingestGptDelta(baseCase(), {
+    app: "proveit",
+    contractVersion: "gpt-delta-2.0",
+    target: { caseId: "case-1" },
+    operations: {
+      create: {
+        incidents: [
+          {
+            tempId: "tmp-inc",
+            title: "New incident",
+            date: "2024-03-01",
+            description: "Created by GPT",
+            evidenceStatus: "needs_evidence",
+            isMilestone: true,
+            sequenceGroup: "Notice sequence",
+            tags: ["notice"],
+            linkedRecordIds: ["str-1"],
+          },
+        ],
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  const created = result.case.incidents.find((item) => item.title === "New incident");
+  assert.ok(created.id);
+  assert.notEqual(created.id, "tmp-inc");
+  assert.equal(created.isMilestone, true);
+  assert.equal(created.sequenceGroup, "Notice sequence");
+  assert.deepEqual(created.tags, ["notice"]);
+  assert.deepEqual(created.linkedRecordIds, ["str-1"]);
+  assert.deepEqual(result.tempIdMappings, [{ tempId: "tmp-inc", finalId: created.id }]);
+  assert.deepEqual(result.createdRecords[0], {
+    id: created.id,
+    tempId: "tmp-inc",
+    recordType: "incident",
+    title: "New incident",
+    links: { linkedRecordIds: ["str-1"] },
+  });
+});
+
+test("ingestGptDelta gpt-delta-2.0 creates evidence", () => {
+  const result = ingestGptDelta(baseCase(), {
+    app: "proveit",
+    contractVersion: "gpt-delta-2.0",
+    target: { caseId: "case-1" },
+    operations: {
+      create: {
+        evidence: [
+          {
+            tempId: "tmp-ev",
+            title: "New evidence",
+            date: "2024-03-02",
+            functionSummary: "Shows the incident was reported.",
+            evidenceRole: "COMMUNICATION_EVIDENCE",
+            evidenceType: "documented",
+            linkedIncidentIds: ["inc-1"],
+          },
+        ],
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  const created = result.case.evidence.find((item) => item.title === "New evidence");
+  assert.ok(created.id);
+  assert.notEqual(created.id, "tmp-ev");
+  assert.equal(created.functionSummary, "Shows the incident was reported.");
+  assert.equal(created.evidenceRole, "COMMUNICATION_EVIDENCE");
+  assert.deepEqual(created.linkedIncidentIds, ["inc-1"]);
+  assert.deepEqual(created.attachments, []);
+  assert.deepEqual(result.case.incidents.find((item) => item.id === "inc-1").linkedEvidenceIds, [created.id]);
+});
+
+test("ingestGptDelta gpt-delta-2.0 creates documents and ledger entries", () => {
+  const result = ingestGptDelta(baseCase(), {
+    app: "proveit",
+    contractVersion: "gpt-delta-2.0",
+    target: { caseId: "case-1" },
+    operations: {
+      create: {
+        documents: [
+          {
+            tempId: "tmp-doc",
+            title: "New document",
+            category: "correspondence",
+            textContent: "Plain source text",
+            linkedRecordIds: ["inc-1"],
+          },
+        ],
+        ledger: [
+          {
+            tempId: "tmp-ledger",
+            label: "March rent",
+            category: "rent",
+            expectedAmount: 1000,
+            paidAmount: 700,
+            linkedRecordIds: ["tmp-doc"],
+          },
+        ],
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  const document = result.case.documents.find((item) => item.title === "New document");
+  const ledger = result.case.ledger.find((item) => item.label === "March rent");
+  assert.ok(document.id);
+  assert.ok(ledger.id);
+  assert.deepEqual(document.attachments, []);
+  assert.deepEqual(document.linkedRecordIds, ["inc-1"]);
+  assert.deepEqual(ledger.linkedRecordIds, [document.id]);
+  assert.equal(ledger.differenceAmount, 300);
+});
+
+test("ingestGptDelta gpt-delta-2.0 resolves temp ID links between new incident and evidence", () => {
+  const result = ingestGptDelta(baseCase(), {
+    app: "proveit",
+    contractVersion: "gpt-delta-2.0",
+    target: { caseId: "case-1" },
+    operations: {
+      create: {
+        incidents: [
+          { tempId: "tmp-inc", title: "Linked incident", linkedEvidenceIds: ["tmp-ev"] },
+        ],
+        evidence: [
+          { tempId: "tmp-ev", title: "Linked evidence", linkedIncidentIds: ["tmp-inc"] },
+        ],
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  const incidentId = result.tempIdMappings.find((item) => item.tempId === "tmp-inc").finalId;
+  const evidenceId = result.tempIdMappings.find((item) => item.tempId === "tmp-ev").finalId;
+  const incident = result.case.incidents.find((item) => item.id === incidentId);
+  const evidence = result.case.evidence.find((item) => item.id === evidenceId);
+  assert.deepEqual(incident.linkedEvidenceIds, [evidenceId]);
+  assert.deepEqual(evidence.linkedIncidentIds, [incidentId]);
+});
+
+test("ingestGptDelta gpt-delta-2.0 rejects invalid links unknown fields and binary attachment creation", () => {
+  assert.deepEqual(
+    ingestGptDelta(baseCase(), {
+      app: "proveit",
+      contractVersion: "gpt-delta-2.0",
+      target: { caseId: "case-1" },
+      operations: { create: { evidence: [{ title: "Evidence", linkedIncidentIds: ["missing"] }] } },
+    }),
+    { ok: false, reason: "evidence.create Evidence has unknown linkedIncidentIds: missing." }
+  );
+
+  assert.deepEqual(
+    ingestGptDelta(baseCase(), {
+      app: "proveit",
+      contractVersion: "gpt-delta-2.0",
+      target: { caseId: "case-1" },
+      operations: { create: { evidence: [{ title: "Evidence", linkedIncidentIds: ["str-1"] }] } },
+    }),
+    { ok: false, reason: "evidence.create Evidence has unknown linkedIncidentIds: str-1." }
+  );
+
+  assert.deepEqual(
+    ingestGptDelta(baseCase(), {
+      app: "proveit",
+      contractVersion: "gpt-delta-2.0",
+      target: { caseId: "case-1" },
+      operations: { create: { incidents: [{ title: "Incident", sequenceGroup: "Allowed", unsupported: true }] } },
+    }),
+    { ok: false, reason: "incidents.create has unsupported field(s): unsupported." }
+  );
+
+  assert.deepEqual(
+    ingestGptDelta(baseCase(), {
+      app: "proveit",
+      contractVersion: "gpt-delta-2.0",
+      target: { caseId: "case-1" },
+      operations: { create: { documents: [{ title: "Document", attachments: [{ name: "file.pdf" }] }] } },
+    }),
+    { ok: false, reason: "documents.create does not support binary or attachment field(s): attachments." }
+  );
 });
 
 test("ingestGptDelta rejects missing and mismatched target.caseId", () => {
@@ -254,7 +441,51 @@ test("buildGptDeltaPreview returns expected core preview shape", () => {
         ],
       },
     ],
+    createdRecords: [],
+    tempIdMappings: [],
     warnings: ["Warning"],
+  });
+});
+
+test("buildGptDeltaPreview includes gpt-delta-2.0 created records and temp ID mappings", () => {
+  const currentCase = baseCase();
+  const updatedCase = {
+    ...currentCase,
+    incidents: [
+      ...currentCase.incidents,
+      { id: "inc-new", title: "New incident" },
+    ],
+  };
+  const payload = {
+    app: "proveit",
+    contractVersion: "gpt-delta-2.0",
+    target: { caseId: "case-1" },
+    operations: {
+      create: {
+        incidents: [{ tempId: "tmp-inc", title: "New incident" }],
+      },
+    },
+  };
+
+  assert.deepEqual(buildGptDeltaPreview(payload, currentCase, updatedCase, {
+    createdRecords: [
+      { id: "inc-new", tempId: "tmp-inc", recordType: "incident", title: "New incident", links: {} },
+    ],
+    tempIdMappings: [{ tempId: "tmp-inc", finalId: "inc-new" }],
+    warnings: [],
+  }), {
+    caseName: "Case One",
+    caseId: "case-1",
+    contractVersion: "gpt-delta-2.0",
+    supportedSections: ["incidents.create"],
+    actionSummaryFields: [],
+    actionSummaryChanges: [],
+    strategyItems: [],
+    createdRecords: [
+      { id: "inc-new", tempId: "tmp-inc", recordType: "incident", title: "New incident", links: {} },
+    ],
+    tempIdMappings: [{ tempId: "tmp-inc", finalId: "inc-new" }],
+    warnings: [],
   });
 });
 

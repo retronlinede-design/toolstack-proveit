@@ -1620,6 +1620,21 @@ test("upsertLedgerEntryInCase create appends a normalized ledger entry and refre
   assert.equal(updated.documents, documents);
 });
 
+test("upsertLedgerEntryInCase create preserves caller-provided generated id", () => {
+  const caseItem = {
+    id: "case-1",
+    ledger: [],
+  };
+
+  const updated = upsertLedgerEntryInCase(caseItem, {
+    id: "ledger-generated",
+    label: "Generated ledger",
+  });
+
+  assert.equal(updated.ledger[0].id, "ledger-generated");
+  assert.equal(updated.ledger[0].label, "Generated ledger");
+});
+
 test("upsertLedgerEntryInCase edit replaces an existing ledger entry by id and preserves unrelated sections", () => {
   const incidents = [{ id: "inc-1", title: "Incident" }];
   const strategy = [{ id: "str-1", title: "Strategy" }];
@@ -1705,6 +1720,21 @@ test("upsertDocumentEntryInCase create appends a normalized document entry with 
   assert.notEqual(updated.updatedAt, caseItem.updatedAt);
   assert.equal(updated.evidence, evidence);
   assert.equal(updated.ledger, ledger);
+});
+
+test("upsertDocumentEntryInCase create preserves caller-provided generated id", () => {
+  const caseItem = {
+    id: "case-1",
+    documents: [],
+  };
+
+  const updated = upsertDocumentEntryInCase(caseItem, {
+    id: "doc-generated",
+    title: "Generated document",
+  });
+
+  assert.equal(updated.documents[0].id, "doc-generated");
+  assert.equal(updated.documents[0].title, "Generated document");
 });
 
 test("upsertDocumentEntryInCase only keeps basedOnEvidenceIds for tracking records", () => {

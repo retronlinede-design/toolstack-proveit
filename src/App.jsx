@@ -699,7 +699,7 @@ export default function ProveItApp() {
     }
 
     setGptDeltaValidatedCase(result.case);
-    setGptDeltaPreview(buildGptDeltaPreview(payloadForValidation, selectedCase, result.case, result.warnings || []));
+    setGptDeltaPreview(buildGptDeltaPreview(payloadForValidation, selectedCase, result.case, result));
   };
 
   const handleApplyGptDelta = async () => {
@@ -2343,13 +2343,13 @@ const handleRecordFiles = async (event) => {
                 <h2 className="text-xl font-semibold text-neutral-900">GPT Update</h2>
                 <p className="mt-1 text-sm text-neutral-600">
                   Paste a ProveIt GPT delta, validate it, then review the supported changes before applying.
-                  The current importer accepts actionSummary patches and strategy patches only.
+                  v1 accepts actionSummary and strategy patches. v2 accepts create-only incidents, evidence, documents, and ledger.
                 </p>
               </div>
 
               <div className="flex-1 space-y-4 overflow-y-auto p-5">
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
-                  Do not paste create or patch operations for incidents, evidence, documents, or ledger yet. Put those suggested changes in actionSummary or a strategy note for manual review.
+                  GPT-created records cannot include attachments or binary data. Review all generated records and links before applying.
                 </div>
                 <textarea
                   value={gptDeltaText}
@@ -2466,8 +2466,57 @@ const handleRecordFiles = async (event) => {
                       </div>
                     )}
 
+                    {gptDeltaPreview.createdRecords?.length > 0 && (
+                      <div className="mt-4">
+                        <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">
+                          Records To Create
+                        </span>
+                        <ul className="mt-2 space-y-2">
+                          {gptDeltaPreview.createdRecords.map((item) => (
+                            <li key={item.id} className="rounded-md bg-white p-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase text-neutral-500">{item.recordType}</span>
+                                <span className="font-medium">{item.title}</span>
+                                <span className="break-all font-mono text-xs text-neutral-500">{item.id}</span>
+                              </div>
+                              {item.tempId && (
+                                <div className="mt-1 text-xs text-neutral-500">
+                                  tempId <span className="font-mono">{item.tempId}</span>
+                                </div>
+                              )}
+                              {item.links && Object.keys(item.links).length > 0 && (
+                                <div className="mt-2 text-xs text-neutral-600">
+                                  <span className="font-semibold text-neutral-800">Links:</span>{" "}
+                                  {Object.entries(item.links).map(([field, value]) => (
+                                    <span key={`${item.id}-${field}`} className="mr-2">
+                                      {field}: <span className="font-mono">{Array.isArray(value) ? value.map((link) => typeof link === "object" ? JSON.stringify(link) : link).join(", ") : String(value)}</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {gptDeltaPreview.tempIdMappings?.length > 0 && (
+                      <div className="mt-4">
+                        <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">
+                          Temp ID Mapping
+                        </span>
+                        <ul className="mt-2 space-y-1">
+                          {gptDeltaPreview.tempIdMappings.map((item) => (
+                            <li key={item.tempId} className="rounded-md bg-white px-2 py-1 font-mono text-xs">
+                              {item.tempId} -&gt; {item.finalId}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
                     <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs font-medium text-amber-800">
-                      gpt-delta-1.0 applies only supported actionSummary and strategy fields. Unsupported sections are rejected; unsupported fields are shown as warnings and not applied.
+                      gpt-delta-1.0 applies only supported actionSummary and strategy fields. gpt-delta-2.0 creates records only. Unsupported sections or unsafe fields are rejected.
                     </p>
                   </div>
                 )}
