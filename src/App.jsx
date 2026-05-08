@@ -2466,6 +2466,44 @@ const handleRecordFiles = async (event) => {
                       </div>
                     )}
 
+                    {gptDeltaPreview.patchedRecords?.length > 0 && (
+                      <div className="mt-4">
+                        <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">
+                          Records To Patch
+                        </span>
+                        <ul className="mt-2 space-y-2">
+                          {gptDeltaPreview.patchedRecords.map((item) => (
+                            <li key={`${item.section}-${item.id}`} className="rounded-md bg-white p-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase text-neutral-500">{item.recordType}</span>
+                                <span className="font-medium">{item.title}</span>
+                                <span className="break-all font-mono text-xs text-neutral-500">{item.id}</span>
+                              </div>
+                              {item.changes?.length > 0 && (
+                                <div className="mt-2 space-y-2">
+                                  {item.changes.map((change) => (
+                                    <div key={`${item.section}-${item.id}-${change.field}`} className="rounded border border-neutral-100 bg-neutral-50 p-2">
+                                      <div className="text-xs font-bold text-neutral-800">{change.field}</div>
+                                      <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                                        <div>
+                                          <span className="block text-[10px] font-bold uppercase text-neutral-400">Before</span>
+                                          <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-600">{change.before || "â€”"}</pre>
+                                        </div>
+                                        <div>
+                                          <span className="block text-[10px] font-bold uppercase text-neutral-400">After</span>
+                                          <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-900">{change.after || "â€”"}</pre>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
                     {gptDeltaPreview.createdRecords?.length > 0 && (
                       <div className="mt-4">
                         <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">
@@ -2516,7 +2554,7 @@ const handleRecordFiles = async (event) => {
                     )}
 
                     <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs font-medium text-amber-800">
-                      gpt-delta-1.0 applies only supported actionSummary and strategy fields. gpt-delta-2.0 creates records only. Unsupported sections or unsafe fields are rejected.
+                      gpt-delta-1.0 applies only supported actionSummary and strategy fields. gpt-delta-2.0 creates and patches supported records. Unsupported sections or unsafe fields are rejected.
                     </p>
                   </div>
                 )}

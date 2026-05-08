@@ -9,6 +9,7 @@ import {
 } from "../domain/caseDomain.js";
 
 const SUPPORTED_PATCH_SECTIONS = ["actionSummary", "strategy"];
+const SUPPORTED_V2_PATCH_SECTIONS = ["incidents", "evidence", "documents", "ledger", "strategy"];
 const SUPPORTED_CREATE_SECTIONS = ["incidents", "evidence", "documents", "ledger"];
 const ACTION_SUMMARY_FIELDS = [
   "currentFocus",
@@ -26,6 +27,95 @@ const ACTION_SUMMARY_LIST_FIELDS = [
 const STRATEGY_TEXT_FIELDS = ["title", "date", "description", "notes", "status"];
 const STRATEGY_LIST_FIELDS = ["tags", "linkedRecordIds"];
 const STRATEGY_PATCHABLE_FIELDS = [...STRATEGY_TEXT_FIELDS, ...STRATEGY_LIST_FIELDS];
+const PATCH_FIELD_ALLOWLISTS = {
+  incidents: [
+    "title",
+    "date",
+    "eventDate",
+    "description",
+    "notes",
+    "status",
+    "importance",
+    "evidenceStatus",
+    "isMilestone",
+    "sequenceGroup",
+    "tags",
+    "source",
+    "linkedEvidenceIds",
+    "linkedRecordIds",
+    "linkedIncidentRefs",
+  ],
+  evidence: [
+    "title",
+    "date",
+    "eventDate",
+    "capturedAt",
+    "description",
+    "notes",
+    "status",
+    "importance",
+    "relevance",
+    "sourceType",
+    "evidenceRole",
+    "evidenceType",
+    "functionSummary",
+    "sequenceGroup",
+    "tags",
+    "source",
+    "usedIn",
+    "reviewNotes",
+    "linkedIncidentIds",
+    "linkedRecordIds",
+    "linkedEvidenceIds",
+  ],
+  documents: [
+    "title",
+    "category",
+    "documentDate",
+    "source",
+    "summary",
+    "textContent",
+    "sequenceGroup",
+    "tags",
+    "linkedRecordIds",
+    "basedOnEvidenceIds",
+    "isTrackingRecord",
+  ],
+  ledger: [
+    "category",
+    "subType",
+    "label",
+    "period",
+    "expectedAmount",
+    "paidAmount",
+    "currency",
+    "dueDate",
+    "paymentDate",
+    "status",
+    "method",
+    "reference",
+    "counterparty",
+    "proofType",
+    "proofStatus",
+    "notes",
+    "batchLabel",
+    "linkedRecordIds",
+  ],
+  strategy: [
+    "title",
+    "date",
+    "eventDate",
+    "description",
+    "notes",
+    "status",
+    "tags",
+    "source",
+    "sequenceGroup",
+    "linkedRecordIds",
+    "linkedIncidentIds",
+    "linkedEvidenceIds",
+  ],
+};
 const CREATE_FIELD_ALLOWLISTS = {
   incidents: [
     "tempId",
@@ -111,6 +201,22 @@ const LINK_FIELDS_BY_CREATE_SECTION = {
   documents: ["linkedRecordIds", "basedOnEvidenceIds"],
   ledger: ["linkedRecordIds"],
 };
+const LINK_FIELDS_BY_PATCH_SECTION = {
+  incidents: ["linkedEvidenceIds", "linkedRecordIds"],
+  evidence: ["linkedIncidentIds", "linkedRecordIds", "linkedEvidenceIds"],
+  documents: ["linkedRecordIds", "basedOnEvidenceIds"],
+  ledger: ["linkedRecordIds"],
+  strategy: ["linkedRecordIds", "linkedIncidentIds", "linkedEvidenceIds"],
+};
+const ARRAY_PATCH_FIELDS = [
+  "tags",
+  "usedIn",
+  "linkedRecordIds",
+  "linkedIncidentIds",
+  "linkedEvidenceIds",
+  "basedOnEvidenceIds",
+  "linkedIncidentRefs",
+];
 const BINARY_CREATE_FIELDS = [
   "attachments",
   "availability",
@@ -212,6 +318,91 @@ function collectCreateItems(create = {}) {
       item,
     }))
   );
+}
+
+function collectPatchItems(patch = {}) {
+  return SUPPORTED_V2_PATCH_SECTIONS.flatMap((section) =>
+    (Array.isArray(patch?.[section]) ? patch[section] : []).map((item, index) => ({
+      section,
+      index,
+      item,
+    }))
+  );
+}
+
+function getCaseRecord(caseItem, section, id) {
+  return (Array.isArray(caseItem?.[section]) ? caseItem[section] : [])
+    .find((record) => String(record?.id || "") === String(id || ""));
+}
+
+function getRecordTitle(record = {}, section = "") {
+  if (section === "ledger") return record.label || "Untitled ledger";
+  return record.title || `Untitled ${mapSectionToRecordType(section)}`;
+}
+
+function getTargetSectionForLinkField(field) {
+  if (field === "linkedIncidentIds") return "incidents";
+  if (field === "linkedEvidenceIds" || field === "basedOnEvidenceIds") return "evidence";
+  return "";
+}
+
+function buildIdValidationContext(caseItem, tempIdMap = new Map(), tempIdSections = new Map()) {
+  const validIds = getExistingRecordIds(caseItem);
+  const existingIdsBySection = getExistingIdsBySection(caseItem);
+  [...tempIdMap.values()].forEach((id) => validIds.add(String(id)));
+  const validTempIds = new Set(tempIdMap.keys());
+
+  const isValidTypedLink = (id, targetSection) => {
+    const key = String(id || "");
+    if (!key) return false;
+    if (existingIdsBySection[targetSection]?.has(key)) return true;
+    if (!validTempIds.has(key)) return false;
+    return tempIdSections.get(key) === targetSection;
+  };
+
+  return { validIds, validTempIds, isValidTypedLink };
+}
+
+function validateLinkedIdsForItem(section, title, source, linkFields, validationContext) {
+  for (const field of linkFields) {
+    if (!Object.prototype.hasOwnProperty.call(source, field)) continue;
+    if (!Array.isArray(source[field])) {
+      return `${section}.${title} field ${field} must be an array.`;
+    }
+    const targetSection = getTargetSectionForLinkField(field);
+    const invalidIds = source[field].filter((id) => {
+      const key = String(id || "");
+      if (!key) return true;
+      if (targetSection) return !validationContext.isValidTypedLink(key, targetSection);
+      return !validationContext.validIds.has(key) && !validationContext.validTempIds.has(key);
+    });
+    if (invalidIds.length > 0) {
+      return `${section}.${title} has unknown ${field}: ${listFields(invalidIds)}.`;
+    }
+  }
+  return "";
+}
+
+function resolvePatch(patch = {}, tempIdMap = new Map()) {
+  return Object.entries(patch).reduce((normalized, [field, value]) => {
+    if (["linkedRecordIds", "linkedIncidentIds", "linkedEvidenceIds", "basedOnEvidenceIds"].includes(field)) {
+      normalized[field] = resolveIdList(value, tempIdMap);
+      return normalized;
+    }
+
+    if (field === "linkedIncidentRefs") {
+      normalized[field] = Array.isArray(value)
+        ? value.map((ref) => ({
+            ...ref,
+            incidentId: resolveId(ref?.incidentId, tempIdMap),
+          }))
+        : [];
+      return normalized;
+    }
+
+    normalized[field] = value;
+    return normalized;
+  }, {});
 }
 
 export function normalizeGptStrategyDelta(payload = {}) {
@@ -626,6 +817,155 @@ export function normalizeGptCreateDelta(caseItem, payload = {}) {
   return { ok: true, caseId: target.caseId, plannedCreates, tempIdMap, warnings };
 }
 
+export function normalizeGptV2Delta(caseItem, payload = {}) {
+  const target = validateGptDeltaTarget(caseItem, payload, ["gpt-delta-2.0"]);
+  if (!target.ok) return target;
+
+  const operations = payload.operations;
+  if (!operations || typeof operations !== "object" || Array.isArray(operations)) {
+    return { ok: false, reason: "GPT delta operations are required for gpt-delta-2.0." };
+  }
+
+  const create = operations.create;
+  const patch = operations.patch;
+  const hasCreate = create && typeof create === "object" && !Array.isArray(create);
+  const hasPatch = patch && typeof patch === "object" && !Array.isArray(patch);
+
+  if (!hasCreate && !hasPatch) {
+    return { ok: false, reason: "gpt-delta-2.0 requires operations.create or operations.patch." };
+  }
+
+  let plannedCreates = [];
+  let tempIdMap = new Map();
+  let tempIdSections = new Map();
+  const warnings = [];
+
+  if (Object.prototype.hasOwnProperty.call(operations, "create") && hasCreate && Object.keys(create).length > 0) {
+    const createResult = normalizeGptCreateDelta(caseItem, {
+      ...payload,
+      operations: { create },
+    });
+    if (!createResult.ok) return createResult;
+    plannedCreates = createResult.plannedCreates;
+    tempIdMap = createResult.tempIdMap;
+    warnings.push(...(createResult.warnings || []));
+
+    plannedCreates.forEach((planned) => {
+      if (planned.tempId) tempIdSections.set(planned.tempId, planned.section);
+    });
+  } else if (Object.prototype.hasOwnProperty.call(operations, "create")) {
+    if (!hasCreate) {
+      return { ok: false, reason: "GPT delta operations.create must be an object for gpt-delta-2.0." };
+    }
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(operations, "patch")) {
+    return { ok: true, caseId: target.caseId, plannedCreates, plannedPatches: [], tempIdMap, warnings };
+  }
+
+  if (!hasPatch) {
+    return { ok: false, reason: "GPT delta operations.patch must be an object for gpt-delta-2.0." };
+  }
+
+  const unsupportedSections = Object.keys(patch).filter((section) => !SUPPORTED_V2_PATCH_SECTIONS.includes(section));
+  if (unsupportedSections.length > 0) {
+    return {
+      ok: false,
+      reason: `Unsupported gpt-delta-2.0 patch section(s): ${listFields(unsupportedSections)}. Current patch support is incidents, evidence, documents, ledger, and strategy.`,
+    };
+  }
+
+  for (const section of SUPPORTED_V2_PATCH_SECTIONS) {
+    if (Object.prototype.hasOwnProperty.call(patch, section) && !Array.isArray(patch[section])) {
+      return { ok: false, reason: `GPT delta ${section}.patch must be an array.` };
+    }
+  }
+
+  const allPatchItems = collectPatchItems(patch);
+  if (allPatchItems.length === 0 && plannedCreates.length === 0) {
+    return { ok: false, reason: "GPT delta operation has no supported records to create or patch." };
+  }
+
+  const validationContext = buildIdValidationContext(caseItem, tempIdMap, tempIdSections);
+  const plannedPatches = [];
+  const seenPatchIds = new Set();
+
+  for (const { section, index, item } of allPatchItems) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      return { ok: false, reason: `Each ${section}.patch item must be an object.` };
+    }
+
+    if (typeof item.id !== "string" || !item.id.trim()) {
+      return { ok: false, reason: `${section}.patch item ${index + 1} must include an existing id.` };
+    }
+
+    const recordId = item.id.trim();
+    const duplicateKey = `${section}:${recordId}`;
+    if (seenPatchIds.has(duplicateKey)) {
+      return { ok: false, reason: `Duplicate ${section}.patch id: ${recordId}` };
+    }
+    seenPatchIds.add(duplicateKey);
+
+    const existingRecord = getCaseRecord(caseItem, section, recordId);
+    if (!existingRecord) {
+      return { ok: false, reason: `${section}.patch references unknown record id: ${recordId}.` };
+    }
+
+    if (!item.patch || typeof item.patch !== "object" || Array.isArray(item.patch)) {
+      return { ok: false, reason: `${section}.patch ${recordId} must include a patch object.` };
+    }
+
+    const binaryFields = hasBinaryCreateField(item.patch);
+    if (binaryFields.length > 0) {
+      return { ok: false, reason: `${section}.patch ${recordId} does not support binary or attachment field(s): ${listFields(binaryFields)}.` };
+    }
+
+    const unsupportedFields = Object.keys(item.patch).filter((field) => !PATCH_FIELD_ALLOWLISTS[section].includes(field));
+    if (unsupportedFields.length > 0) {
+      return { ok: false, reason: `${section}.patch ${recordId} has unsupported field(s): ${listFields(unsupportedFields)}.` };
+    }
+
+    if (Object.keys(item.patch).length === 0) {
+      return { ok: false, reason: `${section}.patch ${recordId} must include at least one supported field.` };
+    }
+
+    const invalidArrayFields = Object.keys(item.patch).filter((field) =>
+      ARRAY_PATCH_FIELDS.includes(field) && !Array.isArray(item.patch[field])
+    );
+    if (invalidArrayFields.length > 0) {
+      return { ok: false, reason: `${section}.patch ${recordId} array field(s) must be full replacement arrays: ${listFields(invalidArrayFields)}.` };
+    }
+
+    const linkError = validateLinkedIdsForItem(
+      section,
+      `patch ${recordId}`,
+      item.patch,
+      LINK_FIELDS_BY_PATCH_SECTION[section] || [],
+      validationContext
+    );
+    if (linkError) return { ok: false, reason: linkError };
+
+    if (Array.isArray(item.patch.linkedIncidentRefs)) {
+      const invalidRefs = item.patch.linkedIncidentRefs.filter((ref) => {
+        const incidentId = String(ref?.incidentId || "");
+        return !validationContext.isValidTypedLink(incidentId, "incidents");
+      });
+      if (invalidRefs.length > 0) {
+        return { ok: false, reason: `${section}.patch ${recordId} has unknown linkedIncidentRefs incidentId.` };
+      }
+    }
+
+    plannedPatches.push({
+      section,
+      id: recordId,
+      patch: item.patch,
+      title: getRecordTitle(existingRecord, section),
+    });
+  }
+
+  return { ok: true, caseId: target.caseId, plannedCreates, plannedPatches, tempIdMap, warnings };
+}
+
 export function applyGptActionSummaryDeltaToCase(caseItem, actionSummaryPatch = {}) {
   if (!actionSummaryPatch || typeof actionSummaryPatch !== "object" || Array.isArray(actionSummaryPatch)) {
     return { ok: false, reason: "GPT delta actionSummary patch must be an object." };
@@ -671,9 +1011,130 @@ export function applyGptActionSummaryDeltaToCase(caseItem, actionSummaryPatch = 
   };
 }
 
+function applyNormalizedGptCreates(caseItem, normalized) {
+  let updatedCase = caseItem;
+  const createdRecords = [];
+  const createdSyncRecords = [];
+  const warnings = [...(normalized.warnings || [])];
+
+  for (const planned of normalized.plannedCreates || []) {
+    const input = createRecordInput(planned, normalized.tempIdMap);
+
+    if (planned.section === "incidents") {
+      updatedCase = upsertRecordInCase(updatedCase, "incidents", input);
+      const record = (updatedCase.incidents || []).find((item) => item.id === planned.finalId);
+      createdRecords.push(buildCreatedRecordPreview("incident", record, planned, normalized.tempIdMap));
+      if (record) createdSyncRecords.push({ record, type: "incidents" });
+    } else if (planned.section === "evidence") {
+      updatedCase = upsertRecordInCase(updatedCase, "evidence", input);
+      const record = (updatedCase.evidence || []).find((item) => item.id === planned.finalId);
+      createdRecords.push(buildCreatedRecordPreview("evidence", record, planned, normalized.tempIdMap));
+      if (record) createdSyncRecords.push({ record, type: "evidence" });
+    } else if (planned.section === "documents") {
+      if (Array.isArray(planned.item.tags) && planned.item.tags.length > 0) {
+        warnings.push(`documents.create ${planned.title} includes tags, but document tags are not persisted in the current case schema.`);
+      }
+      updatedCase = upsertDocumentEntryInCase(updatedCase, input);
+      const record = (updatedCase.documents || []).find((item) => item.id === planned.finalId);
+      createdRecords.push(buildCreatedRecordPreview("document", record, planned, normalized.tempIdMap));
+    } else if (planned.section === "ledger") {
+      updatedCase = upsertLedgerEntryInCase(updatedCase, input);
+      const record = (updatedCase.ledger || []).find((item) => item.id === planned.finalId);
+      createdRecords.push(buildCreatedRecordPreview("ledger", record, planned, normalized.tempIdMap));
+    }
+  }
+
+  for (const item of createdSyncRecords) {
+    const latestRecord = (updatedCase[item.type] || []).find((record) => record.id === item.record.id);
+    if (latestRecord) {
+      updatedCase = syncCaseLinks(updatedCase, latestRecord, item.type);
+    }
+  }
+
+  const tempIdMappings = [...(normalized.tempIdMap || new Map()).entries()].map(([tempId, finalId]) => ({
+    tempId,
+    finalId,
+  }));
+
+  return { case: updatedCase, warnings, createdRecords, tempIdMappings };
+}
+
+function applyGptRecordPatch(updatedCase, planned, tempIdMap) {
+  const currentRecord = getCaseRecord(updatedCase, planned.section, planned.id);
+  if (!currentRecord) return { case: updatedCase, record: null };
+
+  const resolvedPatch = resolvePatch(planned.patch, tempIdMap);
+
+  if (["incidents", "evidence", "strategy"].includes(planned.section)) {
+    const input = {
+      ...currentRecord,
+      ...resolvedPatch,
+      id: currentRecord.id,
+      createdAt: currentRecord.createdAt,
+      attachments: currentRecord.attachments || [],
+      availability: currentRecord.availability || defaultEvidenceAvailability(),
+    };
+    const nextCase = upsertRecordInCase(updatedCase, planned.section, input, currentRecord);
+    return { case: nextCase, record: getCaseRecord(nextCase, planned.section, planned.id) };
+  }
+
+  if (planned.section === "documents") {
+    const input = {
+      ...currentRecord,
+      ...resolvedPatch,
+      id: currentRecord.id,
+      createdAt: currentRecord.createdAt,
+      attachments: currentRecord.attachments || [],
+    };
+    const nextCase = upsertDocumentEntryInCase(updatedCase, input, planned.id);
+    return { case: nextCase, record: getCaseRecord(nextCase, planned.section, planned.id) };
+  }
+
+  const input = {
+    ...currentRecord,
+    ...resolvedPatch,
+    id: currentRecord.id,
+    createdAt: currentRecord.createdAt,
+  };
+  const nextCase = upsertLedgerEntryInCase(updatedCase, input, planned.id);
+  return { case: nextCase, record: getCaseRecord(nextCase, planned.section, planned.id) };
+}
+
+export function ingestGptV2Delta(caseItem, payload) {
+  const normalized = normalizeGptV2Delta(caseItem, payload);
+  if (!normalized.ok) return normalized;
+
+  const createResult = applyNormalizedGptCreates(caseItem, normalized);
+  let updatedCase = createResult.case;
+  const patchedRecords = [];
+
+  for (const planned of normalized.plannedPatches || []) {
+    const patchResult = applyGptRecordPatch(updatedCase, planned, normalized.tempIdMap);
+    updatedCase = patchResult.case;
+    if (patchResult.record) {
+      patchedRecords.push({
+        id: planned.id,
+        recordType: mapSectionToRecordType(planned.section),
+        section: planned.section,
+        title: getRecordTitle(patchResult.record, planned.section),
+        fields: Object.keys(planned.patch),
+      });
+    }
+  }
+
+  return {
+    ok: true,
+    case: updatedCase,
+    warnings: createResult.warnings,
+    createdRecords: createResult.createdRecords,
+    tempIdMappings: createResult.tempIdMappings,
+    patchedRecords,
+  };
+}
+
 export function ingestGptDelta(caseItem, payload) {
   if (getPayloadContractVersion(payload) === "gpt-delta-2.0") {
-    return ingestGptCreateDelta(caseItem, payload);
+    return ingestGptV2Delta(caseItem, payload);
   }
 
   const target = validateGptDeltaTarget(caseItem, payload, ["gpt-delta-1.0"]);
@@ -757,6 +1218,7 @@ export function buildGptDeltaPreview(payload, currentCase, updatedCase, resultMe
   const patch = payload?.operations?.patch || {};
   const create = payload?.operations?.create || {};
   const metadata = Array.isArray(resultMeta) ? { warnings: resultMeta } : (resultMeta || {});
+  const contractVersion = getPayloadContractVersion(payload) || "";
   const supportedSections = [];
   const actionSummaryFields = [];
   const actionSummaryChanges = [];
@@ -778,7 +1240,7 @@ export function buildGptDeltaPreview(payload, currentCase, updatedCase, resultMe
     }
   }
 
-  const strategyItems = Array.isArray(patch.strategy)
+  const strategyItems = contractVersion !== "gpt-delta-2.0" && Array.isArray(patch.strategy)
     ? patch.strategy
         .map((item) => {
           const recordId = typeof item?.id === "string" ? item.id : "";
@@ -800,6 +1262,35 @@ export function buildGptDeltaPreview(payload, currentCase, updatedCase, resultMe
     supportedSections.push("Strategy");
   }
 
+  const patchedRecords = contractVersion === "gpt-delta-2.0"
+    ? SUPPORTED_V2_PATCH_SECTIONS.flatMap((section) =>
+        (Array.isArray(patch?.[section]) ? patch[section] : [])
+          .map((item) => {
+            const recordId = typeof item?.id === "string" ? item.id.trim() : "";
+            const currentRecord = getCaseRecord(currentCase, section, recordId);
+            const updatedRecord = getCaseRecord(updatedCase, section, recordId);
+            const patchedFields = item?.patch && typeof item.patch === "object" && !Array.isArray(item.patch)
+              ? PATCH_FIELD_ALLOWLISTS[section].filter((field) => Object.prototype.hasOwnProperty.call(item.patch, field))
+              : [];
+            return {
+              id: recordId,
+              recordType: mapSectionToRecordType(section),
+              section,
+              title: getRecordTitle(updatedRecord || currentRecord, section),
+              changes: buildFieldChanges(patchedFields, currentRecord || {}, updatedRecord || {}),
+            };
+          })
+          .filter((item) => item.id)
+      )
+    : [];
+
+  if (patchedRecords.length > 0) {
+    const patchSections = SUPPORTED_V2_PATCH_SECTIONS.filter((section) =>
+      Array.isArray(patch?.[section]) && patch[section].length > 0
+    );
+    supportedSections.push(...patchSections.map((section) => `${section}.patch`));
+  }
+
   const createdRecords = Array.isArray(metadata.createdRecords) ? metadata.createdRecords : [];
   if (createdRecords.length > 0) {
     const createSections = SUPPORTED_CREATE_SECTIONS.filter((section) =>
@@ -811,11 +1302,12 @@ export function buildGptDeltaPreview(payload, currentCase, updatedCase, resultMe
   return {
     caseName: currentCase?.name || "Selected case",
     caseId: String(currentCase?.id || ""),
-    contractVersion: getPayloadContractVersion(payload) || "",
+    contractVersion,
     supportedSections,
     actionSummaryFields,
     actionSummaryChanges,
     strategyItems,
+    patchedRecords,
     createdRecords,
     tempIdMappings: Array.isArray(metadata.tempIdMappings) ? metadata.tempIdMappings : [],
     warnings: Array.isArray(metadata.warnings) ? metadata.warnings : [],

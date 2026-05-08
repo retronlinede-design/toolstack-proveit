@@ -40,12 +40,64 @@ function baseCase() {
         type: "incidents",
         title: "Incident",
         date: "2024-01-01",
+        description: "Old incident description",
+        notes: "",
+        attachments: [],
+        availability: {
+          physical: { hasOriginal: false, location: "", notes: "" },
+          digital: { hasDigital: false, files: [] },
+        },
+        tags: ["old-incident"],
         linkedEvidenceIds: [],
+        linkedRecordIds: [],
+        createdAt: "2024-01-01T08:00:00.000Z",
+        updatedAt: "2024-01-01T08:00:00.000Z",
       },
     ],
-    evidence: [],
-    documents: [],
-    ledger: [],
+    evidence: [
+      {
+        id: "ev-1",
+        type: "evidence",
+        title: "Evidence",
+        date: "2024-01-02",
+        description: "Old evidence description",
+        notes: "",
+        attachments: [],
+        linkedIncidentIds: [],
+        linkedRecordIds: [],
+        linkedEvidenceIds: [],
+        availability: {
+          physical: { hasOriginal: false, location: "", notes: "" },
+          digital: { hasDigital: false, files: [] },
+        },
+        createdAt: "2024-01-02T08:00:00.000Z",
+        updatedAt: "2024-01-02T08:00:00.000Z",
+      },
+    ],
+    documents: [
+      {
+        id: "doc-1",
+        title: "Document",
+        category: "other",
+        textContent: "Old document text",
+        linkedRecordIds: [],
+        attachments: [],
+        createdAt: "2024-01-03T08:00:00.000Z",
+        updatedAt: "2024-01-03T08:00:00.000Z",
+      },
+    ],
+    ledger: [
+      {
+        id: "ledger-1",
+        label: "Ledger",
+        category: "other",
+        expectedAmount: 100,
+        paidAmount: 25,
+        linkedRecordIds: [],
+        createdAt: "2024-01-04T08:00:00.000Z",
+        updatedAt: "2024-01-04T08:00:00.000Z",
+      },
+    ],
   };
 }
 
@@ -281,6 +333,228 @@ test("ingestGptDelta gpt-delta-2.0 rejects invalid links unknown fields and bina
   );
 });
 
+test("ingestGptDelta gpt-delta-2.0 patches incidents and syncs evidence links", () => {
+  const result = ingestGptDelta(baseCase(), {
+    app: "proveit",
+    contractVersion: "gpt-delta-2.0",
+    target: { caseId: "case-1" },
+    operations: {
+      patch: {
+        incidents: [
+          {
+            id: "inc-1",
+            patch: {
+              title: "Updated incident",
+              evidenceStatus: "supported",
+              isMilestone: true,
+              tags: ["updated", "incident"],
+              linkedEvidenceIds: ["ev-1"],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  const incident = result.case.incidents.find((item) => item.id === "inc-1");
+  assert.equal(incident.title, "Updated incident");
+  assert.equal(incident.createdAt, "2024-01-01T08:00:00.000Z");
+  assert.match(incident.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.deepEqual(incident.tags, ["updated", "incident"]);
+  assert.deepEqual(incident.linkedEvidenceIds, ["ev-1"]);
+  assert.deepEqual(result.case.evidence.find((item) => item.id === "ev-1").linkedIncidentIds, ["inc-1"]);
+});
+
+test("ingestGptDelta gpt-delta-2.0 patches evidence and syncs incident links", () => {
+  const result = ingestGptDelta(baseCase(), {
+    app: "proveit",
+    contractVersion: "gpt-delta-2.0",
+    target: { caseId: "case-1" },
+    operations: {
+      patch: {
+        evidence: [
+          {
+            id: "ev-1",
+            patch: {
+              title: "Updated evidence",
+              functionSummary: "Proves notice was sent.",
+              evidenceRole: "COMMUNICATION_EVIDENCE",
+              linkedIncidentIds: ["inc-1"],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  const evidence = result.case.evidence.find((item) => item.id === "ev-1");
+  assert.equal(evidence.title, "Updated evidence");
+  assert.equal(evidence.functionSummary, "Proves notice was sent.");
+  assert.equal(evidence.evidenceRole, "COMMUNICATION_EVIDENCE");
+  assert.equal(evidence.createdAt, "2024-01-02T08:00:00.000Z");
+  assert.deepEqual(evidence.linkedIncidentIds, ["inc-1"]);
+  assert.deepEqual(result.case.incidents.find((item) => item.id === "inc-1").linkedEvidenceIds, ["ev-1"]);
+});
+
+test("ingestGptDelta gpt-delta-2.0 patches documents and ledger entries", () => {
+  const result = ingestGptDelta(baseCase(), {
+    app: "proveit",
+    contractVersion: "gpt-delta-2.0",
+    target: { caseId: "case-1" },
+    operations: {
+      patch: {
+        documents: [
+          {
+            id: "doc-1",
+            patch: {
+              title: "Updated document",
+              textContent: "Replacement document text",
+              linkedRecordIds: ["inc-1"],
+            },
+          },
+        ],
+        ledger: [
+          {
+            id: "ledger-1",
+            patch: {
+              label: "Updated ledger",
+              paidAmount: 75,
+              status: "part-paid",
+              linkedRecordIds: ["doc-1"],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  const document = result.case.documents.find((item) => item.id === "doc-1");
+  const ledger = result.case.ledger.find((item) => item.id === "ledger-1");
+  assert.equal(document.title, "Updated document");
+  assert.equal(document.textContent, "Replacement document text");
+  assert.equal(document.createdAt, "2024-01-03T08:00:00.000Z");
+  assert.deepEqual(document.linkedRecordIds, ["inc-1"]);
+  assert.equal(ledger.label, "Updated ledger");
+  assert.equal(ledger.paidAmount, 75);
+  assert.equal(ledger.differenceAmount, 25);
+  assert.equal(ledger.createdAt, "2024-01-04T08:00:00.000Z");
+  assert.deepEqual(ledger.linkedRecordIds, ["doc-1"]);
+});
+
+test("ingestGptDelta gpt-delta-2.0 patches strategy with sequenceGroup and typed links", () => {
+  const result = ingestGptDelta(baseCase(), {
+    app: "proveit",
+    contractVersion: "gpt-delta-2.0",
+    target: { caseId: "case-1" },
+    operations: {
+      patch: {
+        strategy: [
+          {
+            id: "str-1",
+            patch: {
+              title: "Updated strategy",
+              sequenceGroup: "Notice sequence",
+              source: "gpt",
+              linkedRecordIds: ["inc-1"],
+              linkedIncidentIds: ["inc-1"],
+              linkedEvidenceIds: ["ev-1"],
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  const strategy = result.case.strategy.find((item) => item.id === "str-1");
+  assert.equal(strategy.title, "Updated strategy");
+  assert.equal(strategy.sequenceGroup, "Notice sequence");
+  assert.equal(strategy.source, "gpt");
+  assert.deepEqual(strategy.linkedIncidentIds, ["inc-1"]);
+  assert.deepEqual(strategy.linkedEvidenceIds, ["ev-1"]);
+});
+
+test("ingestGptDelta gpt-delta-2.0 rejects unsafe record patches", () => {
+  assert.deepEqual(
+    ingestGptDelta(baseCase(), {
+      app: "proveit",
+      contractVersion: "gpt-delta-2.0",
+      target: { caseId: "case-1" },
+      operations: { patch: { incidents: [{ id: "missing", patch: { title: "Nope" } }] } },
+    }),
+    { ok: false, reason: "incidents.patch references unknown record id: missing." }
+  );
+
+  assert.deepEqual(
+    ingestGptDelta(baseCase(), {
+      app: "proveit",
+      contractVersion: "gpt-delta-2.0",
+      target: { caseId: "case-1" },
+      operations: { patch: { incidents: [{ id: "inc-1", patch: { unsupported: true } }] } },
+    }),
+    { ok: false, reason: "incidents.patch inc-1 has unsupported field(s): unsupported." }
+  );
+
+  assert.deepEqual(
+    ingestGptDelta(baseCase(), {
+      app: "proveit",
+      contractVersion: "gpt-delta-2.0",
+      target: { caseId: "case-1" },
+      operations: { patch: { evidence: [{ id: "ev-1", patch: { linkedIncidentIds: ["missing"] } }] } },
+    }),
+    { ok: false, reason: "evidence.patch ev-1 has unknown linkedIncidentIds: missing." }
+  );
+
+  assert.deepEqual(
+    ingestGptDelta(baseCase(), {
+      app: "proveit",
+      contractVersion: "gpt-delta-2.0",
+      target: { caseId: "case-1" },
+      operations: { patch: { documents: [{ id: "doc-1", patch: { attachments: [] } }] } },
+    }),
+    { ok: false, reason: "documents.patch doc-1 does not support binary or attachment field(s): attachments." }
+  );
+});
+
+test("buildGptDeltaPreview shows gpt-delta-2.0 array replacement record patches", () => {
+  const currentCase = baseCase();
+  const result = ingestGptDelta(currentCase, {
+    app: "proveit",
+    contractVersion: "gpt-delta-2.0",
+    target: { caseId: "case-1" },
+    operations: {
+      patch: {
+        incidents: [
+          { id: "inc-1", patch: { tags: ["after"], linkedEvidenceIds: ["ev-1"] } },
+        ],
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  const preview = buildGptDeltaPreview({
+    app: "proveit",
+    contractVersion: "gpt-delta-2.0",
+    target: { caseId: "case-1" },
+    operations: {
+      patch: {
+        incidents: [
+          { id: "inc-1", patch: { tags: ["after"], linkedEvidenceIds: ["ev-1"] } },
+        ],
+      },
+    },
+  }, currentCase, result.case, result);
+
+  assert.deepEqual(preview.supportedSections, ["incidents.patch"]);
+  assert.deepEqual(preview.patchedRecords[0].changes, [
+    { field: "tags", before: "old-incident", after: "after" },
+    { field: "linkedEvidenceIds", before: "", after: "ev-1" },
+  ]);
+});
+
 test("ingestGptDelta rejects missing and mismatched target.caseId", () => {
   assert.deepEqual(
     ingestGptDelta(baseCase(), delta({}, { target: {} })),
@@ -460,6 +734,7 @@ test("buildGptDeltaPreview returns expected core preview shape", () => {
         ],
       },
     ],
+    patchedRecords: [],
     createdRecords: [],
     tempIdMappings: [],
     warnings: ["Warning"],
@@ -500,6 +775,7 @@ test("buildGptDeltaPreview includes gpt-delta-2.0 created records and temp ID ma
     actionSummaryFields: [],
     actionSummaryChanges: [],
     strategyItems: [],
+    patchedRecords: [],
     createdRecords: [
       { id: "inc-new", tempId: "tmp-inc", recordType: "incident", title: "New incident", links: {} },
     ],
