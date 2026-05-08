@@ -120,6 +120,25 @@ test("ingestGptDelta gpt-delta-2.0 creates an incident", () => {
   });
 });
 
+test("ingestGptDelta routes trimmed gpt-delta-2.0 contract to create handler", () => {
+  const result = ingestGptDelta(baseCase(), {
+    app: " proveit ",
+    contractVersion: " gpt-delta-2.0 ",
+    target: { caseId: "case-1" },
+    operations: {
+      create: {
+        incidents: [{ title: "Whitespace contract incident" }],
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(
+    result.case.incidents.some((item) => item.title === "Whitespace contract incident"),
+    true
+  );
+});
+
 test("ingestGptDelta gpt-delta-2.0 creates evidence", () => {
   const result = ingestGptDelta(baseCase(), {
     app: "proveit",

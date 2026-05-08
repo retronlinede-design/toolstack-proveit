@@ -134,6 +134,14 @@ function safeText(value) {
   return typeof value === "string" ? value : "";
 }
 
+function getPayloadApp(payload = {}) {
+  return typeof payload?.app === "string" ? payload.app.trim() : payload?.app;
+}
+
+function getPayloadContractVersion(payload = {}) {
+  return typeof payload?.contractVersion === "string" ? payload.contractVersion.trim() : payload?.contractVersion;
+}
+
 function getDuplicateStringEntries(items = []) {
   if (!Array.isArray(items)) return [];
 
@@ -211,7 +219,7 @@ export function normalizeGptStrategyDelta(payload = {}) {
     return { ok: false, reason: "Payload must be an object." };
   }
 
-  if (payload.app !== "proveit" || payload.contractVersion !== "gpt-delta-1.0") {
+  if (getPayloadApp(payload) !== "proveit" || getPayloadContractVersion(payload) !== "gpt-delta-1.0") {
     return { ok: false, reason: "Unsupported GPT delta contract." };
   }
 
@@ -468,7 +476,7 @@ export function validateGptDeltaTarget(caseItem, payload = {}, allowedVersions =
     return { ok: false, reason: "GPT delta requires a case and payload object." };
   }
 
-  if (payload.app !== "proveit" || !allowedVersions.includes(payload.contractVersion)) {
+  if (getPayloadApp(payload) !== "proveit" || !allowedVersions.includes(getPayloadContractVersion(payload))) {
     return { ok: false, reason: "Unsupported GPT delta contract." };
   }
 
@@ -664,7 +672,7 @@ export function applyGptActionSummaryDeltaToCase(caseItem, actionSummaryPatch = 
 }
 
 export function ingestGptDelta(caseItem, payload) {
-  if (payload?.contractVersion === "gpt-delta-2.0") {
+  if (getPayloadContractVersion(payload) === "gpt-delta-2.0") {
     return ingestGptCreateDelta(caseItem, payload);
   }
 
@@ -703,7 +711,7 @@ export function ingestGptDelta(caseItem, payload) {
   if (Object.prototype.hasOwnProperty.call(patch, "strategy")) {
     const strategyResult = ingestGptStrategyDelta(updatedCase, {
       app: payload.app,
-      contractVersion: payload.contractVersion,
+      contractVersion: getPayloadContractVersion(payload),
       target: payload.target,
       operations: {
         patch: {
@@ -803,7 +811,7 @@ export function buildGptDeltaPreview(payload, currentCase, updatedCase, resultMe
   return {
     caseName: currentCase?.name || "Selected case",
     caseId: String(currentCase?.id || ""),
-    contractVersion: payload?.contractVersion || "",
+    contractVersion: getPayloadContractVersion(payload) || "",
     supportedSections,
     actionSummaryFields,
     actionSummaryChanges,
