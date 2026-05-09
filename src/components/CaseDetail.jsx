@@ -14,6 +14,7 @@ import { buildNarrativeSections } from "../lib/narrativeBuilder.js";
 import { PROVEIT_REPORT_PROMPT_V1, parseProveItReportV1 } from "../lib/proveitReportFormat.js";
 import { DEFAULT_REPORT_DISPLAY_LANGUAGE, REPORT_DISPLAY_LANGUAGES, getReportHeadingLabel } from "../lib/reportHeadingLabels.js";
 import { analyzeCaseDiagnostics } from "../diagnostics/caseDiagnostics.js";
+import { buildThreadIssueReport } from "../report/reportBuilder.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import LinkedChip from "./LinkedChip";
 import RecordCard from "./RecordCard";
@@ -223,6 +224,8 @@ export default function CaseDetail({
   const [reportPromptFeedback, setReportPromptFeedback] = useState("");
   const [caseStructureReportOpen, setCaseStructureReportOpen] = useState(false);
   const [clientReportGeneratorOpen, setClientReportGeneratorOpen] = useState(false);
+  const [threadIssueReportOpen, setThreadIssueReportOpen] = useState(false);
+  const [threadIssueReportSequenceGroup, setThreadIssueReportSequenceGroup] = useState("");
   const [internalReportGeneratorOpen, setInternalReportGeneratorOpen] = useState(false);
   const [caseStructureReportText, setCaseStructureReportText] = useState("");
   const [caseStructureReportFeedback, setCaseStructureReportFeedback] = useState("");
@@ -231,6 +234,17 @@ export default function CaseDetail({
   const [sequenceGroupFeedback, setSequenceGroupFeedback] = useState("");
   const activeGeneratedReportLanguage = normalizeReportLanguage(selectedCase?.activeGeneratedReportLanguage);
   const sequenceGroups = useMemo(() => getCaseSequenceGroups(selectedCase), [selectedCase]);
+  const threadIssueReportSequenceOptions = useMemo(() => sequenceGroups.map((group) => group.name), [sequenceGroups]);
+  const selectedThreadIssueReportSequenceGroup = useMemo(() => {
+    if (threadIssueReportSequenceOptions.includes(threadIssueReportSequenceGroup)) {
+      return threadIssueReportSequenceGroup;
+    }
+    return threadIssueReportSequenceOptions[0] || "";
+  }, [threadIssueReportSequenceGroup, threadIssueReportSequenceOptions]);
+  const threadIssueReport = useMemo(() => {
+    if (!selectedCase) return null;
+    return buildThreadIssueReport(selectedCase, selectedThreadIssueReportSequenceGroup);
+  }, [selectedCase, selectedThreadIssueReportSequenceGroup]);
 
   useEffect(() => {
     const nextText = getGeneratedReportTextForLanguage(selectedCase, activeGeneratedReportLanguage);
@@ -259,6 +273,7 @@ export default function CaseDetail({
     setClientReportGeneratorOpen(false);
     setInternalReportGeneratorOpen(false);
     setCaseStructureReportOpen(false);
+    setThreadIssueReportOpen(false);
   }, [activeTab]);
 
   const scrollToTop = () => {
@@ -2289,6 +2304,225 @@ ${ungroupedSequenceText}
     .map((item) => safeText(item).trim())
     .filter(Boolean)
     .join(" - ");
+  const formatThreadReportDate = (value) => safeText(value) || "No date";
+  const formatThreadReportMoney = (value) => (
+    value === null || value === undefined || value === "" ? "-" : String(value)
+  );
+  const renderThreadReportLinkedList = (items = []) => {
+    if (!items.length) return <span className="text-neutral-400">None linked</span>;
+    return items.map((item, index) => (
+      <span key={`${item}-${index}`}>
+        {index > 0 ? ", " : ""}
+        {typeof item === "string" ? item : item.title || item.id}
+      </span>
+    ));
+  };
+  const renderThreadIssueReportArticle = (report, className = "") => {
+    if (!report) return null;
+    const summaryItems = [
+      ["Incidents", report.threadSummary.incidentCount],
+      ["Evidence", report.threadSummary.evidenceCount],
+      ["Documents", report.threadSummary.documentCount],
+      ["Strategy", report.threadSummary.strategyCount],
+      ["Ledger", report.threadSummary.ledgerCount],
+    ];
+    const diagnosticItems = [
+      ...(report.diagnostics?.warnings || []).map((item) => ({ tone: "Warning", ...item })),
+      ...(report.diagnostics?.suggestions || []).map((item) => ({ tone: "Suggestion", ...item })),
+      ...(report.diagnostics?.brokenLinks || []).map((item) => ({
+        tone: "Broken link",
+        id: item.edgeId || `${item.sourceId}-${item.targetId}`,
+        message: `${item.sourceTitle || item.sourceId} links to missing ${item.targetId}.`,
+      })),
+    ].slice(0, 12);
+
+    return (
+      <article className={className}>
+        <header className="border-b border-neutral-200 pb-6">
+          <div className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">THREAD / ISSUE REPORT</div>
+          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h1 className="text-3xl font-bold leading-tight text-neutral-950 print:text-[22pt]">{report.title}</h1>
+              <p className="mt-2 text-sm font-medium text-neutral-500">
+                Case: {report.caseOverview.name || report.sourceCaseId || "Untitled Case"} - Generated {formatThreadReportDate(report.generatedAt)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600 print:bg-white">
+              <div><span className="font-semibold text-neutral-900">Audience:</span> {report.audience}</div>
+              <div><span className="font-semibold text-neutral-900">Scope:</span> {report.scopeType}</div>
+            </div>
+          </div>
+        </header>
+
+        <section className="border-b border-neutral-200 py-6">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Case Overview</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border border-neutral-200 p-3">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Name</div>
+              <div className="mt-1 text-sm font-semibold text-neutral-900">{report.caseOverview.name || "-"}</div>
+            </div>
+            <div className="rounded-lg border border-neutral-200 p-3">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Category</div>
+              <div className="mt-1 text-sm font-semibold text-neutral-900">{report.caseOverview.category || "-"}</div>
+            </div>
+            <div className="rounded-lg border border-neutral-200 p-3">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Status</div>
+              <div className="mt-1 text-sm font-semibold text-neutral-900">{report.caseOverview.status || "-"}</div>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-b border-neutral-200 py-6">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Thread Summary</h2>
+          <p className="mt-2 text-sm text-neutral-700">sequenceGroup: <span className="font-semibold text-neutral-950">{report.sequenceGroup || "-"}</span></p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-5">
+            {summaryItems.map(([label, count]) => (
+              <div key={label} className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-center print:bg-white">
+                <div className="text-2xl font-bold text-neutral-950">{count}</div>
+                <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-neutral-500">{label}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="border-b border-neutral-200 py-6">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Thread Chronology</h2>
+          {report.chronology.length === 0 ? (
+            <p className="mt-4 text-sm text-neutral-600">No dated records are available for this sequence group.</p>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {report.chronology.map((item) => (
+                <div key={`${item.recordType}-${item.id}`} className="grid gap-2 rounded-lg border border-neutral-200 p-3 sm:grid-cols-[8rem_8rem_1fr]">
+                  <div className="text-xs font-semibold text-neutral-500">{formatThreadReportDate(item.date)}</div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-neutral-400">{item.recordType}</div>
+                  <div>
+                    <div className="text-sm font-semibold text-neutral-950">{item.title}</div>
+                    {item.summary ? <p className="mt-1 text-sm leading-6 text-neutral-700">{item.summary}</p> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="border-b border-neutral-200 py-6">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Incidents</h2>
+          <div className="mt-4 space-y-3">
+            {report.incidents.length === 0 ? <p className="text-sm text-neutral-600">No incidents included.</p> : report.incidents.map((incident) => (
+              <div key={incident.id} className="rounded-lg border border-neutral-200 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-base font-semibold text-neutral-950">{incident.title}</h3>
+                  <span className="text-xs font-semibold text-neutral-500">{formatThreadReportDate(incident.eventDate || incident.date)}</span>
+                </div>
+                <div className="mt-2 text-xs text-neutral-500">Status: {incident.status || "-"} - Evidence: {incident.evidenceStatus || "-"}</div>
+                {incident.summary ? <p className="mt-3 text-sm leading-6 text-neutral-700">{incident.summary}</p> : null}
+                <p className="mt-3 text-sm text-neutral-600">Linked evidence: {renderThreadReportLinkedList(incident.linkedEvidenceTitles)}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="border-b border-neutral-200 py-6">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Evidence</h2>
+          <div className="mt-4 space-y-3">
+            {report.evidence.length === 0 ? <p className="text-sm text-neutral-600">No evidence included.</p> : report.evidence.map((evidence) => (
+              <div key={evidence.id} className="rounded-lg border border-neutral-200 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-base font-semibold text-neutral-950">{evidence.title}</h3>
+                  <span className="text-xs font-semibold text-neutral-500">{formatThreadReportDate(evidence.capturedAt || evidence.date)}</span>
+                </div>
+                <div className="mt-2 text-xs text-neutral-500">Status: {evidence.status || "-"} - Role: {evidence.evidenceRole || "-"}</div>
+                {evidence.functionSummary ? <p className="mt-3 text-sm leading-6 text-neutral-700">{evidence.functionSummary}</p> : null}
+                <p className="mt-3 text-sm text-neutral-600">Linked incidents: {renderThreadReportLinkedList(evidence.linkedIncidentTitles)}</p>
+                <p className="mt-1 text-sm text-neutral-600">Attachments: {evidence.attachmentCount} {evidence.attachmentNames.length ? `(${evidence.attachmentNames.join(", ")})` : ""}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="border-b border-neutral-200 py-6">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Documents</h2>
+          <div className="mt-4 space-y-3">
+            {report.documents.length === 0 ? <p className="text-sm text-neutral-600">No documents included.</p> : report.documents.map((document) => (
+              <div key={document.id} className="rounded-lg border border-neutral-200 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-base font-semibold text-neutral-950">{document.title}</h3>
+                  <span className="text-xs font-semibold text-neutral-500">{formatThreadReportDate(document.documentDate)}</span>
+                </div>
+                <div className="mt-2 text-xs text-neutral-500">Category: {document.category || "-"}</div>
+                {document.summary ? <p className="mt-3 text-sm leading-6 text-neutral-700">{document.summary}</p> : null}
+                <p className="mt-3 text-sm text-neutral-600">Linked records: {renderThreadReportLinkedList(document.linkedRecords)}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {report.ledger.length > 0 && (
+          <section className="border-b border-neutral-200 py-6">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Ledger</h2>
+            <div className="mt-4 space-y-3">
+              {report.ledger.map((entry) => (
+                <div key={entry.id} className="rounded-lg border border-neutral-200 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-base font-semibold text-neutral-950">{entry.label}</h3>
+                    <span className="text-xs font-semibold text-neutral-500">{entry.period || "-"}</span>
+                  </div>
+                  <div className="mt-2 grid gap-2 text-sm text-neutral-700 sm:grid-cols-4">
+                    <div>Expected: {formatThreadReportMoney(entry.expectedAmount)}</div>
+                    <div>Paid: {formatThreadReportMoney(entry.paidAmount)}</div>
+                    <div>Difference: {formatThreadReportMoney(entry.differenceAmount)}</div>
+                    <div>Status: {entry.status || "-"}</div>
+                  </div>
+                  <p className="mt-3 text-sm text-neutral-600">Linked records: {renderThreadReportLinkedList(entry.linkedRecords)}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section className="border-b border-neutral-200 py-6">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Diagnostics</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-4">
+            <div className="rounded-lg border border-neutral-200 p-3 text-sm">Unsupported incidents: <span className="font-semibold">{report.diagnostics.unsupportedIncidents.length}</span></div>
+            <div className="rounded-lg border border-neutral-200 p-3 text-sm">Unused evidence: <span className="font-semibold">{report.diagnostics.unusedEvidence.length}</span></div>
+            <div className="rounded-lg border border-neutral-200 p-3 text-sm">Broken links: <span className="font-semibold">{report.diagnostics.brokenLinks.length}</span></div>
+            <div className="rounded-lg border border-neutral-200 p-3 text-sm">Weak links: <span className="font-semibold">{report.diagnostics.weaklyLinkedRecords.length}</span></div>
+          </div>
+          {diagnosticItems.length > 0 ? (
+            <ul className="mt-4 space-y-2 text-sm leading-6 text-neutral-700">
+              {diagnosticItems.map((item, index) => (
+                <li key={`${item.id || item.tone}-${index}`}>- <span className="font-semibold">{item.tone}:</span> {item.message}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-4 text-sm text-neutral-600">No diagnostics warnings for this thread.</p>
+          )}
+        </section>
+
+        <section className="py-6">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Open Questions / Next Actions</h2>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div>
+              <h3 className="text-sm font-semibold text-neutral-900">Open Questions</h3>
+              {report.openQuestions.length === 0 ? <p className="mt-2 text-sm text-neutral-600">No open questions derived.</p> : (
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
+                  {report.openQuestions.map((item) => <li key={item.id}>- {item.title}</li>)}
+                </ul>
+              )}
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-neutral-900">Next Actions</h3>
+              {report.nextActions.length === 0 ? <p className="mt-2 text-sm text-neutral-600">No next actions derived.</p> : (
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
+                  {report.nextActions.map((item, index) => <li key={`${item.source}-${item.id || index}`}>- {item.text}</li>)}
+                </ul>
+              )}
+            </div>
+          </div>
+        </section>
+      </article>
+    );
+  };
   const renderGeneratedReportArticle = (className = "", variant = "default") => {
     const isPackVariant = variant === "pack";
     const displayLanguage = reportDisplayLanguage;
@@ -3155,6 +3389,69 @@ ${ungroupedSequenceText}
                     </div>
                   </div>
                 </div>
+
+                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setThreadIssueReportOpen((open) => !open)}
+                    className="flex items-center gap-2 text-left"
+                  >
+                    {threadIssueReportOpen ? (
+                      <ChevronDown className="h-4 w-4 text-neutral-400" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-neutral-400" />
+                    )}
+                    <span className="text-sm font-bold uppercase tracking-wider text-neutral-500">
+                      Thread / Issue Report
+                    </span>
+                  </button>
+
+                  {threadIssueReportOpen && (
+                    <div className="mt-4 space-y-5">
+                      <div className="flex flex-col gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4 print:hidden sm:flex-row sm:items-end sm:justify-between">
+                        <div className="min-w-0">
+                          <label className="text-xs font-bold uppercase tracking-wider text-neutral-500" htmlFor="thread-issue-report-sequence-group">
+                            sequenceGroup
+                          </label>
+                          {threadIssueReportSequenceOptions.length > 0 ? (
+                            <select
+                              id="thread-issue-report-sequence-group"
+                              value={selectedThreadIssueReportSequenceGroup}
+                              onChange={(event) => setThreadIssueReportSequenceGroup(event.target.value)}
+                              className="mt-2 w-full min-w-60 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
+                            >
+                              {threadIssueReportSequenceOptions.map((groupName) => (
+                                <option key={groupName} value={groupName}>{groupName}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <p className="mt-2 text-sm text-neutral-600">
+                              No sequence groups exist in this case yet.
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => window.print()}
+                          disabled={!selectedThreadIssueReportSequenceGroup}
+                          className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] transition-colors hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:shadow-none"
+                        >
+                          Print / Save PDF
+                        </button>
+                      </div>
+                      {threadIssueReport ? (
+                        renderThreadIssueReportArticle(
+                          threadIssueReport,
+                          "mx-auto max-w-5xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm"
+                        )
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                          Select a case and sequenceGroup to preview the thread report.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </section>
 
                 <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
                   <button
