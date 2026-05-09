@@ -1,7 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { THREAD_ISSUE_REPORT, buildThreadIssueReport } from "./reportBuilder.js";
+import {
+  CASE_BUNDLE_REPORT,
+  DOCUMENT_PACK_REPORT,
+  EVIDENCE_PACK_REPORT,
+  LEDGER_PACK_REPORT,
+  THREAD_ISSUE_REPORT,
+  buildCaseBundleReport,
+  buildDocumentPackReport,
+  buildEvidencePackReport,
+  buildLedgerPackReport,
+  buildThreadIssueReport,
+} from "./reportBuilder.js";
 
 function buildCase() {
   return {
@@ -58,8 +69,10 @@ function buildCase() {
         documentDate: "2024-01-07",
         category: "email",
         summary: "Landlord acknowledges repair request.",
+        textContent: "The landlord acknowledged the repair request and promised a contractor visit.",
         sequenceGroup: "Other thread",
-        linkedRecordIds: ["inc-1"],
+        linkedRecordIds: ["inc-1", "ev-1", "str-1"],
+        attachments: [{ id: "doc-att-1", name: "repair-email.pdf", type: "application/pdf", size: 1234, dataUrl: "data:application/pdf;base64,abc" }],
       },
       {
         id: "doc-2",
@@ -85,14 +98,28 @@ function buildCase() {
         period: "2024-01",
         expectedAmount: 200,
         paidAmount: 0,
+        subType: "repair_cost",
+        method: "bank transfer",
+        reference: "REF-001",
+        proofType: "invoice",
+        proofStatus: "verified",
+        batchLabel: "repairs",
         status: "unpaid",
-        linkedRecordIds: ["doc-1"],
+        linkedRecordIds: ["doc-1", "ev-1"],
       },
       {
         id: "led-2",
         label: "Unrelated bill",
         period: "2024-01",
         linkedRecordIds: ["inc-2"],
+      },
+      {
+        id: "led-3",
+        label: "Refund credit",
+        period: "2024-02",
+        paidAmount: 50,
+        category: "refund",
+        subType: "credit",
       },
     ],
   };
@@ -180,7 +207,7 @@ test("buildThreadIssueReport populates report sections with linked labels and at
   assert.deepEqual(report.evidenceMatrix[0].linkedIncidentTitles, ["Leak reported"]);
   assert.deepEqual(report.evidence[0].attachmentNames, ["ceiling.jpg"]);
   assert.equal(report.evidence[0].attachmentCount, 1);
-  assert.deepEqual(report.documents[0].linkedRecords.map((item) => item.title), ["Leak reported"]);
+  assert.deepEqual(report.documents[0].linkedRecords.map((item) => item.title), ["Leak reported", "Ceiling photo", "Ask for timeline?"]);
   assert.equal(report.ledger[0].differenceAmount, 200);
 });
 
@@ -208,4 +235,296 @@ test("buildThreadIssueReport handles empty or missing sequenceGroup gracefully",
   assert.equal(report.threadSummary.incidentCount, 0);
   assert.equal(report.chronology.length, 0);
   assert.ok(report.diagnostics.warnings.some((warning) => warning.id === "missing-sequence-group"));
+});
+
+test("buildEvidencePackReport builds a whole-case evidence pack", () => {
+  const report = buildEvidencePackReport(buildCase(), { scopeType: "case" }, {
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+
+  assert.equal(report.reportType, EVIDENCE_PACK_REPORT);
+  assert.equal(report.title, "Evidence Pack: Whole Case");
+  assert.equal(report.scopeType, "case");
+  assert.equal(report.scopeLabel, "Whole case");
+  assert.equal(report.includedEvidenceCount, 2);
+  assert.deepEqual(report.includedEvidenceIds, ["ev-1", "ev-2"]);
+  assert.equal(report.atAGlance.evidenceCount, 2);
+  assert.equal(report.atAGlance.linkedEvidenceCount, 1);
+  assert.equal(report.atAGlance.unlinkedEvidenceCount, 1);
+  assert.equal(report.atAGlance.incidentsSupportedCount, 1);
+  assert.equal(report.atAGlance.evidenceWithAttachmentsCount, 1);
+  assert.equal(report.atAGlance.evidenceMissingFunctionSummaryCount, 1);
+});
+
+test("buildEvidencePackReport builds a sequenceGroup-scoped evidence pack", () => {
+  const report = buildEvidencePackReport(buildCase(), {
+    scopeType: "sequenceGroup",
+    sequenceGroup: "Leak thread",
+  }, {
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+
+  assert.equal(report.title, "Evidence Pack: Leak thread");
+  assert.equal(report.scopeType, "sequenceGroup");
+  assert.equal(report.sequenceGroup, "Leak thread");
+  assert.deepEqual(report.includedEvidenceIds, ["ev-1"]);
+  assert.equal(report.atAGlance.evidenceCount, 1);
+  assert.equal(report.atAGlance.linkedEvidenceCount, 1);
+  assert.equal(report.atAGlance.unlinkedEvidenceCount, 0);
+});
+
+test("buildEvidencePackReport includes linked incidents and linked records in matrix", () => {
+  const report = buildEvidencePackReport(buildCase(), { scopeType: "case" }, {
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+
+  const matrixItem = report.evidenceMatrix.find((item) => item.id === "ev-1");
+  assert.deepEqual(matrixItem.linkedIncidents.map((item) => item.title), ["Leak reported"]);
+  assert.deepEqual(matrixItem.attachmentNames, ["ceiling.jpg"]);
+  assert.equal(matrixItem.attachmentCount, 1);
+});
+
+test("buildEvidencePackReport identifies missing summaries and unlinked weak evidence", () => {
+  const report = buildEvidencePackReport(buildCase(), { scopeType: "case" }, {
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+
+  assert.deepEqual(report.unlinkedWeakEvidence.unlinkedEvidence.map((item) => item.id), ["ev-2"]);
+  assert.deepEqual(report.unlinkedWeakEvidence.evidenceMissingFunctionSummary.map((item) => item.id), ["ev-2"]);
+  assert.deepEqual(report.unlinkedWeakEvidence.evidenceWithoutAttachments.map((item) => item.id), ["ev-2"]);
+  assert.ok(Array.isArray(report.diagnostics.unusedEvidence));
+});
+
+test("buildEvidencePackReport handles no evidence gracefully", () => {
+  const report = buildEvidencePackReport({ id: "case-empty", name: "Empty", incidents: [] }, { scopeType: "case" }, {
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+
+  assert.equal(report.includedEvidenceCount, 0);
+  assert.deepEqual(report.includedEvidenceIds, []);
+  assert.deepEqual(report.evidenceMatrix, []);
+  assert.deepEqual(report.supportedIncidents, []);
+  assert.equal(report.atAGlance.evidenceCount, 0);
+});
+
+test("buildDocumentPackReport builds a whole-case document pack", () => {
+  const report = buildDocumentPackReport(buildCase(), { scopeType: "case" }, {
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+
+  assert.equal(report.reportType, DOCUMENT_PACK_REPORT);
+  assert.equal(report.title, "Document Pack: Whole Case");
+  assert.equal(report.scopeType, "case");
+  assert.equal(report.scopeLabel, "Whole case");
+  assert.equal(report.includedDocumentCount, 2);
+  assert.deepEqual(report.includedDocumentIds, ["doc-1", "doc-2"]);
+  assert.equal(report.atAGlance.documentCount, 2);
+  assert.equal(report.atAGlance.linkedDocumentCount, 1);
+  assert.equal(report.atAGlance.unlinkedDocumentCount, 1);
+  assert.equal(report.atAGlance.linkedIncidentCount, 1);
+  assert.equal(report.atAGlance.linkedEvidenceCount, 1);
+  assert.equal(report.atAGlance.documentWithAttachmentsCount, 1);
+});
+
+test("buildDocumentPackReport builds a sequenceGroup-scoped document pack", () => {
+  const report = buildDocumentPackReport(buildCase(), {
+    scopeType: "sequenceGroup",
+    sequenceGroup: "Leak thread",
+  }, {
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+
+  assert.equal(report.title, "Document Pack: Leak thread");
+  assert.equal(report.scopeType, "sequenceGroup");
+  assert.equal(report.sequenceGroup, "Leak thread");
+  assert.deepEqual(report.includedDocumentIds, ["doc-1"]);
+  assert.equal(report.atAGlance.documentCount, 1);
+  assert.equal(report.atAGlance.linkedDocumentCount, 1);
+});
+
+test("buildDocumentPackReport includes linked records and attachment metadata", () => {
+  const report = buildDocumentPackReport(buildCase(), { scopeType: "case" }, {
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+
+  const document = report.documentMatrix.find((item) => item.id === "doc-1");
+  assert.deepEqual(document.linkedIncidents.map((item) => item.title), ["Leak reported"]);
+  assert.deepEqual(document.linkedEvidence.map((item) => item.title), ["Ceiling photo"]);
+  assert.deepEqual(document.linkedStrategy.map((item) => item.title), ["Ask for timeline?"]);
+  assert.deepEqual(document.attachmentNames, ["repair-email.pdf"]);
+  assert.deepEqual(document.attachmentMetadata, [{
+    id: "doc-att-1",
+    name: "repair-email.pdf",
+    type: "application/pdf",
+    size: 1234,
+  }]);
+  assert.equal(document.textExcerpt, "The landlord acknowledged the repair request and promised a contractor visit.");
+});
+
+test("buildDocumentPackReport identifies unlinked and weak documents", () => {
+  const report = buildDocumentPackReport(buildCase(), { scopeType: "case" }, {
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+
+  assert.deepEqual(report.unlinkedWeakDocuments.unlinkedDocuments.map((item) => item.id), ["doc-2"]);
+  assert.deepEqual(report.unlinkedWeakDocuments.documentsMissingSummary.map((item) => item.id), ["doc-2"]);
+  assert.deepEqual(report.unlinkedWeakDocuments.documentsWithoutAttachments.map((item) => item.id), ["doc-2"]);
+  assert.ok(Array.isArray(report.diagnostics.orphanDocuments));
+});
+
+test("buildLedgerPackReport builds a whole-case ledger pack", () => {
+  const report = buildLedgerPackReport(buildCase(), { scopeType: "case" }, {
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+
+  assert.equal(report.reportType, LEDGER_PACK_REPORT);
+  assert.equal(report.title, "Ledger Pack: Whole Case");
+  assert.equal(report.scopeType, "case");
+  assert.equal(report.scopeLabel, "Whole case");
+  assert.equal(report.includedLedgerCount, 3);
+  assert.deepEqual(report.includedLedgerIds, ["led-1", "led-2", "led-3"]);
+  assert.equal(report.atAGlance.totalEntryCount, 3);
+  assert.equal(report.atAGlance.entriesWithProofCount, 1);
+  assert.equal(report.atAGlance.entriesWithoutProofCount, 2);
+  assert.equal(report.atAGlance.linkedEntryCount, 2);
+  assert.equal(report.atAGlance.unlinkedEntryCount, 1);
+});
+
+test("buildLedgerPackReport builds a sequenceGroup-scoped ledger pack", () => {
+  const report = buildLedgerPackReport(buildCase(), {
+    scopeType: "sequenceGroup",
+    sequenceGroup: "Leak thread",
+  }, {
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+
+  assert.equal(report.title, "Ledger Pack: Leak thread");
+  assert.equal(report.scopeType, "sequenceGroup");
+  assert.equal(report.sequenceGroup, "Leak thread");
+  assert.deepEqual(report.includedLedgerIds, ["led-1"]);
+  assert.equal(report.atAGlance.totalEntryCount, 1);
+});
+
+test("buildLedgerPackReport calculates totals", () => {
+  const report = buildLedgerPackReport(buildCase(), { scopeType: "case" }, {
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+
+  assert.equal(report.atAGlance.totalAmount, 250);
+  assert.equal(report.atAGlance.debitTotal, 200);
+  assert.equal(report.atAGlance.creditTotal, 50);
+});
+
+test("buildLedgerPackReport includes linked proof records", () => {
+  const report = buildLedgerPackReport(buildCase(), { scopeType: "case" }, {
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+
+  const entry = report.ledgerMatrix.find((item) => item.id === "led-1");
+  assert.equal(entry.amount, 200);
+  assert.equal(entry.subType, "repair_cost");
+  assert.equal(entry.method, "bank transfer");
+  assert.equal(entry.reference, "REF-001");
+  assert.equal(entry.proofType, "invoice");
+  assert.equal(entry.batchLabel, "repairs");
+  assert.equal(entry.hasProof, true);
+  assert.deepEqual(entry.linkedDocuments.map((item) => item.title), ["Repair email"]);
+  assert.deepEqual(entry.linkedEvidence.map((item) => item.title), ["Ceiling photo"]);
+  assert.deepEqual(report.proofSummary.entriesLinkedToProofRecords.map((item) => item.id), ["led-1"]);
+});
+
+test("buildLedgerPackReport identifies missing proof and weak ledger entries", () => {
+  const report = buildLedgerPackReport(buildCase(), { scopeType: "case" }, {
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+
+  assert.deepEqual(report.proofSummary.entriesWithMissingProof.map((item) => item.id), ["led-2", "led-3"]);
+  assert.deepEqual(report.unlinkedWeakLedger.unlinkedLedgerEntries.map((item) => item.id), ["led-3"]);
+  assert.ok(Array.isArray(report.diagnostics.orphanLedger));
+});
+
+test("buildCaseBundleReport builds a whole-case bundle", () => {
+  const report = buildCaseBundleReport(buildCase(), { scopeType: "case" }, {
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+
+  assert.equal(report.reportType, CASE_BUNDLE_REPORT);
+  assert.equal(report.title, "Case Bundle: Whole Case");
+  assert.equal(report.scopeType, "case");
+  assert.equal(report.scopeLabel, "Whole case");
+  assert.equal(report.sections.threadIssue, null);
+  assert.equal(report.sections.evidencePack.reportType, EVIDENCE_PACK_REPORT);
+  assert.equal(report.sections.documentPack.reportType, DOCUMENT_PACK_REPORT);
+  assert.equal(report.sections.ledgerPack.reportType, LEDGER_PACK_REPORT);
+  assert.ok(report.sections.strategyActions);
+  assert.ok(report.sections.combinedDiagnostics);
+});
+
+test("buildCaseBundleReport builds a sequenceGroup-scoped bundle", () => {
+  const report = buildCaseBundleReport(buildCase(), {
+    scopeType: "sequenceGroup",
+    sequenceGroup: "Leak thread",
+  }, {
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+
+  assert.equal(report.title, "Case Bundle: Leak thread");
+  assert.equal(report.scopeType, "sequenceGroup");
+  assert.equal(report.sequenceGroup, "Leak thread");
+  assert.equal(report.sections.threadIssue.reportType, THREAD_ISSUE_REPORT);
+  assert.deepEqual(report.sections.evidencePack.includedEvidenceIds, ["ev-1"]);
+  assert.deepEqual(report.sections.documentPack.includedDocumentIds, ["doc-1"]);
+  assert.deepEqual(report.sections.ledgerPack.includedLedgerIds, ["led-1"]);
+});
+
+test("buildCaseBundleReport includes all selected sections", () => {
+  const report = buildCaseBundleReport(buildCase(), {
+    scopeType: "sequenceGroup",
+    sequenceGroup: "Leak thread",
+  }, {
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+
+  assert.deepEqual(report.contentsSummary.map((item) => item.key), [
+    "threadIssue",
+    "evidencePack",
+    "documentPack",
+    "ledgerPack",
+    "strategyActions",
+    "diagnosticsSummary",
+  ]);
+  assert.equal(report.contentsSummary.every((item) => item.selected), true);
+  assert.equal(report.generationMetadata.sectionCount, 6);
+});
+
+test("buildCaseBundleReport supports only selected sections", () => {
+  const report = buildCaseBundleReport(buildCase(), { scopeType: "case" }, {
+    generatedAt: "2024-02-01T00:00:00.000Z",
+    sections: {
+      threadIssue: false,
+      evidencePack: true,
+      documentPack: false,
+      ledgerPack: false,
+      strategyActions: false,
+      diagnosticsSummary: false,
+    },
+  });
+
+  assert.ok(report.sections.evidencePack);
+  assert.equal(report.sections.threadIssue, null);
+  assert.equal(report.sections.documentPack, null);
+  assert.equal(report.sections.ledgerPack, null);
+  assert.equal(report.sections.strategyActions, null);
+  assert.equal(report.sections.combinedDiagnostics, null);
+  assert.deepEqual(report.contentsSummary.filter((item) => item.included).map((item) => item.key), ["evidencePack"]);
+});
+
+test("buildCaseBundleReport includes combined diagnostics once", () => {
+  const report = buildCaseBundleReport(buildCase(), { scopeType: "case" }, {
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+
+  assert.ok(report.sections.combinedDiagnostics);
+  assert.equal(Object.keys(report.sections).filter((key) => key.toLowerCase().includes("diagnostic")).length, 1);
+  assert.equal(report.contentsSummary.filter((item) => item.key === "diagnosticsSummary").length, 1);
 });

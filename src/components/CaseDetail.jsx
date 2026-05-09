@@ -14,7 +14,7 @@ import { buildNarrativeSections } from "../lib/narrativeBuilder.js";
 import { PROVEIT_REPORT_PROMPT_V1, parseProveItReportV1 } from "../lib/proveitReportFormat.js";
 import { DEFAULT_REPORT_DISPLAY_LANGUAGE, REPORT_DISPLAY_LANGUAGES, getReportHeadingLabel } from "../lib/reportHeadingLabels.js";
 import { analyzeCaseDiagnostics } from "../diagnostics/caseDiagnostics.js";
-import { buildThreadIssueReport } from "../report/reportBuilder.js";
+import { buildCaseBundleReport, buildDocumentPackReport, buildEvidencePackReport, buildLedgerPackReport, buildThreadIssueReport } from "../report/reportBuilder.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import LinkedChip from "./LinkedChip";
 import RecordCard from "./RecordCard";
@@ -232,6 +232,26 @@ export default function CaseDetail({
     ledger: true,
     strategy: true,
   });
+  const [evidencePackReportOpen, setEvidencePackReportOpen] = useState(false);
+  const [evidencePackScopeType, setEvidencePackScopeType] = useState("case");
+  const [evidencePackSequenceGroup, setEvidencePackSequenceGroup] = useState("");
+  const [documentPackReportOpen, setDocumentPackReportOpen] = useState(false);
+  const [documentPackScopeType, setDocumentPackScopeType] = useState("case");
+  const [documentPackSequenceGroup, setDocumentPackSequenceGroup] = useState("");
+  const [ledgerPackReportOpen, setLedgerPackReportOpen] = useState(false);
+  const [ledgerPackScopeType, setLedgerPackScopeType] = useState("case");
+  const [ledgerPackSequenceGroup, setLedgerPackSequenceGroup] = useState("");
+  const [caseBundleReportOpen, setCaseBundleReportOpen] = useState(false);
+  const [caseBundleScopeType, setCaseBundleScopeType] = useState("case");
+  const [caseBundleSequenceGroup, setCaseBundleSequenceGroup] = useState("");
+  const [caseBundleSections, setCaseBundleSections] = useState({
+    threadIssue: true,
+    evidencePack: true,
+    documentPack: true,
+    ledgerPack: true,
+    strategyActions: true,
+    diagnosticsSummary: true,
+  });
   const [internalReportGeneratorOpen, setInternalReportGeneratorOpen] = useState(false);
   const [caseStructureReportText, setCaseStructureReportText] = useState("");
   const [caseStructureReportFeedback, setCaseStructureReportFeedback] = useState("");
@@ -251,6 +271,60 @@ export default function CaseDetail({
     if (!selectedCase) return null;
     return buildThreadIssueReport(selectedCase, selectedThreadIssueReportSequenceGroup);
   }, [selectedCase, selectedThreadIssueReportSequenceGroup]);
+  const selectedEvidencePackSequenceGroup = useMemo(() => {
+    if (threadIssueReportSequenceOptions.includes(evidencePackSequenceGroup)) {
+      return evidencePackSequenceGroup;
+    }
+    return threadIssueReportSequenceOptions[0] || "";
+  }, [evidencePackSequenceGroup, threadIssueReportSequenceOptions]);
+  const evidencePackReport = useMemo(() => {
+    if (!selectedCase) return null;
+    return buildEvidencePackReport(selectedCase, {
+      scopeType: evidencePackScopeType,
+      sequenceGroup: selectedEvidencePackSequenceGroup,
+    });
+  }, [selectedCase, evidencePackScopeType, selectedEvidencePackSequenceGroup]);
+  const selectedDocumentPackSequenceGroup = useMemo(() => {
+    if (threadIssueReportSequenceOptions.includes(documentPackSequenceGroup)) {
+      return documentPackSequenceGroup;
+    }
+    return threadIssueReportSequenceOptions[0] || "";
+  }, [documentPackSequenceGroup, threadIssueReportSequenceOptions]);
+  const documentPackReport = useMemo(() => {
+    if (!selectedCase) return null;
+    return buildDocumentPackReport(selectedCase, {
+      scopeType: documentPackScopeType,
+      sequenceGroup: selectedDocumentPackSequenceGroup,
+    });
+  }, [selectedCase, documentPackScopeType, selectedDocumentPackSequenceGroup]);
+  const selectedLedgerPackSequenceGroup = useMemo(() => {
+    if (threadIssueReportSequenceOptions.includes(ledgerPackSequenceGroup)) {
+      return ledgerPackSequenceGroup;
+    }
+    return threadIssueReportSequenceOptions[0] || "";
+  }, [ledgerPackSequenceGroup, threadIssueReportSequenceOptions]);
+  const ledgerPackReport = useMemo(() => {
+    if (!selectedCase) return null;
+    return buildLedgerPackReport(selectedCase, {
+      scopeType: ledgerPackScopeType,
+      sequenceGroup: selectedLedgerPackSequenceGroup,
+    });
+  }, [selectedCase, ledgerPackScopeType, selectedLedgerPackSequenceGroup]);
+  const selectedCaseBundleSequenceGroup = useMemo(() => {
+    if (threadIssueReportSequenceOptions.includes(caseBundleSequenceGroup)) {
+      return caseBundleSequenceGroup;
+    }
+    return threadIssueReportSequenceOptions[0] || "";
+  }, [caseBundleSequenceGroup, threadIssueReportSequenceOptions]);
+  const caseBundleReport = useMemo(() => {
+    if (!selectedCase) return null;
+    return buildCaseBundleReport(selectedCase, {
+      scopeType: caseBundleScopeType,
+      sequenceGroup: selectedCaseBundleSequenceGroup,
+    }, {
+      sections: caseBundleSections,
+    });
+  }, [selectedCase, caseBundleScopeType, selectedCaseBundleSequenceGroup, caseBundleSections]);
 
   useEffect(() => {
     const nextText = getGeneratedReportTextForLanguage(selectedCase, activeGeneratedReportLanguage);
@@ -280,6 +354,10 @@ export default function CaseDetail({
     setInternalReportGeneratorOpen(false);
     setCaseStructureReportOpen(false);
     setThreadIssueReportOpen(false);
+    setEvidencePackReportOpen(false);
+    setDocumentPackReportOpen(false);
+    setLedgerPackReportOpen(false);
+    setCaseBundleReportOpen(false);
   }, [activeTab]);
 
   const scrollToTop = () => {
@@ -2320,6 +2398,12 @@ ${ungroupedSequenceText}
       [section]: !current[section],
     }));
   };
+  const toggleCaseBundleSection = (section) => {
+    setCaseBundleSections((current) => ({
+      ...current,
+      [section]: !current[section],
+    }));
+  };
   const renderThreadReportLinkedList = (items = []) => {
     if (!items.length) return <span className="text-neutral-400">None linked</span>;
     return items.map((item, index) => (
@@ -2590,6 +2674,603 @@ ${ungroupedSequenceText}
             </div>
           </div>
         </section>
+        )}
+      </article>
+    );
+  };
+  const renderEvidencePackReportArticle = (report, className = "") => {
+    if (!report) return null;
+    const glanceItems = [
+      ["Evidence", report.atAGlance.evidenceCount],
+      ["Linked", report.atAGlance.linkedEvidenceCount],
+      ["Unlinked", report.atAGlance.unlinkedEvidenceCount],
+      ["Incidents Supported", report.atAGlance.incidentsSupportedCount],
+      ["With Attachments", report.atAGlance.evidenceWithAttachmentsCount],
+      ["Missing Summary", report.atAGlance.evidenceMissingFunctionSummaryCount],
+    ];
+
+    return (
+      <article className={className}>
+        <header className="border-b border-neutral-200 pb-6 print:pb-5">
+          <div className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">EVIDENCE PACK REPORT</div>
+          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h1 className="text-3xl font-bold leading-tight text-neutral-950 print:text-[22pt]">{report.title}</h1>
+              <div className="mt-3 grid gap-1 text-sm text-neutral-600">
+                <div><span className="font-semibold text-neutral-950">Case:</span> {report.caseOverview.name || report.sourceCaseId || "Untitled Case"}</div>
+                <div><span className="font-semibold text-neutral-950">Scope:</span> {report.scopeLabel}</div>
+                <div><span className="font-semibold text-neutral-950">Generated:</span> {formatThreadReportDate(report.generatedAt)}</div>
+              </div>
+            </div>
+            <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600 print:bg-white">
+              <div><span className="font-semibold text-neutral-900">Audience:</span> {report.audience}</div>
+              <div><span className="font-semibold text-neutral-900">Evidence included:</span> {report.includedEvidenceCount}</div>
+            </div>
+          </div>
+        </header>
+
+        <section className="border-b border-neutral-200 py-6 print:py-5">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">At a Glance</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {glanceItems.map(([label, count]) => (
+              <div key={label} className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-center print:bg-white">
+                <div className="text-2xl font-bold text-neutral-950">{count}</div>
+                <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-neutral-500">{label}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="border-b border-neutral-200 py-6 print:py-5">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Evidence Matrix</h2>
+          {report.evidenceMatrix.length === 0 ? (
+            <p className="mt-4 text-sm text-neutral-600">No evidence is included in this scope.</p>
+          ) : (
+            <div className="mt-4 overflow-x-auto">
+              <div className="min-w-[900px] rounded-lg border border-neutral-200">
+                <div className="grid grid-cols-[1.1fr_1.35fr_1fr_1fr_0.8fr_0.9fr] border-b border-neutral-200 bg-neutral-50 text-[11px] font-bold uppercase tracking-wider text-neutral-500 print:bg-white">
+                  <div className="p-3">Evidence</div>
+                  <div className="p-3">What it proves</div>
+                  <div className="p-3">Linked incidents</div>
+                  <div className="p-3">Linked records</div>
+                  <div className="p-3">Attachments</div>
+                  <div className="p-3">Status / role</div>
+                </div>
+                {report.evidenceMatrix.map((evidence) => (
+                  <div key={evidence.id} className="grid break-inside-avoid grid-cols-[1.1fr_1.35fr_1fr_1fr_0.8fr_0.9fr] border-b border-neutral-100 text-sm last:border-b-0 print:break-inside-avoid">
+                    <div className="p-3">
+                      <div className="font-semibold text-neutral-950">{evidence.title}</div>
+                      <div className="mt-1 text-xs text-neutral-500">{formatThreadReportDate(evidence.capturedAt || evidence.date)}</div>
+                    </div>
+                    <div className="p-3 leading-6 text-neutral-700">
+                      {evidence.functionSummary || <span className="text-amber-700">Missing functionSummary</span>}
+                      {evidence.reviewNotes ? <div className="mt-2 text-xs text-neutral-500">Review: {evidence.reviewNotes}</div> : null}
+                    </div>
+                    <div className="p-3 leading-6 text-neutral-700">{renderThreadReportLinkedList(evidence.linkedIncidents)}</div>
+                    <div className="p-3 leading-6 text-neutral-700">{renderThreadReportLinkedList(evidence.linkedRecords)}</div>
+                    <div className="p-3 leading-6 text-neutral-700">{evidence.attachmentCount} {evidence.attachmentNames.length ? evidence.attachmentNames.join(", ") : ""}</div>
+                    <div className="p-3 leading-6 text-neutral-700">{evidence.status || "-"} / {evidence.evidenceRole || "-"}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section className="border-b border-neutral-200 py-6 print:py-5">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Supported Incidents</h2>
+          <div className="mt-4 space-y-3">
+            {report.supportedIncidents.length === 0 ? <p className="text-sm text-neutral-600">No incidents are supported by evidence in this scope.</p> : report.supportedIncidents.map((incident) => (
+              <div key={incident.id} className="break-inside-avoid rounded-lg border border-neutral-200 p-4 print:break-inside-avoid">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-base font-semibold text-neutral-950">{incident.title}</h3>
+                  <span className="text-xs font-semibold text-neutral-500">Evidence status: {incident.evidenceStatus || "-"}</span>
+                </div>
+                <p className="mt-3 text-sm text-neutral-700"><span className="font-semibold">Linked evidence:</span> {renderThreadReportLinkedList(incident.linkedEvidence)}</p>
+                <p className={`mt-2 text-sm font-semibold ${incident.remainsUnsupported ? "text-amber-700" : "text-lime-700"}`}>
+                  {incident.remainsUnsupported ? "Still needs support or verification" : "Supported by linked evidence"}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="border-b border-neutral-200 py-6 print:py-5">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Unlinked / Weak Evidence</h2>
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
+            <div className="rounded-lg border border-neutral-200 p-4">
+              <h3 className="text-sm font-semibold text-neutral-950">Not linked to incidents</h3>
+              {report.unlinkedWeakEvidence.unlinkedEvidence.length === 0 ? <p className="mt-2 text-sm text-neutral-600">None.</p> : (
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
+                  {report.unlinkedWeakEvidence.unlinkedEvidence.map((item) => <li key={item.id}>- {item.title}</li>)}
+                </ul>
+              )}
+            </div>
+            <div className="rounded-lg border border-neutral-200 p-4">
+              <h3 className="text-sm font-semibold text-neutral-950">Missing functionSummary</h3>
+              {report.unlinkedWeakEvidence.evidenceMissingFunctionSummary.length === 0 ? <p className="mt-2 text-sm text-neutral-600">None.</p> : (
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
+                  {report.unlinkedWeakEvidence.evidenceMissingFunctionSummary.map((item) => <li key={item.id}>- {item.title}</li>)}
+                </ul>
+              )}
+            </div>
+            <div className="rounded-lg border border-neutral-200 p-4">
+              <h3 className="text-sm font-semibold text-neutral-950">No attachments</h3>
+              {report.unlinkedWeakEvidence.evidenceWithoutAttachments.length === 0 ? <p className="mt-2 text-sm text-neutral-600">None.</p> : (
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
+                  {report.unlinkedWeakEvidence.evidenceWithoutAttachments.map((item) => <li key={item.id}>- {item.title}</li>)}
+                </ul>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="py-6 print:py-5">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Diagnostics</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-4">
+            <div className="rounded-lg border border-neutral-200 p-3 text-sm">Unused evidence: <span className="font-semibold">{report.diagnostics.unusedEvidence.length}</span></div>
+            <div className="rounded-lg border border-neutral-200 p-3 text-sm">Weak evidence links: <span className="font-semibold">{report.diagnostics.weaklyLinkedEvidence.length}</span></div>
+            <div className="rounded-lg border border-neutral-200 p-3 text-sm">Broken links: <span className="font-semibold">{report.diagnostics.brokenLinks.length}</span></div>
+            <div className="rounded-lg border border-neutral-200 p-3 text-sm">Unsupported incidents: <span className="font-semibold">{report.diagnostics.unsupportedIncidents.length}</span></div>
+          </div>
+        </section>
+      </article>
+    );
+  };
+  const renderDocumentPackReportArticle = (report, className = "") => {
+    if (!report) return null;
+    const glanceItems = [
+      ["Documents", report.atAGlance.documentCount],
+      ["Linked", report.atAGlance.linkedDocumentCount],
+      ["Unlinked", report.atAGlance.unlinkedDocumentCount],
+      ["Linked Incidents", report.atAGlance.linkedIncidentCount],
+      ["Linked Evidence", report.atAGlance.linkedEvidenceCount],
+      ["With Attachments", report.atAGlance.documentWithAttachmentsCount],
+      ["With Text", report.atAGlance.documentWithTextCount],
+      ["Missing Summary", report.atAGlance.documentMissingSummaryCount],
+    ];
+
+    return (
+      <article className={className}>
+        <header className="border-b border-neutral-200 pb-6 print:pb-5">
+          <div className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">DOCUMENT PACK REPORT</div>
+          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h1 className="text-3xl font-bold leading-tight text-neutral-950 print:text-[22pt]">{report.title}</h1>
+              <div className="mt-3 grid gap-1 text-sm text-neutral-600">
+                <div><span className="font-semibold text-neutral-950">Case:</span> {report.caseOverview.name || report.sourceCaseId || "Untitled Case"}</div>
+                <div><span className="font-semibold text-neutral-950">Scope:</span> {report.scopeLabel}</div>
+                <div><span className="font-semibold text-neutral-950">Generated:</span> {formatThreadReportDate(report.generatedAt)}</div>
+              </div>
+            </div>
+            <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600 print:bg-white">
+              <div><span className="font-semibold text-neutral-900">Audience:</span> {report.audience}</div>
+              <div><span className="font-semibold text-neutral-900">Documents included:</span> {report.includedDocumentCount}</div>
+            </div>
+          </div>
+        </header>
+
+        <section className="border-b border-neutral-200 py-6 print:py-5">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">At a Glance</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-4 lg:grid-cols-8">
+            {glanceItems.map(([label, count]) => (
+              <div key={label} className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-center print:bg-white">
+                <div className="text-2xl font-bold text-neutral-950">{count}</div>
+                <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-neutral-500">{label}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="border-b border-neutral-200 py-6 print:py-5">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Document Matrix</h2>
+          {report.documentMatrix.length === 0 ? (
+            <p className="mt-4 text-sm text-neutral-600">No documents are included in this scope.</p>
+          ) : (
+            <div className="mt-4 overflow-x-auto">
+              <div className="min-w-[1040px] rounded-lg border border-neutral-200">
+                <div className="grid grid-cols-[1.1fr_0.9fr_0.9fr_1.3fr_0.9fr_1.4fr_1fr] border-b border-neutral-200 bg-neutral-50 text-[11px] font-bold uppercase tracking-wider text-neutral-500 print:bg-white">
+                  <div className="p-3">Document</div>
+                  <div className="p-3">Dates</div>
+                  <div className="p-3">sequenceGroup</div>
+                  <div className="p-3">Linked records</div>
+                  <div className="p-3">Attachments</div>
+                  <div className="p-3">Text excerpt</div>
+                  <div className="p-3">Summary / notes</div>
+                </div>
+                {report.documentMatrix.map((document) => (
+                  <div key={document.id} className="grid break-inside-avoid grid-cols-[1.1fr_0.9fr_0.9fr_1.3fr_0.9fr_1.4fr_1fr] border-b border-neutral-100 text-sm last:border-b-0 print:break-inside-avoid">
+                    <div className="p-3">
+                      <div className="font-semibold text-neutral-950">{document.title}</div>
+                      <div className="mt-1 text-xs text-neutral-500">{document.category || "-"}</div>
+                    </div>
+                    <div className="p-3 leading-6 text-neutral-700">
+                      <div>Doc: {formatThreadReportDate(document.documentDate || document.date)}</div>
+                      <div>Created: {formatThreadReportDate(document.createdAt)}</div>
+                      <div>Updated: {formatThreadReportDate(document.updatedAt)}</div>
+                    </div>
+                    <div className="p-3 leading-6 text-neutral-700">{document.sequenceGroup || "-"}</div>
+                    <div className="p-3 leading-6 text-neutral-700">{renderThreadReportLinkedList(document.linkedRecords)}</div>
+                    <div className="p-3 leading-6 text-neutral-700">{document.attachmentCount} {document.attachmentNames.length ? document.attachmentNames.join(", ") : ""}</div>
+                    <div className="p-3 leading-6 text-neutral-700">{document.textExcerpt || "-"}</div>
+                    <div className="p-3 leading-6 text-neutral-700">{document.summary || document.notes || document.functionSummary || "-"}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section className="border-b border-neutral-200 py-6 print:py-5">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Linked Incident / Evidence Support</h2>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="rounded-lg border border-neutral-200 p-4">
+              <h3 className="text-sm font-semibold text-neutral-950">Incidents linked by documents</h3>
+              {report.supportSummary.linkedIncidents.length === 0 ? <p className="mt-2 text-sm text-neutral-600">None.</p> : (
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
+                  {report.supportSummary.linkedIncidents.map((incident) => (
+                    <li key={incident.id}>- {incident.title}: {renderThreadReportLinkedList(incident.documents)}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="rounded-lg border border-neutral-200 p-4">
+              <h3 className="text-sm font-semibold text-neutral-950">Evidence linked by documents</h3>
+              {report.supportSummary.linkedEvidence.length === 0 ? <p className="mt-2 text-sm text-neutral-600">None.</p> : (
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
+                  {report.supportSummary.linkedEvidence.map((evidence) => (
+                    <li key={evidence.id}>- {evidence.title}: {renderThreadReportLinkedList(evidence.documents)}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="border-b border-neutral-200 py-6 print:py-5">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Unlinked / Weak Documents</h2>
+          <div className="mt-4 grid gap-4 md:grid-cols-4">
+            <div className="rounded-lg border border-neutral-200 p-4">
+              <h3 className="text-sm font-semibold text-neutral-950">Unlinked</h3>
+              {report.unlinkedWeakDocuments.unlinkedDocuments.length === 0 ? <p className="mt-2 text-sm text-neutral-600">None.</p> : (
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
+                  {report.unlinkedWeakDocuments.unlinkedDocuments.map((item) => <li key={item.id}>- {item.title}</li>)}
+                </ul>
+              )}
+            </div>
+            <div className="rounded-lg border border-neutral-200 p-4">
+              <h3 className="text-sm font-semibold text-neutral-950">Missing summary</h3>
+              {report.unlinkedWeakDocuments.documentsMissingSummary.length === 0 ? <p className="mt-2 text-sm text-neutral-600">None.</p> : (
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
+                  {report.unlinkedWeakDocuments.documentsMissingSummary.map((item) => <li key={item.id}>- {item.title}</li>)}
+                </ul>
+              )}
+            </div>
+            <div className="rounded-lg border border-neutral-200 p-4">
+              <h3 className="text-sm font-semibold text-neutral-950">No attachments</h3>
+              {report.unlinkedWeakDocuments.documentsWithoutAttachments.length === 0 ? <p className="mt-2 text-sm text-neutral-600">None.</p> : (
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
+                  {report.unlinkedWeakDocuments.documentsWithoutAttachments.map((item) => <li key={item.id}>- {item.title}</li>)}
+                </ul>
+              )}
+            </div>
+            <div className="rounded-lg border border-neutral-200 p-4">
+              <h3 className="text-sm font-semibold text-neutral-950">No text</h3>
+              {report.unlinkedWeakDocuments.documentsWithoutText.length === 0 ? <p className="mt-2 text-sm text-neutral-600">None.</p> : (
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
+                  {report.unlinkedWeakDocuments.documentsWithoutText.map((item) => <li key={item.id}>- {item.title}</li>)}
+                </ul>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="py-6 print:py-5">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Diagnostics</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border border-neutral-200 p-3 text-sm">Orphan documents: <span className="font-semibold">{report.diagnostics.orphanDocuments.length}</span></div>
+            <div className="rounded-lg border border-neutral-200 p-3 text-sm">Weak documents: <span className="font-semibold">{report.diagnostics.weaklyLinkedDocuments.length}</span></div>
+            <div className="rounded-lg border border-neutral-200 p-3 text-sm">Broken links: <span className="font-semibold">{report.diagnostics.brokenLinks.length}</span></div>
+          </div>
+        </section>
+      </article>
+    );
+  };
+  const renderLedgerPackReportArticle = (report, className = "") => {
+    if (!report) return null;
+    const formatLedgerAmount = (value, currency = "") => {
+      const amount = formatThreadReportMoney(value);
+      return currency && amount !== "-" ? `${amount} ${currency}` : amount;
+    };
+    const glanceItems = [
+      ["Entries", report.atAGlance.totalEntryCount],
+      ["Total", report.atAGlance.totalAmount],
+      ["Credits", report.atAGlance.creditTotal],
+      ["Debits", report.atAGlance.debitTotal],
+      ["With Proof", report.atAGlance.entriesWithProofCount],
+      ["Missing Proof", report.atAGlance.entriesWithoutProofCount],
+      ["Linked", report.atAGlance.linkedEntryCount],
+      ["Unlinked", report.atAGlance.unlinkedEntryCount],
+    ];
+
+    return (
+      <article className={className}>
+        <header className="border-b border-neutral-200 pb-6 print:pb-5">
+          <div className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">LEDGER PACK REPORT</div>
+          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h1 className="text-3xl font-bold leading-tight text-neutral-950 print:text-[22pt]">{report.title}</h1>
+              <div className="mt-3 grid gap-1 text-sm text-neutral-600">
+                <div><span className="font-semibold text-neutral-950">Case:</span> {report.caseOverview.name || report.sourceCaseId || "Untitled Case"}</div>
+                <div><span className="font-semibold text-neutral-950">Scope:</span> {report.scopeLabel}</div>
+                <div><span className="font-semibold text-neutral-950">Generated:</span> {formatThreadReportDate(report.generatedAt)}</div>
+              </div>
+            </div>
+            <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600 print:bg-white">
+              <div><span className="font-semibold text-neutral-900">Audience:</span> {report.audience}</div>
+              <div><span className="font-semibold text-neutral-900">Ledger entries included:</span> {report.includedLedgerCount}</div>
+            </div>
+          </div>
+        </header>
+
+        <section className="border-b border-neutral-200 py-6 print:py-5">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">At a Glance</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-4 lg:grid-cols-8">
+            {glanceItems.map(([label, count]) => (
+              <div key={label} className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-center print:bg-white">
+                <div className="text-2xl font-bold text-neutral-950">{count}</div>
+                <div className="mt-1 text-[11px] font-bold uppercase tracking-wider text-neutral-500">{label}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="border-b border-neutral-200 py-6 print:py-5">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Ledger Matrix</h2>
+          {report.ledgerMatrix.length === 0 ? (
+            <p className="mt-4 text-sm text-neutral-600">No ledger entries are included in this scope.</p>
+          ) : (
+            <div className="mt-4 overflow-x-auto">
+              <div className="min-w-[1120px] rounded-lg border border-neutral-200">
+                <div className="grid grid-cols-[0.8fr_1.1fr_0.7fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_1.3fr] border-b border-neutral-200 bg-neutral-50 text-[11px] font-bold uppercase tracking-wider text-neutral-500 print:bg-white">
+                  <div className="p-3">Date</div>
+                  <div className="p-3">Entry</div>
+                  <div className="p-3">Amount</div>
+                  <div className="p-3">Type</div>
+                  <div className="p-3">Method</div>
+                  <div className="p-3">Reference</div>
+                  <div className="p-3">Proof</div>
+                  <div className="p-3">Batch</div>
+                  <div className="p-3">sequenceGroup</div>
+                  <div className="p-3">Linked records</div>
+                </div>
+                {report.ledgerMatrix.map((entry) => (
+                  <div key={entry.id} className="grid break-inside-avoid grid-cols-[0.8fr_1.1fr_0.7fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_0.8fr_1.3fr] border-b border-neutral-100 text-sm last:border-b-0 print:break-inside-avoid">
+                    <div className="p-3 leading-6 text-neutral-700">{formatThreadReportDate(entry.date)}</div>
+                    <div className="p-3">
+                      <div className="font-semibold text-neutral-950">{entry.title}</div>
+                      {entry.description ? <div className="mt-1 text-xs leading-5 text-neutral-500">{entry.description}</div> : null}
+                    </div>
+                    <div className="p-3 leading-6 text-neutral-700">{formatLedgerAmount(entry.amount, entry.currency)}</div>
+                    <div className="p-3 leading-6 text-neutral-700">{[entry.type, entry.subType].filter(Boolean).join(" / ") || "-"}</div>
+                    <div className="p-3 leading-6 text-neutral-700">{entry.method || "-"}</div>
+                    <div className="p-3 leading-6 text-neutral-700">{entry.reference || "-"}</div>
+                    <div className="p-3 leading-6 text-neutral-700">{entry.proofType || entry.proofStatus || (entry.hasProof ? "Linked proof" : "-")}</div>
+                    <div className="p-3 leading-6 text-neutral-700">{entry.batchLabel || "-"}</div>
+                    <div className="p-3 leading-6 text-neutral-700">{entry.sequenceGroup || "-"}</div>
+                    <div className="p-3 leading-6 text-neutral-700">{renderThreadReportLinkedList(entry.linkedRecords)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section className="border-b border-neutral-200 py-6 print:py-5">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Proof / Support Summary</h2>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="rounded-lg border border-neutral-200 p-4">
+              <h3 className="text-sm font-semibold text-neutral-950">Entries linked to evidence/documents</h3>
+              {report.proofSummary.entriesLinkedToProofRecords.length === 0 ? <p className="mt-2 text-sm text-neutral-600">None.</p> : (
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
+                  {report.proofSummary.entriesLinkedToProofRecords.map((entry) => (
+                    <li key={entry.id}>- {entry.title}: {renderThreadReportLinkedList([...entry.linkedEvidence, ...entry.linkedDocuments])}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="rounded-lg border border-neutral-200 p-4">
+              <h3 className="text-sm font-semibold text-neutral-950">Entries with missing proof</h3>
+              {report.proofSummary.entriesWithMissingProof.length === 0 ? <p className="mt-2 text-sm text-neutral-600">None.</p> : (
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
+                  {report.proofSummary.entriesWithMissingProof.map((entry) => <li key={entry.id}>- {entry.title}</li>)}
+                </ul>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="border-b border-neutral-200 py-6 print:py-5">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Unlinked / Weak Ledger Entries</h2>
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
+            <div className="rounded-lg border border-neutral-200 p-4">
+              <h3 className="text-sm font-semibold text-neutral-950">Unlinked</h3>
+              {report.unlinkedWeakLedger.unlinkedLedgerEntries.length === 0 ? <p className="mt-2 text-sm text-neutral-600">None.</p> : (
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
+                  {report.unlinkedWeakLedger.unlinkedLedgerEntries.map((entry) => <li key={entry.id}>- {entry.title}</li>)}
+                </ul>
+              )}
+            </div>
+            <div className="rounded-lg border border-neutral-200 p-4">
+              <h3 className="text-sm font-semibold text-neutral-950">Weak links</h3>
+              {report.unlinkedWeakLedger.weaklyLinkedLedger.length === 0 ? <p className="mt-2 text-sm text-neutral-600">None.</p> : (
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
+                  {report.unlinkedWeakLedger.weaklyLinkedLedger.map((entry) => <li key={entry.id}>- {entry.title}</li>)}
+                </ul>
+              )}
+            </div>
+            <div className="rounded-lg border border-neutral-200 p-4">
+              <h3 className="text-sm font-semibold text-neutral-950">Missing proof</h3>
+              {report.unlinkedWeakLedger.entriesWithMissingProof.length === 0 ? <p className="mt-2 text-sm text-neutral-600">None.</p> : (
+                <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
+                  {report.unlinkedWeakLedger.entriesWithMissingProof.map((entry) => <li key={entry.id}>- {entry.title}</li>)}
+                </ul>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="py-6 print:py-5">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Diagnostics</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border border-neutral-200 p-3 text-sm">Orphan ledger: <span className="font-semibold">{report.diagnostics.orphanLedger.length}</span></div>
+            <div className="rounded-lg border border-neutral-200 p-3 text-sm">Weak ledger: <span className="font-semibold">{report.diagnostics.weaklyLinkedLedger.length}</span></div>
+            <div className="rounded-lg border border-neutral-200 p-3 text-sm">Broken links: <span className="font-semibold">{report.diagnostics.brokenLinks.length}</span></div>
+          </div>
+        </section>
+      </article>
+    );
+  };
+  const renderCaseBundleReportArticle = (report, className = "") => {
+    if (!report) return null;
+    const sectionClass = "break-before-page border-b border-neutral-200 py-7 print:break-before-page print:py-6 first:break-before-auto";
+    const diagnostics = report.sections.combinedDiagnostics;
+
+    return (
+      <article className={className}>
+        <header className="border-b border-neutral-200 pb-6 print:pb-5">
+          <div className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">CASE BUNDLE REPORT</div>
+          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h1 className="text-3xl font-bold leading-tight text-neutral-950 print:text-[22pt]">{report.title}</h1>
+              <div className="mt-3 grid gap-1 text-sm text-neutral-600">
+                <div><span className="font-semibold text-neutral-950">Case:</span> {report.caseOverview.name || report.sourceCaseId || "Untitled Case"}</div>
+                <div><span className="font-semibold text-neutral-950">Scope:</span> {report.scopeLabel}</div>
+                <div><span className="font-semibold text-neutral-950">Generated:</span> {formatThreadReportDate(report.generatedAt)}</div>
+              </div>
+            </div>
+            <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600 print:bg-white">
+              <div><span className="font-semibold text-neutral-900">Audience:</span> {report.audience}</div>
+              <div><span className="font-semibold text-neutral-900">Generated by:</span> {report.generationMetadata.generatedBy}</div>
+              <div><span className="font-semibold text-neutral-900">Sections:</span> {report.generationMetadata.sectionCount}</div>
+            </div>
+          </div>
+        </header>
+
+        <section className="border-b border-neutral-200 py-6 print:py-5">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Bundle Contents</h2>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {report.contentsSummary.map((item) => (
+              <div key={item.key} className="rounded-lg border border-neutral-200 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold text-neutral-950">{item.label}</div>
+                  <span className={`rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${item.included ? "border-lime-200 bg-lime-50 text-lime-800" : "border-neutral-200 bg-neutral-50 text-neutral-500"}`}>
+                    {item.included ? "Included" : item.selected ? "Unavailable" : "Off"}
+                  </span>
+                </div>
+                <div className="mt-2 text-sm text-neutral-600">Items: {item.itemCount}</div>
+                {item.unavailableReason ? <div className="mt-1 text-xs text-amber-700">{item.unavailableReason}</div> : null}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {report.sections.threadIssue && (
+          <section className={sectionClass}>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Thread / Issue Report</h2>
+            <p className="mt-2 text-sm text-neutral-700">{report.sections.threadIssue.scopeSummary}</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-4">
+              <div className="rounded-lg border border-neutral-200 p-3 text-sm">Incidents: <span className="font-semibold">{report.sections.threadIssue.threadSummary.incidentCount}</span></div>
+              <div className="rounded-lg border border-neutral-200 p-3 text-sm">Evidence: <span className="font-semibold">{report.sections.threadIssue.threadSummary.evidenceCount}</span></div>
+              <div className="rounded-lg border border-neutral-200 p-3 text-sm">Documents: <span className="font-semibold">{report.sections.threadIssue.threadSummary.documentCount}</span></div>
+              <div className="rounded-lg border border-neutral-200 p-3 text-sm">Ledger: <span className="font-semibold">{report.sections.threadIssue.threadSummary.ledgerCount}</span></div>
+            </div>
+          </section>
+        )}
+
+        {report.sections.evidencePack && (
+          <section className={sectionClass}>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Evidence Pack</h2>
+            <div className="mt-4 space-y-2">
+              {report.sections.evidencePack.evidenceMatrix.slice(0, 12).map((item) => (
+                <div key={item.id} className="break-inside-avoid rounded-lg border border-neutral-200 p-3 print:break-inside-avoid">
+                  <div className="font-semibold text-neutral-950">{item.title}</div>
+                  <div className="mt-1 text-sm text-neutral-700">{item.functionSummary || "Missing functionSummary"}</div>
+                  <div className="mt-1 text-xs text-neutral-500">Linked incidents: {renderThreadReportLinkedList(item.linkedIncidents)}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {report.sections.documentPack && (
+          <section className={sectionClass}>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Document Pack</h2>
+            <div className="mt-4 space-y-2">
+              {report.sections.documentPack.documentMatrix.slice(0, 12).map((item) => (
+                <div key={item.id} className="break-inside-avoid rounded-lg border border-neutral-200 p-3 print:break-inside-avoid">
+                  <div className="font-semibold text-neutral-950">{item.title}</div>
+                  <div className="mt-1 text-sm text-neutral-700">{item.summary || item.textExcerpt || "No summary recorded."}</div>
+                  <div className="mt-1 text-xs text-neutral-500">Linked records: {renderThreadReportLinkedList(item.linkedRecords)}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {report.sections.ledgerPack && (
+          <section className={sectionClass}>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Ledger Pack</h2>
+            <div className="mt-4 grid gap-3 sm:grid-cols-4">
+              <div className="rounded-lg border border-neutral-200 p-3 text-sm">Entries: <span className="font-semibold">{report.sections.ledgerPack.atAGlance.totalEntryCount}</span></div>
+              <div className="rounded-lg border border-neutral-200 p-3 text-sm">Total: <span className="font-semibold">{report.sections.ledgerPack.atAGlance.totalAmount}</span></div>
+              <div className="rounded-lg border border-neutral-200 p-3 text-sm">With proof: <span className="font-semibold">{report.sections.ledgerPack.atAGlance.entriesWithProofCount}</span></div>
+              <div className="rounded-lg border border-neutral-200 p-3 text-sm">Missing proof: <span className="font-semibold">{report.sections.ledgerPack.atAGlance.entriesWithoutProofCount}</span></div>
+            </div>
+          </section>
+        )}
+
+        {report.sections.strategyActions && (
+          <section className={sectionClass}>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Strategy / Actions Summary</h2>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <h3 className="text-sm font-semibold text-neutral-950">Strategy Records</h3>
+                {report.sections.strategyActions.strategyRecords.length === 0 ? <p className="mt-2 text-sm text-neutral-600">No strategy records included.</p> : (
+                  <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
+                    {report.sections.strategyActions.strategyRecords.map((item) => <li key={item.id}>- {item.title}</li>)}
+                  </ul>
+                )}
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-neutral-950">Next Actions</h3>
+                {report.sections.strategyActions.actionSummary.nextActions.length === 0 ? <p className="mt-2 text-sm text-neutral-600">No scoped next actions.</p> : (
+                  <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
+                    {report.sections.strategyActions.actionSummary.nextActions.map((item, index) => <li key={`${item}-${index}`}>- {item}</li>)}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {diagnostics && (
+          <section className="break-before-page py-7 print:break-before-page print:py-6">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Combined Diagnostics</h2>
+            <div className="mt-4 grid gap-3 sm:grid-cols-4">
+              <div className="rounded-lg border border-neutral-200 p-3 text-sm">Broken links: <span className="font-semibold">{diagnostics.brokenLinks.length}</span></div>
+              <div className="rounded-lg border border-neutral-200 p-3 text-sm">Orphans: <span className="font-semibold">{diagnostics.orphanRecords.length}</span></div>
+              <div className="rounded-lg border border-neutral-200 p-3 text-sm">Weak links: <span className="font-semibold">{diagnostics.weaklyLinkedRecords.length}</span></div>
+              <div className="rounded-lg border border-neutral-200 p-3 text-sm">Unsupported incidents: <span className="font-semibold">{diagnostics.unsupportedIncidents.length}</span></div>
+            </div>
+            {[...diagnostics.warnings, ...diagnostics.suggestions].length > 0 ? (
+              <ul className="mt-4 space-y-2 text-sm leading-6 text-neutral-700">
+                {[...diagnostics.warnings, ...diagnostics.suggestions].slice(0, 12).map((item, index) => (
+                  <li key={`${item.id || "diagnostic"}-${index}`}>- {item.message}</li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
         )}
       </article>
     );
@@ -3464,6 +4145,103 @@ ${ungroupedSequenceText}
                 <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
                   <button
                     type="button"
+                    onClick={() => setCaseBundleReportOpen((open) => !open)}
+                    className="flex items-center gap-2 text-left"
+                  >
+                    {caseBundleReportOpen ? (
+                      <ChevronDown className="h-4 w-4 text-neutral-400" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-neutral-400" />
+                    )}
+                    <span className="text-sm font-bold uppercase tracking-wider text-neutral-500">
+                      Case Bundle
+                    </span>
+                  </button>
+
+                  {caseBundleReportOpen && (
+                    <div className="mt-4 space-y-5">
+                      <div className="flex flex-col gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4 print:hidden lg:flex-row lg:items-end lg:justify-between">
+                        <div>
+                          <label className="text-xs font-bold uppercase tracking-wider text-neutral-500" htmlFor="case-bundle-scope">
+                            Scope
+                          </label>
+                          <select
+                            id="case-bundle-scope"
+                            value={caseBundleScopeType}
+                            onChange={(event) => setCaseBundleScopeType(event.target.value)}
+                            className="mt-2 w-full min-w-44 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
+                          >
+                            <option value="case">Whole case</option>
+                            <option value="sequenceGroup">sequenceGroup</option>
+                          </select>
+                        </div>
+                        {caseBundleScopeType === "sequenceGroup" && (
+                          <div>
+                            <label className="text-xs font-bold uppercase tracking-wider text-neutral-500" htmlFor="case-bundle-sequence-group">
+                              sequenceGroup
+                            </label>
+                            {threadIssueReportSequenceOptions.length > 0 ? (
+                              <select
+                                id="case-bundle-sequence-group"
+                                value={selectedCaseBundleSequenceGroup}
+                                onChange={(event) => setCaseBundleSequenceGroup(event.target.value)}
+                                className="mt-2 w-full min-w-60 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
+                              >
+                                {threadIssueReportSequenceOptions.map((groupName) => (
+                                  <option key={groupName} value={groupName}>{groupName}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <p className="mt-2 text-sm text-neutral-600">No sequence groups exist in this case yet.</p>
+                            )}
+                          </div>
+                        )}
+                        <div className="flex max-w-xl flex-wrap gap-2">
+                          {[
+                            ["threadIssue", "Thread / Issue"],
+                            ["evidencePack", "Evidence"],
+                            ["documentPack", "Documents"],
+                            ["ledgerPack", "Ledger"],
+                            ["strategyActions", "Strategy / Actions"],
+                            ["diagnosticsSummary", "Diagnostics"],
+                          ].map(([key, label]) => (
+                            <label key={key} className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-700">
+                              <input
+                                type="checkbox"
+                                checked={caseBundleSections[key]}
+                                onChange={() => toggleCaseBundleSection(key)}
+                                className="h-3.5 w-3.5 accent-lime-500"
+                              />
+                              {label}
+                            </label>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => window.print()}
+                          disabled={caseBundleScopeType === "sequenceGroup" && !selectedCaseBundleSequenceGroup}
+                          className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] transition-colors hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:shadow-none"
+                        >
+                          Print / Save PDF
+                        </button>
+                      </div>
+                      {caseBundleReport ? (
+                        renderCaseBundleReportArticle(
+                          caseBundleReport,
+                          "mx-auto max-w-6xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm"
+                        )
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                          Select a case to preview the case bundle.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </section>
+
+                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+                  <button
+                    type="button"
                     onClick={() => setThreadIssueReportOpen((open) => !open)}
                     className="flex items-center gap-2 text-left"
                   >
@@ -3536,6 +4314,237 @@ ${ungroupedSequenceText}
                       ) : (
                         <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
                           Select a case and sequenceGroup to preview the thread report.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </section>
+
+                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setLedgerPackReportOpen((open) => !open)}
+                    className="flex items-center gap-2 text-left"
+                  >
+                    {ledgerPackReportOpen ? (
+                      <ChevronDown className="h-4 w-4 text-neutral-400" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-neutral-400" />
+                    )}
+                    <span className="text-sm font-bold uppercase tracking-wider text-neutral-500">
+                      Ledger Pack
+                    </span>
+                  </button>
+
+                  {ledgerPackReportOpen && (
+                    <div className="mt-4 space-y-5">
+                      <div className="flex flex-col gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4 print:hidden lg:flex-row lg:items-end lg:justify-between">
+                        <div>
+                          <label className="text-xs font-bold uppercase tracking-wider text-neutral-500" htmlFor="ledger-pack-scope">
+                            Scope
+                          </label>
+                          <select
+                            id="ledger-pack-scope"
+                            value={ledgerPackScopeType}
+                            onChange={(event) => setLedgerPackScopeType(event.target.value)}
+                            className="mt-2 w-full min-w-44 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
+                          >
+                            <option value="case">Whole case</option>
+                            <option value="sequenceGroup">sequenceGroup</option>
+                          </select>
+                        </div>
+                        {ledgerPackScopeType === "sequenceGroup" && (
+                          <div>
+                            <label className="text-xs font-bold uppercase tracking-wider text-neutral-500" htmlFor="ledger-pack-sequence-group">
+                              sequenceGroup
+                            </label>
+                            {threadIssueReportSequenceOptions.length > 0 ? (
+                              <select
+                                id="ledger-pack-sequence-group"
+                                value={selectedLedgerPackSequenceGroup}
+                                onChange={(event) => setLedgerPackSequenceGroup(event.target.value)}
+                                className="mt-2 w-full min-w-60 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
+                              >
+                                {threadIssueReportSequenceOptions.map((groupName) => (
+                                  <option key={groupName} value={groupName}>{groupName}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <p className="mt-2 text-sm text-neutral-600">No sequence groups exist in this case yet.</p>
+                            )}
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => window.print()}
+                          disabled={ledgerPackScopeType === "sequenceGroup" && !selectedLedgerPackSequenceGroup}
+                          className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] transition-colors hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:shadow-none"
+                        >
+                          Print / Save PDF
+                        </button>
+                      </div>
+                      {ledgerPackReport ? (
+                        renderLedgerPackReportArticle(
+                          ledgerPackReport,
+                          "mx-auto max-w-6xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm"
+                        )
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                          Select a case to preview the ledger pack.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </section>
+
+                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setDocumentPackReportOpen((open) => !open)}
+                    className="flex items-center gap-2 text-left"
+                  >
+                    {documentPackReportOpen ? (
+                      <ChevronDown className="h-4 w-4 text-neutral-400" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-neutral-400" />
+                    )}
+                    <span className="text-sm font-bold uppercase tracking-wider text-neutral-500">
+                      Document Pack
+                    </span>
+                  </button>
+
+                  {documentPackReportOpen && (
+                    <div className="mt-4 space-y-5">
+                      <div className="flex flex-col gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4 print:hidden lg:flex-row lg:items-end lg:justify-between">
+                        <div>
+                          <label className="text-xs font-bold uppercase tracking-wider text-neutral-500" htmlFor="document-pack-scope">
+                            Scope
+                          </label>
+                          <select
+                            id="document-pack-scope"
+                            value={documentPackScopeType}
+                            onChange={(event) => setDocumentPackScopeType(event.target.value)}
+                            className="mt-2 w-full min-w-44 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
+                          >
+                            <option value="case">Whole case</option>
+                            <option value="sequenceGroup">sequenceGroup</option>
+                          </select>
+                        </div>
+                        {documentPackScopeType === "sequenceGroup" && (
+                          <div>
+                            <label className="text-xs font-bold uppercase tracking-wider text-neutral-500" htmlFor="document-pack-sequence-group">
+                              sequenceGroup
+                            </label>
+                            {threadIssueReportSequenceOptions.length > 0 ? (
+                              <select
+                                id="document-pack-sequence-group"
+                                value={selectedDocumentPackSequenceGroup}
+                                onChange={(event) => setDocumentPackSequenceGroup(event.target.value)}
+                                className="mt-2 w-full min-w-60 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
+                              >
+                                {threadIssueReportSequenceOptions.map((groupName) => (
+                                  <option key={groupName} value={groupName}>{groupName}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <p className="mt-2 text-sm text-neutral-600">No sequence groups exist in this case yet.</p>
+                            )}
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => window.print()}
+                          disabled={documentPackScopeType === "sequenceGroup" && !selectedDocumentPackSequenceGroup}
+                          className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] transition-colors hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:shadow-none"
+                        >
+                          Print / Save PDF
+                        </button>
+                      </div>
+                      {documentPackReport ? (
+                        renderDocumentPackReportArticle(
+                          documentPackReport,
+                          "mx-auto max-w-6xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm"
+                        )
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                          Select a case to preview the document pack.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </section>
+
+                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setEvidencePackReportOpen((open) => !open)}
+                    className="flex items-center gap-2 text-left"
+                  >
+                    {evidencePackReportOpen ? (
+                      <ChevronDown className="h-4 w-4 text-neutral-400" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-neutral-400" />
+                    )}
+                    <span className="text-sm font-bold uppercase tracking-wider text-neutral-500">
+                      Evidence Pack
+                    </span>
+                  </button>
+
+                  {evidencePackReportOpen && (
+                    <div className="mt-4 space-y-5">
+                      <div className="flex flex-col gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4 print:hidden lg:flex-row lg:items-end lg:justify-between">
+                        <div>
+                          <label className="text-xs font-bold uppercase tracking-wider text-neutral-500" htmlFor="evidence-pack-scope">
+                            Scope
+                          </label>
+                          <select
+                            id="evidence-pack-scope"
+                            value={evidencePackScopeType}
+                            onChange={(event) => setEvidencePackScopeType(event.target.value)}
+                            className="mt-2 w-full min-w-44 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
+                          >
+                            <option value="case">Whole case</option>
+                            <option value="sequenceGroup">sequenceGroup</option>
+                          </select>
+                        </div>
+                        {evidencePackScopeType === "sequenceGroup" && (
+                          <div>
+                            <label className="text-xs font-bold uppercase tracking-wider text-neutral-500" htmlFor="evidence-pack-sequence-group">
+                              sequenceGroup
+                            </label>
+                            {threadIssueReportSequenceOptions.length > 0 ? (
+                              <select
+                                id="evidence-pack-sequence-group"
+                                value={selectedEvidencePackSequenceGroup}
+                                onChange={(event) => setEvidencePackSequenceGroup(event.target.value)}
+                                className="mt-2 w-full min-w-60 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
+                              >
+                                {threadIssueReportSequenceOptions.map((groupName) => (
+                                  <option key={groupName} value={groupName}>{groupName}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <p className="mt-2 text-sm text-neutral-600">No sequence groups exist in this case yet.</p>
+                            )}
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => window.print()}
+                          disabled={evidencePackScopeType === "sequenceGroup" && !selectedEvidencePackSequenceGroup}
+                          className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] transition-colors hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:shadow-none"
+                        >
+                          Print / Save PDF
+                        </button>
+                      </div>
+                      {evidencePackReport ? (
+                        renderEvidencePackReportArticle(
+                          evidencePackReport,
+                          "mx-auto max-w-6xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm"
+                        )
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                          Select a case to preview the evidence pack.
                         </div>
                       )}
                     </div>
