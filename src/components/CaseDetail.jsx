@@ -3,12 +3,17 @@ import AttachmentPreview from "./AttachmentPreview";
 import { AlertCircle, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, ShieldCheck, Tags, X } from "lucide-react";
 import proveItHeaderLogo from "../assets/proveitheader.png";
 import { isTimelineCapable, getCaseHealthReport } from "../lib/caseHealth";
-import { getIncidentsUsingRecord } from "../domain/caseDomain.js";
+import {
+  getCaseSequenceGroups,
+  getIncidentsUsingRecord,
+  removeCaseSequenceGroup,
+  renameCaseSequenceGroup,
+} from "../domain/caseDomain.js";
 import { getRecordDisplayMeta, resolveRecordById } from "../domain/linkingResolvers.js";
 import { buildNarrativeSections } from "../lib/narrativeBuilder.js";
 import { PROVEIT_REPORT_PROMPT_V1, parseProveItReportV1 } from "../lib/proveitReportFormat.js";
 import { DEFAULT_REPORT_DISPLAY_LANGUAGE, REPORT_DISPLAY_LANGUAGES, getReportHeadingLabel } from "../lib/reportHeadingLabels.js";
-import { buildCaseLinkMapExportPayload } from "../export/linkMapExport.js";
+import { analyzeCaseDiagnostics } from "../diagnostics/caseDiagnostics.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import LinkedChip from "./LinkedChip";
 import RecordCard from "./RecordCard";
@@ -221,7 +226,11 @@ export default function CaseDetail({
   const [internalReportGeneratorOpen, setInternalReportGeneratorOpen] = useState(false);
   const [caseStructureReportText, setCaseStructureReportText] = useState("");
   const [caseStructureReportFeedback, setCaseStructureReportFeedback] = useState("");
+  const [sequenceGroupManagerOpen, setSequenceGroupManagerOpen] = useState(false);
+  const [sequenceRenameInputs, setSequenceRenameInputs] = useState({});
+  const [sequenceGroupFeedback, setSequenceGroupFeedback] = useState("");
   const activeGeneratedReportLanguage = normalizeReportLanguage(selectedCase?.activeGeneratedReportLanguage);
+  const sequenceGroups = useMemo(() => getCaseSequenceGroups(selectedCase), [selectedCase]);
 
   useEffect(() => {
     const nextText = getGeneratedReportTextForLanguage(selectedCase, activeGeneratedReportLanguage);
@@ -579,6 +588,42 @@ export default function CaseDetail({
 
     updateActionSummary(formToActionSummary(actionSummaryForm));
     setActionSummaryEditOpen(false);
+  }
+
+  function openSequenceGroupManager() {
+    setSequenceRenameInputs({});
+    setSequenceGroupFeedback("");
+    setSequenceGroupManagerOpen(true);
+  }
+
+  function handleRenameSequenceGroup(groupName) {
+    if (!selectedCase) return;
+
+    const nextName = safeText(sequenceRenameInputs[groupName]).trim();
+    if (!nextName) {
+      setSequenceGroupFeedback("Enter a replacement name before renaming.");
+      return;
+    }
+
+    if (nextName === groupName) {
+      setSequenceGroupFeedback("The replacement name is the same as the current group.");
+      return;
+    }
+
+    const updatedCase = renameCaseSequenceGroup(selectedCase, groupName, nextName);
+    onUpdateCase(updatedCase);
+    setSequenceRenameInputs((prev) => ({ ...prev, [groupName]: "" }));
+    setSequenceGroupFeedback(`Renamed "${groupName}" to "${nextName}".`);
+  }
+
+  function handleRemoveSequenceGroup(group) {
+    if (!selectedCase || !group) return;
+
+    const confirmed = window.confirm(`Remove "${group.name}" from ${group.totalCount} record${group.totalCount === 1 ? "" : "s"}?`);
+    if (!confirmed) return;
+
+    onUpdateCase(removeCaseSequenceGroup(selectedCase, group.name));
+    setSequenceGroupFeedback(`Removed "${group.name}" from ${group.totalCount} record${group.totalCount === 1 ? "" : "s"}.`);
   }
 
   const health = selectedCase ? getCaseHealthReport(selectedCase) : null;
@@ -1963,61 +2008,24 @@ Rules:
   };
 
   const formatCaseStructureReport = (caseItem) => {
-    const payload = buildCaseLinkMapExportPayload(caseItem);
-    const validEdges = payload.edges.filter((edge) => edge.status === "resolved");
-    const linkCounts = new Map(payload.nodes.map((node) => [node.id, 0]));
-
-    validEdges.forEach((edge) => {
-      linkCounts.set(edge.sourceId, (linkCounts.get(edge.sourceId) || 0) + 1);
-      linkCounts.set(edge.targetId, (linkCounts.get(edge.targetId) || 0) + 1);
-    });
-
+    const diagnostics = analyzeCaseDiagnostics(caseItem);
     const formatNode = (node) => `- ${node.title || node.id || "Untitled record"} [${node.type || "record"}]`;
     const formatNodeList = (nodes) => nodes.length > 0 ? nodes.map(formatNode).join("\n") : "- None";
-    const totalRecords = payload.nodes.length;
-    const totalLinks = validEdges.length;
-    const averageLinks = totalRecords > 0 ? (totalLinks / totalRecords).toFixed(2) : "0.00";
-    const nodeCounts = payload.summary.nodeCountsByType || {};
-    const documentCount = (nodeCounts.document || 0) + (nodeCounts.tracking_record || 0);
-    const nodesByLinkCount = payload.nodes.map((node) => ({
-      ...node,
-      linkCount: linkCounts.get(node.id) || 0,
-    }));
-
-    const unlinkedRecords = nodesByLinkCount.filter((node) => node.linkCount === 0);
-    const weakRecords = nodesByLinkCount.filter((node) => node.linkCount === 1);
-    const highlyConnectedRecords = nodesByLinkCount.filter((node) => node.linkCount >= 5);
-    const incidentNodes = payload.nodes.filter((node) => node.type === "incident");
-    const evidenceNodes = payload.nodes.filter((node) => node.type === "evidence");
-    const incidentEvidenceCounts = new Map(incidentNodes.map((node) => [node.id, 0]));
-    const evidenceLinkedToIncidentIds = new Set();
-
-    validEdges.forEach((edge) => {
-      const incidentToEvidence = edge.sourceType === "incident" && edge.targetType === "evidence";
-      const evidenceToIncident = edge.sourceType === "evidence" && edge.targetType === "incident";
-
-      if (incidentToEvidence && incidentEvidenceCounts.has(edge.sourceId)) {
-        incidentEvidenceCounts.set(edge.sourceId, incidentEvidenceCounts.get(edge.sourceId) + 1);
-        evidenceLinkedToIncidentIds.add(edge.targetId);
-      }
-      if (evidenceToIncident && incidentEvidenceCounts.has(edge.targetId)) {
-        incidentEvidenceCounts.set(edge.targetId, incidentEvidenceCounts.get(edge.targetId) + 1);
-        evidenceLinkedToIncidentIds.add(edge.sourceId);
-      }
-    });
-
-    const incidentsWithoutEvidence = incidentNodes.filter((node) => incidentEvidenceCounts.get(node.id) === 0);
-    const incidentsWithEvidence = incidentNodes.filter((node) => incidentEvidenceCounts.get(node.id) > 0);
-    const unusedEvidence = evidenceNodes.filter((node) => !evidenceLinkedToIncidentIds.has(node.id));
-    const incidentsById = new Map((caseItem?.incidents || []).map((incident) => [incident.id, incident]));
-    const getIncidentEvidenceStatus = (node) => incidentsById.get(node.id)?.evidenceStatus || "needs_evidence";
-    const incidentsNeedingEvidence = incidentsWithoutEvidence.filter((node) =>
-      ["needs_evidence", "documented"].includes(getIncidentEvidenceStatus(node))
-    );
-    const witnessedContextualIncidents = incidentsWithoutEvidence.filter((node) =>
-      ["witnessed", "contextual"].includes(getIncidentEvidenceStatus(node))
-    );
-    const unverifiedIncidents = incidentsWithoutEvidence.filter((node) => getIncidentEvidenceStatus(node) === "unverified");
+    const nodeCounts = diagnostics.overview.nodeCountsByType || {};
+    const averageLinks = diagnostics.integrity.linkDensity.averageLinksPerRecord.toFixed(2);
+    const payload = { missingLinks: diagnostics.integrity.brokenLinks };
+    const totalRecords = diagnostics.overview.totalRecords;
+    const totalLinks = diagnostics.overview.totalLinks;
+    const documentCount = diagnostics.overview.documentCount;
+    const unlinkedRecords = diagnostics.integrity.orphanRecords;
+    const weakRecords = diagnostics.integrity.weaklyLinkedRecords;
+    const highlyConnectedRecords = diagnostics.integrity.highlyConnectedRecords;
+    const incidentEvidenceCounts = new Map(Object.entries(diagnostics.evidenceCoverage.incidentEvidenceCounts));
+    const incidentsNeedingEvidence = diagnostics.evidenceCoverage.incidentsNeedingEvidence;
+    const witnessedContextualIncidents = diagnostics.evidenceCoverage.witnessedContextualIncidents;
+    const unverifiedIncidents = diagnostics.evidenceCoverage.unverifiedIncidents;
+    const incidentsWithEvidence = diagnostics.evidenceCoverage.incidentsWithEvidence;
+    const unusedEvidence = diagnostics.evidenceCoverage.unusedEvidence;
     const formatTitleList = (nodes) =>
       nodes.length > 0 ? nodes.map((node) => `- ${node.title || node.id || "Untitled record"}`).join("\n") : "- None";
     const formatIncidentEvidenceCountList = (nodes) =>
@@ -2603,6 +2611,13 @@ ${ungroupedSequenceText}
               GPT Update
             </button>
           )}
+
+          <button
+            onClick={openSequenceGroupManager}
+            className="px-3 py-1.5 text-sm rounded-md whitespace-nowrap border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
+          >
+            Manage sequence groups
+          </button>
 
           <div className="relative flex-1 min-w-max">
             <button 
@@ -4938,6 +4953,91 @@ ${ungroupedSequenceText}
         >
           {scrollTopLabel}
         </button>
+      )}
+
+      {sequenceGroupManagerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 print:hidden">
+          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b border-neutral-100 p-5">
+              <div>
+                <h3 className="text-lg font-semibold text-neutral-900">Manage Sequence Groups</h3>
+                <p className="mt-1 text-xs text-neutral-500">
+                  Rename or clear sequence groups used by incidents, evidence, documents, and strategy records.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSequenceGroupManagerOpen(false)}
+                className="rounded-md border border-neutral-200 px-2 py-1 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5">
+              {sequenceGroupFeedback && (
+                <div className="mb-4 rounded-md border border-lime-200 bg-lime-50 p-3 text-sm font-medium text-lime-800">
+                  {sequenceGroupFeedback}
+                </div>
+              )}
+
+              {sequenceGroups.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-500">
+                  No sequence groups are used in this case.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {sequenceGroups.map((group) => (
+                    <section key={group.name} className="rounded-xl border border-neutral-200 bg-white p-4">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {renderSequenceGroupChip(group.name)}
+                            <span className="text-sm font-semibold text-neutral-900">
+                              {group.totalCount} use{group.totalCount === 1 ? "" : "s"}
+                            </span>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-600">
+                            <span>Incidents: {group.counts.incidents}</span>
+                            <span>Evidence: {group.counts.evidence}</span>
+                            <span>Documents: {group.counts.documents}</span>
+                            <span>Strategy: {group.counts.strategy}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
+                          <input
+                            value={sequenceRenameInputs[group.name] || ""}
+                            onChange={(event) => {
+                              setSequenceRenameInputs((prev) => ({ ...prev, [group.name]: event.target.value }));
+                              setSequenceGroupFeedback("");
+                            }}
+                            placeholder="New group name"
+                            className="min-w-0 rounded-md border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-100 sm:w-56"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRenameSequenceGroup(group.name)}
+                            className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
+                          >
+                            Rename
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSequenceGroup(group)}
+                            className="rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-50"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {actionSummaryEditOpen && (
