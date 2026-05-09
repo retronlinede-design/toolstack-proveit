@@ -462,6 +462,81 @@ export function applyRecordPatchToCase(caseItem, recordType, recordId, patch = {
   return updatedCase;
 }
 
+const SEQUENCE_GROUP_RECORD_TYPES = ["incidents", "evidence", "documents", "strategy"];
+
+function getSequenceGroupValue(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+export function getCaseSequenceGroups(caseItem) {
+  const groups = new Map();
+
+  SEQUENCE_GROUP_RECORD_TYPES.forEach((recordType) => {
+    const records = Array.isArray(caseItem?.[recordType]) ? caseItem[recordType] : [];
+    records.forEach((record) => {
+      const name = getSequenceGroupValue(record?.sequenceGroup);
+      if (!name) return;
+
+      const current = groups.get(name) || {
+        name,
+        totalCount: 0,
+        counts: {
+          incidents: 0,
+          evidence: 0,
+          documents: 0,
+          strategy: 0,
+        },
+      };
+
+      current.totalCount += 1;
+      current.counts[recordType] += 1;
+      groups.set(name, current);
+    });
+  });
+
+  return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function updateCaseSequenceGroup(caseItem, fromGroup, toGroup) {
+  const sourceGroup = getSequenceGroupValue(fromGroup);
+  if (!caseItem || !sourceGroup) return caseItem;
+
+  const nextGroup = toGroup == null ? "" : getSequenceGroupValue(toGroup);
+  const updatedAt = new Date().toISOString();
+  let changed = false;
+  const updatedCase = { ...caseItem };
+
+  SEQUENCE_GROUP_RECORD_TYPES.forEach((recordType) => {
+    const records = Array.isArray(caseItem?.[recordType]) ? caseItem[recordType] : [];
+    updatedCase[recordType] = records.map((record) => {
+      if (getSequenceGroupValue(record?.sequenceGroup) !== sourceGroup) return record;
+      changed = true;
+      return {
+        ...record,
+        sequenceGroup: nextGroup,
+        updatedAt,
+      };
+    });
+  });
+
+  if (!changed) return caseItem;
+
+  return {
+    ...updatedCase,
+    updatedAt,
+  };
+}
+
+export function renameCaseSequenceGroup(caseItem, fromGroup, toGroup) {
+  const nextGroup = getSequenceGroupValue(toGroup);
+  if (!nextGroup) return caseItem;
+  return updateCaseSequenceGroup(caseItem, fromGroup, nextGroup);
+}
+
+export function removeCaseSequenceGroup(caseItem, groupName) {
+  return updateCaseSequenceGroup(caseItem, groupName, "");
+}
+
 export function normalizeCase(caseItem) {
   const evidence = Array.isArray(caseItem?.evidence) ? caseItem.evidence.map(r => normalizeRecord(r, "evidence")) : [];
   const incidents = Array.isArray(caseItem?.incidents) ? caseItem.incidents.map(r => normalizeRecord(r, "incidents")) : [];

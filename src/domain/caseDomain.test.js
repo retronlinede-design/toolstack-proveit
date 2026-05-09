@@ -7,6 +7,7 @@ import {
   deleteDocumentEntryFromCase,
   deleteLedgerEntryFromCase,
   deleteRecordFromCase,
+  getCaseSequenceGroups,
   getIncidentLinkGroups,
   getIncidentsUsingRecord,
   linkRecordToIncident,
@@ -14,6 +15,8 @@ import {
   normalizeCase,
   normalizeCasePrivacyLock,
   normalizeRecord,
+  removeCaseSequenceGroup,
+  renameCaseSequenceGroup,
   syncCaseLinks,
   unlinkRecordFromIncident,
   upsertDocumentEntryInCase,
@@ -126,6 +129,84 @@ test("normalizeRecord preserves sequenceGroup on active non-evidence records", (
 
   assert.equal(incident.sequenceGroup, "Notice sequence");
   assert.equal(strategy.sequenceGroup, "Repair plan");
+});
+
+test("getCaseSequenceGroups extracts groups from supported record types and ignores blanks", () => {
+  const caseItem = {
+    incidents: [
+      { id: "inc-1", sequenceGroup: " Notice " },
+      { id: "inc-blank", sequenceGroup: " " },
+    ],
+    evidence: [
+      { id: "ev-1", sequenceGroup: "Notice" },
+      { id: "ev-blank" },
+    ],
+    documents: [
+      { id: "doc-1", sequenceGroup: "Repair" },
+    ],
+    strategy: [
+      { id: "str-1", sequenceGroup: "Notice" },
+    ],
+    ledger: [
+      { id: "ledger-1", sequenceGroup: "Ignored" },
+    ],
+  };
+
+  assert.deepEqual(getCaseSequenceGroups(caseItem), [
+    {
+      name: "Notice",
+      totalCount: 3,
+      counts: { incidents: 1, evidence: 1, documents: 0, strategy: 1 },
+    },
+    {
+      name: "Repair",
+      totalCount: 1,
+      counts: { incidents: 0, evidence: 0, documents: 1, strategy: 0 },
+    },
+  ]);
+});
+
+test("renameCaseSequenceGroup renames across supported record types and preserves identity fields", () => {
+  const caseItem = {
+    id: "case-1",
+    updatedAt: "case-old",
+    incidents: [{ id: "inc-1", createdAt: "inc-created", updatedAt: "old", sequenceGroup: "Notice" }],
+    evidence: [{ id: "ev-1", createdAt: "ev-created", updatedAt: "old", sequenceGroup: "Notice" }],
+    documents: [{ id: "doc-1", createdAt: "doc-created", updatedAt: "old", sequenceGroup: "Notice" }],
+    strategy: [{ id: "str-1", createdAt: "str-created", updatedAt: "old", sequenceGroup: "Notice" }],
+  };
+
+  const updated = renameCaseSequenceGroup(caseItem, " Notice ", " Updated Notice ");
+
+  assert.equal(updated.incidents[0].id, "inc-1");
+  assert.equal(updated.incidents[0].createdAt, "inc-created");
+  assert.equal(updated.incidents[0].sequenceGroup, "Updated Notice");
+  assert.equal(updated.evidence[0].sequenceGroup, "Updated Notice");
+  assert.equal(updated.documents[0].sequenceGroup, "Updated Notice");
+  assert.equal(updated.strategy[0].sequenceGroup, "Updated Notice");
+  assert.notEqual(updated.updatedAt, "case-old");
+  assert.match(updated.incidents[0].updatedAt, /^\d{4}-\d{2}-\d{2}T/);
+});
+
+test("removeCaseSequenceGroup clears supported records and preserves unrelated groups", () => {
+  const caseItem = {
+    id: "case-1",
+    incidents: [
+      { id: "inc-1", sequenceGroup: "Notice" },
+      { id: "inc-2", sequenceGroup: "Repair" },
+    ],
+    evidence: [{ id: "ev-1", sequenceGroup: "Notice" }],
+    documents: [{ id: "doc-1", sequenceGroup: "Notice" }],
+    strategy: [{ id: "str-1", sequenceGroup: "Notice" }],
+  };
+
+  const updated = removeCaseSequenceGroup(caseItem, "Notice");
+
+  assert.equal(updated.incidents[0].sequenceGroup, "");
+  assert.equal(updated.evidence[0].sequenceGroup, "");
+  assert.equal(updated.documents[0].sequenceGroup, "");
+  assert.equal(updated.strategy[0].sequenceGroup, "");
+  assert.equal(updated.incidents[1].sequenceGroup, "Repair");
 });
 
 test("normalizeRecord defaults evidence milestone flag to false", () => {
