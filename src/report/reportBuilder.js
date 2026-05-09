@@ -91,6 +91,28 @@ function sortChronologyItems(items = []) {
   });
 }
 
+function groupChronologyItems(items = []) {
+  const sorted = sortChronologyItems(items);
+  const groups = [];
+  const undated = [];
+
+  sorted.forEach((item) => {
+    if (!item.date) {
+      undated.push(item);
+      return;
+    }
+
+    const current = groups[groups.length - 1];
+    if (!current || current.date !== item.date) {
+      groups.push({ date: item.date, items: [item] });
+      return;
+    }
+    current.items.push(item);
+  });
+
+  return { groups, undated };
+}
+
 function getIncludedRecordIds(caseItem = {}, sequenceGroup = "") {
   if (!sequenceGroup) return [];
 
@@ -150,6 +172,8 @@ function buildIncident(caseItem, incident = {}) {
     eventDate: incident.eventDate || "",
     status: incident.status || "",
     evidenceStatus: incident.evidenceStatus || "",
+    isMilestone: !!incident.isMilestone,
+    sequenceGroup: incident.sequenceGroup || "",
     summary: getSummary(incident, "incident"),
     linkedEvidenceTitles: linkedEvidenceIds.map((id) => resolveTitle(caseItem, id)),
   };
@@ -242,6 +266,19 @@ function buildThreadDiagnostics(caseItem, sequenceGroup, includedIds) {
   };
 }
 
+function buildDiagnosticsSummary(diagnostics) {
+  const warningCount = (diagnostics.warnings || []).length + (diagnostics.brokenLinks || []).length;
+  const suggestionCount = (diagnostics.suggestions || []).length;
+  return {
+    unsupportedIncidentCount: (diagnostics.unsupportedIncidents || []).length,
+    unusedEvidenceCount: (diagnostics.unusedEvidence || []).length,
+    weakLinkCount: (diagnostics.weaklyLinkedRecords || []).length,
+    brokenLinkCount: (diagnostics.brokenLinks || []).length,
+    warningCount,
+    suggestionCount,
+  };
+}
+
 function itemMentionsSequenceGroup(item, sequenceGroup) {
   if (!sequenceGroup) return false;
   return safeText(item).toLowerCase().includes(sequenceGroup.toLowerCase());
@@ -289,6 +326,18 @@ export function buildThreadIssueReport(caseItem = {}, sequenceGroupValue = "", o
   const strategy = allRecords.filter(({ recordType }) => recordType === "strategy").map(({ record }) => record);
   const ledger = allRecords.filter(({ recordType }) => recordType === "ledger").map(({ record }) => record);
   const questionsAndActions = buildOpenQuestionsAndNextActions(caseItem, strategy, sequenceGroup);
+  const chronology = sortChronologyItems(allRecords.map(({ record, recordType }) => buildChronologyItem(record, recordType)));
+  const chronologyByDate = groupChronologyItems(chronology);
+  const diagnostics = buildThreadDiagnostics(caseItem, sequenceGroup, includedIdSet);
+  const diagnosticsSummary = buildDiagnosticsSummary(diagnostics);
+  const atAGlance = {
+    incidentCount: incidents.length,
+    evidenceCount: evidence.length,
+    documentCount: documents.length,
+    ledgerCount: ledger.length,
+    openUnsupportedIncidentCount: diagnosticsSummary.unsupportedIncidentCount,
+    keyDiagnosticWarningCount: diagnosticsSummary.warningCount,
+  };
 
   return {
     reportType: THREAD_ISSUE_REPORT,
@@ -299,11 +348,15 @@ export function buildThreadIssueReport(caseItem = {}, sequenceGroupValue = "", o
     sourceCaseId: caseItem?.id || "",
     generatedAt,
     includedRecordIds,
+    scopeSummary: sequenceGroup
+      ? `Records in sequenceGroup "${sequenceGroup}" plus directly linked records.`
+      : "No sequenceGroup selected.",
     caseOverview: {
       name: caseItem?.name || "",
       category: caseItem?.category || "",
       status: caseItem?.status || "",
     },
+    atAGlance,
     threadSummary: {
       sequenceGroup,
       incidentCount: incidents.length,
@@ -312,12 +365,16 @@ export function buildThreadIssueReport(caseItem = {}, sequenceGroupValue = "", o
       strategyCount: strategy.length,
       ledgerCount: ledger.length,
     },
-    chronology: sortChronologyItems(allRecords.map(({ record, recordType }) => buildChronologyItem(record, recordType))),
+    chronology,
+    chronologyGroups: chronologyByDate.groups,
+    undatedChronology: chronologyByDate.undated,
     incidents: incidents.map((incident) => buildIncident(caseItem, incident)),
     evidence: evidence.map((item) => buildEvidence(caseItem, item)),
+    evidenceMatrix: evidence.map((item) => buildEvidence(caseItem, item)),
     documents: documents.map((document) => buildDocument(caseItem, document)),
     ledger: ledger.map((entry) => buildLedger(caseItem, entry)),
-    diagnostics: buildThreadDiagnostics(caseItem, sequenceGroup, includedIdSet),
+    diagnostics,
+    diagnosticsSummary,
     openQuestions: questionsAndActions.openQuestions,
     nextActions: questionsAndActions.nextActions,
   };
