@@ -18,6 +18,7 @@ import { buildNarrativeSections } from "../lib/narrativeBuilder.js";
 import { PROVEIT_REPORT_PROMPT_V1, parseProveItReportV1 } from "../lib/proveitReportFormat.js";
 import { DEFAULT_REPORT_DISPLAY_LANGUAGE, REPORT_DISPLAY_LANGUAGES, getReportHeadingLabel } from "../lib/reportHeadingLabels.js";
 import { analyzeCaseDiagnostics } from "../diagnostics/caseDiagnostics.js";
+import { buildSequenceGroupReviewPackage, ingestSequenceGroupDelta } from "../gpt/sequenceGroupDelta.js";
 import { buildCaseBundleReport, buildDocumentPackReport, buildEvidencePackReport, buildLedgerPackReport, buildThreadIssueReport } from "../report/reportBuilder.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import LinkedChip from "./LinkedChip";
@@ -266,6 +267,8 @@ export default function CaseDetail({
   const [sequenceGroupSearch, setSequenceGroupSearch] = useState("");
   const [sequenceMoveInputs, setSequenceMoveInputs] = useState({});
   const [sequenceNewGroupInputs, setSequenceNewGroupInputs] = useState({});
+  const [sequenceGroupDeltaDraft, setSequenceGroupDeltaDraft] = useState("");
+  const [sequenceGroupDeltaResult, setSequenceGroupDeltaResult] = useState(null);
   const activeGeneratedReportLanguage = normalizeReportLanguage(selectedCase?.activeGeneratedReportLanguage);
   const sequenceGroups = useMemo(() => getCaseSequenceGroups(selectedCase), [selectedCase]);
   const sequenceGroupDetails = useMemo(() => getCaseSequenceGroupDetails(selectedCase), [selectedCase]);
@@ -702,6 +705,8 @@ export default function CaseDetail({
     setSequenceRenameInputs({});
     setSequenceMoveInputs({});
     setSequenceNewGroupInputs({});
+    setSequenceGroupDeltaDraft("");
+    setSequenceGroupDeltaResult(null);
     setSequenceGroupSearch("");
     setSelectedSequenceGroupName(sequenceGroups[0]?.name || "");
     setSequenceGroupFeedback("");
@@ -791,6 +796,68 @@ export default function CaseDetail({
     if (!selectedCase || !record) return;
     onUpdateCase(clearRecordSequenceGroup(selectedCase, record.recordType, record.id));
     setSequenceGroupFeedback(`Removed "${record.title}" from its sequence group.`);
+  }
+
+  async function copySequenceGroupText(text) {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "absolute";
+    textarea.style.left = "-9999px";
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textarea);
+  }
+
+  async function handleCopySequenceGroupReviewPackage() {
+    if (!selectedCase) return;
+
+    try {
+      const reviewPackage = buildSequenceGroupReviewPackage(selectedCase);
+      await copySequenceGroupText(JSON.stringify(reviewPackage, null, 2));
+      setSequenceGroupFeedback("Copied AI group review package.");
+    } catch (error) {
+      console.error("Failed to copy AI group review package", error);
+      setSequenceGroupFeedback("Could not copy AI group review package.");
+    }
+  }
+
+  function handleValidateSequenceGroupDelta() {
+    if (!selectedCase) return;
+    const result = ingestSequenceGroupDelta(sequenceGroupDeltaDraft, selectedCase);
+    setSequenceGroupDeltaResult(result);
+    if (result.ok) {
+      setSequenceGroupFeedback("AI group suggestions are valid. Review the preview before applying.");
+    } else {
+      setSequenceGroupFeedback("AI group suggestions need fixes before they can be applied.");
+    }
+  }
+
+  function handleApplySequenceGroupDelta() {
+    if (!selectedCase) return;
+    const validation = ingestSequenceGroupDelta(sequenceGroupDeltaDraft, selectedCase);
+    setSequenceGroupDeltaResult(validation);
+
+    if (!validation.ok) {
+      setSequenceGroupFeedback("AI group suggestions need fixes before they can be applied.");
+      return;
+    }
+
+    const previewCount = Object.values(validation.preview || {}).reduce((sum, items) => sum + (Array.isArray(items) ? items.length : 0), 0);
+    const confirmed = window.confirm(`Apply ${previewCount} AI sequence group change${previewCount === 1 ? "" : "s"}?`);
+    if (!confirmed) return;
+
+    const result = ingestSequenceGroupDelta(sequenceGroupDeltaDraft, selectedCase, { apply: true });
+    onUpdateCase(result.updatedCase);
+    setSequenceGroupDeltaDraft("");
+    setSequenceGroupDeltaResult(null);
+    setSequenceGroupFeedback(`Applied ${previewCount} AI sequence group change${previewCount === 1 ? "" : "s"}.`);
   }
 
   const health = selectedCase ? getCaseHealthReport(selectedCase) : null;
@@ -6452,6 +6519,127 @@ ${ungroupedSequenceText}
                   {sequenceGroupFeedback}
                 </div>
               )}
+
+              <section className="mb-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-600">AI Group Cleanup</h4>
+                    <p className="mt-1 max-w-3xl text-xs leading-5 text-neutral-500">
+                      Copy a compact review package for GPT, then paste sequence-group-delta-1.0 suggestions here. This can only move, rename, merge, or clear sequence groups.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopySequenceGroupReviewPackage}
+                    className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
+                  >
+                    Copy AI group review package
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto_auto]">
+                  <textarea
+                    value={sequenceGroupDeltaDraft}
+                    onChange={(event) => {
+                      setSequenceGroupDeltaDraft(event.target.value);
+                      setSequenceGroupDeltaResult(null);
+                    }}
+                    placeholder='Paste sequence-group-delta-1.0 JSON here'
+                    className="min-h-28 w-full rounded-lg border border-neutral-300 bg-white p-3 font-mono text-xs outline-none focus:border-lime-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleValidateSequenceGroupDelta}
+                    className="h-fit rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
+                  >
+                    Validate
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleApplySequenceGroupDelta}
+                    disabled={!sequenceGroupDeltaDraft.trim()}
+                    className="h-fit rounded-md border border-lime-500 bg-lime-400/20 px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Apply AI group suggestions
+                  </button>
+                </div>
+
+                {sequenceGroupDeltaResult && (
+                  <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                    <div className="rounded-lg border border-neutral-200 bg-white p-3">
+                      <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Validation</div>
+                      {sequenceGroupDeltaResult.errors.length > 0 && (
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-red-700">
+                          {sequenceGroupDeltaResult.errors.map((error) => <li key={error}>{error}</li>)}
+                        </ul>
+                      )}
+                      {sequenceGroupDeltaResult.warnings.length > 0 && (
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-700">
+                          {sequenceGroupDeltaResult.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+                        </ul>
+                      )}
+                      {sequenceGroupDeltaResult.ok && sequenceGroupDeltaResult.warnings.length === 0 && (
+                        <p className="mt-2 text-sm font-medium text-lime-700">No validation errors.</p>
+                      )}
+                    </div>
+
+                    <div className="rounded-lg border border-neutral-200 bg-white p-3">
+                      <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Preview</div>
+                      {(() => {
+                        const preview = sequenceGroupDeltaResult.preview || {};
+                        const totalPreviewCount = Object.values(preview).reduce((sum, items) => sum + (Array.isArray(items) ? items.length : 0), 0);
+                        if (totalPreviewCount === 0) {
+                          return <p className="mt-2 text-sm text-neutral-500">No changes to preview.</p>;
+                        }
+                        return (
+                          <div className="mt-2 space-y-3 text-sm text-neutral-700">
+                            {preview.moveRecords?.length > 0 && (
+                              <div>
+                                <div className="font-semibold text-neutral-900">Records to move</div>
+                                <ul className="mt-1 list-disc space-y-1 pl-5">
+                                  {preview.moveRecords.map((item) => (
+                                    <li key={`move-${item.recordType}-${item.recordId}`}>{item.title}: {item.fromGroup || "Ungrouped"} to {item.targetGroup}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {preview.renameGroups?.length > 0 && (
+                              <div>
+                                <div className="font-semibold text-neutral-900">Groups to rename</div>
+                                <ul className="mt-1 list-disc space-y-1 pl-5">
+                                  {preview.renameGroups.map((item) => (
+                                    <li key={`rename-${item.fromGroup}`}>{item.fromGroup} to {item.toGroup} ({item.affectedCount} records)</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {preview.mergeGroups?.length > 0 && (
+                              <div>
+                                <div className="font-semibold text-neutral-900">Groups to merge</div>
+                                <ul className="mt-1 list-disc space-y-1 pl-5">
+                                  {preview.mergeGroups.map((item) => (
+                                    <li key={`merge-${item.fromGroup}`}>{item.fromGroup} into {item.toGroup} ({item.affectedCount} records)</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {preview.clearRecords?.length > 0 && (
+                              <div>
+                                <div className="font-semibold text-neutral-900">Records to clear</div>
+                                <ul className="mt-1 list-disc space-y-1 pl-5">
+                                  {preview.clearRecords.map((item) => (
+                                    <li key={`clear-${item.recordType}-${item.recordId}`}>{item.title}: clear {item.fromGroup || "Ungrouped"}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+              </section>
 
               {(() => {
                 const search = safeText(sequenceGroupSearch).trim().toLowerCase();
