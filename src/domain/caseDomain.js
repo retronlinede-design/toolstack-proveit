@@ -535,6 +535,69 @@ function buildSequenceGroupRecord(record, recordType) {
   };
 }
 
+function compareSequenceGroupTimelineItems(a, b, direction = "asc") {
+  const dateCompare = String(a.date || "").localeCompare(String(b.date || ""));
+  if (dateCompare !== 0) return direction === "desc" ? -dateCompare : dateCompare;
+  const typeCompare = String(a.recordType || "").localeCompare(String(b.recordType || ""));
+  if (typeCompare !== 0) return typeCompare;
+  return String(a.title || "").localeCompare(String(b.title || ""));
+}
+
+export function getCaseSequenceGroupTimeline(caseItem, sequenceGroup, options = {}) {
+  const groupName = getSequenceGroupValue(sequenceGroup);
+  const sortDirection = options.sortDirection === "desc" ? "desc" : "asc";
+  const items = [];
+
+  if (!caseItem || !groupName) {
+    return {
+      sequenceGroup: groupName,
+      sortDirection,
+      items,
+      datedGroups: [],
+      undatedItems: [],
+    };
+  }
+
+  SEQUENCE_GROUP_RECORD_TYPES.forEach((recordType) => {
+    const records = Array.isArray(caseItem?.[recordType]) ? caseItem[recordType] : [];
+    records.forEach((record) => {
+      if (!record?.id || getSequenceGroupValue(record.sequenceGroup) !== groupName) return;
+      const item = buildSequenceGroupRecord(record, recordType);
+      items.push({
+        ...item,
+        isMilestone: Boolean(record.isMilestone),
+        hasDate: Boolean(item.date),
+        missingDate: !item.date,
+      });
+    });
+  });
+
+  const datedItems = items
+    .filter((item) => item.hasDate)
+    .sort((a, b) => compareSequenceGroupTimelineItems(a, b, sortDirection));
+  const undatedItems = items
+    .filter((item) => !item.hasDate)
+    .sort((a, b) => {
+      const typeCompare = String(a.recordType || "").localeCompare(String(b.recordType || ""));
+      if (typeCompare !== 0) return typeCompare;
+      return String(a.title || "").localeCompare(String(b.title || ""));
+    });
+  const groupedDates = new Map();
+
+  datedItems.forEach((item) => {
+    if (!groupedDates.has(item.date)) groupedDates.set(item.date, []);
+    groupedDates.get(item.date).push(item);
+  });
+
+  return {
+    sequenceGroup: groupName,
+    sortDirection,
+    items: [...datedItems, ...undatedItems],
+    datedGroups: [...groupedDates.entries()].map(([date, groupItems]) => ({ date, items: groupItems })),
+    undatedItems,
+  };
+}
+
 export function getCaseSequenceGroupDetails(caseItem) {
   const groups = new Map();
   const ungroupedRecords = {

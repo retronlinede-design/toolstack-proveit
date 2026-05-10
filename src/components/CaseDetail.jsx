@@ -6,6 +6,7 @@ import { isTimelineCapable, getCaseHealthReport } from "../lib/caseHealth";
 import {
   getCaseSequenceGroups,
   getCaseSequenceGroupDetails,
+  getCaseSequenceGroupTimeline,
   getIncidentsUsingRecord,
   clearRecordSequenceGroup,
   mergeCaseSequenceGroups,
@@ -269,6 +270,8 @@ export default function CaseDetail({
   const [sequenceNewGroupInputs, setSequenceNewGroupInputs] = useState({});
   const [sequenceGroupDeltaDraft, setSequenceGroupDeltaDraft] = useState("");
   const [sequenceGroupDeltaResult, setSequenceGroupDeltaResult] = useState(null);
+  const [sequenceTimelineSort, setSequenceTimelineSort] = useState("asc");
+  const [highlightedSequenceRecordKey, setHighlightedSequenceRecordKey] = useState("");
   const activeGeneratedReportLanguage = normalizeReportLanguage(selectedCase?.activeGeneratedReportLanguage);
   const sequenceGroups = useMemo(() => getCaseSequenceGroups(selectedCase), [selectedCase]);
   const sequenceGroupDetails = useMemo(() => getCaseSequenceGroupDetails(selectedCase), [selectedCase]);
@@ -707,6 +710,8 @@ export default function CaseDetail({
     setSequenceNewGroupInputs({});
     setSequenceGroupDeltaDraft("");
     setSequenceGroupDeltaResult(null);
+    setSequenceTimelineSort("asc");
+    setHighlightedSequenceRecordKey("");
     setSequenceGroupSearch("");
     setSelectedSequenceGroupName(sequenceGroups[0]?.name || "");
     setSequenceGroupFeedback("");
@@ -796,6 +801,16 @@ export default function CaseDetail({
     if (!selectedCase || !record) return;
     onUpdateCase(clearRecordSequenceGroup(selectedCase, record.recordType, record.id));
     setSequenceGroupFeedback(`Removed "${record.title}" from its sequence group.`);
+  }
+
+  function handleSelectSequenceTimelineItem(item) {
+    if (!item) return;
+    const key = `${item.recordType}:${item.id}`;
+    setHighlightedSequenceRecordKey(key);
+    const element = document.getElementById(`sequence-record-${item.recordType}-${item.id}`);
+    if (element?.scrollIntoView) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
   }
 
   async function copySequenceGroupText(text) {
@@ -6645,6 +6660,9 @@ ${ungroupedSequenceText}
                 const search = safeText(sequenceGroupSearch).trim().toLowerCase();
                 const selectedGroup = sequenceGroupDetails.groups.find((group) => group.name === selectedSequenceGroupName) || sequenceGroupDetails.groups[0] || null;
                 const selectedGroupName = selectedGroup?.name || "";
+                const selectedGroupTimeline = selectedGroupName
+                  ? getCaseSequenceGroupTimeline(selectedCase, selectedGroupName, { sortDirection: sequenceTimelineSort })
+                  : { datedGroups: [], undatedItems: [], items: [] };
                 const groupOptions = sequenceGroupDetails.groups.map((group) => group.name);
                 const typeLabels = {
                   incidents: "Incidents",
@@ -6705,7 +6723,15 @@ ${ungroupedSequenceText}
                   );
                 };
                 const renderRecordCard = (record, includeRemove = true) => (
-                  <div key={`${record.recordType}-${record.id}`} className="rounded-lg border border-neutral-200 bg-white p-3">
+                  <div
+                    key={`${record.recordType}-${record.id}`}
+                    id={`sequence-record-${record.recordType}-${record.id}`}
+                    className={`rounded-lg border bg-white p-3 transition-colors ${
+                      highlightedSequenceRecordKey === `${record.recordType}:${record.id}`
+                        ? "border-lime-400 ring-2 ring-lime-200"
+                        : "border-neutral-200"
+                    }`}
+                  >
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -6729,6 +6755,58 @@ ${ungroupedSequenceText}
                     </div>
                     {renderRecordActions(record, includeRemove)}
                   </div>
+                );
+                const getTimelineTypeClasses = (recordType) => {
+                  if (recordType === "incidents") return "border-red-200 bg-red-50 text-red-700";
+                  if (recordType === "evidence") return "border-lime-200 bg-lime-50 text-lime-700";
+                  if (recordType === "documents") return "border-sky-200 bg-sky-50 text-sky-700";
+                  return "border-violet-200 bg-violet-50 text-violet-700";
+                };
+                const renderTimelineItem = (item) => (
+                  <button
+                    key={`${item.recordType}-${item.id}`}
+                    type="button"
+                    onClick={() => handleSelectSequenceTimelineItem(item)}
+                    className={`relative w-full rounded-lg border bg-white p-3 text-left transition-colors hover:border-lime-300 ${
+                      highlightedSequenceRecordKey === `${item.recordType}:${item.id}`
+                        ? "border-lime-400 ring-2 ring-lime-200"
+                        : "border-neutral-200"
+                    }`}
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${getTimelineTypeClasses(item.recordType)}`}>
+                            {item.recordType}
+                          </span>
+                          {item.isMilestone && (
+                            <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                              Milestone
+                            </span>
+                          )}
+                          {item.missingDate && (
+                            <span className="rounded border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-700">
+                              Missing date
+                            </span>
+                          )}
+                          {item.status && (
+                            <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                              {item.status}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-2 text-sm font-semibold text-neutral-950">{item.title}</div>
+                        {item.summary ? (
+                          <p className="mt-1 line-clamp-2 text-sm leading-5 text-neutral-700">{item.summary}</p>
+                        ) : (
+                          <p className="mt-1 text-sm italic text-neutral-400">No summary recorded.</p>
+                        )}
+                      </div>
+                      <div className="shrink-0 text-xs font-semibold text-neutral-500">
+                        {item.linkedRecordCount} linked
+                      </div>
+                    </div>
+                  </button>
                 );
                 const ungroupedCount = Object.values(sequenceGroupDetails.ungroupedRecords)
                   .reduce((sum, records) => sum + records.length, 0);
@@ -6849,6 +6927,67 @@ ${ungroupedSequenceText}
                                 </button>
                               </div>
                             </div>
+
+                            <section className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Timeline</h4>
+                                  <p className="mt-1 text-xs text-neutral-500">
+                                    Chronological view for records in this sequence group.
+                                  </p>
+                                </div>
+                                <div className="inline-flex rounded-md border border-neutral-200 bg-white p-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSequenceTimelineSort("asc")}
+                                    className={`rounded px-3 py-1.5 text-xs font-bold ${
+                                      sequenceTimelineSort === "asc"
+                                        ? "bg-lime-400/30 text-neutral-900"
+                                        : "text-neutral-500 hover:bg-neutral-50"
+                                    }`}
+                                  >
+                                    Oldest first
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setSequenceTimelineSort("desc")}
+                                    className={`rounded px-3 py-1.5 text-xs font-bold ${
+                                      sequenceTimelineSort === "desc"
+                                        ? "bg-lime-400/30 text-neutral-900"
+                                        : "text-neutral-500 hover:bg-neutral-50"
+                                    }`}
+                                  >
+                                    Newest first
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="mt-4 space-y-4 border-l-2 border-neutral-200 pl-4">
+                                {selectedGroupTimeline.datedGroups.length === 0 && (
+                                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                                    This group has no dated records. Check the undated records below or add dates to build a usable sequence.
+                                  </div>
+                                )}
+                                {selectedGroupTimeline.datedGroups.map((dateGroup) => (
+                                  <div key={dateGroup.date} className="relative">
+                                    <div className="absolute -left-[1.45rem] top-1.5 h-3 w-3 rounded-full border-2 border-white bg-neutral-400" />
+                                    <div className="mb-2 text-xs font-bold uppercase tracking-wider text-neutral-500">{dateGroup.date}</div>
+                                    <div className="space-y-2">
+                                      {dateGroup.items.map(renderTimelineItem)}
+                                    </div>
+                                  </div>
+                                ))}
+                                {selectedGroupTimeline.undatedItems.length > 0 && (
+                                  <div className="relative">
+                                    <div className="absolute -left-[1.45rem] top-1.5 h-3 w-3 rounded-full border-2 border-white bg-amber-400" />
+                                    <div className="mb-2 text-xs font-bold uppercase tracking-wider text-amber-700">Undated records</div>
+                                    <div className="space-y-2">
+                                      {selectedGroupTimeline.undatedItems.map(renderTimelineItem)}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </section>
 
                             <div className="mt-5 grid gap-4 xl:grid-cols-2">
                               {Object.entries(typeLabels).map(([recordType, label]) => {

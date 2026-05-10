@@ -9,6 +9,7 @@ import {
   deleteRecordFromCase,
   getCaseSequenceGroups,
   getCaseSequenceGroupDetails,
+  getCaseSequenceGroupTimeline,
   getIncidentLinkGroups,
   getIncidentsUsingRecord,
   linkRecordToIncident,
@@ -246,6 +247,56 @@ test("getCaseSequenceGroupDetails lists groups, counts, warnings, and ungrouped 
   assert.deepEqual(details.ungroupedRecords.incidents.map((record) => record.id), ["inc-2"]);
   assert.deepEqual(details.ungroupedRecords.documents.map((record) => record.id), ["doc-2"]);
   assert.equal(details.groups.find((group) => group.name === "Leak Thread").records.incidents[0].linkedRecordCount, 1);
+});
+
+test("getCaseSequenceGroupTimeline includes supported records sorted by date and excludes unrelated groups", () => {
+  const caseItem = {
+    incidents: [
+      { id: "inc-1", title: "Middle incident", eventDate: "2024-01-02", sequenceGroup: "Leak", linkedEvidenceIds: ["ev-1"], isMilestone: true },
+      { id: "inc-other", title: "Other incident", eventDate: "2024-01-01", sequenceGroup: "Other" },
+    ],
+    evidence: [
+      { id: "ev-1", title: "First evidence", capturedAt: "2024-01-01", sequenceGroup: "Leak", linkedIncidentIds: ["inc-1"] },
+    ],
+    documents: [
+      { id: "doc-1", title: "Third document", documentDate: "2024-01-03", sequenceGroup: "Leak", linkedRecordIds: ["inc-1"] },
+    ],
+    strategy: [
+      { id: "str-1", title: "Undated strategy", sequenceGroup: "Leak", notes: "No date yet." },
+    ],
+    ledger: [
+      { id: "ledger-1", title: "Ignored ledger", date: "2024-01-01", sequenceGroup: "Leak" },
+    ],
+  };
+
+  const timeline = getCaseSequenceGroupTimeline(caseItem, "Leak");
+
+  assert.deepEqual(timeline.items.map((item) => item.id), ["ev-1", "inc-1", "doc-1", "str-1"]);
+  assert.deepEqual(timeline.datedGroups.map((group) => group.date), ["2024-01-01", "2024-01-02", "2024-01-03"]);
+  assert.deepEqual(timeline.undatedItems.map((item) => item.id), ["str-1"]);
+  assert.equal(timeline.items.find((item) => item.id === "inc-1").isMilestone, true);
+  assert.equal(timeline.items.find((item) => item.id === "str-1").missingDate, true);
+  assert.equal(timeline.items.some((item) => item.id === "inc-other"), false);
+  assert.equal(timeline.items.some((item) => item.id === "ledger-1"), false);
+});
+
+test("getCaseSequenceGroupTimeline supports newest first ordering while keeping undated records separate", () => {
+  const caseItem = {
+    incidents: [
+      { id: "inc-1", title: "Older", eventDate: "2024-01-01", sequenceGroup: "Leak" },
+      { id: "inc-2", title: "Newer", eventDate: "2024-01-03", sequenceGroup: "Leak" },
+      { id: "inc-3", title: "Undated", sequenceGroup: "Leak" },
+    ],
+    evidence: [
+      { id: "ev-1", title: "Middle", capturedAt: "2024-01-02", sequenceGroup: "Leak" },
+    ],
+  };
+
+  const timeline = getCaseSequenceGroupTimeline(caseItem, "Leak", { sortDirection: "desc" });
+
+  assert.deepEqual(timeline.datedGroups.map((group) => group.date), ["2024-01-03", "2024-01-02", "2024-01-01"]);
+  assert.deepEqual(timeline.items.map((item) => item.id), ["inc-2", "ev-1", "inc-1", "inc-3"]);
+  assert.deepEqual(timeline.undatedItems.map((item) => item.id), ["inc-3"]);
 });
 
 test("moveRecordToSequenceGroup moves supported record types and preserves ids and createdAt", () => {
