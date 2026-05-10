@@ -1,4 +1,7 @@
 import {
+  EVIDENCE_ROLES,
+  EVIDENCE_TYPES,
+  INCIDENT_EVIDENCE_STATUSES,
   applyRecordPatchToCase,
   generateId,
   normalizeActionSummary,
@@ -226,6 +229,128 @@ const BINARY_CREATE_FIELDS = [
   "files",
   "storage",
 ];
+const TEXT_FIELD_LIMITS = {
+  title: 180,
+  summary: 1500,
+  description: 5000,
+  notes: 5000,
+  textContent: 10000,
+  reviewNotes: 5000,
+  functionSummary: 5000,
+};
+const STRING_FIELDS = new Set([
+  "title",
+  "summary",
+  "description",
+  "notes",
+  "textContent",
+  "reviewNotes",
+  "functionSummary",
+  "date",
+  "eventDate",
+  "capturedAt",
+  "source",
+  "sequenceGroup",
+  "category",
+  "documentDate",
+  "subType",
+  "label",
+  "period",
+  "currency",
+  "dueDate",
+  "paymentDate",
+  "status",
+  "method",
+  "reference",
+  "counterparty",
+  "proofType",
+  "proofStatus",
+  "batchLabel",
+  "importance",
+  "evidenceStatus",
+  "relevance",
+  "sourceType",
+  "evidenceRole",
+  "evidenceType",
+  "currentFocus",
+]);
+const NUMBER_FIELDS = new Set(["expectedAmount", "paidAmount"]);
+const BOOLEAN_FIELDS = new Set(["isMilestone", "isTrackingRecord"]);
+const ARRAY_FIELDS = new Set([...ARRAY_PATCH_FIELDS]);
+const INCIDENT_STATUS_VALUES = ["open", "archived"];
+const RECORD_IMPORTANCE_VALUES = ["unreviewed", "critical", "strong", "supporting", "weak"];
+const EVIDENCE_STATUS_VALUES = ["verified", "needs_review", "incomplete"];
+const EVIDENCE_RELEVANCE_VALUES = ["high", "medium", "low"];
+const EVIDENCE_SOURCE_TYPE_VALUES = [
+  "digital",
+  "physical",
+  "email",
+  "message",
+  "photo",
+  "document",
+  "witness",
+  "other",
+];
+const LEDGER_CATEGORY_VALUES = ["rent", "installment", "deposit", "furniture", "repair", "utility", "legal", "other"];
+const LEDGER_STATUS_VALUES = ["planned", "paid", "part-paid", "unpaid", "disputed", "refunded"];
+const LEDGER_METHOD_VALUES = ["bank_transfer", "cash", "card", "direct_debit", "standing_order", "paypal", "other"];
+const LEDGER_SUBTYPE_VALUES = [
+  "rent",
+  "arrears",
+  "installment",
+  "deposit",
+  "repair",
+  "utility",
+  "legal",
+  "fee",
+  "refund",
+  "income",
+  "credit",
+  "expense",
+  "debit",
+  "other",
+];
+const LEDGER_PROOF_TYPE_VALUES = [
+  "receipt",
+  "invoice",
+  "bank_statement",
+  "transfer_record",
+  "payment_confirmation",
+  "contract",
+  "statement",
+  "message",
+  "email",
+  "photo",
+  "document",
+  "other",
+];
+const LEDGER_PROOF_STATUS_VALUES = ["missing", "partial", "confirmed"];
+const ENUM_VALUES_BY_SECTION = {
+  incidents: {
+    status: INCIDENT_STATUS_VALUES,
+    importance: RECORD_IMPORTANCE_VALUES,
+    evidenceStatus: [...INCIDENT_EVIDENCE_STATUSES, "supported"],
+  },
+  evidence: {
+    status: EVIDENCE_STATUS_VALUES,
+    importance: RECORD_IMPORTANCE_VALUES,
+    relevance: EVIDENCE_RELEVANCE_VALUES,
+    sourceType: EVIDENCE_SOURCE_TYPE_VALUES,
+    evidenceRole: EVIDENCE_ROLES,
+    evidenceType: EVIDENCE_TYPES,
+  },
+  ledger: {
+    category: LEDGER_CATEGORY_VALUES,
+    subType: LEDGER_SUBTYPE_VALUES,
+    status: LEDGER_STATUS_VALUES,
+    method: LEDGER_METHOD_VALUES,
+    proofType: LEDGER_PROOF_TYPE_VALUES,
+    proofStatus: LEDGER_PROOF_STATUS_VALUES,
+  },
+  strategy: {
+    status: INCIDENT_STATUS_VALUES,
+  },
+};
 
 function getUnsupportedPatchSections(patch = {}) {
   if (!patch || typeof patch !== "object" || Array.isArray(patch)) return [];
@@ -238,6 +363,129 @@ function listFields(fields = []) {
 
 function safeText(value) {
   return typeof value === "string" ? value : "";
+}
+
+function sanitizePreviewText(value) {
+  const text = String(value ?? "").normalize("NFC");
+  return text
+    .replaceAll("Ã¢â‚¬â€", "-")
+    .replaceAll("Ã¢â‚¬â€œ", "-")
+    .replaceAll("â€”", "-")
+    .replaceAll("â€“", "-")
+    .replaceAll("â€™", "'")
+    .replaceAll("â€˜", "'")
+    .replaceAll("â€œ", "\"")
+    .replaceAll("â€", "\"")
+    .replaceAll("Â", "")
+    .replace(/\uFFFD/g, "");
+}
+
+function levenshteinDistance(a = "", b = "") {
+  const left = String(a).toLowerCase();
+  const right = String(b).toLowerCase();
+  const matrix = Array.from({ length: left.length + 1 }, (_, row) => [row]);
+
+  for (let column = 1; column <= right.length; column += 1) {
+    matrix[0][column] = column;
+  }
+
+  for (let row = 1; row <= left.length; row += 1) {
+    for (let column = 1; column <= right.length; column += 1) {
+      const cost = left[row - 1] === right[column - 1] ? 0 : 1;
+      matrix[row][column] = Math.min(
+        matrix[row - 1][column] + 1,
+        matrix[row][column - 1] + 1,
+        matrix[row - 1][column - 1] + cost
+      );
+    }
+  }
+
+  return matrix[left.length][right.length];
+}
+
+function getClosestEnumSuggestion(value, validValues = []) {
+  const normalized = String(value || "").trim();
+  if (!normalized || validValues.length === 0) return "";
+
+  const ranked = validValues
+    .map((candidate) => ({
+      candidate,
+      distance: levenshteinDistance(normalized, candidate),
+    }))
+    .sort((a, b) => a.distance - b.distance);
+
+  const best = ranked[0];
+  if (!best) return "";
+  return best.distance <= Math.max(2, Math.floor(String(best.candidate).length / 3)) ? best.candidate : "";
+}
+
+function getEnumValues(section, field) {
+  return ENUM_VALUES_BY_SECTION[section]?.[field] || null;
+}
+
+function validateGptDeltaFieldValue(section, field, value, contextLabel) {
+  // Text length limits stop GPT from injecting oversized content into patch/create previews or saved records.
+  if (Object.prototype.hasOwnProperty.call(TEXT_FIELD_LIMITS, field)) {
+    if (typeof value !== "string") {
+      return `${contextLabel}.${field} must be a string.`;
+    }
+    if (value.length > TEXT_FIELD_LIMITS[field]) {
+      return `${contextLabel}.${field} exceeds ${TEXT_FIELD_LIMITS[field]} characters.`;
+    }
+  }
+
+  // Scalar type checks reject values before domain normalization could silently coerce them.
+  if (STRING_FIELDS.has(field) && value != null && typeof value !== "string") {
+    return `${contextLabel}.${field} must be a string.`;
+  }
+
+  if (NUMBER_FIELDS.has(field) && (typeof value !== "number" || !Number.isFinite(value))) {
+    return `${contextLabel}.${field} must be a finite number.`;
+  }
+
+  if (BOOLEAN_FIELDS.has(field) && typeof value !== "boolean") {
+    return `${contextLabel}.${field} must be a boolean.`;
+  }
+
+  if (ARRAY_FIELDS.has(field) && !Array.isArray(value)) {
+    return `${contextLabel}.${field} must be an array.`;
+  }
+
+  // Enum validation is limited to app vocabularies that already exist in the case domain/UI.
+  const enumValues = getEnumValues(section, field);
+  if (enumValues && value != null && value !== "" && !enumValues.includes(value)) {
+    const suggestion = getClosestEnumSuggestion(value, enumValues);
+    return `${contextLabel}.${field} has unsupported value "${value}". Valid values: ${listFields(enumValues)}.${suggestion ? ` Did you mean "${suggestion}"?` : ""}`;
+  }
+
+  return "";
+}
+
+function validateGptDeltaFields(section, source = {}, contextLabel = section) {
+  for (const [field, value] of Object.entries(source || {})) {
+    const fieldError = validateGptDeltaFieldValue(section, field, value, contextLabel);
+    if (fieldError) return fieldError;
+  }
+  return "";
+}
+
+function validateActionSummaryPatchFields(actionSummaryPatch = {}) {
+  if (Object.prototype.hasOwnProperty.call(actionSummaryPatch, "currentFocus") && typeof actionSummaryPatch.currentFocus !== "string") {
+    return "actionSummary.currentFocus must be a string.";
+  }
+
+  for (const field of ACTION_SUMMARY_LIST_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(actionSummaryPatch, field)) continue;
+    if (!Array.isArray(actionSummaryPatch[field])) {
+      return `actionSummary.${field} must be an array.`;
+    }
+    const invalidItems = actionSummaryPatch[field].filter((item) => typeof item !== "string");
+    if (invalidItems.length > 0) {
+      return `actionSummary.${field} must contain only strings.`;
+    }
+  }
+
+  return "";
 }
 
 function getPayloadApp(payload = {}) {
@@ -364,6 +612,7 @@ function buildIdValidationContext(caseItem, tempIdMap = new Map(), tempIdSection
 }
 
 function validateLinkedIdsForItem(section, title, source, linkFields, validationContext) {
+  // ID validation rejects links unless they point to canonical case records or temp IDs declared in this delta.
   for (const field of linkFields) {
     if (!Object.prototype.hasOwnProperty.call(source, field)) continue;
     if (!Array.isArray(source[field])) {
@@ -447,15 +696,13 @@ export function normalizeGptStrategyDelta(payload = {}) {
       warnings.push(`Strategy ${item.id} has unsupported field(s) for gpt-delta-1.0: ${listFields(unsupportedFields)}.`);
     }
 
+    const strategyFieldError = validateGptDeltaFields("strategy", item.patch, `strategy.patch ${item.id}`);
+    if (strategyFieldError) return { ok: false, reason: strategyFieldError };
+
     const patch = STRATEGY_PATCHABLE_FIELDS.reduce((normalized, field) => {
       if (!Object.prototype.hasOwnProperty.call(item.patch, field)) return normalized;
 
-      if (STRATEGY_LIST_FIELDS.includes(field)) {
-        normalized[field] = Array.isArray(item.patch[field]) ? item.patch[field] : [];
-        return normalized;
-      }
-
-      normalized[field] = typeof item.patch[field] === "string" ? item.patch[field] : "";
+      normalized[field] = item.patch[field];
       return normalized;
     }, {});
 
@@ -735,6 +982,9 @@ export function normalizeGptCreateDelta(caseItem, payload = {}) {
       return { ok: false, reason: `${section}.create has unsupported field(s): ${listFields(unsupportedFields)}.` };
     }
 
+    const fieldError = validateGptDeltaFields(section, item, `${section}.create item ${index + 1}`);
+    if (fieldError) return { ok: false, reason: fieldError };
+
     const title = getCreateTitle(section, item);
     if (!title) {
       return { ok: false, reason: `${section}.create item ${index + 1} requires ${section === "ledger" ? "label" : "title"}.` };
@@ -929,6 +1179,9 @@ export function normalizeGptV2Delta(caseItem, payload = {}) {
       return { ok: false, reason: `${section}.patch ${recordId} must include at least one supported field.` };
     }
 
+    const fieldError = validateGptDeltaFields(section, item.patch, `${section}.patch ${recordId}`);
+    if (fieldError) return { ok: false, reason: fieldError };
+
     const invalidArrayFields = Object.keys(item.patch).filter((field) =>
       ARRAY_PATCH_FIELDS.includes(field) && !Array.isArray(item.patch[field])
     );
@@ -976,6 +1229,9 @@ export function applyGptActionSummaryDeltaToCase(caseItem, actionSummaryPatch = 
   if (unsupportedFields.length > 0) {
     warnings.push(`actionSummary has unsupported field(s) for gpt-delta-1.0: ${listFields(unsupportedFields)}.`);
   }
+
+  const actionSummaryFieldError = validateActionSummaryPatchFields(actionSummaryPatch);
+  if (actionSummaryFieldError) return { ok: false, reason: actionSummaryFieldError };
 
   ACTION_SUMMARY_LIST_FIELDS.forEach((field) => {
     if (!Object.prototype.hasOwnProperty.call(actionSummaryPatch, field)) return;
@@ -1198,10 +1454,11 @@ export function ingestGptDelta(caseItem, payload) {
 }
 
 function formatPreviewValue(value) {
-  if (Array.isArray(value)) return value.join("\n");
+  // Preview sanitation keeps invalid/mojibake characters out of the modal without changing saved case data.
+  if (Array.isArray(value)) return sanitizePreviewText(value.join("\n"));
   if (value == null) return "";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
+  if (typeof value === "object") return sanitizePreviewText(JSON.stringify(value));
+  return sanitizePreviewText(value);
 }
 
 function buildFieldChanges(fields, currentSource = {}, updatedSource = {}) {
