@@ -29,6 +29,7 @@ import CaseBundleReportArticle from "./reports/CaseBundleReportArticle";
 import DocumentPackReportArticle from "./reports/DocumentPackReportArticle";
 import EvidencePackReportArticle from "./reports/EvidencePackReportArticle";
 import ExecutiveSummaryReportArticle from "./reports/ExecutiveSummaryReportArticle";
+import GeneratedClientReportArticle from "./reports/GeneratedClientReportArticle";
 import LedgerPackReportArticle from "./reports/LedgerPackReportArticle";
 import ThreadIssueReportArticle from "./reports/ThreadIssueReportArticle";
 
@@ -2589,45 +2590,6 @@ ${ungroupedSequenceText}
       updatedAt: new Date().toISOString(),
     });
   };
-  const parseMilestoneTimelineEntry = (value) => {
-    const text = safeText(value).replace(/\s+/g, " ").trim();
-    if (!text) return { date: "", title: "", note: "" };
-
-    const separators = [" – ", " — ", " - "];
-    for (const separator of separators) {
-      const separatorIndex = text.indexOf(separator);
-      if (separatorIndex > 0) {
-        const candidateDate = text.slice(0, separatorIndex).trim();
-        const remainder = text.slice(separatorIndex + separator.length).trim();
-        if (candidateDate && remainder) {
-          const colonIndex = remainder.indexOf(":");
-          if (colonIndex > 0) {
-            return {
-              date: candidateDate,
-              title: remainder.slice(0, colonIndex).trim() || remainder,
-              note: remainder.slice(colonIndex + 1).trim(),
-            };
-          }
-          return {
-            date: candidateDate,
-            title: remainder,
-            note: "",
-          };
-        }
-      }
-    }
-
-    const colonIndex = text.indexOf(":");
-    if (colonIndex > 0) {
-      return {
-        date: "",
-        title: text.slice(0, colonIndex).trim() || text,
-        note: text.slice(colonIndex + 1).trim(),
-      };
-    }
-
-    return { date: "", title: text, note: "" };
-  };
   const reportDisplayDate = new Date().toLocaleDateString("de-DE", {
     day: "2-digit",
     month: "2-digit",
@@ -2650,246 +2612,6 @@ ${ungroupedSequenceText}
       ...current,
       [section]: !current[section],
     }));
-  };
-  const renderGeneratedReportArticle = (className = "", variant = "default") => {
-    const isPackVariant = variant === "pack";
-    const displayLanguage = reportDisplayLanguage;
-    const headingLabel = (key) => getReportHeadingLabel(key, displayLanguage);
-
-    return (
-    <article className={className}>
-      <div className="proveit-print-cover proveit-print-cover-break print:block hidden">
-        <div className="proveit-print-cover-brand">
-          <img src={proveItHeaderLogo} alt="ProveIt" />
-          <div>
-            <div className="text-sm font-bold uppercase tracking-[0.18em] text-neutral-900">ProveIt</div>
-            <div className="mt-1 text-[9pt] font-medium text-neutral-500">Evidence Management & Case Engine</div>
-          </div>
-        </div>
-        <div className="proveit-print-cover-title">
-          <div className="text-xs font-bold uppercase tracking-[0.24em] text-neutral-500">CLIENT REPORT</div>
-          <h1 className="mt-5 text-4xl font-bold leading-tight text-neutral-950 print:text-[26pt]">Client Report</h1>
-          <p className="mt-5 text-lg font-semibold text-neutral-800 print:text-[15pt]">
-            {selectedCase?.name || selectedCase?.id || "Untitled Case"}
-          </p>
-          <p className="mt-3 text-sm font-medium text-neutral-500 print:text-[11pt]">{reportHeaderMeta}</p>
-          {reportCoverSubtitle && (
-            <p className="mt-6 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500 print:text-[9pt]">
-              {reportCoverSubtitle}
-            </p>
-          )}
-        </div>
-      </div>
-      <header className={`proveit-print-body-header print-pack-header border-b border-neutral-200 print:hidden ${isPackVariant ? "pb-7" : "pb-6"}`}>
-        <div className="min-w-0">
-          <div className={`font-bold uppercase tracking-[0.18em] text-neutral-500 ${isPackVariant ? "text-[11px]" : "text-xs"}`}>
-            CLIENT REPORT
-          </div>
-          <div className="mt-2 flex items-center justify-between gap-4 print:mt-4">
-            <h1 className={`min-w-0 break-words font-bold leading-tight text-neutral-950 print:text-[22pt] ${isPackVariant ? "text-4xl" : "text-3xl"}`}>
-              {parsedGeneratedReport.reportTitle || headingLabel("REPORT_TITLE")}
-            </h1>
-            <div className="shrink-0 whitespace-nowrap text-right text-base font-medium text-neutral-500 print:mt-2 print:text-[11pt]">
-              {reportHeaderMeta}
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {parsedGeneratedReport.atAGlance?.length > 0 && (
-        <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6 first:pt-7" : "py-6"} first:border-t-0 first:pt-6`}>
-          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-3" : "pb-3"}`}>
-            <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>{headingLabel("AT_A_GLANCE")}</h4>
-          </div>
-          <ul className={`list-disc pl-5 ${isPackVariant ? "mt-5 space-y-3" : "mt-4 space-y-3"}`}>
-            {parsedGeneratedReport.atAGlance.map((item) => (
-              <li key={item} className={`text-neutral-700 marker:text-neutral-400 ${isPackVariant ? "text-[15px] leading-7" : "text-sm leading-6"}`}>
-                {item}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {parsedGeneratedReport.yourSituation && (
-        <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
-          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-3" : "pb-3"}`}>
-            <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>{headingLabel("YOUR_SITUATION")}</h4>
-          </div>
-          <p className={`whitespace-pre-wrap text-neutral-700 ${isPackVariant ? "mt-5 text-[15px] leading-7" : "mt-4 text-sm leading-6"}`}>
-            {parsedGeneratedReport.yourSituation}
-          </p>
-        </section>
-      )}
-
-      {parsedGeneratedReport.mainAreasOfConcern.length > 0 && (
-        <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
-          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-3" : "pb-3"}`}>
-            <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>{headingLabel("MAIN_AREAS_OF_CONCERN")}</h4>
-          </div>
-          <ul className={`list-disc pl-5 ${isPackVariant ? "mt-5 space-y-3" : "mt-4 space-y-3"}`}>
-            {parsedGeneratedReport.mainAreasOfConcern.map((item) => (
-              <li key={item} className={`text-neutral-700 marker:text-neutral-400 ${isPackVariant ? "text-[15px] leading-7" : "text-sm leading-6"}`}>
-                {item}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {parsedGeneratedReport.whatThisReportShows.length > 0 && (
-        <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
-          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-3" : "pb-3"}`}>
-            <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>{headingLabel("WHAT_THIS_REPORT_SHOWS")}</h4>
-          </div>
-          <ul className={`list-disc pl-5 ${isPackVariant ? "mt-5 space-y-3" : "mt-4 space-y-3"}`}>
-            {parsedGeneratedReport.whatThisReportShows.map((item) => (
-              <li key={item} className={`text-lime-950 marker:text-lime-700 ${isPackVariant ? "text-[15px] leading-7" : "text-sm leading-6"}`}>
-                {item}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {parsedGeneratedReport.milestoneTimeline?.length > 0 && (
-        <section className={`proveit-print-section proveit-print-section-break border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
-          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-3" : "pb-3"}`}>
-            <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>{headingLabel("MILESTONE_TIMELINE")}</h4>
-          </div>
-          <div className={`relative ${isPackVariant ? "mt-5 space-y-3.5" : "mt-4 space-y-3.5"}`}>
-            {parsedGeneratedReport.milestoneTimeline.map((item, index) => {
-              const timelineItem = parseMilestoneTimelineEntry(item);
-              return (
-                <div
-                  key={`${item}-${index}`}
-                  className={`proveit-print-avoid-break print-pack-timeline-entry grid grid-cols-[1.25rem_1fr] gap-3 break-inside-avoid ${isPackVariant ? "items-start" : "items-start"}`}
-                >
-                  <div className="flex h-full flex-col items-center">
-                    <span className={`mt-1 block h-2.5 w-2.5 rounded-full border border-amber-300 bg-white`}></span>
-                    {index < parsedGeneratedReport.milestoneTimeline.length - 1 && (
-                      <span className={`mt-2 w-px flex-1 bg-amber-200/70`}></span>
-                    )}
-                  </div>
-                  <div className={`rounded-lg border border-amber-100 bg-white ${isPackVariant ? "px-4 py-3.5" : "px-3.5 py-3"}`}>
-                    {timelineItem.date && (
-                      <div className={`text-neutral-500 ${isPackVariant ? "text-xs" : "text-[11px]"} font-semibold uppercase tracking-[0.08em]`}>
-                        {timelineItem.date}
-                      </div>
-                    )}
-                    <div className={`text-neutral-950 ${isPackVariant ? "mt-1 text-[15px] leading-6" : "mt-1 text-sm leading-6"} font-semibold`}>
-                      {timelineItem.title || item}
-                    </div>
-                    {timelineItem.note && (
-                      <p className={`text-neutral-700 ${isPackVariant ? "mt-1.5 text-[15px] leading-7" : "mt-1 text-sm leading-6"}`}>
-                        {timelineItem.note}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {parsedGeneratedReport.issues.length > 0 && (
-        <section className={`proveit-print-section proveit-print-section-break border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
-          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-3" : "pb-3"}`}>
-            <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>Issue Sections</h4>
-          </div>
-          <div className={`${isPackVariant ? "mt-6 space-y-6" : "mt-4 space-y-5"}`}>
-            {parsedGeneratedReport.issues.map((issue, index) => (
-              <section
-                key={`${issue.title || "issue"}-${index}`}
-                className={`proveit-print-issue print-pack-issue-section break-inside-avoid rounded-lg border border-l-4 border-neutral-200 border-l-lime-500 bg-white ${isPackVariant ? "p-6 shadow-sm shadow-neutral-100" : "p-5"}`}
-              >
-                <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-4" : "pb-3"}`}>
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{headingLabel("ISSUE")}</div>
-                  <h5 className={`mt-2 break-words font-semibold leading-tight text-neutral-950 ${isPackVariant ? "text-2xl" : "text-xl"}`}>
-                    {issue.title || "Untitled issue"}
-                  </h5>
-                </div>
-
-                {issue.whatHappened && (
-                  <div className={isPackVariant ? "mt-5" : "mt-4"}>
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{headingLabel("WHAT_HAPPENED")}</div>
-                    <p className={`mt-2 text-neutral-700 ${isPackVariant ? "text-[15px] leading-7" : "text-sm leading-6"}`}>{issue.whatHappened}</p>
-                  </div>
-                )}
-
-                {issue.keyProof.length > 0 && (
-                  <div className={`proveit-print-avoid-break rounded-lg border border-neutral-200 bg-neutral-50/60 ${isPackVariant ? "mt-6 p-5" : "mt-5 p-4"}`}>
-                    <h6 className="text-xs font-bold uppercase tracking-wider text-neutral-500">{headingLabel("KEY_PROOF")}</h6>
-                    <ul className={`list-disc pl-5 text-neutral-700 ${isPackVariant ? "mt-4 space-y-2.5 text-[15px] leading-7" : "mt-3 space-y-2 text-sm leading-6"}`}>
-                      {issue.keyProof.map((item) => (
-                        <li key={item} className="marker:text-neutral-400">{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {issue.whatThisMeans.length > 0 && (
-                  <div className={`proveit-print-avoid-break rounded-lg border border-lime-200 bg-lime-50/70 ${isPackVariant ? "mt-6 p-5" : "mt-5 p-4"}`}>
-                    <h6 className="text-xs font-bold uppercase tracking-wider text-lime-800">{headingLabel("WHAT_THIS_MEANS")}</h6>
-                    <ul className={`list-disc pl-5 text-lime-950 ${isPackVariant ? "mt-4 space-y-2.5 text-[15px] leading-7" : "mt-3 space-y-2 text-sm leading-6"}`}>
-                      {issue.whatThisMeans.map((item) => (
-                        <li key={item} className="marker:text-lime-700">{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </section>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {parsedGeneratedReport.keyFacts.length > 0 && (
-        <section className={`proveit-print-section proveit-print-section-break border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
-          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-3" : "pb-3"}`}>
-            <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>{headingLabel("KEY_FACTS")}</h4>
-          </div>
-          <ul className={`list-disc pl-5 ${isPackVariant ? "mt-5 space-y-3" : "mt-4 space-y-3"}`}>
-            {parsedGeneratedReport.keyFacts.map((item) => (
-              <li key={item} className={`text-neutral-700 marker:text-neutral-400 ${isPackVariant ? "text-[15px] leading-7" : "text-sm leading-6"}`}>
-                {item}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {parsedGeneratedReport.currentPosition && (
-        <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
-          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-3" : "pb-3"}`}>
-            <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>{headingLabel("CURRENT_POSITION")}</h4>
-          </div>
-          <p className={`whitespace-pre-wrap text-neutral-700 ${isPackVariant ? "mt-5 text-[15px] leading-7" : "mt-4 text-sm leading-6"}`}>
-            {parsedGeneratedReport.currentPosition}
-          </p>
-        </section>
-      )}
-
-      {parsedGeneratedReport.recommendedNextSteps.length > 0 && (
-        <section className={`border-t border-neutral-200 ${isPackVariant ? "py-8 print:py-6" : "py-6"}`}>
-          <div className={`border-b border-neutral-100 ${isPackVariant ? "pb-3" : "pb-3"}`}>
-            <h4 className={`font-bold uppercase tracking-wider text-neutral-500 ${isPackVariant ? "text-xs" : "text-sm"}`}>{headingLabel("RECOMMENDED_NEXT_STEPS")}</h4>
-          </div>
-          <ul className={`list-disc pl-5 ${isPackVariant ? "mt-5 space-y-3" : "mt-4 space-y-3"}`}>
-            {parsedGeneratedReport.recommendedNextSteps.map((item) => (
-              <li key={item} className={`text-neutral-700 marker:text-neutral-400 ${isPackVariant ? "text-[15px] leading-7" : "text-sm leading-6"}`}>
-                {item}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      <footer className="proveit-print-footer">
-        {reportHeaderMeta}
-      </footer>
-      </article>
-    );
   };
   const showFloatingWorkspaceMenu = Boolean(selectedCase && !isPinLocked && !actionSummaryEditOpen && !sequenceGroupManagerOpen && !activeLedgerRecord);
   const floatingAddActions = [
@@ -4179,7 +3901,15 @@ ${ungroupedSequenceText}
                             No report content is rendered yet. Paste a ProveIt Report Format v1 response and use Render Report.
                           </div>
                         ) : (
-                          renderGeneratedReportArticle("mt-4 mx-auto max-w-4xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm")
+                          <GeneratedClientReportArticle
+                            className="mt-4 mx-auto max-w-4xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm"
+                            displayLanguage={reportDisplayLanguage}
+                            headerLogo={proveItHeaderLogo}
+                            parsedReport={parsedGeneratedReport}
+                            reportCoverSubtitle={reportCoverSubtitle}
+                            reportHeaderMeta={reportHeaderMeta}
+                            selectedCase={selectedCase}
+                          />
                         )}
                       </section>
                     </div>
@@ -5621,10 +5351,16 @@ ${ungroupedSequenceText}
                 </article>
                 )}
                 {reportMode === "client" && generatedReportHasVisibleContent && (
-                  renderGeneratedReportArticle(
-                    "print-pack-article mx-auto max-w-4xl rounded-xl border border-neutral-200 bg-white px-7 py-8 shadow-sm shadow-neutral-100 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none",
-                    "pack"
-                  )
+                  <GeneratedClientReportArticle
+                    className="print-pack-article mx-auto max-w-4xl rounded-xl border border-neutral-200 bg-white px-7 py-8 shadow-sm shadow-neutral-100 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
+                    displayLanguage={reportDisplayLanguage}
+                    headerLogo={proveItHeaderLogo}
+                    parsedReport={parsedGeneratedReport}
+                    reportCoverSubtitle={reportCoverSubtitle}
+                    reportHeaderMeta={reportHeaderMeta}
+                    selectedCase={selectedCase}
+                    variant="pack"
+                  />
                 )}
                 {reportMode === "client" && !generatedReportHasVisibleContent && (
                   <article className="print-pack-article mx-auto max-w-4xl rounded-xl border border-neutral-200 bg-white px-6 py-7 shadow-sm shadow-neutral-100 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
