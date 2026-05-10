@@ -120,7 +120,7 @@ test("sendReasoningSnapshotToSupabase preserves current error handling after rea
   try {
     await assert.rejects(
       sendReasoningSnapshotToSupabase(baseCase(), configuredRemote()),
-      /Sync to Supabase failed: 500 Server Error/
+      /Reasoning snapshot upload failed: 500 Server Error/
     );
     assert.equal(jsonRead, true);
   } finally {
@@ -134,7 +134,7 @@ test("exportReasoningCaseToSupabase fails safely when remote sync is not configu
     new RegExp(REMOTE_SYNC_NOT_CONFIGURED_ERROR)
   );
   assert.equal(errors.length, 1);
-  assert.equal(errors[0][0], "Full case export failed");
+  assert.equal(errors[0][0], "Reasoning snapshot upload failed");
   assert.match(errors[0][1].message, new RegExp(REMOTE_SYNC_NOT_CONFIGURED_ERROR));
 }));
 
@@ -187,11 +187,11 @@ test("exportReasoningCaseToSupabase preserves current catch log and rethrow beha
   try {
     await assert.rejects(
       exportReasoningCaseToSupabase(baseCase(), configuredRemote()),
-      /Full case export failed: 503/
+      /Reasoning snapshot upload failed: 503/
     );
     assert.equal(errors.length, 1);
-    assert.equal(errors[0][0], "Full case export failed");
-    assert.match(errors[0][1].message, /Full case export failed: 503/);
+    assert.equal(errors[0][0], "Reasoning snapshot upload failed");
+    assert.match(errors[0][1].message, /Reasoning snapshot upload failed: 503/);
   } finally {
     globalThis.fetch = originalFetch;
   }

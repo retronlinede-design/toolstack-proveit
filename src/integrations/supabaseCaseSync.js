@@ -1,6 +1,6 @@
 import { buildCaseReasoningExportPayload } from "../export/caseExport.js";
 
-export const REMOTE_SYNC_NOT_CONFIGURED_ERROR = "Remote sync is not configured.";
+export const REMOTE_SYNC_NOT_CONFIGURED_ERROR = "Reasoning snapshot upload is not configured.";
 
 function getSupabaseRemoteConfig(config = {}) {
   const env = config.env || import.meta.env || {};
@@ -47,7 +47,7 @@ export async function sendReasoningSnapshotToSupabase(caseItem, config) {
 
   const returnedData = await response.json();
   if (!response.ok) {
-    throw new Error(`Sync to Supabase failed: ${response.status} ${response.statusText}`);
+    throw new Error(`Reasoning snapshot upload failed: ${response.status} ${response.statusText}`);
   }
 
   return returnedData;
@@ -74,13 +74,13 @@ export async function exportReasoningCaseToSupabase(caseItem, config) {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(`Full case export failed: ${response.status}`);
+      throw new Error(`Reasoning snapshot upload failed: ${response.status}`);
     }
 
     return data;
 
   } catch (err) {
-    console.error("Full case export failed", err);
+    console.error("Reasoning snapshot upload failed", err);
     throw err;
   }
 }

@@ -2343,13 +2343,13 @@ const handleRecordFiles = async (event) => {
                 <h2 className="text-xl font-semibold text-neutral-900">GPT Update</h2>
                 <p className="mt-1 text-sm text-neutral-600">
                   Paste a ProveIt GPT delta, validate it, then review the supported changes before applying.
-                  v1 accepts actionSummary and strategy patches. v2 accepts create-only incidents, evidence, documents, and ledger.
+                  gpt-delta-1.0 supports actionSummary patching and strategy patching. gpt-delta-2.0 supports create for incidents, evidence, documents, and ledger, and patch for incidents, evidence, documents, ledger, and strategy.
                 </p>
               </div>
 
               <div className="flex-1 space-y-4 overflow-y-auto p-5">
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
-                  GPT-created records cannot include attachments or binary data. Review all generated records and links before applying.
+                  Binary fields and attachment payloads are not accepted through GPT delta. Review all generated records, patches, and links before applying.
                 </div>
                 <textarea
                   value={gptDeltaText}
@@ -2487,11 +2487,11 @@ const handleRecordFiles = async (event) => {
                                       <div className="mt-1 grid gap-2 sm:grid-cols-2">
                                         <div>
                                           <span className="block text-[10px] font-bold uppercase text-neutral-400">Before</span>
-                                          <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-600">{change.before || "â€”"}</pre>
+                                          <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-600">{change.before || "-"}</pre>
                                         </div>
                                         <div>
                                           <span className="block text-[10px] font-bold uppercase text-neutral-400">After</span>
-                                          <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-900">{change.after || "â€”"}</pre>
+                                          <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-900">{change.after || "-"}</pre>
                                         </div>
                                       </div>
                                     </div>

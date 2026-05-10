@@ -4364,7 +4364,7 @@ ${ungroupedSequenceText}
                     Copy Link Map JSON
                   </button>
                   <div className="mt-2 border-t border-neutral-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                    Supabase
+                    Reasoning Snapshot Upload
                   </div>
                   {ENABLE_SUPABASE_REMOTE ? (
                     <button
@@ -4372,7 +4372,7 @@ ${ungroupedSequenceText}
                       disabled={syncStatus === "syncing"}
                       className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
                     >
-                      Send Reasoning Snapshot to Supabase
+                      Send Reasoning Snapshot
                     </button>
                   ) : (
                     <button
@@ -4380,7 +4380,7 @@ ${ungroupedSequenceText}
                       disabled
                       className="flex min-h-11 w-full cursor-not-allowed items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-400"
                     >
-                      Remote sync disabled until secure auth is configured.
+                      Reasoning Snapshot Upload disabled until secure auth is configured. Not a full backup; attachment binaries are not included.
                     </button>
                   )}
                 </div>
