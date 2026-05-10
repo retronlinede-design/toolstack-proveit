@@ -2655,7 +2655,43 @@ ${ungroupedSequenceText}
       .replace(/`([^`]+)`/g, "$1")
       .trim()
   );
-  const renderExecutivePolishedMarkdown = (text = "", fallback = null) => {
+  const executivePolishSectionTitles = [
+    "Current Position",
+    "Key Timeline",
+    "Strongest Evidence",
+    "Risks and Concerns",
+    "Recommended Next Steps",
+  ];
+  const normalizeExecutivePolishHeading = (line = "") => {
+    const cleanLine = safeText(line)
+      .replace(/^#{1,6}\s+/, "")
+      .replace(/^\*\*(.+?)\*\*:?\s*$/, "$1")
+      .replace(/^__(.+?)__:?\s*$/, "$1")
+      .replace(/:$/, "")
+      .trim();
+    return executivePolishSectionTitles.find(
+      (title) => title.toLowerCase() === cleanLine.toLowerCase()
+    ) || "";
+  };
+  const parseExecutivePolishSections = (text = "") => {
+    const sections = {};
+    let currentSection = "";
+
+    safeText(text).split("\n").forEach((line) => {
+      const sectionHeading = normalizeExecutivePolishHeading(line);
+      if (sectionHeading) {
+        currentSection = sectionHeading;
+        sections[currentSection] = sections[currentSection] || [];
+        return;
+      }
+      if (currentSection) sections[currentSection].push(line);
+    });
+
+    return Object.fromEntries(
+      Object.entries(sections).map(([heading, lines]) => [heading, lines.join("\n").trim()])
+    );
+  };
+  const renderExecutivePolishedSection = (text = "", fallback = null) => {
     const cleanText = safeText(text).trim();
     if (!cleanText) return fallback;
 
@@ -2708,25 +2744,6 @@ ${ungroupedSequenceText}
         return;
       }
 
-      const headingMatch = line.match(/^(#{1,3})\s+(.+)$/);
-      if (headingMatch) {
-        flushParagraph();
-        flushList();
-        const level = headingMatch[1].length;
-        const headingText = cleanPolishedMarkdownInline(headingMatch[2]);
-        const headingClassName = level === 1
-          ? "text-2xl font-bold leading-tight text-neutral-950"
-          : level === 2
-            ? "text-lg font-bold leading-tight text-neutral-950"
-            : "text-sm font-bold uppercase tracking-wider text-neutral-500";
-        elements.push(
-          <h2 key={`h-${elements.length}`} className={headingClassName}>
-            {headingText}
-          </h2>
-        );
-        return;
-      }
-
       const bulletMatch = line.match(/^[-*•]\s+(.+)$/);
       const numberedMatch = line.match(/^\d+[.)]\s+(.+)$/);
       if (bulletMatch || numberedMatch) {
@@ -2754,6 +2771,12 @@ ${ungroupedSequenceText}
   const renderExecutiveSummaryReportArticle = (report, className = "") => {
     if (!report) return null;
     const hasPolishedNarrative = Boolean(safeText(executiveSummaryPolishDraft).trim());
+    const polishedSections = hasPolishedNarrative
+      ? parseExecutivePolishSections(executiveSummaryPolishDraft)
+      : {};
+    const missingPolishedSections = hasPolishedNarrative
+      ? executivePolishSectionTitles.filter((title) => !safeText(polishedSections[title]).trim())
+      : [];
     const metricItems = [
       ["Incidents", report.atAGlance.incidentCount],
       ["Evidence", report.atAGlance.evidenceCount],
@@ -2801,21 +2824,33 @@ ${ungroupedSequenceText}
           )}
         </header>
 
-        {hasPolishedNarrative ? (
-          <section className="border-b border-neutral-200 py-7">
-            <div className="mb-5 rounded-xl border border-lime-200 bg-lime-50 p-4 text-sm font-semibold text-lime-900 print:hidden">
-              Using polished narrative. Review before sharing.
+        {hasPolishedNarrative && (
+          <div className="border-b border-neutral-200 py-4 print:hidden">
+            <div className="rounded-xl border border-lime-200 bg-lime-50 p-4 text-sm font-semibold text-lime-900">
+              Using polished narrative. Missing sections will use deterministic fallback.
+              {missingPolishedSections.length > 0 && (
+                <span className="mt-1 block text-xs font-medium text-lime-800">
+                  Missing: {missingPolishedSections.join(", ")}
+                </span>
+              )}
             </div>
-            {renderExecutivePolishedMarkdown(executiveSummaryPolishDraft)}
-          </section>
-        ) : (
-          <>
-            <section className="border-b border-neutral-200 py-7">
-              <div className="rounded-2xl border border-lime-200 bg-lime-50 p-5">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-lime-800">Current Position</h2>
+          </div>
+        )}
+
+        <section className="border-b border-neutral-200 py-7">
+          <div className="rounded-2xl border border-lime-200 bg-lime-50 p-5">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-lime-800">Current Position</h2>
+            {safeText(polishedSections["Current Position"]).trim() ? (
+              <div className="mt-3">
+                {renderExecutivePolishedSection(polishedSections["Current Position"])}
+              </div>
+            ) : (
+              <>
                 <p className="mt-3 text-xl font-semibold leading-8 text-neutral-950">{report.currentPosition.operationalSummary}</p>
                 <p className="mt-3 text-sm leading-6 text-lime-950">{report.currentPosition.whyItMatters}</p>
-              </div>
+              </>
+            )}
+          </div>
             <div className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
               <div className="rounded-xl border border-neutral-200 bg-white p-4">
                 <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Procedural Position</div>
@@ -2849,7 +2884,11 @@ ${ungroupedSequenceText}
             <div className="grid gap-6 border-b border-neutral-200 py-7 lg:grid-cols-[1fr_1fr]">
               <section>
                 <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Key Timeline</h2>
-                {report.keyTimeline.length === 0 ? (
+                {safeText(polishedSections["Key Timeline"]).trim() ? (
+                  <div className="mt-4 rounded-xl border border-neutral-200 bg-white p-4">
+                    {renderExecutivePolishedSection(polishedSections["Key Timeline"])}
+                  </div>
+                ) : report.keyTimeline.length === 0 ? (
                   <p className="mt-3 text-sm text-neutral-500">No dated chronology has been recorded yet.</p>
                 ) : (
                   <div className="mt-4 space-y-3">
@@ -2870,7 +2909,11 @@ ${ungroupedSequenceText}
               </section>
               <section>
                 <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Strongest Evidence</h2>
-                {report.strongestEvidence.length === 0 ? (
+                {safeText(polishedSections["Strongest Evidence"]).trim() ? (
+                  <div className="mt-4 rounded-xl border border-neutral-200 bg-white p-4">
+                    {renderExecutivePolishedSection(polishedSections["Strongest Evidence"])}
+                  </div>
+                ) : report.strongestEvidence.length === 0 ? (
                   <p className="mt-3 text-sm text-neutral-500">No evidence has been recorded yet.</p>
                 ) : (
                   <div className="mt-4 space-y-3">
@@ -2891,7 +2934,11 @@ ${ungroupedSequenceText}
             <div className="grid gap-6 border-b border-neutral-200 py-7 lg:grid-cols-[0.9fr_1.1fr]">
               <section>
                 <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Risks and Concerns</h2>
-                {report.risksAndConcerns.length === 0 ? (
+                {safeText(polishedSections["Risks and Concerns"]).trim() ? (
+                  <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    {renderExecutivePolishedSection(polishedSections["Risks and Concerns"])}
+                  </div>
+                ) : report.risksAndConcerns.length === 0 ? (
                   <p className="mt-3 text-sm text-neutral-500">No major operational concerns are currently flagged.</p>
                 ) : (
                   <div className="mt-4 space-y-3">
@@ -2906,7 +2953,11 @@ ${ungroupedSequenceText}
               </section>
               <section>
                 <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">What Should Happen Next</h2>
-                {report.recommendedNextSteps.length === 0 ? (
+                {safeText(polishedSections["Recommended Next Steps"]).trim() ? (
+                  <div className="mt-4 rounded-xl border border-lime-200 bg-lime-50 p-4">
+                    {renderExecutivePolishedSection(polishedSections["Recommended Next Steps"])}
+                  </div>
+                ) : report.recommendedNextSteps.length === 0 ? (
                   <p className="mt-3 text-sm text-neutral-500">No next actions have been recorded yet.</p>
                 ) : (
                   <ol className="mt-4 space-y-3">
@@ -2922,8 +2973,6 @@ ${ungroupedSequenceText}
                 )}
               </section>
             </div>
-          </>
-        )}
 
         <section className="py-6">
           <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Issue Threads</h2>
@@ -4704,7 +4753,7 @@ ${ungroupedSequenceText}
                         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold">
                           {executiveSummaryPolishDraft.trim() ? (
                             <span className="rounded-full border border-lime-200 bg-lime-50 px-2 py-1 text-lime-800">
-                              Using polished narrative
+                              Using polished narrative. Missing sections will use deterministic fallback.
                             </span>
                           ) : (
                             <span className="rounded-full border border-neutral-200 bg-white px-2 py-1 text-neutral-500">
