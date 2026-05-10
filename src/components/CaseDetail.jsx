@@ -211,7 +211,7 @@ export default function CaseDetail({
 }) {
   const [expandedGroups, setExpandedGroups] = useState({});
   const [ideas, setIdeas] = useState([]);
-  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [workspaceActionMenuOpen, setWorkspaceActionMenuOpen] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [timelineView, setTimelineView] = useState("all");
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -376,6 +376,10 @@ export default function CaseDetail({
     setLedgerPackReportOpen(false);
     setCaseBundleReportOpen(false);
   }, [activeTab]);
+
+  useEffect(() => {
+    setWorkspaceActionMenuOpen(false);
+  }, [selectedCase?.id, isPinLocked]);
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -824,6 +828,49 @@ export default function CaseDetail({
     if (element?.scrollIntoView) {
       element.scrollIntoView({ behavior: "smooth", block: "center" });
     }
+  }
+
+  function closeWorkspaceActionMenu() {
+    setWorkspaceActionMenuOpen(false);
+  }
+
+  function handleWorkspaceAddRecord(recordType) {
+    openRecordModal(recordType);
+    closeWorkspaceActionMenu();
+  }
+
+  function handleWorkspaceAddDocument() {
+    openDocumentModal();
+    closeWorkspaceActionMenu();
+  }
+
+  function handleWorkspaceAddLedgerEntry() {
+    openLedgerModal();
+    closeWorkspaceActionMenu();
+  }
+
+  function handleWorkspaceAddIdea() {
+    if (!selectedCase) return;
+    const newIdea = { id: Date.now().toString(), title: "New idea", description: "", status: "raw" };
+    const updatedIdeas = [...(selectedCase.ideas || []), newIdea];
+    setIdeas(updatedIdeas);
+    onUpdateCase({ ...selectedCase, ideas: updatedIdeas });
+    closeWorkspaceActionMenu();
+  }
+
+  function handleWorkspaceNavigate(tabId) {
+    setActiveTab(tabId);
+    closeWorkspaceActionMenu();
+  }
+
+  function handleWorkspaceOpenSequenceGroups() {
+    openSequenceGroupManager();
+    closeWorkspaceActionMenu();
+  }
+
+  function handleWorkspaceBackToTop() {
+    scrollToTop();
+    closeWorkspaceActionMenu();
   }
 
   async function copySequenceGroupText(text) {
@@ -3675,9 +3722,28 @@ ${ungroupedSequenceText}
       <footer className="proveit-print-footer">
         {reportHeaderMeta}
       </footer>
-    </article>
-  );
+      </article>
+    );
   };
+  const showFloatingWorkspaceMenu = Boolean(selectedCase && !isPinLocked && !actionSummaryEditOpen && !sequenceGroupManagerOpen && !activeLedgerRecord);
+  const floatingAddActions = [
+    { label: "Add Incident", onClick: () => handleWorkspaceAddRecord("incidents") },
+    { label: "Add Evidence", onClick: () => handleWorkspaceAddRecord("evidence") },
+    { label: "Add Document", onClick: handleWorkspaceAddDocument },
+    { label: "Add Ledger Entry", onClick: handleWorkspaceAddLedgerEntry },
+    { label: "Add Strategy", onClick: () => handleWorkspaceAddRecord("strategy") },
+    { label: "Add Idea", onClick: handleWorkspaceAddIdea },
+  ];
+  const floatingNavigationActions = [
+    { id: "overview", label: "Overview" },
+    { id: "timeline", label: "Timeline" },
+    { id: "documents", label: "Documents" },
+    { id: "ledger", label: "Ledger" },
+    { id: "generate-report", label: "Reports" },
+  ];
+  const floatingToolActions = [
+    { label: "Manage sequence groups", onClick: handleWorkspaceOpenSequenceGroups },
+  ];
 
   return (
     <div className="space-y-6">
@@ -3705,53 +3771,6 @@ ${ungroupedSequenceText}
           {selectedCase.notes ? <p className="mt-3 max-w-2xl text-sm text-neutral-700">{selectedCase.notes}</p> : null}
         </div>
         <div className="flex gap-2 flex-wrap items-start">
-          <div className="relative flex-1 min-w-max">
-            <button 
-              onClick={() => setShowAddMenu(!showAddMenu)}
-              className="w-full px-3 py-1.5 text-sm rounded-md whitespace-nowrap border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95 flex items-center justify-center gap-1"
-            >
-              + Add <ChevronDown className={`h-4 w-4 transition-transform ${showAddMenu ? 'rotate-180' : ''}`} />
-            </button>
-            
-            {showAddMenu && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowAddMenu(false)} />
-                <div className="absolute left-0 mt-2 w-48 rounded-xl border border-neutral-200 bg-white shadow-xl z-50 py-1 overflow-hidden animate-in fade-in zoom-in duration-100">
-                  <button 
-                    onClick={() => { openRecordModal("incidents"); setShowAddMenu(false); }}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-neutral-50 text-neutral-700 font-medium transition-colors"
-                  >
-                    Incident
-                  </button>
-                  <button 
-                    onClick={() => { openRecordModal("evidence"); setShowAddMenu(false); }}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-neutral-50 text-neutral-700 font-medium transition-colors"
-                  >
-                    Evidence
-                  </button>
-                  <button 
-                    onClick={() => { openRecordModal("strategy"); setShowAddMenu(false); }}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-neutral-50 text-neutral-700 font-medium transition-colors"
-                  >
-                    Strategy
-                  </button>
-                  <button 
-                    onClick={() => {
-                      const newIdea = { id: Date.now().toString(), title: "New idea", description: "", status: "raw" };
-                      const updatedIdeas = [...(selectedCase.ideas || []), newIdea];
-                      setIdeas(updatedIdeas);
-                      onUpdateCase({ ...selectedCase, ideas: updatedIdeas });
-                      setShowAddMenu(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-neutral-50 text-neutral-700 font-medium border-t border-neutral-50 transition-colors"
-                  >
-                    Idea
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-
           {onOpenGptDeltaModal && (
             <button
               onClick={onOpenGptDeltaModal}
@@ -3760,13 +3779,6 @@ ${ungroupedSequenceText}
               GPT Update
             </button>
           )}
-
-          <button
-            onClick={openSequenceGroupManager}
-            className="px-3 py-1.5 text-sm rounded-md whitespace-nowrap border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
-          >
-            Manage sequence groups
-          </button>
 
           <div className="relative flex-1 min-w-max">
             <button 
@@ -3946,29 +3958,23 @@ ${ungroupedSequenceText}
       <div className="grid gap-6 lg:grid-cols-12">
         <div className={`${reviewQueueSection ? "lg:col-span-8" : "lg:col-span-12"} space-y-6`}>
           <div className="rounded-3xl border border-neutral-200 bg-white p-3 shadow-sm print:hidden">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-              <div className="flex flex-wrap gap-2">
-                {tabs
-                  .flatMap((tab) => tab.id === "documents" ? [tab, { id: "records", label: "Records" }] : [tab])
-                  .map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+            <div className="flex flex-wrap gap-2">
+              {tabs
+                .flatMap((tab) => tab.id === "documents" ? [tab, { id: "records", label: "Records" }] : [tab])
+                .map((tab) => {
+                  const label = tab.id === "generate-report" ? "Reports" : tab.label;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
                       className={`rounded-2xl border border-lime-500 px-4 py-2 text-sm font-medium shadow-[0_2px_4px_rgba(60,60,60,0.2)] transition-colors ${
                         activeTab === tab.id ? "bg-lime-400/30 text-neutral-900" : "bg-white text-neutral-700 hover:bg-lime-400/30"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={openSequenceGroupManager}
-                className="w-fit rounded-2xl border border-lime-500 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] transition-colors hover:bg-lime-400/30"
-              >
-                Manage sequence groups
-              </button>
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
             </div>
           </div>
 
@@ -3976,6 +3982,22 @@ ${ungroupedSequenceText}
             {/* Tab content logic... */}
             {activeTab === "overview" && (
               <div className="space-y-5">
+                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Case Tools</h3>
+                      <p className="mt-1 text-sm text-neutral-600">Manage case structure and issue threads without changing record content.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={openSequenceGroupManager}
+                      className="w-fit rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30"
+                    >
+                      Manage sequence groups
+                    </button>
+                  </div>
+                </div>
+
                 <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                   <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -6520,6 +6542,92 @@ ${ungroupedSequenceText}
         >
           {scrollTopLabel}
         </button>
+      )}
+
+      {showFloatingWorkspaceMenu && (
+        <div className="fixed bottom-5 right-4 z-30 w-[calc(100vw-2rem)] max-w-sm print:hidden sm:bottom-6 sm:right-6 sm:w-80">
+          {workspaceActionMenuOpen && (
+            <>
+              <button
+                type="button"
+                aria-label="Close workspace action menu"
+                className="fixed inset-0 z-0 cursor-default"
+                onClick={closeWorkspaceActionMenu}
+              />
+              <div className="relative z-10 mb-3 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl">
+                <div className="border-b border-neutral-100 p-3">
+                  <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Add records</div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {floatingAddActions.map((action) => (
+                      <button
+                        key={action.label}
+                        type="button"
+                        onClick={action.onClick}
+                        className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-left text-sm font-semibold text-neutral-800 hover:border-lime-300 hover:bg-lime-400/20"
+                      >
+                        {action.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="p-3">
+                  <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Navigate</div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {floatingNavigationActions.map((action) => (
+                      <button
+                        key={action.id}
+                        type="button"
+                        onClick={() => handleWorkspaceNavigate(action.id)}
+                        className={`rounded-lg border px-3 py-2 text-left text-sm font-semibold ${
+                          activeTab === action.id
+                            ? "border-lime-400 bg-lime-400/30 text-neutral-950"
+                            : "border-neutral-200 bg-white text-neutral-700 hover:border-lime-300 hover:bg-lime-400/20"
+                        }`}
+                      >
+                        {action.label}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={handleWorkspaceBackToTop}
+                      className="col-span-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-left text-sm font-semibold text-neutral-700 hover:border-lime-300 hover:bg-lime-400/20"
+                    >
+                      Back to top
+                    </button>
+                  </div>
+                </div>
+
+                <div className="border-t border-neutral-100 p-3">
+                  <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Tools</div>
+                  <div className="mt-2 grid gap-2">
+                    {floatingToolActions.map((action) => (
+                      <button
+                        key={action.label}
+                        type="button"
+                        onClick={action.onClick}
+                        className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-left text-sm font-semibold text-neutral-700 hover:border-lime-300 hover:bg-lime-400/20"
+                      >
+                        {action.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setWorkspaceActionMenuOpen((open) => !open)}
+            aria-expanded={workspaceActionMenuOpen}
+            className="relative z-10 ml-auto flex min-h-12 items-center gap-3 rounded-full border-2 border-lime-500 bg-white px-4 py-3 text-sm font-bold text-neutral-950 shadow-xl transition-all hover:bg-lime-400/30 active:scale-95"
+          >
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-lime-400 text-lg leading-none text-neutral-950">+</span>
+            <span>Workspace</span>
+            <ChevronDown className={`h-4 w-4 transition-transform ${workspaceActionMenuOpen ? "rotate-180" : ""}`} />
+          </button>
+        </div>
       )}
 
       {sequenceGroupManagerOpen && (
