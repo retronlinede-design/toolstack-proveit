@@ -11,6 +11,7 @@ import {
   buildCaseBundleReport,
   buildDocumentPackReport,
   buildEvidencePackReport,
+  buildExecutiveSummaryNarrativePolishPrompt,
   buildExecutiveSummaryReport,
   buildLedgerPackReport,
   buildThreadIssueReport,
@@ -314,6 +315,22 @@ test("buildExecutiveSummaryReport handles empty case safely", () => {
   assert.deepEqual(report.strongestEvidence, []);
   assert.deepEqual(report.sequenceGroupOverview, []);
   assert.equal(report.currentPosition.operationalSummary, "No current operational summary recorded.");
+});
+
+test("buildExecutiveSummaryNarrativePolishPrompt includes report data and excludes binary payloads", () => {
+  const report = buildExecutiveSummaryReport(buildCase(), {
+    generatedAt: "2024-02-02T00:00:00.000Z",
+  });
+  const prompt = buildExecutiveSummaryNarrativePolishPrompt(report);
+
+  assert.match(prompt, /## Current Position/);
+  assert.match(prompt, /## Key Timeline/);
+  assert.match(prompt, /## Strongest Evidence/);
+  assert.match(prompt, /Use only the provided report data/);
+  assert.match(prompt, /Ceiling photo/);
+  assert.match(prompt, /Leak reported/);
+  assert.doesNotMatch(prompt, /data:image/);
+  assert.doesNotMatch(prompt, /base64/);
 });
 
 test("buildEvidencePackReport builds a whole-case evidence pack", () => {

@@ -1232,6 +1232,60 @@ export function buildExecutiveSummaryReport(caseItem = {}, options = {}) {
   };
 }
 
+export function buildExecutiveSummaryNarrativePolishPrompt(report = {}) {
+  const promptPackage = {
+    reportType: report.reportType || EXECUTIVE_SUMMARY_REPORT,
+    title: report.title || "Executive Summary",
+    caseOverview: report.caseOverview || {},
+    currentPosition: report.currentPosition || {},
+    keyTimeline: (report.keyTimeline || []).map((item) => ({
+      date: item.date || "",
+      title: item.title || "",
+      summary: item.summary || "",
+      importanceLabel: item.importanceLabel || "",
+      isMilestone: !!item.isMilestone,
+    })),
+    strongestEvidence: (report.strongestEvidence || []).map((item) => ({
+      title: item.title || "",
+      whyItMatters: item.whyItMatters || item.functionSummary || "",
+      supports: item.supports || [],
+      status: item.status || "",
+      evidenceRole: item.evidenceRole || "",
+    })),
+    risksAndConcerns: (report.risksAndConcerns || []).map((item) => ({
+      title: item.title || "",
+      message: item.message || "",
+    })),
+    recommendedNextSteps: (report.recommendedNextSteps || []).map((item) => ({
+      text: item.text || "",
+      priority: item.priority || "",
+    })),
+  };
+
+  return `You are polishing a ProveIt Executive Summary for human readability.
+
+Rules:
+- Use only the provided report data.
+- Do not invent facts, dates, evidence, events, legal claims, or conclusions.
+- Keep the same section structure and preserve uncertainty.
+- Preserve dates, evidence meaning, and next-action intent.
+- Rewrite for professional, calm, concise operational clarity.
+- Remove robotic wording and diagnostics jargon.
+- Do not add legal conclusions or advice.
+- Keep the output short.
+
+Return only markdown with these exact headings:
+
+## Current Position
+## Key Timeline
+## Strongest Evidence
+## Risks and Concerns
+## Recommended Next Steps
+
+Report data:
+${JSON.stringify(promptPackage, null, 2)}`;
+}
+
 function buildBundleContentsSummary(selectedSections, sections) {
   return [
     {

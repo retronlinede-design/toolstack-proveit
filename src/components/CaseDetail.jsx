@@ -21,7 +21,7 @@ import { PROVEIT_REPORT_PROMPT_V1, parseProveItReportV1 } from "../lib/proveitRe
 import { DEFAULT_REPORT_DISPLAY_LANGUAGE, REPORT_DISPLAY_LANGUAGES, getReportHeadingLabel } from "../lib/reportHeadingLabels.js";
 import { analyzeCaseDiagnostics } from "../diagnostics/caseDiagnostics.js";
 import { buildSequenceGroupReviewPackage, ingestSequenceGroupDelta } from "../gpt/sequenceGroupDelta.js";
-import { buildCaseBundleReport, buildDocumentPackReport, buildEvidencePackReport, buildExecutiveSummaryReport, buildLedgerPackReport, buildThreadIssueReport } from "../report/reportBuilder.js";
+import { buildCaseBundleReport, buildDocumentPackReport, buildEvidencePackReport, buildExecutiveSummaryNarrativePolishPrompt, buildExecutiveSummaryReport, buildLedgerPackReport, buildThreadIssueReport } from "../report/reportBuilder.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import LinkedChip from "./LinkedChip";
 import RecordCard from "./RecordCard";
@@ -250,6 +250,8 @@ export default function CaseDetail({
   const [ledgerPackSequenceGroup, setLedgerPackSequenceGroup] = useState("");
   const [caseBundleReportOpen, setCaseBundleReportOpen] = useState(false);
   const [executiveSummaryReportOpen, setExecutiveSummaryReportOpen] = useState(true);
+  const [executiveSummaryPolishDraft, setExecutiveSummaryPolishDraft] = useState("");
+  const [executiveSummaryPolishFeedback, setExecutiveSummaryPolishFeedback] = useState("");
   const [caseBundleScopeType, setCaseBundleScopeType] = useState("case");
   const [caseBundleSequenceGroup, setCaseBundleSequenceGroup] = useState("");
   const [caseBundleSections, setCaseBundleSections] = useState({
@@ -381,6 +383,7 @@ export default function CaseDetail({
     setLedgerPackReportOpen(false);
     setCaseBundleReportOpen(false);
     setExecutiveSummaryReportOpen(true);
+    setExecutiveSummaryPolishFeedback("");
   }, [activeTab]);
 
   useEffect(() => {
@@ -939,6 +942,22 @@ export default function CaseDetail({
     setSequenceGroupDeltaDraft("");
     setSequenceGroupDeltaResult(null);
     setSequenceGroupFeedback(`Applied ${previewCount} AI sequence group change${previewCount === 1 ? "" : "s"}.`);
+  }
+
+  async function handleCopyExecutiveSummaryPolishPrompt() {
+    if (!executiveSummaryReport) return;
+    try {
+      await copySequenceGroupText(buildExecutiveSummaryNarrativePolishPrompt(executiveSummaryReport));
+      setExecutiveSummaryPolishFeedback("Narrative polish prompt copied.");
+    } catch (error) {
+      console.error("Failed to copy executive summary polish prompt", error);
+      setExecutiveSummaryPolishFeedback("Could not copy narrative polish prompt.");
+    }
+  }
+
+  function handleClearExecutiveSummaryPolish() {
+    setExecutiveSummaryPolishDraft("");
+    setExecutiveSummaryPolishFeedback("Using deterministic Executive Summary.");
   }
 
   const health = selectedCase ? getCaseHealthReport(selectedCase) : null;
@@ -2629,8 +2648,59 @@ ${ungroupedSequenceText}
       </span>
     ));
   };
+  const parseExecutivePolishMarkdown = (text = "") => {
+    const sections = {};
+    const allowedHeadings = new Set([
+      "Current Position",
+      "Key Timeline",
+      "Strongest Evidence",
+      "Risks and Concerns",
+      "Recommended Next Steps",
+    ]);
+    let currentHeading = "";
+
+    safeText(text).split("\n").forEach((line) => {
+      const heading = line.replace(/^#+\s*/, "").trim();
+      if (/^#{1,3}\s+/.test(line) && allowedHeadings.has(heading)) {
+        currentHeading = heading;
+        sections[currentHeading] = [];
+        return;
+      }
+      if (currentHeading) sections[currentHeading].push(line);
+    });
+
+    return Object.fromEntries(
+      Object.entries(sections).map(([heading, lines]) => [heading, lines.join("\n").trim()])
+    );
+  };
+  const renderPolishedMarkdownBlock = (text = "", fallback = null) => {
+    const cleanText = safeText(text).trim();
+    if (!cleanText) return fallback;
+    const lines = cleanText.split("\n").map((line) => line.trim()).filter(Boolean);
+    const listLines = lines.filter((line) => /^[-*]\s+/.test(line) || /^\d+\.\s+/.test(line));
+    if (listLines.length === lines.length && lines.length > 0) {
+      return (
+        <ul className="mt-4 space-y-3 text-sm leading-6 text-neutral-700">
+          {lines.map((line, index) => (
+            <li key={`${line}-${index}`} className="rounded-lg border border-neutral-200 bg-white p-3">
+              {line.replace(/^[-*]\s+/, "").replace(/^\d+\.\s+/, "")}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+    return (
+      <div className="mt-4 space-y-3 text-sm leading-6 text-neutral-700">
+        {lines.map((line, index) => (
+          <p key={`${line}-${index}`}>{line.replace(/^[-*]\s+/, "").replace(/^\d+\.\s+/, "")}</p>
+        ))}
+      </div>
+    );
+  };
   const renderExecutiveSummaryReportArticle = (report, className = "") => {
     if (!report) return null;
+    const polishedSections = parseExecutivePolishMarkdown(executiveSummaryPolishDraft);
+    const hasPolishedNarrative = Object.values(polishedSections).some((value) => safeText(value).trim());
     const metricItems = [
       ["Incidents", report.atAGlance.incidentCount],
       ["Evidence", report.atAGlance.evidenceCount],
@@ -2681,20 +2751,30 @@ ${ungroupedSequenceText}
         <section className="border-b border-neutral-200 py-7">
           <div className="rounded-2xl border border-lime-200 bg-lime-50 p-5">
             <h2 className="text-xs font-bold uppercase tracking-wider text-lime-800">Current Position</h2>
-            <p className="mt-3 text-xl font-semibold leading-8 text-neutral-950">{report.currentPosition.operationalSummary}</p>
-            <p className="mt-3 text-sm leading-6 text-lime-950">{report.currentPosition.whyItMatters}</p>
+            {hasPolishedNarrative && polishedSections["Current Position"] ? (
+              <div className="mt-3 text-base leading-7 text-neutral-950">
+                {renderPolishedMarkdownBlock(polishedSections["Current Position"])}
+              </div>
+            ) : (
+              <>
+                <p className="mt-3 text-xl font-semibold leading-8 text-neutral-950">{report.currentPosition.operationalSummary}</p>
+                <p className="mt-3 text-sm leading-6 text-lime-950">{report.currentPosition.whyItMatters}</p>
+              </>
+            )}
           </div>
-          <div className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className="rounded-xl border border-neutral-200 bg-white p-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Procedural Position</div>
-              <p className="mt-2 text-sm leading-6 text-neutral-700">{report.currentPosition.proceduralPosition}</p>
+          {!hasPolishedNarrative && (
+            <div className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="rounded-xl border border-neutral-200 bg-white p-4">
+                <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Procedural Position</div>
+                <p className="mt-2 text-sm leading-6 text-neutral-700">{report.currentPosition.proceduralPosition}</p>
+              </div>
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <div className="text-xs font-bold uppercase tracking-wider text-amber-800">Immediate Concern</div>
+                <p className="mt-2 text-sm leading-6 text-amber-950">{headlineConcern}</p>
+              </div>
             </div>
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-amber-800">Immediate Concern</div>
-              <p className="mt-2 text-sm leading-6 text-amber-950">{headlineConcern}</p>
-            </div>
-          </div>
-          {report.currentPosition.mainProblems?.length > 0 && (
+          )}
+          {!hasPolishedNarrative && report.currentPosition.mainProblems?.length > 0 && (
             <div className="mt-5">
               <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500">What matters most now</h3>
               {renderPlainList(report.currentPosition.mainProblems, (item) => item)}
@@ -2717,7 +2797,9 @@ ${ungroupedSequenceText}
         <div className="grid gap-6 border-b border-neutral-200 py-7 lg:grid-cols-[1fr_1fr]">
           <section>
             <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Key Timeline</h2>
-            {report.keyTimeline.length === 0 ? (
+            {hasPolishedNarrative && polishedSections["Key Timeline"] ? (
+              renderPolishedMarkdownBlock(polishedSections["Key Timeline"])
+            ) : report.keyTimeline.length === 0 ? (
               <p className="mt-3 text-sm text-neutral-500">No dated chronology has been recorded yet.</p>
             ) : (
               <div className="mt-4 space-y-3">
@@ -2738,7 +2820,9 @@ ${ungroupedSequenceText}
           </section>
           <section>
             <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Strongest Evidence</h2>
-            {report.strongestEvidence.length === 0 ? (
+            {hasPolishedNarrative && polishedSections["Strongest Evidence"] ? (
+              renderPolishedMarkdownBlock(polishedSections["Strongest Evidence"])
+            ) : report.strongestEvidence.length === 0 ? (
               <p className="mt-3 text-sm text-neutral-500">No evidence has been recorded yet.</p>
             ) : (
               <div className="mt-4 space-y-3">
@@ -2759,7 +2843,9 @@ ${ungroupedSequenceText}
         <div className="grid gap-6 border-b border-neutral-200 py-7 lg:grid-cols-[0.9fr_1.1fr]">
           <section>
             <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Risks and Concerns</h2>
-            {report.risksAndConcerns.length === 0 ? (
+            {hasPolishedNarrative && polishedSections["Risks and Concerns"] ? (
+              renderPolishedMarkdownBlock(polishedSections["Risks and Concerns"])
+            ) : report.risksAndConcerns.length === 0 ? (
               <p className="mt-3 text-sm text-neutral-500">No major operational concerns are currently flagged.</p>
             ) : (
               <div className="mt-4 space-y-3">
@@ -2774,7 +2860,9 @@ ${ungroupedSequenceText}
           </section>
           <section>
             <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">What Should Happen Next</h2>
-            {report.recommendedNextSteps.length === 0 ? (
+            {hasPolishedNarrative && polishedSections["Recommended Next Steps"] ? (
+              renderPolishedMarkdownBlock(polishedSections["Recommended Next Steps"])
+            ) : report.recommendedNextSteps.length === 0 ? (
               <p className="mt-3 text-sm text-neutral-500">No next actions have been recorded yet.</p>
             ) : (
               <ol className="mt-4 space-y-3">
@@ -4539,7 +4627,47 @@ ${ungroupedSequenceText}
                   </button>
 
                   {executiveSummaryReportOpen && (
-                    <div className="mt-4">
+                    <div className="mt-4 space-y-4">
+                      <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 print:hidden">
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                          <div>
+                            <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-600">GPT Narrative Polish</h4>
+                            <p className="mt-1 text-sm text-neutral-600">
+                              Optional wording pass only. The deterministic report remains the source of truth.
+                            </p>
+                            <p className="mt-1 text-xs font-semibold text-amber-700">Review before sharing.</p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={handleCopyExecutiveSummaryPolishPrompt}
+                              className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30"
+                            >
+                              Copy narrative polish prompt
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleClearExecutiveSummaryPolish}
+                              disabled={!executiveSummaryPolishDraft.trim()}
+                              className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-600 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Clear polish
+                            </button>
+                          </div>
+                        </div>
+                        {executiveSummaryPolishFeedback && (
+                          <p className="mt-3 text-xs font-semibold text-lime-700">{executiveSummaryPolishFeedback}</p>
+                        )}
+                        <textarea
+                          value={executiveSummaryPolishDraft}
+                          onChange={(event) => {
+                            setExecutiveSummaryPolishDraft(event.target.value);
+                            setExecutiveSummaryPolishFeedback(event.target.value.trim() ? "Showing polished narrative preview. Review before sharing." : "");
+                          }}
+                          placeholder={"Paste polished markdown here. Expected headings:\n## Current Position\n## Key Timeline\n## Strongest Evidence\n## Risks and Concerns\n## Recommended Next Steps"}
+                          className="mt-4 min-h-36 w-full rounded-lg border border-neutral-300 bg-white p-3 font-mono text-xs outline-none focus:border-lime-500"
+                        />
+                      </div>
                       {executiveSummaryReport ? (
                         renderExecutiveSummaryReportArticle(
                           executiveSummaryReport,
