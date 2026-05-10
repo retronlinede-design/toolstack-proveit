@@ -5,11 +5,13 @@ import {
   CASE_BUNDLE_REPORT,
   DOCUMENT_PACK_REPORT,
   EVIDENCE_PACK_REPORT,
+  EXECUTIVE_SUMMARY_REPORT,
   LEDGER_PACK_REPORT,
   THREAD_ISSUE_REPORT,
   buildCaseBundleReport,
   buildDocumentPackReport,
   buildEvidencePackReport,
+  buildExecutiveSummaryReport,
   buildLedgerPackReport,
   buildThreadIssueReport,
 } from "./reportBuilder.js";
@@ -235,6 +237,83 @@ test("buildThreadIssueReport handles empty or missing sequenceGroup gracefully",
   assert.equal(report.threadSummary.incidentCount, 0);
   assert.equal(report.chronology.length, 0);
   assert.ok(report.diagnostics.warnings.some((warning) => warning.id === "missing-sequence-group"));
+});
+
+test("buildExecutiveSummaryReport builds high-level case summary sections", () => {
+  const caseItem = buildCase();
+  caseItem.description = "A concise case description.";
+  caseItem.createdAt = "2024-01-01T00:00:00.000Z";
+  caseItem.updatedAt = "2024-02-01T00:00:00.000Z";
+  caseItem.actionSummary.currentFocus = "Get the leak repair confirmed.";
+
+  const report = buildExecutiveSummaryReport(caseItem, {
+    generatedAt: "2024-02-02T00:00:00.000Z",
+  });
+
+  assert.equal(report.reportType, EXECUTIVE_SUMMARY_REPORT);
+  assert.equal(report.title, "Executive Summary");
+  assert.equal(report.sourceCaseId, "case-1");
+  assert.deepEqual(report.caseOverview, {
+    name: "Demo Case",
+    category: "Housing",
+    status: "active",
+    createdAt: "2024-01-01T00:00:00.000Z",
+    updatedAt: "2024-02-01T00:00:00.000Z",
+    description: "A concise case description.",
+  });
+  assert.equal(report.currentPosition.operationalSummary, "Get the leak repair confirmed.");
+  assert.equal(report.atAGlance.incidentCount, 2);
+  assert.equal(report.atAGlance.evidenceCount, 2);
+  assert.equal(report.atAGlance.documentCount, 2);
+  assert.equal(report.atAGlance.sequenceGroupCount, 3);
+  assert.ok(report.atAGlance.openIssueCount > 0);
+});
+
+test("buildExecutiveSummaryReport sorts key chronology newest first with undated deadlines last", () => {
+  const caseItem = buildCase();
+  caseItem.incidents[0].isMilestone = true;
+  caseItem.incidents.push({
+    id: "inc-3",
+    title: "Latest incident",
+    eventDate: "2024-02-01",
+    sequenceGroup: "Leak thread",
+  });
+
+  const report = buildExecutiveSummaryReport(caseItem, {
+    generatedAt: "2024-02-02T00:00:00.000Z",
+  });
+
+  assert.equal(report.keyTimeline[0].id, "inc-3");
+  assert.ok(report.keyTimeline.find((item) => item.id === "inc-1").isMilestone);
+  assert.equal(report.keyTimeline.at(-1).recordType, "deadline");
+});
+
+test("buildExecutiveSummaryReport includes diagnostics, evidence, and sequence groups", () => {
+  const report = buildExecutiveSummaryReport(buildCase(), {
+    generatedAt: "2024-02-02T00:00:00.000Z",
+  });
+
+  assert.equal(report.strongestEvidence[0].id, "ev-1");
+  assert.ok(report.missingEvidence.some((item) => item.id === "inc-2"));
+  assert.ok(report.risksAndConcerns.some((item) => item.id === "missing-proof"));
+  assert.ok(report.recommendedNextSteps.some((item) => item.source === "actionSummary"));
+  assert.deepEqual(report.sequenceGroupOverview.map((group) => group.name), ["Leak thread", "Noise thread", "Other thread"]);
+  assert.ok(report.sequenceGroupOverview.find((group) => group.name === "Other thread").warnings.includes("No incidents"));
+  assert.equal(typeof report.diagnosticsSummary.chronologyGapCount, "number");
+});
+
+test("buildExecutiveSummaryReport handles empty case safely", () => {
+  const report = buildExecutiveSummaryReport({ id: "empty-case" }, {
+    generatedAt: "2024-02-02T00:00:00.000Z",
+  });
+
+  assert.equal(report.sourceCaseId, "empty-case");
+  assert.equal(report.caseOverview.name, "");
+  assert.equal(report.atAGlance.incidentCount, 0);
+  assert.deepEqual(report.keyTimeline, []);
+  assert.deepEqual(report.strongestEvidence, []);
+  assert.deepEqual(report.sequenceGroupOverview, []);
+  assert.equal(report.currentPosition.operationalSummary, "No current operational summary recorded.");
 });
 
 test("buildEvidencePackReport builds a whole-case evidence pack", () => {

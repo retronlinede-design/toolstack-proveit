@@ -6,6 +6,7 @@ export const EVIDENCE_PACK_REPORT = "EVIDENCE_PACK_REPORT";
 export const DOCUMENT_PACK_REPORT = "DOCUMENT_PACK_REPORT";
 export const LEDGER_PACK_REPORT = "LEDGER_PACK_REPORT";
 export const CASE_BUNDLE_REPORT = "CASE_BUNDLE_REPORT";
+export const EXECUTIVE_SUMMARY_REPORT = "EXECUTIVE_SUMMARY_REPORT";
 
 function safeText(value) {
   return typeof value === "string" ? value : "";
@@ -949,6 +950,243 @@ function buildCombinedDiagnostics(caseItem = {}, includedIds = null) {
     unusedEvidence: (diagnostics.evidenceCoverage?.unusedEvidence || []).filter(includeRecord),
     warnings: diagnostics.warnings || [],
     suggestions: diagnostics.suggestions || [],
+  };
+}
+
+function getExecutiveCurrentPosition(caseItem = {}, diagnostics = {}) {
+  const actionSummary = caseItem.actionSummary || {};
+  const activeIssues = [
+    ...(diagnostics.evidenceCoverage?.incidentsNeedingEvidence || []).slice(0, 3).map((item) => `${item.title} needs evidence`),
+    ...(diagnostics.warnings || []).slice(0, 2).map((item) => item.message),
+  ];
+
+  return {
+    operationalSummary: shortText(
+      actionSummary.currentFocus
+      || caseItem.caseState?.currentSituation
+      || caseItem.caseState?.mainProblem
+      || caseItem.description
+      || caseItem.notes
+      || "No current operational summary recorded.",
+      360,
+    ),
+    proceduralPosition: shortText(
+      caseItem.caseState?.proceduralPosition
+      || caseItem.caseState?.currentStage
+      || caseItem.status
+      || "No procedural position recorded.",
+      220,
+    ),
+    activeIssues,
+  };
+}
+
+function getExecutiveTimeline(caseItem = {}, diagnostics = {}, limit = 10) {
+  const milestoneItems = (diagnostics.milestoneCoverage?.records || []).map((item) => ({
+    id: item.id,
+    recordType: item.type,
+    date: item.date,
+    title: item.title,
+    summary: "Milestone",
+    isMilestone: true,
+  }));
+  const incidentItems = (caseItem.incidents || [])
+    .filter((incident) => incident?.id)
+    .map((incident) => ({
+      id: incident.id,
+      recordType: "incident",
+      date: getRecordDate(incident),
+      title: getRecordTitle(incident, "incident"),
+      summary: getSummary(incident, "incident"),
+      isMilestone: !!incident.isMilestone,
+    }));
+  const deadlineItems = (Array.isArray(caseItem.actionSummary?.criticalDeadlines) ? caseItem.actionSummary.criticalDeadlines : [])
+    .map((deadline, index) => ({
+      id: `deadline-${index}`,
+      recordType: "deadline",
+      date: "",
+      title: shortText(deadline, 120) || `Deadline ${index + 1}`,
+      summary: "Critical deadline",
+      isMilestone: false,
+    }));
+  const seen = new Set();
+  const combined = [...milestoneItems, ...incidentItems, ...deadlineItems]
+    .filter((item) => {
+      const key = `${item.recordType}:${item.id}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => {
+      if (a.date && b.date && a.date !== b.date) return b.date.localeCompare(a.date);
+      if (a.date && !b.date) return -1;
+      if (!a.date && b.date) return 1;
+      if (a.isMilestone !== b.isMilestone) return a.isMilestone ? -1 : 1;
+      return String(a.title || "").localeCompare(String(b.title || ""));
+    });
+  return combined.slice(0, limit);
+}
+
+function scoreExecutiveEvidence(evidence = {}, caseItem = {}) {
+  const linkedIncidentCount = getEvidenceIncidentIds(caseItem, evidence).length;
+  const attachmentCount = Array.isArray(evidence.attachments) ? evidence.attachments.length : 0;
+  const importance = safeText(evidence.importance).toLowerCase();
+  const status = safeText(evidence.status).toLowerCase();
+  const role = safeText(evidence.evidenceRole).toLowerCase();
+  let score = 0;
+  if (["critical", "high", "key"].includes(importance)) score += 4;
+  if (status === "verified") score += 3;
+  if (role.includes("anchor")) score += 3;
+  if (safeText(evidence.functionSummary)) score += 2;
+  score += Math.min(linkedIncidentCount, 3);
+  if (attachmentCount > 0) score += 1;
+  return score;
+}
+
+function getExecutiveEvidence(caseItem = {}, limit = 6) {
+  return (caseItem.evidence || [])
+    .filter((evidence) => evidence?.id)
+    .map((evidence) => ({
+      ...buildEvidencePackEvidence(caseItem, evidence),
+      importance: evidence.importance || "",
+      score: scoreExecutiveEvidence(evidence, caseItem),
+    }))
+    .sort((a, b) => {
+      if (a.score !== b.score) return b.score - a.score;
+      const dateCompare = String(b.capturedAt || b.date || "").localeCompare(String(a.capturedAt || a.date || ""));
+      if (dateCompare !== 0) return dateCompare;
+      return a.title.localeCompare(b.title);
+    })
+    .slice(0, limit);
+}
+
+function getExecutiveRisksAndConcerns(diagnostics = {}) {
+  const risks = [
+    ...(diagnostics.risks || []).map((item) => ({ id: item.id, message: item.message, source: "risk" })),
+    ...(diagnostics.warnings || []).map((item) => ({ id: item.id, message: item.message, source: "warning" })),
+  ];
+  if ((diagnostics.evidenceCoverage?.incidentsNeedingEvidence || []).length > 0) {
+    risks.push({
+      id: "missing-proof",
+      message: `${diagnostics.evidenceCoverage.incidentsNeedingEvidence.length} incident(s) still need stronger proof.`,
+      source: "evidence",
+    });
+  }
+  if ((diagnostics.integrity?.weaklyLinkedRecords || []).length > 0) {
+    risks.push({
+      id: "weak-links",
+      message: `${diagnostics.integrity.weaklyLinkedRecords.length} record(s) are weakly linked.`,
+      source: "linking",
+    });
+  }
+  if ((diagnostics.chronology?.missingDateRecords || []).length > 0) {
+    risks.push({
+      id: "chronology-gaps",
+      message: `${diagnostics.chronology.missingDateRecords.length} record(s) are missing chronology dates.`,
+      source: "chronology",
+    });
+  }
+  const weakGroups = (diagnostics.sequenceGroups?.groups || []).filter((group) =>
+    (group.counts?.incident || 0) === 0 || ((group.counts?.incident || 0) > 0 && (group.counts?.evidence || 0) === 0)
+  );
+  if (weakGroups.length > 0) {
+    risks.push({
+      id: "weak-sequence-groups",
+      message: `${weakGroups.length} sequence group(s) need structural review.`,
+      source: "sequenceGroup",
+    });
+  }
+  return risks.slice(0, 12);
+}
+
+function getExecutiveRecommendedNextSteps(caseItem = {}, diagnostics = {}) {
+  const actionSummary = caseItem.actionSummary || {};
+  const actionItems = (Array.isArray(actionSummary.nextActions) ? actionSummary.nextActions : [])
+    .map((text, index) => ({ id: `action-${index}`, source: "actionSummary", text }));
+  const strategyItems = (caseItem.strategy || [])
+    .filter((item) => item?.id && !["done", "closed", "archived"].includes(item.status))
+    .slice(0, 5)
+    .map((item) => ({
+      id: item.id,
+      source: "strategy",
+      text: getSummary(item, "strategy") || getRecordTitle(item, "strategy"),
+    }));
+  const diagnosticItems = [
+    ...(diagnostics.suggestions || []),
+    ...(diagnostics.evidenceCoverage?.incidentsNeedingEvidence || []).map((item) => ({
+      id: `support-${item.id}`,
+      message: `Find or link evidence for ${item.title}.`,
+    })),
+  ].slice(0, 5).map((item) => ({
+    id: item.id,
+    source: "diagnostics",
+    text: item.message,
+  }));
+  return [...actionItems, ...strategyItems, ...diagnosticItems]
+    .filter((item) => compactText(item.text))
+    .slice(0, 12);
+}
+
+function getExecutiveSequenceGroupOverview(diagnostics = {}) {
+  return (diagnostics.sequenceGroups?.groups || []).map((group) => {
+    const warnings = [];
+    if ((group.counts?.incident || 0) === 0) warnings.push("No incidents");
+    if ((group.counts?.incident || 0) > 0 && (group.counts?.evidence || 0) === 0) warnings.push("Incidents without evidence");
+    return {
+      name: group.name,
+      totalCount: group.totalCount,
+      counts: { ...group.counts },
+      warnings,
+    };
+  });
+}
+
+export function buildExecutiveSummaryReport(caseItem = {}, options = {}) {
+  const generatedAt = options.generatedAt || new Date().toISOString();
+  const diagnostics = analyzeCaseDiagnostics(caseItem || {});
+  const sequenceGroupOverview = getExecutiveSequenceGroupOverview(diagnostics);
+  const milestones = diagnostics.milestoneCoverage?.records || [];
+
+  return {
+    reportType: EXECUTIVE_SUMMARY_REPORT,
+    title: "Executive Summary",
+    audience: "general",
+    sourceCaseId: caseItem?.id || "",
+    generatedAt,
+    caseOverview: {
+      name: caseItem?.name || "",
+      category: caseItem?.category || "",
+      status: caseItem?.status || "",
+      createdAt: caseItem?.createdAt || "",
+      updatedAt: caseItem?.updatedAt || "",
+      description: shortText(caseItem?.description || caseItem?.notes || "", 420),
+    },
+    currentPosition: getExecutiveCurrentPosition(caseItem, diagnostics),
+    atAGlance: {
+      incidentCount: (caseItem.incidents || []).length,
+      evidenceCount: (caseItem.evidence || []).length,
+      documentCount: (caseItem.documents || []).length,
+      weakUnlinkedRecordCount: (diagnostics.integrity?.weaklyLinkedRecords || []).length + (diagnostics.integrity?.orphanRecords || []).length,
+      sequenceGroupCount: sequenceGroupOverview.length,
+      milestoneCount: milestones.length,
+      openIssueCount: (diagnostics.openIssues?.openTaskCount || 0)
+        + (diagnostics.openIssues?.openStrategyCount || 0)
+        + (diagnostics.openIssues?.unsupportedIncidentCount || 0)
+        + (diagnostics.openIssues?.unusedEvidenceCount || 0),
+    },
+    keyTimeline: getExecutiveTimeline(caseItem, diagnostics, options.timelineLimit || 10),
+    strongestEvidence: getExecutiveEvidence(caseItem, options.evidenceLimit || 6),
+    missingEvidence: diagnostics.evidenceCoverage?.incidentsNeedingEvidence || [],
+    risksAndConcerns: getExecutiveRisksAndConcerns(diagnostics),
+    recommendedNextSteps: getExecutiveRecommendedNextSteps(caseItem, diagnostics),
+    sequenceGroupOverview,
+    diagnosticsSummary: {
+      unsupportedIncidentCount: diagnostics.evidenceCoverage?.incidentsNeedingEvidence?.length || 0,
+      unusedEvidenceCount: diagnostics.evidenceCoverage?.unusedEvidence?.length || 0,
+      chronologyGapCount: diagnostics.chronology?.missingDateRecords?.length || 0,
+      brokenLinkCount: diagnostics.integrity?.brokenLinks?.length || 0,
+      weaklyLinkedRecordCount: diagnostics.integrity?.weaklyLinkedRecords?.length || 0,
+    },
   };
 }
 

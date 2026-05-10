@@ -21,7 +21,7 @@ import { PROVEIT_REPORT_PROMPT_V1, parseProveItReportV1 } from "../lib/proveitRe
 import { DEFAULT_REPORT_DISPLAY_LANGUAGE, REPORT_DISPLAY_LANGUAGES, getReportHeadingLabel } from "../lib/reportHeadingLabels.js";
 import { analyzeCaseDiagnostics } from "../diagnostics/caseDiagnostics.js";
 import { buildSequenceGroupReviewPackage, ingestSequenceGroupDelta } from "../gpt/sequenceGroupDelta.js";
-import { buildCaseBundleReport, buildDocumentPackReport, buildEvidencePackReport, buildLedgerPackReport, buildThreadIssueReport } from "../report/reportBuilder.js";
+import { buildCaseBundleReport, buildDocumentPackReport, buildEvidencePackReport, buildExecutiveSummaryReport, buildLedgerPackReport, buildThreadIssueReport } from "../report/reportBuilder.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import LinkedChip from "./LinkedChip";
 import RecordCard from "./RecordCard";
@@ -249,6 +249,7 @@ export default function CaseDetail({
   const [ledgerPackScopeType, setLedgerPackScopeType] = useState("case");
   const [ledgerPackSequenceGroup, setLedgerPackSequenceGroup] = useState("");
   const [caseBundleReportOpen, setCaseBundleReportOpen] = useState(false);
+  const [executiveSummaryReportOpen, setExecutiveSummaryReportOpen] = useState(true);
   const [caseBundleScopeType, setCaseBundleScopeType] = useState("case");
   const [caseBundleSequenceGroup, setCaseBundleSequenceGroup] = useState("");
   const [caseBundleSections, setCaseBundleSections] = useState({
@@ -342,6 +343,10 @@ export default function CaseDetail({
       sections: caseBundleSections,
     });
   }, [selectedCase, caseBundleScopeType, selectedCaseBundleSequenceGroup, caseBundleSections]);
+  const executiveSummaryReport = useMemo(() => {
+    if (!selectedCase) return null;
+    return buildExecutiveSummaryReport(selectedCase);
+  }, [selectedCase]);
 
   useEffect(() => {
     const nextText = getGeneratedReportTextForLanguage(selectedCase, activeGeneratedReportLanguage);
@@ -375,6 +380,7 @@ export default function CaseDetail({
     setDocumentPackReportOpen(false);
     setLedgerPackReportOpen(false);
     setCaseBundleReportOpen(false);
+    setExecutiveSummaryReportOpen(true);
   }, [activeTab]);
 
   useEffect(() => {
@@ -2623,6 +2629,123 @@ ${ungroupedSequenceText}
       </span>
     ));
   };
+  const renderExecutiveSummaryReportArticle = (report, className = "") => {
+    if (!report) return null;
+    const metricItems = [
+      ["Incidents", report.atAGlance.incidentCount],
+      ["Evidence", report.atAGlance.evidenceCount],
+      ["Documents", report.atAGlance.documentCount],
+      ["Weak/unlinked", report.atAGlance.weakUnlinkedRecordCount],
+      ["Groups", report.atAGlance.sequenceGroupCount],
+      ["Milestones", report.atAGlance.milestoneCount],
+      ["Open issues", report.atAGlance.openIssueCount],
+    ];
+    const renderList = (items = [], getText) => (
+      items.length === 0 ? (
+        <p className="mt-2 text-sm text-neutral-500">None recorded.</p>
+      ) : (
+        <ul className="mt-3 space-y-2 text-sm leading-6 text-neutral-700">
+          {items.map((item, index) => (
+            <li key={item.id || `${getText(item)}-${index}`}>- {getText(item)}</li>
+          ))}
+        </ul>
+      )
+    );
+
+    return (
+      <article className={className}>
+        <header className="border-b border-neutral-200 pb-6 print:pb-5">
+          <div className="text-xs font-bold uppercase tracking-[0.18em] text-lime-700">EXECUTIVE SUMMARY</div>
+          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h1 className="text-3xl font-bold leading-tight text-neutral-950 print:text-[22pt]">{report.caseOverview.name || report.title}</h1>
+              <div className="mt-3 grid gap-1 text-sm text-neutral-600">
+                <div><span className="font-semibold text-neutral-950">Category:</span> {report.caseOverview.category || "-"}</div>
+                <div><span className="font-semibold text-neutral-950">Status:</span> {report.caseOverview.status || "-"}</div>
+                <div><span className="font-semibold text-neutral-950">Generated:</span> {formatThreadReportDate(report.generatedAt)}</div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30 print:hidden"
+            >
+              Print / Save PDF
+            </button>
+          </div>
+          {report.caseOverview.description && (
+            <p className="mt-4 text-sm leading-6 text-neutral-700">{report.caseOverview.description}</p>
+          )}
+        </header>
+
+        <section className="border-b border-neutral-200 py-6">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Current Position</h2>
+          <p className="mt-3 text-base font-semibold leading-7 text-neutral-950">{report.currentPosition.operationalSummary}</p>
+          <p className="mt-2 text-sm leading-6 text-neutral-700">{report.currentPosition.proceduralPosition}</p>
+          {renderList(report.currentPosition.activeIssues, (item) => item)}
+        </section>
+
+        <section className="border-b border-neutral-200 py-6">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">At a Glance</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-4">
+            {metricItems.map(([label, value]) => (
+              <div key={label} className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{label}</div>
+                <div className="mt-1 text-lg font-semibold text-neutral-950">{value}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <div className="grid gap-6 border-b border-neutral-200 py-6 lg:grid-cols-2">
+          <section>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Key Timeline</h2>
+            {renderList(report.keyTimeline, (item) => `${item.date || "No date"} - ${item.title}${item.isMilestone ? " (milestone)" : ""}`)}
+          </section>
+          <section>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Strongest Evidence</h2>
+            {renderList(report.strongestEvidence, (item) => `${item.title}${item.functionSummary ? `: ${item.functionSummary}` : ""}`)}
+          </section>
+        </div>
+
+        <div className="grid gap-6 border-b border-neutral-200 py-6 lg:grid-cols-2">
+          <section>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Risks and Concerns</h2>
+            {renderList(report.risksAndConcerns, (item) => item.message)}
+          </section>
+          <section>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Recommended Next Steps</h2>
+            {renderList(report.recommendedNextSteps, (item) => item.text)}
+          </section>
+        </div>
+
+        <section className="py-6">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Sequence Group Overview</h2>
+          {report.sequenceGroupOverview.length === 0 ? (
+            <p className="mt-3 text-sm text-neutral-500">No sequence groups recorded.</p>
+          ) : (
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {report.sequenceGroupOverview.map((group) => (
+                <div key={group.name} className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+                  <div className="font-semibold text-neutral-950">{group.name}</div>
+                  <div className="mt-1 text-xs text-neutral-600">
+                    {group.totalCount} records - incidents {group.counts.incident || 0}, evidence {group.counts.evidence || 0}, documents {(group.counts.document || 0) + (group.counts.tracking_record || 0)}, strategy {group.counts.strategy || 0}
+                  </div>
+                  {group.warnings.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {group.warnings.map((warning) => (
+                        <span key={warning} className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">{warning}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </article>
+    );
+  };
   const renderThreadIssueReportArticle = (report, className = "") => {
     if (!report) return null;
     const summaryItems = [
@@ -4319,13 +4442,45 @@ ${ungroupedSequenceText}
                 <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <h3 className="text-lg font-semibold text-neutral-900">Generate Report</h3>
+                      <h3 className="text-lg font-semibold text-neutral-900">Reports</h3>
                       <p className="mt-1 text-sm text-neutral-600">
-                        Copy the strict ProveIt Assistant prompt, paste the structured result here, and render it as a formatted report view.
+                        Build deterministic case reports, print packs, and GPT-assisted client reports.
                       </p>
                     </div>
                   </div>
                 </div>
+
+                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setExecutiveSummaryReportOpen((open) => !open)}
+                    className="flex items-center gap-2 text-left"
+                  >
+                    {executiveSummaryReportOpen ? (
+                      <ChevronDown className="h-4 w-4 text-neutral-400" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-neutral-400" />
+                    )}
+                    <span className="text-sm font-bold uppercase tracking-wider text-neutral-500">
+                      Executive Summary
+                    </span>
+                  </button>
+
+                  {executiveSummaryReportOpen && (
+                    <div className="mt-4">
+                      {executiveSummaryReport ? (
+                        renderExecutiveSummaryReportArticle(
+                          executiveSummaryReport,
+                          "mx-auto max-w-5xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm"
+                        )
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                          Select a case to preview the executive summary.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </section>
 
                 <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
                   <button
