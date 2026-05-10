@@ -2722,12 +2722,13 @@ ${ungroupedSequenceText}
   };
   const parsePolishedTimelineLine = (line = "") => {
     const cleanLine = normalizePolishedContentLine(line);
-    const datePattern = "(\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\s+[A-Za-z]+\\s+\\d{4}|[A-Za-z]+\\s+\\d{4})";
-    const dateMatch = cleanLine.match(new RegExp(`^(${datePattern})\\s*(?::|[\\u2013\\u2014-])\\s*(.+)$`));
+    const datePattern = "(?:\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\s+[A-Za-z]+\\s+\\d{4}|[A-Za-z]+\\s+\\d{4})";
+    const dateMatch = cleanLine.match(new RegExp(`^(${datePattern})\\s*(?::|[\\u2013\\u2014-])\\s*(.*)$`));
     if (!dateMatch) return null;
+    const eventText = cleanPolishedMarkdownInline(dateMatch[2]) || cleanPolishedMarkdownInline(cleanLine);
     return {
       date: cleanPolishedMarkdownInline(dateMatch[1]),
-      text: cleanPolishedMarkdownInline(dateMatch[2]),
+      text: eventText,
     };
   };
   const parsePolishedListLine = (line = "") => {
