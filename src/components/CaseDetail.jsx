@@ -5,7 +5,11 @@ import proveItHeaderLogo from "../assets/proveitheader.png";
 import { isTimelineCapable, getCaseHealthReport } from "../lib/caseHealth";
 import {
   getCaseSequenceGroups,
+  getCaseSequenceGroupDetails,
   getIncidentsUsingRecord,
+  clearRecordSequenceGroup,
+  mergeCaseSequenceGroups,
+  moveRecordToSequenceGroup,
   removeCaseSequenceGroup,
   renameCaseSequenceGroup,
 } from "../domain/caseDomain.js";
@@ -258,8 +262,13 @@ export default function CaseDetail({
   const [sequenceGroupManagerOpen, setSequenceGroupManagerOpen] = useState(false);
   const [sequenceRenameInputs, setSequenceRenameInputs] = useState({});
   const [sequenceGroupFeedback, setSequenceGroupFeedback] = useState("");
+  const [selectedSequenceGroupName, setSelectedSequenceGroupName] = useState("");
+  const [sequenceGroupSearch, setSequenceGroupSearch] = useState("");
+  const [sequenceMoveInputs, setSequenceMoveInputs] = useState({});
+  const [sequenceNewGroupInputs, setSequenceNewGroupInputs] = useState({});
   const activeGeneratedReportLanguage = normalizeReportLanguage(selectedCase?.activeGeneratedReportLanguage);
   const sequenceGroups = useMemo(() => getCaseSequenceGroups(selectedCase), [selectedCase]);
+  const sequenceGroupDetails = useMemo(() => getCaseSequenceGroupDetails(selectedCase), [selectedCase]);
   const threadIssueReportSequenceOptions = useMemo(() => sequenceGroups.map((group) => group.name), [sequenceGroups]);
   const selectedThreadIssueReportSequenceGroup = useMemo(() => {
     if (threadIssueReportSequenceOptions.includes(threadIssueReportSequenceGroup)) {
@@ -691,9 +700,15 @@ export default function CaseDetail({
 
   function openSequenceGroupManager() {
     setSequenceRenameInputs({});
+    setSequenceMoveInputs({});
+    setSequenceNewGroupInputs({});
+    setSequenceGroupSearch("");
+    setSelectedSequenceGroupName(sequenceGroups[0]?.name || "");
     setSequenceGroupFeedback("");
     setSequenceGroupManagerOpen(true);
   }
+
+  const getSequenceRecordKey = (record) => `${record.recordType}:${record.id}`;
 
   function handleRenameSequenceGroup(groupName) {
     if (!selectedCase) return;
@@ -712,7 +727,28 @@ export default function CaseDetail({
     const updatedCase = renameCaseSequenceGroup(selectedCase, groupName, nextName);
     onUpdateCase(updatedCase);
     setSequenceRenameInputs((prev) => ({ ...prev, [groupName]: "" }));
+    setSelectedSequenceGroupName(nextName);
     setSequenceGroupFeedback(`Renamed "${groupName}" to "${nextName}".`);
+  }
+
+  function handleMergeSequenceGroup(fromGroup) {
+    if (!selectedCase || !fromGroup) return;
+    const targetGroup = safeText(sequenceMoveInputs[`merge:${fromGroup}`]).trim();
+    if (!targetGroup) {
+      setSequenceGroupFeedback("Choose a target group before merging.");
+      return;
+    }
+    if (targetGroup === fromGroup) {
+      setSequenceGroupFeedback("Choose a different target group before merging.");
+      return;
+    }
+
+    const confirmed = window.confirm(`Merge "${fromGroup}" into "${targetGroup}"? Records in "${fromGroup}" will be moved to "${targetGroup}".`);
+    if (!confirmed) return;
+
+    onUpdateCase(mergeCaseSequenceGroups(selectedCase, fromGroup, targetGroup));
+    setSelectedSequenceGroupName(targetGroup);
+    setSequenceGroupFeedback(`Merged "${fromGroup}" into "${targetGroup}".`);
   }
 
   function handleRemoveSequenceGroup(group) {
@@ -722,7 +758,39 @@ export default function CaseDetail({
     if (!confirmed) return;
 
     onUpdateCase(removeCaseSequenceGroup(selectedCase, group.name));
+    setSelectedSequenceGroupName(sequenceGroups.find((item) => item.name !== group.name)?.name || "");
     setSequenceGroupFeedback(`Removed "${group.name}" from ${group.totalCount} record${group.totalCount === 1 ? "" : "s"}.`);
+  }
+
+  function handleMoveSequenceRecord(record, targetGroup) {
+    if (!selectedCase || !record) return;
+    const nextGroup = safeText(targetGroup).trim();
+    if (!nextGroup) {
+      setSequenceGroupFeedback("Choose or enter a sequence group before moving the record.");
+      return;
+    }
+
+    onUpdateCase(moveRecordToSequenceGroup(selectedCase, record.recordType, record.id, nextGroup));
+    setSelectedSequenceGroupName(nextGroup);
+    setSequenceGroupFeedback(`Moved "${record.title}" to "${nextGroup}".`);
+  }
+
+  function handleMoveSequenceRecordToExisting(record) {
+    const key = getSequenceRecordKey(record);
+    handleMoveSequenceRecord(record, sequenceMoveInputs[key]);
+  }
+
+  function handleMoveSequenceRecordToNew(record) {
+    const key = getSequenceRecordKey(record);
+    const targetGroup = safeText(sequenceNewGroupInputs[key]).trim();
+    handleMoveSequenceRecord(record, targetGroup);
+    if (targetGroup) setSequenceNewGroupInputs((prev) => ({ ...prev, [key]: "" }));
+  }
+
+  function handleClearSequenceRecord(record) {
+    if (!selectedCase || !record) return;
+    onUpdateCase(clearRecordSequenceGroup(selectedCase, record.recordType, record.id));
+    setSequenceGroupFeedback(`Removed "${record.title}" from its sequence group.`);
   }
 
   const health = selectedCase ? getCaseHealthReport(selectedCase) : null;
@@ -6361,12 +6429,12 @@ ${ungroupedSequenceText}
 
       {sequenceGroupManagerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 print:hidden">
-          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-xl">
+          <div className="flex max-h-[92vh] w-full max-w-7xl flex-col rounded-2xl bg-white shadow-xl">
             <div className="flex items-start justify-between gap-4 border-b border-neutral-100 p-5">
               <div>
-                <h3 className="text-lg font-semibold text-neutral-900">Manage Sequence Groups</h3>
+                <h3 className="text-lg font-semibold text-neutral-900">Sequence Group Manager</h3>
                 <p className="mt-1 text-xs text-neutral-500">
-                  Rename or clear sequence groups used by incidents, evidence, documents, and strategy records.
+                  Review, rename, merge, move, and assign records across incidents, evidence, documents, and strategy.
                 </p>
               </div>
               <button
@@ -6385,60 +6453,271 @@ ${ungroupedSequenceText}
                 </div>
               )}
 
-              {sequenceGroups.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-500">
-                  No sequence groups are used in this case.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {sequenceGroups.map((group) => (
-                    <section key={group.name} className="rounded-xl border border-neutral-200 bg-white p-4">
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            {renderSequenceGroupChip(group.name)}
-                            <span className="text-sm font-semibold text-neutral-900">
-                              {group.totalCount} use{group.totalCount === 1 ? "" : "s"}
+              {(() => {
+                const search = safeText(sequenceGroupSearch).trim().toLowerCase();
+                const selectedGroup = sequenceGroupDetails.groups.find((group) => group.name === selectedSequenceGroupName) || sequenceGroupDetails.groups[0] || null;
+                const selectedGroupName = selectedGroup?.name || "";
+                const groupOptions = sequenceGroupDetails.groups.map((group) => group.name);
+                const typeLabels = {
+                  incidents: "Incidents",
+                  evidence: "Evidence",
+                  documents: "Documents",
+                  strategy: "Strategy",
+                };
+                const recordMatchesSearch = (record) => {
+                  if (!search) return true;
+                  return [record.title, record.summary, record.status, record.date]
+                    .some((value) => safeText(value).toLowerCase().includes(search));
+                };
+                const renderRecordActions = (record, includeRemove = true) => {
+                  const key = getSequenceRecordKey(record);
+                  const existingOptions = groupOptions.filter((name) => name !== record.sequenceGroup);
+                  return (
+                    <div className="mt-3 flex flex-col gap-2 border-t border-neutral-100 pt-3 lg:flex-row lg:items-center">
+                      <select
+                        value={sequenceMoveInputs[key] || ""}
+                        onChange={(event) => setSequenceMoveInputs((prev) => ({ ...prev, [key]: event.target.value }))}
+                        className="min-w-0 rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-xs font-medium text-neutral-700 outline-none focus:border-lime-500"
+                      >
+                        <option value="">Move to existing group</option>
+                        {existingOptions.map((name) => (
+                          <option key={name} value={name}>{name}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => handleMoveSequenceRecordToExisting(record)}
+                        className="rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-xs font-bold text-neutral-700 hover:bg-neutral-50"
+                      >
+                        Move
+                      </button>
+                      <input
+                        value={sequenceNewGroupInputs[key] || ""}
+                        onChange={(event) => setSequenceNewGroupInputs((prev) => ({ ...prev, [key]: event.target.value }))}
+                        placeholder="New group"
+                        className="min-w-0 rounded-md border border-neutral-300 px-2 py-1.5 text-xs outline-none focus:border-lime-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleMoveSequenceRecordToNew(record)}
+                        className="rounded-md border border-lime-500 bg-white px-2 py-1.5 text-xs font-bold text-neutral-800 hover:bg-lime-400/30"
+                      >
+                        Assign New
+                      </button>
+                      {includeRemove && (
+                        <button
+                          type="button"
+                          onClick={() => handleClearSequenceRecord(record)}
+                          className="rounded-md border border-red-200 bg-white px-2 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  );
+                };
+                const renderRecordCard = (record, includeRemove = true) => (
+                  <div key={`${record.recordType}-${record.id}`} className="rounded-lg border border-neutral-200 bg-white p-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h5 className="min-w-0 truncate text-sm font-semibold text-neutral-950">{record.title}</h5>
+                          {record.status && (
+                            <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                              {record.status}
                             </span>
-                          </div>
-                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-600">
-                            <span>Incidents: {group.counts.incidents}</span>
-                            <span>Evidence: {group.counts.evidence}</span>
-                            <span>Documents: {group.counts.documents}</span>
-                            <span>Strategy: {group.counts.strategy}</span>
-                          </div>
+                          )}
                         </div>
-
-                        <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
-                          <input
-                            value={sequenceRenameInputs[group.name] || ""}
-                            onChange={(event) => {
-                              setSequenceRenameInputs((prev) => ({ ...prev, [group.name]: event.target.value }));
-                              setSequenceGroupFeedback("");
-                            }}
-                            placeholder="New group name"
-                            className="min-w-0 rounded-md border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-100 sm:w-56"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleRenameSequenceGroup(group.name)}
-                            className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
-                          >
-                            Rename
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveSequenceGroup(group)}
-                            className="rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-50"
-                          >
-                            Remove
-                          </button>
+                        <div className="mt-1 flex flex-wrap gap-2 text-[11px] font-medium text-neutral-500">
+                          <span>{record.date || "No date"}</span>
+                          <span>{record.linkedRecordCount} linked</span>
                         </div>
+                        {record.summary ? (
+                          <p className="mt-2 line-clamp-2 text-sm leading-5 text-neutral-700">{record.summary}</p>
+                        ) : (
+                          <p className="mt-2 text-sm italic text-neutral-400">No summary recorded.</p>
+                        )}
                       </div>
-                    </section>
-                  ))}
-                </div>
-              )}
+                    </div>
+                    {renderRecordActions(record, includeRemove)}
+                  </div>
+                );
+                const ungroupedCount = Object.values(sequenceGroupDetails.ungroupedRecords)
+                  .reduce((sum, records) => sum + records.length, 0);
+
+                return (
+                  <div className="grid gap-5 lg:grid-cols-[18rem_1fr]">
+                    <aside className="space-y-3">
+                      <input
+                        value={sequenceGroupSearch}
+                        onChange={(event) => setSequenceGroupSearch(event.target.value)}
+                        placeholder="Search records"
+                        className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-lime-500"
+                      />
+                      <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                        <div className="mb-2 text-xs font-bold uppercase tracking-wider text-neutral-500">Groups</div>
+                        {sequenceGroupDetails.groups.length === 0 ? (
+                          <p className="text-sm text-neutral-500">No sequence groups are used in this case.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {sequenceGroupDetails.groups.map((group) => (
+                              <button
+                                key={group.name}
+                                type="button"
+                                onClick={() => setSelectedSequenceGroupName(group.name)}
+                                className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                                  group.name === selectedGroupName
+                                    ? "border-lime-400 bg-white shadow-sm"
+                                    : "border-neutral-200 bg-white hover:border-neutral-300"
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <div className="truncate text-sm font-semibold text-neutral-950">{group.name}</div>
+                                    <div className="mt-1 text-xs text-neutral-500">{group.totalCount} record{group.totalCount === 1 ? "" : "s"}</div>
+                                  </div>
+                                  <div className="flex flex-col items-end gap-1">
+                                    {group.warnings.noIncidents && (
+                                      <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-700">No incidents</span>
+                                    )}
+                                    {group.warnings.incidentsWithoutEvidence && (
+                                      <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-700">No evidence</span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="mt-2 grid grid-cols-4 gap-1 text-center text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                                  <span>I {group.counts.incidents}</span>
+                                  <span>E {group.counts.evidence}</span>
+                                  <span>D {group.counts.documents}</span>
+                                  <span>S {group.counts.strategy}</span>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </aside>
+
+                    <div className="space-y-5">
+                      <section className="rounded-xl border border-neutral-200 bg-white p-4">
+                        {selectedGroup ? (
+                          <>
+                            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {renderSequenceGroupChip(selectedGroup.name)}
+                                  <span className="text-sm font-semibold text-neutral-900">{selectedGroup.totalCount} records</span>
+                                  {selectedGroup.warnings.noIncidents && <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">No incidents</span>}
+                                  {selectedGroup.warnings.incidentsWithoutEvidence && <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">Incidents but no evidence</span>}
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-3 text-xs text-neutral-600">
+                                  <span>Incidents: {selectedGroup.counts.incidents}</span>
+                                  <span>Evidence: {selectedGroup.counts.evidence}</span>
+                                  <span>Documents: {selectedGroup.counts.documents}</span>
+                                  <span>Strategy: {selectedGroup.counts.strategy}</span>
+                                </div>
+                              </div>
+
+                              <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_auto]">
+                                <input
+                                  value={sequenceRenameInputs[selectedGroup.name] || ""}
+                                  onChange={(event) => {
+                                    setSequenceRenameInputs((prev) => ({ ...prev, [selectedGroup.name]: event.target.value }));
+                                    setSequenceGroupFeedback("");
+                                  }}
+                                  placeholder="Rename selected group"
+                                  className="min-w-0 rounded-md border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-lime-500"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleRenameSequenceGroup(selectedGroup.name)}
+                                  className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
+                                >
+                                  Rename
+                                </button>
+                                <select
+                                  value={sequenceMoveInputs[`merge:${selectedGroup.name}`] || ""}
+                                  onChange={(event) => setSequenceMoveInputs((prev) => ({ ...prev, [`merge:${selectedGroup.name}`]: event.target.value }))}
+                                  className="min-w-0 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 outline-none focus:border-lime-500"
+                                >
+                                  <option value="">Merge into...</option>
+                                  {groupOptions.filter((name) => name !== selectedGroup.name).map((name) => (
+                                    <option key={name} value={name}>{name}</option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() => handleMergeSequenceGroup(selectedGroup.name)}
+                                  className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
+                                >
+                                  Merge
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveSequenceGroup(selectedGroup)}
+                                  className="rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-50"
+                                >
+                                  Clear Group
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="mt-5 grid gap-4 xl:grid-cols-2">
+                              {Object.entries(typeLabels).map(([recordType, label]) => {
+                                const records = (selectedGroup.records[recordType] || []).filter(recordMatchesSearch);
+                                return (
+                                  <section key={recordType} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                                    <div className="mb-3 flex items-center justify-between gap-2">
+                                      <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">{label}</h4>
+                                      <span className="text-xs font-semibold text-neutral-500">{records.length}</span>
+                                    </div>
+                                    <div className="space-y-2">
+                                      {records.length === 0 ? (
+                                        <p className="rounded-lg border border-dashed border-neutral-200 bg-white p-3 text-sm text-neutral-500">No matching records.</p>
+                                      ) : records.map((record) => renderRecordCard(record, true))}
+                                    </div>
+                                  </section>
+                                );
+                              })}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-500">
+                            Select or create a sequence group by assigning an ungrouped record.
+                          </div>
+                        )}
+                      </section>
+
+                      <section className="rounded-xl border border-neutral-200 bg-white p-4">
+                        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Ungrouped Records</h4>
+                            <p className="mt-1 text-xs text-neutral-500">{ungroupedCount} record{ungroupedCount === 1 ? "" : "s"} without a sequenceGroup.</p>
+                          </div>
+                        </div>
+                        <div className="grid gap-4 xl:grid-cols-2">
+                          {Object.entries(typeLabels).map(([recordType, label]) => {
+                            const records = (sequenceGroupDetails.ungroupedRecords[recordType] || []).filter(recordMatchesSearch);
+                            return (
+                              <section key={recordType} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                                <div className="mb-3 flex items-center justify-between gap-2">
+                                  <h5 className="text-xs font-bold uppercase tracking-wider text-neutral-500">{label}</h5>
+                                  <span className="text-xs font-semibold text-neutral-500">{records.length}</span>
+                                </div>
+                                <div className="space-y-2">
+                                  {records.length === 0 ? (
+                                    <p className="rounded-lg border border-dashed border-neutral-200 bg-white p-3 text-sm text-neutral-500">No ungrouped records.</p>
+                                  ) : records.map((record) => renderRecordCard(record, false))}
+                                </div>
+                              </section>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

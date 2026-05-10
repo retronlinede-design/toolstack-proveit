@@ -497,6 +497,138 @@ export function getCaseSequenceGroups(caseItem) {
   return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
+function getSequenceGroupRecordTitle(record = {}, recordType = "record") {
+  if (recordType === "documents") return record.title || record.name || record.id || "Untitled document";
+  return record.title || record.label || record.id || `Untitled ${recordType}`;
+}
+
+function getSequenceGroupRecordDate(record = {}) {
+  return record.eventDate || record.date || record.documentDate || record.capturedAt || record.createdAt || "";
+}
+
+function getSequenceGroupRecordSummary(record = {}) {
+  const value = record.summary || record.description || record.functionSummary || record.notes || record.reviewNotes || record.source || "";
+  return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, 220) : "";
+}
+
+function getSequenceGroupLinkedCount(record = {}) {
+  const linkedIds = [
+    ...(Array.isArray(record.linkedRecordIds) ? record.linkedRecordIds : []),
+    ...(Array.isArray(record.linkedEvidenceIds) ? record.linkedEvidenceIds : []),
+    ...(Array.isArray(record.linkedIncidentIds) ? record.linkedIncidentIds : []),
+    ...(Array.isArray(record.basedOnEvidenceIds) ? record.basedOnEvidenceIds : []),
+    ...(Array.isArray(record.linkedIncidentRefs) ? record.linkedIncidentRefs.map((ref) => ref?.incidentId).filter(Boolean) : []),
+  ];
+  return new Set(linkedIds.filter(Boolean)).size;
+}
+
+function buildSequenceGroupRecord(record, recordType) {
+  return {
+    id: record.id || "",
+    recordType,
+    title: getSequenceGroupRecordTitle(record, recordType),
+    date: getSequenceGroupRecordDate(record),
+    status: record.status || record.proofStatus || "",
+    summary: getSequenceGroupRecordSummary(record),
+    sequenceGroup: getSequenceGroupValue(record.sequenceGroup),
+    linkedRecordCount: getSequenceGroupLinkedCount(record),
+  };
+}
+
+export function getCaseSequenceGroupDetails(caseItem) {
+  const groups = new Map();
+  const ungroupedRecords = {
+    incidents: [],
+    evidence: [],
+    documents: [],
+    strategy: [],
+  };
+
+  SEQUENCE_GROUP_RECORD_TYPES.forEach((recordType) => {
+    const records = Array.isArray(caseItem?.[recordType]) ? caseItem[recordType] : [];
+    records.forEach((record) => {
+      if (!record?.id) return;
+      const groupName = getSequenceGroupValue(record.sequenceGroup);
+      const item = buildSequenceGroupRecord(record, recordType);
+      if (!groupName) {
+        ungroupedRecords[recordType].push(item);
+        return;
+      }
+      if (!groups.has(groupName)) {
+        groups.set(groupName, {
+          name: groupName,
+          totalCount: 0,
+          counts: { incidents: 0, evidence: 0, documents: 0, strategy: 0 },
+          records: { incidents: [], evidence: [], documents: [], strategy: [] },
+          warnings: { noIncidents: false, incidentsWithoutEvidence: false },
+        });
+      }
+      const group = groups.get(groupName);
+      group.totalCount += 1;
+      group.counts[recordType] += 1;
+      group.records[recordType].push(item);
+    });
+  });
+
+  const sortedGroups = [...groups.values()]
+    .map((group) => ({
+      ...group,
+      warnings: {
+        noIncidents: group.counts.incidents === 0,
+        incidentsWithoutEvidence: group.counts.incidents > 0 && group.counts.evidence === 0,
+      },
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  return {
+    groups: sortedGroups,
+    ungroupedRecords,
+  };
+}
+
+function updateRecordSequenceGroup(caseItem, recordType, recordId, targetGroup) {
+  if (!caseItem || !SEQUENCE_GROUP_RECORD_TYPES.includes(recordType) || !recordId) return caseItem;
+  const nextGroup = targetGroup == null ? "" : getSequenceGroupValue(targetGroup);
+  const records = Array.isArray(caseItem?.[recordType]) ? caseItem[recordType] : [];
+  const updatedAt = new Date().toISOString();
+  let changed = false;
+  const updatedRecords = records.map((record) => {
+    if (record.id !== recordId) return record;
+    if (getSequenceGroupValue(record.sequenceGroup) === nextGroup) return record;
+    changed = true;
+    return {
+      ...record,
+      sequenceGroup: nextGroup,
+      updatedAt,
+    };
+  });
+
+  if (!changed) return caseItem;
+
+  return {
+    ...caseItem,
+    [recordType]: isTimelineCapable(recordType) ? sortTimelineItems(updatedRecords) : updatedRecords,
+    updatedAt,
+  };
+}
+
+export function moveRecordToSequenceGroup(caseItem, recordType, recordId, targetGroup) {
+  const nextGroup = getSequenceGroupValue(targetGroup);
+  if (!nextGroup) return caseItem;
+  return updateRecordSequenceGroup(caseItem, recordType, recordId, nextGroup);
+}
+
+export function clearRecordSequenceGroup(caseItem, recordType, recordId) {
+  return updateRecordSequenceGroup(caseItem, recordType, recordId, "");
+}
+
+export function mergeCaseSequenceGroups(caseItem, fromGroup, toGroup) {
+  const sourceGroup = getSequenceGroupValue(fromGroup);
+  const targetGroup = getSequenceGroupValue(toGroup);
+  if (!sourceGroup || !targetGroup || sourceGroup === targetGroup) return caseItem;
+  return updateCaseSequenceGroup(caseItem, sourceGroup, targetGroup);
+}
+
 function updateCaseSequenceGroup(caseItem, fromGroup, toGroup) {
   const sourceGroup = getSequenceGroupValue(fromGroup);
   if (!caseItem || !sourceGroup) return caseItem;

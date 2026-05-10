@@ -8,10 +8,14 @@ import {
   deleteLedgerEntryFromCase,
   deleteRecordFromCase,
   getCaseSequenceGroups,
+  getCaseSequenceGroupDetails,
   getIncidentLinkGroups,
   getIncidentsUsingRecord,
   linkRecordToIncident,
+  clearRecordSequenceGroup,
+  mergeCaseSequenceGroups,
   mergeCase,
+  moveRecordToSequenceGroup,
   normalizeCase,
   normalizeCasePrivacyLock,
   normalizeRecord,
@@ -207,6 +211,117 @@ test("removeCaseSequenceGroup clears supported records and preserves unrelated g
   assert.equal(updated.documents[0].sequenceGroup, "");
   assert.equal(updated.strategy[0].sequenceGroup, "");
   assert.equal(updated.incidents[1].sequenceGroup, "Repair");
+});
+
+test("getCaseSequenceGroupDetails lists groups, counts, warnings, and ungrouped records", () => {
+  const caseItem = {
+    incidents: [
+      { id: "inc-1", title: "Leak", eventDate: "2024-01-01", status: "open", description: "Leak description", sequenceGroup: "Leak Thread", linkedEvidenceIds: ["ev-1"] },
+      { id: "inc-2", title: "Ungrouped incident", description: "Needs grouping", sequenceGroup: "" },
+      { id: "inc-3", title: "No proof incident", sequenceGroup: "No Proof" },
+    ],
+    evidence: [
+      { id: "ev-1", title: "Photo", capturedAt: "2024-01-02", sequenceGroup: "Leak Thread" },
+    ],
+    documents: [
+      { id: "doc-1", title: "Email", documentDate: "2024-01-03", sequenceGroup: "Docs Only" },
+      { id: "doc-2", title: "Ungrouped document" },
+    ],
+    strategy: [
+      { id: "str-1", title: "Plan", sequenceGroup: "Leak Thread" },
+    ],
+  };
+
+  const details = getCaseSequenceGroupDetails(caseItem);
+
+  assert.deepEqual(details.groups.map((group) => group.name), ["Docs Only", "Leak Thread", "No Proof"]);
+  assert.deepEqual(details.groups.find((group) => group.name === "Leak Thread").counts, {
+    incidents: 1,
+    evidence: 1,
+    documents: 0,
+    strategy: 1,
+  });
+  assert.equal(details.groups.find((group) => group.name === "Docs Only").warnings.noIncidents, true);
+  assert.equal(details.groups.find((group) => group.name === "No Proof").warnings.incidentsWithoutEvidence, true);
+  assert.deepEqual(details.ungroupedRecords.incidents.map((record) => record.id), ["inc-2"]);
+  assert.deepEqual(details.ungroupedRecords.documents.map((record) => record.id), ["doc-2"]);
+  assert.equal(details.groups.find((group) => group.name === "Leak Thread").records.incidents[0].linkedRecordCount, 1);
+});
+
+test("moveRecordToSequenceGroup moves supported record types and preserves ids and createdAt", () => {
+  const caseItem = {
+    id: "case-1",
+    updatedAt: "case-old",
+    incidents: [{ id: "inc-1", createdAt: "inc-created", updatedAt: "old", sequenceGroup: "Old" }],
+    evidence: [{ id: "ev-1", createdAt: "ev-created", updatedAt: "old", sequenceGroup: "Old" }],
+    documents: [{ id: "doc-1", createdAt: "doc-created", updatedAt: "old", sequenceGroup: "Old" }],
+    strategy: [{ id: "str-1", createdAt: "str-created", updatedAt: "old", sequenceGroup: "Old" }],
+  };
+
+  let updated = moveRecordToSequenceGroup(caseItem, "incidents", "inc-1", "New");
+  updated = moveRecordToSequenceGroup(updated, "evidence", "ev-1", "New");
+  updated = moveRecordToSequenceGroup(updated, "documents", "doc-1", "New");
+  updated = moveRecordToSequenceGroup(updated, "strategy", "str-1", "New");
+
+  assert.equal(updated.incidents[0].id, "inc-1");
+  assert.equal(updated.incidents[0].createdAt, "inc-created");
+  assert.equal(updated.incidents[0].sequenceGroup, "New");
+  assert.equal(updated.evidence[0].sequenceGroup, "New");
+  assert.equal(updated.documents[0].sequenceGroup, "New");
+  assert.equal(updated.strategy[0].sequenceGroup, "New");
+  assert.notEqual(updated.updatedAt, "case-old");
+  assert.match(updated.incidents[0].updatedAt, /^\d{4}-\d{2}-\d{2}T/);
+});
+
+test("moveRecordToSequenceGroup assigns ungrouped records and preserves unrelated groups", () => {
+  const caseItem = {
+    incidents: [
+      { id: "inc-1", sequenceGroup: "" },
+      { id: "inc-2", sequenceGroup: "Keep" },
+    ],
+  };
+
+  const updated = moveRecordToSequenceGroup(caseItem, "incidents", "inc-1", "Assigned");
+
+  assert.equal(updated.incidents.find((record) => record.id === "inc-1").sequenceGroup, "Assigned");
+  assert.equal(updated.incidents.find((record) => record.id === "inc-2").sequenceGroup, "Keep");
+});
+
+test("clearRecordSequenceGroup clears one record group and updates timestamps", () => {
+  const caseItem = {
+    id: "case-1",
+    updatedAt: "case-old",
+    evidence: [{ id: "ev-1", createdAt: "ev-created", updatedAt: "old", sequenceGroup: "Leak" }],
+  };
+
+  const updated = clearRecordSequenceGroup(caseItem, "evidence", "ev-1");
+
+  assert.equal(updated.evidence[0].id, "ev-1");
+  assert.equal(updated.evidence[0].createdAt, "ev-created");
+  assert.equal(updated.evidence[0].sequenceGroup, "");
+  assert.notEqual(updated.updatedAt, "case-old");
+  assert.match(updated.evidence[0].updatedAt, /^\d{4}-\d{2}-\d{2}T/);
+});
+
+test("mergeCaseSequenceGroups merges groups and preserves unrelated groups", () => {
+  const caseItem = {
+    id: "case-1",
+    incidents: [
+      { id: "inc-1", sequenceGroup: "Source" },
+      { id: "inc-2", sequenceGroup: "Target" },
+      { id: "inc-3", sequenceGroup: "Other" },
+    ],
+    evidence: [{ id: "ev-1", sequenceGroup: "Source" }],
+    documents: [{ id: "doc-1", sequenceGroup: "Source" }],
+    strategy: [{ id: "str-1", sequenceGroup: "Source" }],
+  };
+
+  const updated = mergeCaseSequenceGroups(caseItem, " Source ", " Target ");
+
+  assert.deepEqual(updated.incidents.map((record) => record.sequenceGroup), ["Target", "Target", "Other"]);
+  assert.equal(updated.evidence[0].sequenceGroup, "Target");
+  assert.equal(updated.documents[0].sequenceGroup, "Target");
+  assert.equal(updated.strategy[0].sequenceGroup, "Target");
 });
 
 test("normalizeRecord defaults evidence milestone flag to false", () => {
