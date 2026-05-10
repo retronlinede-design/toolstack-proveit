@@ -2691,52 +2691,74 @@ ${ungroupedSequenceText}
       Object.entries(sections).map(([heading, lines]) => [heading, lines.join("\n").trim()])
     );
   };
-  const renderExecutivePolishedSection = (text = "", fallback = null) => {
-    const cleanText = safeText(text).trim();
-    if (!cleanText) return fallback;
-
-    const elements = [];
+  const normalizePolishedContentLine = (line = "") => (
+    safeText(line)
+      .replace(/^\*\*([^*]+?):\*\*\s*/, "$1: ")
+      .replace(/^\*\*([^*]+?)\*\*:\s*/, "$1: ")
+      .replace(/^__([^_]+?):__\s*/, "$1: ")
+      .replace(/^__([^_]+?)__:\s*/, "$1: ")
+      .trim()
+  );
+  const splitPolishedLabelLine = (line = "") => {
+    const cleanLine = normalizePolishedContentLine(line);
+    const colonIndex = cleanLine.indexOf(":");
+    if (colonIndex > 0 && colonIndex <= 70) {
+      return {
+        label: cleanPolishedMarkdownInline(cleanLine.slice(0, colonIndex)),
+        text: cleanPolishedMarkdownInline(cleanLine.slice(colonIndex + 1)),
+      };
+    }
+    const dashMatch = cleanLine.match(/^(.{2,70}?)\s+[\u2013\u2014-]\s+(.+)$/);
+    if (dashMatch) {
+      return {
+        label: cleanPolishedMarkdownInline(dashMatch[1]),
+        text: cleanPolishedMarkdownInline(dashMatch[2]),
+      };
+    }
+    return {
+      label: "",
+      text: cleanPolishedMarkdownInline(cleanLine),
+    };
+  };
+  const parsePolishedTimelineLine = (line = "") => {
+    const cleanLine = normalizePolishedContentLine(line);
+    const datePattern = "(\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\s+[A-Za-z]+\\s+\\d{4}|[A-Za-z]+\\s+\\d{4})";
+    const dateMatch = cleanLine.match(new RegExp(`^(${datePattern})\\s*(?::|[\\u2013\\u2014-])\\s*(.+)$`));
+    if (!dateMatch) return null;
+    return {
+      date: cleanPolishedMarkdownInline(dateMatch[1]),
+      text: cleanPolishedMarkdownInline(dateMatch[2]),
+    };
+  };
+  const parsePolishedListLine = (line = "") => {
+    const bulletMatch = line.match(/^[-*\u2022]\s+(.+)$/);
+    if (bulletMatch) return { ordered: false, text: bulletMatch[1] };
+    const numberedMatch = line.match(/^(\d+)[.)]\s+(.+)$/);
+    if (numberedMatch) return { ordered: true, number: numberedMatch[1], text: numberedMatch[2] };
+    return null;
+  };
+  const buildPolishedContentBlocks = (text = "", sectionTitle = "") => {
+    const blocks = [];
     let paragraphLines = [];
     let listItems = [];
-    let listType = "";
+    let listOrdered = false;
+    const cardSection = ["Strongest Evidence", "Risks and Concerns"].includes(sectionTitle);
 
     const flushParagraph = () => {
       if (paragraphLines.length === 0) return;
       const paragraphText = cleanPolishedMarkdownInline(paragraphLines.join(" "));
-      if (paragraphText) {
-        elements.push(
-          <p key={`p-${elements.length}`} className="text-sm leading-7 text-neutral-700">
-            {paragraphText}
-          </p>
-        );
-      }
+      if (paragraphText) blocks.push({ type: "paragraph", text: paragraphText });
       paragraphLines = [];
     };
 
     const flushList = () => {
       if (listItems.length === 0) return;
-      const listClassName = "space-y-2 text-sm leading-6 text-neutral-700";
-      const renderedItems = listItems.map((item, index) => (
-        <li key={`${item}-${index}`} className="pl-1">
-          {cleanPolishedMarkdownInline(item)}
-        </li>
-      ));
-      elements.push(
-        listType === "numbered" ? (
-          <ol key={`ol-${elements.length}`} className={`${listClassName} list-decimal pl-5`}>
-            {renderedItems}
-          </ol>
-        ) : (
-          <ul key={`ul-${elements.length}`} className={`${listClassName} list-disc pl-5`}>
-            {renderedItems}
-          </ul>
-        )
-      );
+      blocks.push({ type: "list", ordered: listOrdered, items: listItems });
       listItems = [];
-      listType = "";
+      listOrdered = false;
     };
 
-    cleanText.split("\n").forEach((rawLine) => {
+    safeText(text).split("\n").forEach((rawLine) => {
       const line = rawLine.trim();
       if (!line) {
         flushParagraph();
@@ -2744,14 +2766,29 @@ ${ungroupedSequenceText}
         return;
       }
 
-      const bulletMatch = line.match(/^[-*•]\s+(.+)$/);
-      const numberedMatch = line.match(/^\d+[.)]\s+(.+)$/);
-      if (bulletMatch || numberedMatch) {
+      const listLine = parsePolishedListLine(line);
+      const contentLine = listLine?.text || line;
+      const timelineLine = sectionTitle === "Key Timeline" ? parsePolishedTimelineLine(contentLine) : null;
+      if (timelineLine) {
         flushParagraph();
-        const nextListType = numberedMatch ? "numbered" : "bullet";
-        if (listType && listType !== nextListType) flushList();
-        listType = nextListType;
-        listItems.push(bulletMatch?.[1] || numberedMatch?.[1] || "");
+        flushList();
+        blocks.push({ type: "timeline", ...timelineLine });
+        return;
+      }
+
+      if (listLine) {
+        flushParagraph();
+        if (listItems.length > 0 && listOrdered !== listLine.ordered) flushList();
+        listOrdered = listLine.ordered;
+        listItems.push(splitPolishedLabelLine(contentLine));
+        return;
+      }
+
+      const labelLine = splitPolishedLabelLine(line);
+      if (cardSection && labelLine.label && labelLine.text) {
+        flushParagraph();
+        flushList();
+        blocks.push({ type: "card", item: labelLine });
         return;
       }
 
@@ -2761,10 +2798,98 @@ ${ungroupedSequenceText}
 
     flushParagraph();
     flushList();
+    return blocks;
+  };
+  const renderPolishedCardItem = (item, className = "") => (
+    <div className={`break-inside-avoid rounded-lg border border-neutral-200 bg-white p-3 print:break-inside-avoid ${className}`}>
+      {item.label ? <div className="text-sm font-semibold text-neutral-950">{item.label}</div> : null}
+      {item.text ? <p className={`${item.label ? "mt-1" : ""} text-sm leading-6 text-neutral-700`}>{item.text}</p> : null}
+    </div>
+  );
+  const renderExecutivePolishedSection = (text = "", sectionTitle = "", fallback = null) => {
+    const cleanText = safeText(text).trim();
+    if (!cleanText) return fallback;
+    const blocks = buildPolishedContentBlocks(cleanText, sectionTitle);
 
     return (
       <div className="space-y-4">
-        {elements}
+        {blocks.map((block, blockIndex) => {
+          if (block.type === "paragraph") {
+            return (
+              <p key={`paragraph-${blockIndex}`} className="text-sm leading-7 text-neutral-700">
+                {block.text}
+              </p>
+            );
+          }
+          if (block.type === "timeline") {
+            return (
+              <div key={`timeline-${blockIndex}`} className="break-inside-avoid rounded-xl border border-neutral-200 bg-white p-4 print:break-inside-avoid">
+                <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">{block.date}</div>
+                <p className="mt-2 text-sm leading-6 text-neutral-800">{block.text}</p>
+              </div>
+            );
+          }
+          if (block.type === "card") {
+            const toneClass = sectionTitle === "Risks and Concerns"
+              ? "border-amber-200 bg-amber-50"
+              : "";
+            return (
+              <div key={`card-${blockIndex}`}>
+                {renderPolishedCardItem(block.item, toneClass)}
+              </div>
+            );
+          }
+          if (block.type === "list" && sectionTitle === "Recommended Next Steps") {
+            return (
+              <ol key={`actions-${blockIndex}`} className="space-y-3">
+                {block.items.map((item, index) => (
+                  <li key={`${item.label || item.text}-${index}`} className="break-inside-avoid rounded-xl border border-lime-200 bg-white p-4 print:break-inside-avoid">
+                    <div className="flex gap-3">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-lime-100 text-xs font-bold text-lime-900">
+                        {index + 1}
+                      </span>
+                      <div>
+                        {item.label ? <div className="text-sm font-semibold text-neutral-950">{item.label}</div> : null}
+                        <p className={`${item.label ? "mt-1" : ""} text-sm leading-6 text-neutral-800`}>{item.text}</p>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            );
+          }
+          if (block.type === "list" && ["Strongest Evidence", "Risks and Concerns"].includes(sectionTitle)) {
+            const toneClass = sectionTitle === "Risks and Concerns"
+              ? "border-amber-200 bg-amber-50"
+              : "";
+            return (
+              <div key={`cards-${blockIndex}`} className="space-y-3">
+                {block.items.map((item, index) => (
+                  <div key={`${item.label || item.text}-${index}`}>
+                    {renderPolishedCardItem(item, toneClass)}
+                  </div>
+                ))}
+              </div>
+            );
+          }
+          if (block.type === "list") {
+            const ListTag = block.ordered ? "ol" : "ul";
+            return (
+              <ListTag
+                key={`list-${blockIndex}`}
+                className={`space-y-2 text-sm leading-6 text-neutral-700 ${block.ordered ? "list-decimal" : "list-disc"} pl-5`}
+              >
+                {block.items.map((item, index) => (
+                  <li key={`${item.label || item.text}-${index}`} className="pl-1">
+                    {item.label ? <span className="font-semibold text-neutral-900">{item.label}: </span> : null}
+                    {item.text}
+                  </li>
+                ))}
+              </ListTag>
+            );
+          }
+          return null;
+        })}
       </div>
     );
   };
@@ -2842,7 +2967,7 @@ ${ungroupedSequenceText}
             <h2 className="text-xs font-bold uppercase tracking-wider text-lime-800">Current Position</h2>
             {safeText(polishedSections["Current Position"]).trim() ? (
               <div className="mt-3">
-                {renderExecutivePolishedSection(polishedSections["Current Position"])}
+                {renderExecutivePolishedSection(polishedSections["Current Position"], "Current Position")}
               </div>
             ) : (
               <>
@@ -2886,7 +3011,7 @@ ${ungroupedSequenceText}
                 <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Key Timeline</h2>
                 {safeText(polishedSections["Key Timeline"]).trim() ? (
                   <div className="mt-4 rounded-xl border border-neutral-200 bg-white p-4">
-                    {renderExecutivePolishedSection(polishedSections["Key Timeline"])}
+                    {renderExecutivePolishedSection(polishedSections["Key Timeline"], "Key Timeline")}
                   </div>
                 ) : report.keyTimeline.length === 0 ? (
                   <p className="mt-3 text-sm text-neutral-500">No dated chronology has been recorded yet.</p>
@@ -2911,7 +3036,7 @@ ${ungroupedSequenceText}
                 <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Strongest Evidence</h2>
                 {safeText(polishedSections["Strongest Evidence"]).trim() ? (
                   <div className="mt-4 rounded-xl border border-neutral-200 bg-white p-4">
-                    {renderExecutivePolishedSection(polishedSections["Strongest Evidence"])}
+                    {renderExecutivePolishedSection(polishedSections["Strongest Evidence"], "Strongest Evidence")}
                   </div>
                 ) : report.strongestEvidence.length === 0 ? (
                   <p className="mt-3 text-sm text-neutral-500">No evidence has been recorded yet.</p>
@@ -2936,7 +3061,7 @@ ${ungroupedSequenceText}
                 <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Risks and Concerns</h2>
                 {safeText(polishedSections["Risks and Concerns"]).trim() ? (
                   <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-                    {renderExecutivePolishedSection(polishedSections["Risks and Concerns"])}
+                    {renderExecutivePolishedSection(polishedSections["Risks and Concerns"], "Risks and Concerns")}
                   </div>
                 ) : report.risksAndConcerns.length === 0 ? (
                   <p className="mt-3 text-sm text-neutral-500">No major operational concerns are currently flagged.</p>
@@ -2955,7 +3080,7 @@ ${ungroupedSequenceText}
                 <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">What Should Happen Next</h2>
                 {safeText(polishedSections["Recommended Next Steps"]).trim() ? (
                   <div className="mt-4 rounded-xl border border-lime-200 bg-lime-50 p-4">
-                    {renderExecutivePolishedSection(polishedSections["Recommended Next Steps"])}
+                    {renderExecutivePolishedSection(polishedSections["Recommended Next Steps"], "Recommended Next Steps")}
                   </div>
                 ) : report.recommendedNextSteps.length === 0 ? (
                   <p className="mt-3 text-sm text-neutral-500">No next actions have been recorded yet.</p>
