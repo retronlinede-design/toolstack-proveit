@@ -6,6 +6,7 @@ import { isTimelineCapable, getCaseHealthReport } from "../lib/caseHealth";
 import {
   getCaseSequenceGroups,
   getCaseSequenceGroupDetails,
+  getCaseSequenceGroupRelationshipMap,
   getCaseSequenceGroupTimeline,
   getIncidentsUsingRecord,
   clearRecordSequenceGroup,
@@ -272,6 +273,7 @@ export default function CaseDetail({
   const [sequenceGroupDeltaResult, setSequenceGroupDeltaResult] = useState(null);
   const [sequenceTimelineSort, setSequenceTimelineSort] = useState("asc");
   const [highlightedSequenceRecordKey, setHighlightedSequenceRecordKey] = useState("");
+  const [sequenceRelationshipFilter, setSequenceRelationshipFilter] = useState("all");
   const activeGeneratedReportLanguage = normalizeReportLanguage(selectedCase?.activeGeneratedReportLanguage);
   const sequenceGroups = useMemo(() => getCaseSequenceGroups(selectedCase), [selectedCase]);
   const sequenceGroupDetails = useMemo(() => getCaseSequenceGroupDetails(selectedCase), [selectedCase]);
@@ -712,6 +714,7 @@ export default function CaseDetail({
     setSequenceGroupDeltaResult(null);
     setSequenceTimelineSort("asc");
     setHighlightedSequenceRecordKey("");
+    setSequenceRelationshipFilter("all");
     setSequenceGroupSearch("");
     setSelectedSequenceGroupName(sequenceGroups[0]?.name || "");
     setSequenceGroupFeedback("");
@@ -808,6 +811,16 @@ export default function CaseDetail({
     const key = `${item.recordType}:${item.id}`;
     setHighlightedSequenceRecordKey(key);
     const element = document.getElementById(`sequence-record-${item.recordType}-${item.id}`);
+    if (element?.scrollIntoView) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
+
+  function handleSelectSequenceRelationshipNode(node) {
+    if (!node) return;
+    const key = `${node.recordType}:${node.id}`;
+    setHighlightedSequenceRecordKey(key);
+    const element = document.getElementById(`sequence-record-${node.recordType}-${node.id}`);
     if (element?.scrollIntoView) {
       element.scrollIntoView({ behavior: "smooth", block: "center" });
     }
@@ -6663,6 +6676,9 @@ ${ungroupedSequenceText}
                 const selectedGroupTimeline = selectedGroupName
                   ? getCaseSequenceGroupTimeline(selectedCase, selectedGroupName, { sortDirection: sequenceTimelineSort })
                   : { datedGroups: [], undatedItems: [], items: [] };
+                const selectedGroupRelationshipMap = selectedGroupName
+                  ? getCaseSequenceGroupRelationshipMap(selectedCase, selectedGroupName)
+                  : { nodes: [], edges: [], weakNodes: [], isolatedNodes: [], proofChains: [] };
                 const groupOptions = sequenceGroupDetails.groups.map((group) => group.name);
                 const typeLabels = {
                   incidents: "Incidents",
@@ -6806,6 +6822,76 @@ ${ungroupedSequenceText}
                         {item.linkedRecordCount} linked
                       </div>
                     </div>
+                  </button>
+                );
+                const relationshipNodeById = new Map(selectedGroupRelationshipMap.nodes.map((node) => [node.id, node]));
+                const relationshipWeakNodeIds = new Set(selectedGroupRelationshipMap.weakNodes.map((node) => node.id));
+                const relationshipFilterLabels = {
+                  all: "Show all",
+                  weak: "Weak / unlinked",
+                  proof: "Incidents + evidence",
+                };
+                const getRelationshipWarningLabel = (flag) => {
+                  if (flag === "incident_no_linked_evidence") return "No linked evidence";
+                  if (flag === "evidence_no_linked_incident") return "No linked incident";
+                  if (flag === "document_isolated") return "Isolated document";
+                  if (flag === "strategy_unlinked") return "Strategy unlinked";
+                  return "Weak link";
+                };
+                const getRelationshipRelationLabel = (relationType) => {
+                  if (relationType === "incident_evidence") return "proves/supports";
+                  if (relationType === "based_on_evidence") return "based on";
+                  if (relationType === "linked_incident") return "linked incident";
+                  if (relationType === "linked_evidence") return "linked evidence";
+                  return "linked record";
+                };
+                const relationshipNodeMatchesFilter = (node) => {
+                  if (sequenceRelationshipFilter === "weak") return relationshipWeakNodeIds.has(node.id);
+                  if (sequenceRelationshipFilter === "proof") return node.recordType === "incidents" || node.recordType === "evidence";
+                  return true;
+                };
+                const relationshipVisibleNodes = selectedGroupRelationshipMap.nodes.filter(relationshipNodeMatchesFilter);
+                const relationshipVisibleNodeIds = new Set(relationshipVisibleNodes.map((node) => node.id));
+                const relationshipVisibleEdges = selectedGroupRelationshipMap.edges.filter((edge) =>
+                  relationshipVisibleNodeIds.has(edge.fromId) && relationshipVisibleNodeIds.has(edge.toId)
+                );
+                const renderRelationshipNode = (node) => (
+                  <button
+                    key={`${node.recordType}-${node.id}`}
+                    type="button"
+                    onClick={() => handleSelectSequenceRelationshipNode(node)}
+                    className={`w-full rounded-lg border bg-white p-3 text-left transition-colors hover:border-lime-300 ${
+                      highlightedSequenceRecordKey === `${node.recordType}:${node.id}`
+                        ? "border-lime-400 ring-2 ring-lime-200"
+                        : "border-neutral-200"
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${getTimelineTypeClasses(node.recordType)}`}>
+                        {node.recordType}
+                      </span>
+                      {node.isMilestone && (
+                        <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                          Milestone
+                        </span>
+                      )}
+                      {node.status && (
+                        <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                          {node.status}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-2 text-sm font-semibold text-neutral-950">{node.title}</div>
+                    <div className="mt-1 text-xs font-medium text-neutral-500">{node.date || "No date"}</div>
+                    {node.warningFlags.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {node.warningFlags.map((flag) => (
+                          <span key={flag} className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">
+                            {getRelationshipWarningLabel(flag)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </button>
                 );
                 const ungroupedCount = Object.values(sequenceGroupDetails.ungroupedRecords)
@@ -6986,6 +7072,105 @@ ${ungroupedSequenceText}
                                     </div>
                                   </div>
                                 )}
+                              </div>
+                            </section>
+
+                            <section className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                              <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                                <div>
+                                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Relationship Map</h4>
+                                  <p className="mt-1 text-xs text-neutral-500">
+                                    Proof chains and record links inside this sequence group.
+                                  </p>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  {Object.entries(relationshipFilterLabels).map(([value, label]) => (
+                                    <button
+                                      key={value}
+                                      type="button"
+                                      onClick={() => setSequenceRelationshipFilter(value)}
+                                      className={`rounded-md border px-3 py-1.5 text-xs font-bold ${
+                                        sequenceRelationshipFilter === value
+                                          ? "border-lime-400 bg-lime-400/30 text-neutral-900"
+                                          : "border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50"
+                                      }`}
+                                    >
+                                      {label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
+                                <div className="space-y-4">
+                                  <div className="grid gap-3 lg:grid-cols-2">
+                                    {Object.entries(typeLabels).map(([recordType, label]) => {
+                                      const nodes = relationshipVisibleNodes.filter((node) => node.recordType === recordType);
+                                      return (
+                                        <section key={recordType} className="rounded-lg border border-neutral-200 bg-white p-3">
+                                          <div className="mb-3 flex items-center justify-between gap-2">
+                                            <h5 className="text-xs font-bold uppercase tracking-wider text-neutral-500">{label}</h5>
+                                            <span className="text-xs font-semibold text-neutral-500">{nodes.length}</span>
+                                          </div>
+                                          <div className="space-y-2">
+                                            {nodes.length === 0 ? (
+                                              <p className="rounded-lg border border-dashed border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-500">No matching records.</p>
+                                            ) : nodes.map(renderRelationshipNode)}
+                                          </div>
+                                        </section>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
+                                <aside className="space-y-3">
+                                  <section className="rounded-lg border border-neutral-200 bg-white p-3">
+                                    <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Proof Chains</div>
+                                    <div className="mt-2 space-y-2">
+                                      {selectedGroupRelationshipMap.proofChains.length === 0 ? (
+                                        <p className="text-sm text-neutral-500">No incident-evidence proof chains found in this group.</p>
+                                      ) : selectedGroupRelationshipMap.proofChains.map((chain) => (
+                                        <div key={`${chain.incidentId}-${chain.evidenceId}`} className="rounded-lg border border-lime-200 bg-lime-50 p-2 text-sm text-lime-900">
+                                          <span className="font-semibold">{chain.incidentTitle}</span>
+                                          <span className="px-2 text-lime-700">to</span>
+                                          <span className="font-semibold">{chain.evidenceTitle}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </section>
+
+                                  <section className="rounded-lg border border-neutral-200 bg-white p-3">
+                                    <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Relationship Chips</div>
+                                    <div className="mt-2 space-y-2">
+                                      {relationshipVisibleEdges.length === 0 ? (
+                                        <p className="text-sm text-neutral-500">No visible links for this filter.</p>
+                                      ) : relationshipVisibleEdges.map((edge) => {
+                                        const fromNode = relationshipNodeById.get(edge.fromId);
+                                        const toNode = relationshipNodeById.get(edge.toId);
+                                        return (
+                                          <div key={`${edge.fromId}-${edge.toId}-${edge.relationType}`} className="rounded-lg border border-neutral-200 bg-neutral-50 p-2 text-xs text-neutral-700">
+                                            <div className="font-semibold text-neutral-900">{fromNode?.title || edge.fromId}</div>
+                                            <div className="py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-500">{getRelationshipRelationLabel(edge.relationType)}</div>
+                                            <div className="font-semibold text-neutral-900">{toNode?.title || edge.toId}</div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </section>
+
+                                  {selectedGroupRelationshipMap.weakNodes.length > 0 && (
+                                    <section className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                      <div className="text-xs font-bold uppercase tracking-wider text-amber-700">Diagnostics Hints</div>
+                                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-800">
+                                        {selectedGroupRelationshipMap.weakNodes.map((node) => (
+                                          <li key={`${node.recordType}-${node.id}`}>
+                                            {node.title}: {node.warningFlags.map(getRelationshipWarningLabel).join(", ")}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </section>
+                                  )}
+                                </aside>
                               </div>
                             </section>
 

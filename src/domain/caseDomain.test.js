@@ -9,6 +9,7 @@ import {
   deleteRecordFromCase,
   getCaseSequenceGroups,
   getCaseSequenceGroupDetails,
+  getCaseSequenceGroupRelationshipMap,
   getCaseSequenceGroupTimeline,
   getIncidentLinkGroups,
   getIncidentsUsingRecord,
@@ -297,6 +298,51 @@ test("getCaseSequenceGroupTimeline supports newest first ordering while keeping 
   assert.deepEqual(timeline.datedGroups.map((group) => group.date), ["2024-01-03", "2024-01-02", "2024-01-01"]);
   assert.deepEqual(timeline.items.map((item) => item.id), ["inc-2", "ev-1", "inc-1", "inc-3"]);
   assert.deepEqual(timeline.undatedItems.map((item) => item.id), ["inc-3"]);
+});
+
+test("getCaseSequenceGroupRelationshipMap builds selected group nodes edges warnings and proof chains", () => {
+  const caseItem = {
+    incidents: [
+      { id: "inc-1", title: "Leak", eventDate: "2024-01-01", sequenceGroup: "Leak", linkedEvidenceIds: ["ev-1"], isMilestone: true },
+      { id: "inc-2", title: "Unsupported", eventDate: "2024-01-02", sequenceGroup: "Leak" },
+      { id: "inc-other", title: "Other", eventDate: "2024-01-01", sequenceGroup: "Other", linkedEvidenceIds: ["ev-1"] },
+    ],
+    evidence: [
+      { id: "ev-1", title: "Photo", capturedAt: "2024-01-01", sequenceGroup: "Leak", linkedIncidentIds: ["inc-1"] },
+      { id: "ev-2", title: "Loose evidence", capturedAt: "2024-01-03", sequenceGroup: "Leak" },
+    ],
+    documents: [
+      { id: "doc-1", title: "Email", documentDate: "2024-01-04", sequenceGroup: "Leak", linkedRecordIds: ["inc-1"], basedOnEvidenceIds: ["ev-1"] },
+      { id: "doc-2", title: "Isolated document", documentDate: "2024-01-05", sequenceGroup: "Leak" },
+    ],
+    strategy: [
+      { id: "str-1", title: "Plan", sequenceGroup: "Leak", linkedRecordIds: ["inc-1", "ev-1"] },
+      { id: "str-2", title: "Loose plan", sequenceGroup: "Leak" },
+    ],
+    ledger: [
+      { id: "ledger-1", title: "Ignored", sequenceGroup: "Leak", linkedRecordIds: ["inc-1"] },
+    ],
+  };
+
+  const map = getCaseSequenceGroupRelationshipMap(caseItem, "Leak");
+
+  assert.deepEqual(map.nodes.map((node) => node.id), ["inc-1", "inc-2", "ev-1", "ev-2", "doc-1", "doc-2", "str-1", "str-2"]);
+  assert.equal(map.nodes.some((node) => node.id === "inc-other"), false);
+  assert.equal(map.nodes.some((node) => node.id === "ledger-1"), false);
+  assert.ok(map.edges.some((edge) => edge.fromId === "inc-1" && edge.toId === "ev-1" && edge.relationType === "incident_evidence"));
+  assert.ok(map.edges.some((edge) => edge.fromId === "doc-1" && edge.toId === "inc-1" && edge.relationType === "linked_record"));
+  assert.ok(map.edges.some((edge) => edge.fromId === "str-1" && edge.toId === "ev-1" && edge.relationType === "linked_record"));
+  assert.deepEqual(map.proofChains, [{
+    incidentId: "inc-1",
+    evidenceId: "ev-1",
+    incidentTitle: "Leak",
+    evidenceTitle: "Photo",
+  }]);
+  assert.ok(map.weakNodes.find((node) => node.id === "inc-2").warningFlags.includes("incident_no_linked_evidence"));
+  assert.ok(map.weakNodes.find((node) => node.id === "ev-2").warningFlags.includes("evidence_no_linked_incident"));
+  assert.ok(map.weakNodes.find((node) => node.id === "doc-2").warningFlags.includes("document_isolated"));
+  assert.ok(map.weakNodes.find((node) => node.id === "str-2").warningFlags.includes("strategy_unlinked"));
+  assert.deepEqual(map.isolatedNodes.map((node) => node.id), ["inc-2", "ev-2", "doc-2", "str-2"]);
 });
 
 test("moveRecordToSequenceGroup moves supported record types and preserves ids and createdAt", () => {

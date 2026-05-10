@@ -598,6 +598,130 @@ export function getCaseSequenceGroupTimeline(caseItem, sequenceGroup, options = 
   };
 }
 
+function addSequenceGroupEdge(edges, nodeIds, fromId, toId, relationType) {
+  if (!fromId || !toId || fromId === toId || !nodeIds.has(fromId) || !nodeIds.has(toId)) return;
+  const key = `${fromId}->${toId}:${relationType}`;
+  if (edges.has(key)) return;
+  edges.set(key, { fromId, toId, relationType });
+}
+
+function getSequenceGroupLinkedIds(record = {}) {
+  return {
+    linkedRecordIds: Array.isArray(record.linkedRecordIds) ? record.linkedRecordIds.filter(Boolean) : [],
+    linkedEvidenceIds: Array.isArray(record.linkedEvidenceIds) ? record.linkedEvidenceIds.filter(Boolean) : [],
+    linkedIncidentIds: Array.isArray(record.linkedIncidentIds) ? record.linkedIncidentIds.filter(Boolean) : [],
+    basedOnEvidenceIds: Array.isArray(record.basedOnEvidenceIds) ? record.basedOnEvidenceIds.filter(Boolean) : [],
+    linkedIncidentRefIds: Array.isArray(record.linkedIncidentRefs) ? record.linkedIncidentRefs.map((ref) => ref?.incidentId).filter(Boolean) : [],
+  };
+}
+
+export function getCaseSequenceGroupRelationshipMap(caseItem, sequenceGroup) {
+  const groupName = getSequenceGroupValue(sequenceGroup);
+  const nodes = [];
+  const rawRecords = new Map();
+
+  if (!caseItem || !groupName) {
+    return {
+      sequenceGroup: groupName,
+      nodes,
+      edges: [],
+      weakNodes: [],
+      isolatedNodes: [],
+      proofChains: [],
+    };
+  }
+
+  SEQUENCE_GROUP_RECORD_TYPES.forEach((recordType) => {
+    const records = Array.isArray(caseItem?.[recordType]) ? caseItem[recordType] : [];
+    records.forEach((record) => {
+      if (!record?.id || getSequenceGroupValue(record.sequenceGroup) !== groupName) return;
+      const node = {
+        ...buildSequenceGroupRecord(record, recordType),
+        isMilestone: Boolean(record.isMilestone),
+        warningFlags: [],
+      };
+      nodes.push(node);
+      rawRecords.set(record.id, { record, recordType });
+    });
+  });
+
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  const edges = new Map();
+
+  rawRecords.forEach(({ record, recordType }, recordId) => {
+    const links = getSequenceGroupLinkedIds(record);
+
+    links.linkedRecordIds.forEach((targetId) => {
+      addSequenceGroupEdge(edges, nodeIds, recordId, targetId, "linked_record");
+    });
+    links.linkedEvidenceIds.forEach((targetId) => {
+      addSequenceGroupEdge(edges, nodeIds, recordId, targetId, recordType === "incidents" ? "incident_evidence" : "linked_evidence");
+    });
+    links.basedOnEvidenceIds.forEach((targetId) => {
+      addSequenceGroupEdge(edges, nodeIds, recordId, targetId, "based_on_evidence");
+    });
+    [...links.linkedIncidentIds, ...links.linkedIncidentRefIds].forEach((targetId) => {
+      if (recordType === "evidence") {
+        addSequenceGroupEdge(edges, nodeIds, targetId, recordId, "incident_evidence");
+      } else {
+        addSequenceGroupEdge(edges, nodeIds, recordId, targetId, "linked_incident");
+      }
+    });
+  });
+
+  const edgeList = [...edges.values()].sort((a, b) => {
+    const fromCompare = String(a.fromId).localeCompare(String(b.fromId));
+    if (fromCompare !== 0) return fromCompare;
+    const toCompare = String(a.toId).localeCompare(String(b.toId));
+    if (toCompare !== 0) return toCompare;
+    return String(a.relationType).localeCompare(String(b.relationType));
+  });
+
+  const edgeTouchesNode = (nodeId) => edgeList.some((edge) => edge.fromId === nodeId || edge.toId === nodeId);
+  const hasIncidentEvidenceEdge = (nodeId, recordType) => edgeList.some((edge) => {
+    if (edge.relationType !== "incident_evidence") return false;
+    return recordType === "incidents" ? edge.fromId === nodeId : edge.toId === nodeId;
+  });
+
+  const nodesWithWarnings = nodes.map((node) => {
+    const warningFlags = [];
+    if (node.recordType === "incidents" && !hasIncidentEvidenceEdge(node.id, node.recordType)) {
+      warningFlags.push("incident_no_linked_evidence");
+    }
+    if (node.recordType === "evidence" && !hasIncidentEvidenceEdge(node.id, node.recordType)) {
+      warningFlags.push("evidence_no_linked_incident");
+    }
+    if (node.recordType === "documents" && !edgeTouchesNode(node.id)) {
+      warningFlags.push("document_isolated");
+    }
+    if (node.recordType === "strategy" && !edgeTouchesNode(node.id)) {
+      warningFlags.push("strategy_unlinked");
+    }
+    return { ...node, warningFlags };
+  });
+
+  const nodeById = new Map(nodesWithWarnings.map((node) => [node.id, node]));
+  const weakNodes = nodesWithWarnings.filter((node) => node.warningFlags.length > 0);
+  const isolatedNodes = nodesWithWarnings.filter((node) => !edgeTouchesNode(node.id));
+  const proofChains = edgeList
+    .filter((edge) => edge.relationType === "incident_evidence")
+    .map((edge) => ({
+      incidentId: edge.fromId,
+      evidenceId: edge.toId,
+      incidentTitle: nodeById.get(edge.fromId)?.title || edge.fromId,
+      evidenceTitle: nodeById.get(edge.toId)?.title || edge.toId,
+    }));
+
+  return {
+    sequenceGroup: groupName,
+    nodes: nodesWithWarnings,
+    edges: edgeList,
+    weakNodes,
+    isolatedNodes,
+    proofChains,
+  };
+}
+
 export function getCaseSequenceGroupDetails(caseItem) {
   const groups = new Map();
   const ungroupedRecords = {
