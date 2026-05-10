@@ -2738,15 +2738,58 @@ ${ungroupedSequenceText}
     if (numberedMatch) return { ordered: true, number: numberedMatch[1], text: numberedMatch[2] };
     return null;
   };
+  const splitPolishedSentences = (text = "") => {
+    const cleanText = cleanPolishedMarkdownInline(text);
+    if (cleanText.length < 170) return [cleanText].filter(Boolean);
+    const sentenceMatches = cleanText.match(/[^.!?]+[.!?]+(?=\s|$)|[^.!?]+$/g) || [cleanText];
+    const sentences = sentenceMatches.map((sentence) => sentence.trim()).filter(Boolean);
+    return sentences.length > 1 ? sentences : [cleanText].filter(Boolean);
+  };
+  const promotePolishedConcernHeading = (item) => {
+    if (item.label || !item.text) return item;
+    const sentenceMatches = item.text.match(/[^.!?]+[.!?]+(?=\s|$)|[^.!?]+$/g) || [];
+    if (sentenceMatches.length < 2) return item;
+    const heading = cleanPolishedMarkdownInline(sentenceMatches[0]);
+    const detail = cleanPolishedMarkdownInline(item.text.slice(sentenceMatches[0].length));
+    if (!heading || heading.length > 95 || !detail) return item;
+    return { label: heading, text: detail };
+  };
+  const buildPolishedStructuredItems = (lines = [], sectionTitle = "") => {
+    const joinedText = cleanPolishedMarkdownInline(lines.join(" "));
+    if (!joinedText) return [];
+    const candidateLines = lines
+      .map((line) => normalizePolishedContentLine(line))
+      .filter(Boolean);
+    const rawItems = candidateLines.length > 1
+      ? candidateLines
+      : splitPolishedSentences(joinedText);
+    return rawItems
+      .map((item) => splitPolishedLabelLine(item))
+      .map((item) => (sectionTitle === "Risks and Concerns" ? promotePolishedConcernHeading(item) : item))
+      .filter((item) => item.label || item.text);
+  };
   const buildPolishedContentBlocks = (text = "", sectionTitle = "") => {
     const blocks = [];
     let paragraphLines = [];
     let listItems = [];
     let listOrdered = false;
     const cardSection = ["Strongest Evidence", "Risks and Concerns"].includes(sectionTitle);
+    const structuredParagraphSection = ["Risks and Concerns", "Recommended Next Steps"].includes(sectionTitle);
 
     const flushParagraph = () => {
       if (paragraphLines.length === 0) return;
+      if (structuredParagraphSection) {
+        const structuredItems = buildPolishedStructuredItems(paragraphLines, sectionTitle);
+        if (structuredItems.length > 0) {
+          blocks.push({
+            type: "list",
+            ordered: sectionTitle === "Recommended Next Steps",
+            items: structuredItems,
+          });
+          paragraphLines = [];
+          return;
+        }
+      }
       const paragraphText = cleanPolishedMarkdownInline(paragraphLines.join(" "));
       if (paragraphText) blocks.push({ type: "paragraph", text: paragraphText });
       paragraphLines = [];
