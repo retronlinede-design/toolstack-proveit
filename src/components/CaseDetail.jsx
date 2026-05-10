@@ -2634,27 +2634,27 @@ ${ungroupedSequenceText}
     const metricItems = [
       ["Incidents", report.atAGlance.incidentCount],
       ["Evidence", report.atAGlance.evidenceCount],
-      ["Documents", report.atAGlance.documentCount],
-      ["Weak/unlinked", report.atAGlance.weakUnlinkedRecordCount],
-      ["Groups", report.atAGlance.sequenceGroupCount],
       ["Milestones", report.atAGlance.milestoneCount],
       ["Open issues", report.atAGlance.openIssueCount],
     ];
-    const renderList = (items = [], getText) => (
+    const renderPlainList = (items = [], getText) => (
       items.length === 0 ? (
-        <p className="mt-2 text-sm text-neutral-500">None recorded.</p>
+        <p className="mt-3 text-sm text-neutral-500">None recorded.</p>
       ) : (
-        <ul className="mt-3 space-y-2 text-sm leading-6 text-neutral-700">
+        <ul className="mt-4 space-y-3 text-sm leading-6 text-neutral-700">
           {items.map((item, index) => (
-            <li key={item.id || `${getText(item)}-${index}`}>- {getText(item)}</li>
+            <li key={item.id || `${getText(item)}-${index}`} className="rounded-lg border border-neutral-200 bg-white p-3">
+              {getText(item)}
+            </li>
           ))}
         </ul>
       )
     );
+    const headlineConcern = report.risksAndConcerns[0]?.message || report.currentPosition.immediateConcerns?.[0] || "No urgent concern has been identified from the current case file.";
 
     return (
       <article className={className}>
-        <header className="border-b border-neutral-200 pb-6 print:pb-5">
+        <header className="border-b border-neutral-200 pb-7 print:pb-5">
           <div className="text-xs font-bold uppercase tracking-[0.18em] text-lime-700">EXECUTIVE SUMMARY</div>
           <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -2678,15 +2678,32 @@ ${ungroupedSequenceText}
           )}
         </header>
 
-        <section className="border-b border-neutral-200 py-6">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Current Position</h2>
-          <p className="mt-3 text-base font-semibold leading-7 text-neutral-950">{report.currentPosition.operationalSummary}</p>
-          <p className="mt-2 text-sm leading-6 text-neutral-700">{report.currentPosition.proceduralPosition}</p>
-          {renderList(report.currentPosition.activeIssues, (item) => item)}
+        <section className="border-b border-neutral-200 py-7">
+          <div className="rounded-2xl border border-lime-200 bg-lime-50 p-5">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-lime-800">Current Position</h2>
+            <p className="mt-3 text-xl font-semibold leading-8 text-neutral-950">{report.currentPosition.operationalSummary}</p>
+            <p className="mt-3 text-sm leading-6 text-lime-950">{report.currentPosition.whyItMatters}</p>
+          </div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="rounded-xl border border-neutral-200 bg-white p-4">
+              <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Procedural Position</div>
+              <p className="mt-2 text-sm leading-6 text-neutral-700">{report.currentPosition.proceduralPosition}</p>
+            </div>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <div className="text-xs font-bold uppercase tracking-wider text-amber-800">Immediate Concern</div>
+              <p className="mt-2 text-sm leading-6 text-amber-950">{headlineConcern}</p>
+            </div>
+          </div>
+          {report.currentPosition.mainProblems?.length > 0 && (
+            <div className="mt-5">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500">What matters most now</h3>
+              {renderPlainList(report.currentPosition.mainProblems, (item) => item)}
+            </div>
+          )}
         </section>
 
-        <section className="border-b border-neutral-200 py-6">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">At a Glance</h2>
+        <section className="border-b border-neutral-200 py-5">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Case at a Glance</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-4">
             {metricItems.map(([label, value]) => (
               <div key={label} className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm">
@@ -2697,39 +2714,94 @@ ${ungroupedSequenceText}
           </div>
         </section>
 
-        <div className="grid gap-6 border-b border-neutral-200 py-6 lg:grid-cols-2">
+        <div className="grid gap-6 border-b border-neutral-200 py-7 lg:grid-cols-[1fr_1fr]">
           <section>
             <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Key Timeline</h2>
-            {renderList(report.keyTimeline, (item) => `${item.date || "No date"} - ${item.title}${item.isMilestone ? " (milestone)" : ""}`)}
+            {report.keyTimeline.length === 0 ? (
+              <p className="mt-3 text-sm text-neutral-500">No dated chronology has been recorded yet.</p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {report.keyTimeline.slice(0, 6).map((item) => (
+                  <div key={`${item.recordType}-${item.id}`} className="rounded-xl border border-neutral-200 bg-white p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-bold text-neutral-500">{item.date || "No date"}</span>
+                      {item.importanceLabel && (
+                        <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[10px] font-bold uppercase text-neutral-500">{item.importanceLabel}</span>
+                      )}
+                    </div>
+                    <div className="mt-2 font-semibold text-neutral-950">{item.title}</div>
+                    {item.summary && <p className="mt-1 text-sm leading-6 text-neutral-700">{item.summary}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
           <section>
             <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Strongest Evidence</h2>
-            {renderList(report.strongestEvidence, (item) => `${item.title}${item.functionSummary ? `: ${item.functionSummary}` : ""}`)}
+            {report.strongestEvidence.length === 0 ? (
+              <p className="mt-3 text-sm text-neutral-500">No evidence has been recorded yet.</p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {report.strongestEvidence.slice(0, 5).map((item) => (
+                  <div key={item.id} className="rounded-xl border border-neutral-200 bg-white p-4">
+                    <div className="font-semibold text-neutral-950">{item.title}</div>
+                    <p className="mt-2 text-sm leading-6 text-neutral-700">{item.whyItMatters}</p>
+                    {item.supports?.length > 0 && (
+                      <p className="mt-2 text-xs font-medium text-neutral-500">Supports: {item.supports.join(", ")}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
         </div>
 
-        <div className="grid gap-6 border-b border-neutral-200 py-6 lg:grid-cols-2">
+        <div className="grid gap-6 border-b border-neutral-200 py-7 lg:grid-cols-[0.9fr_1.1fr]">
           <section>
             <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Risks and Concerns</h2>
-            {renderList(report.risksAndConcerns, (item) => item.message)}
+            {report.risksAndConcerns.length === 0 ? (
+              <p className="mt-3 text-sm text-neutral-500">No major operational concerns are currently flagged.</p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {report.risksAndConcerns.slice(0, 5).map((item) => (
+                  <div key={item.id} className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <div className="font-semibold text-amber-950">{item.title || "Concern"}</div>
+                    <p className="mt-1 text-sm leading-6 text-amber-900">{item.message}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
           <section>
-            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Recommended Next Steps</h2>
-            {renderList(report.recommendedNextSteps, (item) => item.text)}
+            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">What Should Happen Next</h2>
+            {report.recommendedNextSteps.length === 0 ? (
+              <p className="mt-3 text-sm text-neutral-500">No next actions have been recorded yet.</p>
+            ) : (
+              <ol className="mt-4 space-y-3">
+                {report.recommendedNextSteps.slice(0, 7).map((item, index) => (
+                  <li key={item.id || `${item.text}-${index}`} className={`rounded-xl border p-4 ${index < 3 ? "border-lime-200 bg-lime-50" : "border-neutral-200 bg-white"}`}>
+                    <div className="flex gap-3">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-neutral-700">{index + 1}</span>
+                      <div className="text-sm font-semibold leading-6 text-neutral-900">{item.text}</div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
           </section>
         </div>
 
         <section className="py-6">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Sequence Group Overview</h2>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Issue Threads</h2>
           {report.sequenceGroupOverview.length === 0 ? (
             <p className="mt-3 text-sm text-neutral-500">No sequence groups recorded.</p>
           ) : (
             <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {report.sequenceGroupOverview.map((group) => (
+              {report.sequenceGroupOverview.slice(0, 6).map((group) => (
                 <div key={group.name} className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
                   <div className="font-semibold text-neutral-950">{group.name}</div>
                   <div className="mt-1 text-xs text-neutral-600">
-                    {group.totalCount} records - incidents {group.counts.incident || 0}, evidence {group.counts.evidence || 0}, documents {(group.counts.document || 0) + (group.counts.tracking_record || 0)}, strategy {group.counts.strategy || 0}
+                    {group.totalCount} records across this issue thread.
                   </div>
                   {group.warnings.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1">

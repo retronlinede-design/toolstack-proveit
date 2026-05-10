@@ -955,10 +955,24 @@ function buildCombinedDiagnostics(caseItem = {}, includedIds = null) {
 
 function getExecutiveCurrentPosition(caseItem = {}, diagnostics = {}) {
   const actionSummary = caseItem.actionSummary || {};
-  const activeIssues = [
-    ...(diagnostics.evidenceCoverage?.incidentsNeedingEvidence || []).slice(0, 3).map((item) => `${item.title} needs evidence`),
-    ...(diagnostics.warnings || []).slice(0, 2).map((item) => item.message),
+  const unsupportedIncidents = diagnostics.evidenceCoverage?.incidentsNeedingEvidence || [];
+  const chronologyGaps = diagnostics.chronology?.missingDateRecords || [];
+  const mainProblems = [
+    ...unsupportedIncidents.slice(0, 3).map((item) => `${item.title} is not yet supported by clear evidence.`),
+    ...(diagnostics.evidenceCoverage?.unusedEvidence || []).slice(0, 2).map((item) => `${item.title} is available but not yet tied to an incident.`),
   ];
+  const immediateConcerns = [
+    ...(unsupportedIncidents.length > 0 ? [`${unsupportedIncidents.length} incident(s) still need stronger proof before the case can be presented cleanly.`] : []),
+    ...(chronologyGaps.length > 0 ? [`${chronologyGaps.length} record(s) need dates or ordering to make the timeline reliable.`] : []),
+    ...((diagnostics.integrity?.brokenLinks || []).length > 0 ? ["Some record links point to missing items and should be repaired before relying on the file."] : []),
+  ];
+  const proceduralPosition = shortText(
+    caseItem.caseState?.proceduralPosition
+    || caseItem.caseState?.currentStage
+    || caseItem.status
+    || "No procedural position recorded.",
+    220,
+  );
 
   return {
     operationalSummary: shortText(
@@ -970,14 +984,18 @@ function getExecutiveCurrentPosition(caseItem = {}, diagnostics = {}) {
       || "No current operational summary recorded.",
       360,
     ),
-    proceduralPosition: shortText(
-      caseItem.caseState?.proceduralPosition
-      || caseItem.caseState?.currentStage
-      || caseItem.status
-      || "No procedural position recorded.",
-      220,
+    proceduralPosition,
+    whyItMatters: shortText(
+      actionSummary.strategyFocus?.[0]
+      || caseItem.caseState?.desiredOutcome
+      || (unsupportedIncidents.length > 0
+        ? "The case needs clearer proof links before it can be confidently explained or escalated."
+        : "The report should keep the current facts, proof, and next steps clear enough for quick action."),
+      280,
     ),
-    activeIssues,
+    mainProblems,
+    immediateConcerns,
+    activeIssues: mainProblems.length > 0 ? mainProblems : immediateConcerns,
   };
 }
 
@@ -986,10 +1004,11 @@ function getExecutiveTimeline(caseItem = {}, diagnostics = {}, limit = 10) {
     id: item.id,
     recordType: item.type,
     date: item.date,
-    title: item.title,
-    summary: "Milestone",
-    isMilestone: true,
-  }));
+      title: item.title,
+      summary: "Important milestone in the case timeline.",
+      isMilestone: true,
+      importanceLabel: "Milestone",
+    }));
   const incidentItems = (caseItem.incidents || [])
     .filter((incident) => incident?.id)
     .map((incident) => ({
@@ -999,6 +1018,7 @@ function getExecutiveTimeline(caseItem = {}, diagnostics = {}, limit = 10) {
       title: getRecordTitle(incident, "incident"),
       summary: getSummary(incident, "incident"),
       isMilestone: !!incident.isMilestone,
+      importanceLabel: incident.isMilestone ? "Milestone" : "Incident",
     }));
   const deadlineItems = (Array.isArray(caseItem.actionSummary?.criticalDeadlines) ? caseItem.actionSummary.criticalDeadlines : [])
     .map((deadline, index) => ({
@@ -1006,8 +1026,9 @@ function getExecutiveTimeline(caseItem = {}, diagnostics = {}, limit = 10) {
       recordType: "deadline",
       date: "",
       title: shortText(deadline, 120) || `Deadline ${index + 1}`,
-      summary: "Critical deadline",
+      summary: "Critical deadline or time-sensitive item.",
       isMilestone: false,
+      importanceLabel: "Deadline",
     }));
   const seen = new Set();
   const combined = [...milestoneItems, ...incidentItems, ...deadlineItems]
@@ -1046,11 +1067,22 @@ function scoreExecutiveEvidence(evidence = {}, caseItem = {}) {
 function getExecutiveEvidence(caseItem = {}, limit = 6) {
   return (caseItem.evidence || [])
     .filter((evidence) => evidence?.id)
-    .map((evidence) => ({
-      ...buildEvidencePackEvidence(caseItem, evidence),
-      importance: evidence.importance || "",
-      score: scoreExecutiveEvidence(evidence, caseItem),
-    }))
+    .map((evidence) => {
+      const built = buildEvidencePackEvidence(caseItem, evidence);
+      const linkedIncidentTitles = built.linkedIncidents.map((item) => item.title).filter(Boolean);
+      return {
+        ...built,
+        importance: evidence.importance || "",
+        score: scoreExecutiveEvidence(evidence, caseItem),
+        whyItMatters: shortText(
+          built.functionSummary
+          || (linkedIncidentTitles.length > 0 ? `Supports ${linkedIncidentTitles.join(", ")}.` : "")
+          || "This item may help explain or support the case once its role is clarified.",
+          240,
+        ),
+        supports: linkedIncidentTitles,
+      };
+    })
     .sort((a, b) => {
       if (a.score !== b.score) return b.score - a.score;
       const dateCompare = String(b.capturedAt || b.date || "").localeCompare(String(a.capturedAt || a.date || ""));
@@ -1061,28 +1093,28 @@ function getExecutiveEvidence(caseItem = {}, limit = 6) {
 }
 
 function getExecutiveRisksAndConcerns(diagnostics = {}) {
-  const risks = [
-    ...(diagnostics.risks || []).map((item) => ({ id: item.id, message: item.message, source: "risk" })),
-    ...(diagnostics.warnings || []).map((item) => ({ id: item.id, message: item.message, source: "warning" })),
-  ];
+  const risks = [];
   if ((diagnostics.evidenceCoverage?.incidentsNeedingEvidence || []).length > 0) {
     risks.push({
       id: "missing-proof",
-      message: `${diagnostics.evidenceCoverage.incidentsNeedingEvidence.length} incident(s) still need stronger proof.`,
+      title: "Proof is not complete",
+      message: `${diagnostics.evidenceCoverage.incidentsNeedingEvidence.length} incident(s) still need stronger evidence before the case can be presented confidently.`,
       source: "evidence",
     });
   }
   if ((diagnostics.integrity?.weaklyLinkedRecords || []).length > 0) {
     risks.push({
       id: "weak-links",
-      message: `${diagnostics.integrity.weaklyLinkedRecords.length} record(s) are weakly linked.`,
+      title: "Some material is not connected to the case story",
+      message: "Some records are present but not clearly tied to incidents, evidence, documents, or ledger entries.",
       source: "linking",
     });
   }
   if ((diagnostics.chronology?.missingDateRecords || []).length > 0) {
     risks.push({
       id: "chronology-gaps",
-      message: `${diagnostics.chronology.missingDateRecords.length} record(s) are missing chronology dates.`,
+      title: "The timeline needs tightening",
+      message: `${diagnostics.chronology.missingDateRecords.length} record(s) need dates or clearer ordering.`,
       source: "chronology",
     });
   }
@@ -1092,10 +1124,16 @@ function getExecutiveRisksAndConcerns(diagnostics = {}) {
   if (weakGroups.length > 0) {
     risks.push({
       id: "weak-sequence-groups",
-      message: `${weakGroups.length} sequence group(s) need structural review.`,
+      title: "Some issue threads are thin",
+      message: `${weakGroups.length} issue thread(s) need clearer incident and evidence structure.`,
       source: "sequenceGroup",
     });
   }
+  (diagnostics.risks || []).slice(0, 2).forEach((item) => {
+    if (!risks.some((risk) => risk.id === item.id)) {
+      risks.push({ id: item.id, title: "Case file issue", message: item.message, source: "risk" });
+    }
+  });
   return risks.slice(0, 12);
 }
 
@@ -1124,7 +1162,11 @@ function getExecutiveRecommendedNextSteps(caseItem = {}, diagnostics = {}) {
   }));
   return [...actionItems, ...strategyItems, ...diagnosticItems]
     .filter((item) => compactText(item.text))
-    .slice(0, 12);
+    .slice(0, 12)
+    .map((item, index) => ({
+      ...item,
+      priority: index < 3 ? "high" : "normal",
+    }));
 }
 
 function getExecutiveSequenceGroupOverview(diagnostics = {}) {
