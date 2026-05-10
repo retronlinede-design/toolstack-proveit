@@ -2,6 +2,7 @@ import { buildCaseLinkMapExportPayload } from "../export/linkMapExport.js";
 
 const DIAGNOSTIC_RECORD_TYPES = ["incidents", "evidence", "documents", "ledger", "strategy"];
 const SEQUENCE_RECORD_TYPES = ["incidents", "evidence", "documents", "strategy"];
+const ATTACHMENT_RECORD_TYPES = ["incidents", "evidence", "documents", "ledger", "strategy", "tasks"];
 
 function safeText(value) {
   return typeof value === "string" ? value : "";
@@ -27,6 +28,57 @@ function getRecordType(collection) {
 
 function getRecordTitle(record = {}, fallbackType = "record") {
   return record.title || record.label || record.id || `Untitled ${fallbackType}`;
+}
+
+function getAttachmentName(attachment = {}) {
+  return attachment.name || attachment.fileName || attachment.filename || "";
+}
+
+function getAttachmentMimeType(attachment = {}) {
+  return attachment.mimeType || attachment.type || "";
+}
+
+function getImageName(image = {}) {
+  return image.name || image.fileName || image.filename || "";
+}
+
+function getImageMimeType(image = {}) {
+  return image.mimeType || image.type || getDataUrlMimeType(image.dataUrl || image.backupDataUrl);
+}
+
+function getDataUrlMimeType(dataUrl = "") {
+  const match = typeof dataUrl === "string" ? dataUrl.match(/^data:([^;,]+)[;,]/) : null;
+  return match?.[1] || "";
+}
+
+function hasImagePayload(image = {}) {
+  // Existing image-store entries use dataUrl. backupDataUrl appears in full-backup payloads; binary/blob fields are tolerated for compatibility.
+  return !!(
+    image.dataUrl ||
+    image.backupDataUrl ||
+    image.blob ||
+    image.binary ||
+    image.payload ||
+    image.arrayBuffer
+  );
+}
+
+function normalizeDiagnosticCases(caseData = {}) {
+  if (Array.isArray(caseData)) return caseData;
+  if (Array.isArray(caseData?.cases)) return caseData.cases;
+  if (caseData?.caseItem) return [caseData.caseItem];
+  if (caseData?.case) return [caseData.case];
+  if (caseData?.id && (caseData.incidents || caseData.evidence || caseData.documents || caseData.strategy || caseData.ledger)) {
+    return [caseData];
+  }
+  return [];
+}
+
+function normalizeDiagnosticImages(caseData = {}) {
+  if (Array.isArray(caseData?.images)) return caseData.images;
+  if (Array.isArray(caseData?.imageStore)) return caseData.imageStore;
+  if (caseData?.imageCache && typeof caseData.imageCache === "object") return Object.values(caseData.imageCache);
+  return [];
 }
 
 function getRecordDate(record = {}) {
@@ -84,6 +136,129 @@ function getCaseRecords(caseItem, collections = DIAGNOSTIC_RECORD_TYPES) {
         recordType: collection === "documents" && isTrackingRecordDocument(record) ? "tracking_record" : recordType,
       }));
   });
+}
+
+function collectRecordAttachmentReferences(caseItem = {}) {
+  const references = [];
+  const seen = new Set();
+
+  const addAttachment = ({ record, collection, recordType, attachment, location }) => {
+    const imageId = attachment?.storage?.imageId;
+    if (!imageId) return;
+
+    const key = `${caseItem?.id || ""}:${collection}:${record?.id || ""}:${imageId}:${attachment?.id || ""}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+
+    references.push({
+      caseId: caseItem?.id || "",
+      caseName: caseItem?.name || "",
+      recordId: record?.id || "",
+      recordType,
+      recordTitle: getRecordTitle(record, recordType),
+      attachmentId: attachment?.id || "",
+      attachmentName: getAttachmentName(attachment),
+      attachmentMimeType: getAttachmentMimeType(attachment),
+      attachmentSize: Number.isFinite(Number(attachment?.size)) ? Number(attachment.size) : null,
+      imageId: String(imageId),
+      location,
+    });
+  };
+
+  ATTACHMENT_RECORD_TYPES.forEach((collection) => {
+    const records = Array.isArray(caseItem?.[collection]) ? caseItem[collection] : [];
+    const recordType = getRecordType(collection);
+
+    records.forEach((record) => {
+      (Array.isArray(record?.attachments) ? record.attachments : []).forEach((attachment) => {
+        addAttachment({ record, collection, recordType, attachment, location: "attachments" });
+      });
+
+      if (collection === "evidence") {
+        (Array.isArray(record?.availability?.digital?.files) ? record.availability.digital.files : []).forEach((attachment) => {
+          addAttachment({ record, collection, recordType, attachment, location: "availability.digital.files" });
+        });
+      }
+    });
+  });
+
+  return references;
+}
+
+export function runAttachmentIntegrityCheck(caseData = {}) {
+  const cases = normalizeDiagnosticCases(caseData);
+  const images = normalizeDiagnosticImages(caseData).filter((image) => image?.id);
+  const imagesById = new Map(images.map((image) => [String(image.id), image]));
+  const references = cases.flatMap((caseItem) => collectRecordAttachmentReferences(caseItem));
+  const referencedImageIds = new Set(references.map((reference) => reference.imageId));
+  const orphanedRecordReferences = [];
+  const metadataMismatches = [];
+
+  references.forEach((reference) => {
+    const image = imagesById.get(reference.imageId);
+
+    // Record reference check: a record points to an image-store id that is absent.
+    if (!image) {
+      orphanedRecordReferences.push({
+        ...reference,
+        issue: "missing_image",
+        details: `Attachment references image ${reference.imageId}, but no image-store entry exists.`,
+      });
+      return;
+    }
+
+    // Payload check: image metadata exists, but the stored binary/data URL payload is missing.
+    if (!hasImagePayload(image)) {
+      orphanedRecordReferences.push({
+        ...reference,
+        issue: "missing_payload",
+        details: `Attachment references image ${reference.imageId}, but the image-store entry has no payload.`,
+      });
+    }
+
+    const mismatches = [];
+    const imageName = getImageName(image);
+    const imageMimeType = getImageMimeType(image);
+    const imageSize = Number.isFinite(Number(image.size)) ? Number(image.size) : null;
+
+    // Metadata fields are optional in older image-store rows, so absent image metadata is not treated as a mismatch.
+    if (reference.attachmentName && imageName && reference.attachmentName !== imageName) {
+      mismatches.push({ field: "filename", recordValue: reference.attachmentName, imageValue: imageName });
+    }
+    if (reference.attachmentMimeType && imageMimeType && reference.attachmentMimeType !== imageMimeType) {
+      mismatches.push({ field: "mimeType", recordValue: reference.attachmentMimeType, imageValue: imageMimeType });
+    }
+    if (reference.attachmentSize != null && imageSize != null && reference.attachmentSize !== imageSize) {
+      mismatches.push({ field: "size", recordValue: reference.attachmentSize, imageValue: imageSize });
+    }
+
+    if (mismatches.length > 0) {
+      metadataMismatches.push({
+        ...reference,
+        mismatches,
+        details: `Attachment metadata does not match image-store metadata for ${reference.imageId}.`,
+      });
+    }
+  });
+
+  // Orphan image check: image-store row exists but no canonical case record references it.
+  const orphanedImages = images
+    .filter((image) => !referencedImageIds.has(String(image.id)))
+    .map((image) => ({
+      caseId: image.caseId || "",
+      imageId: String(image.id),
+      details: "Image-store entry is not referenced by any case record attachment.",
+      filename: getImageName(image),
+      mimeType: getImageMimeType(image),
+      size: Number.isFinite(Number(image.size)) ? Number(image.size) : null,
+      hasPayload: hasImagePayload(image),
+    }));
+
+  return {
+    orphanedRecordReferences,
+    orphanedImages,
+    metadataMismatches,
+  };
 }
 
 function getLinkMetrics(linkMap) {

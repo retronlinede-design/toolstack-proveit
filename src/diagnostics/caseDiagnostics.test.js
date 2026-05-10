@@ -6,6 +6,7 @@ import {
   analyzeChronology,
   analyzeEvidenceCoverage,
   analyzeSequenceGroup,
+  runAttachmentIntegrityCheck,
 } from "./caseDiagnostics.js";
 
 function baseCase() {
@@ -154,4 +155,82 @@ test("analyzeCaseDiagnostics output has stable top-level structure", () => {
   ]);
   assert.equal(Object.hasOwn(diagnostics, "exportedAt"), false);
   assert.equal(diagnostics.overview.caseId, "case-1");
+});
+
+test("runAttachmentIntegrityCheck detects missing image references", () => {
+  const caseItem = {
+    id: "case-attachments",
+    evidence: [
+      {
+        id: "ev-missing",
+        title: "Missing image evidence",
+        attachments: [
+          {
+            id: "att-missing",
+            name: "missing.png",
+            type: "image/png",
+            storage: { type: "indexeddb", imageId: "img-missing" },
+          },
+        ],
+      },
+    ],
+  };
+
+  const report = runAttachmentIntegrityCheck({ cases: [caseItem], images: [] });
+
+  assert.equal(report.orphanedRecordReferences.length, 1);
+  assert.equal(report.orphanedRecordReferences[0].caseId, "case-attachments");
+  assert.equal(report.orphanedRecordReferences[0].recordId, "ev-missing");
+  assert.equal(report.orphanedRecordReferences[0].imageId, "img-missing");
+  assert.equal(report.orphanedRecordReferences[0].issue, "missing_image");
+});
+
+test("runAttachmentIntegrityCheck detects orphaned images", () => {
+  const report = runAttachmentIntegrityCheck({
+    cases: [{ id: "case-clean", evidence: [] }],
+    images: [{ id: "img-orphan", dataUrl: "data:image/png;base64,abc", name: "orphan.png" }],
+  });
+
+  assert.equal(report.orphanedImages.length, 1);
+  assert.equal(report.orphanedImages[0].imageId, "img-orphan");
+  assert.equal(report.orphanedImages[0].hasPayload, true);
+});
+
+test("runAttachmentIntegrityCheck detects missing payloads and metadata mismatches", () => {
+  const caseItem = {
+    id: "case-mismatch",
+    documents: [
+      {
+        id: "doc-1",
+        title: "Document",
+        attachments: [
+          {
+            id: "att-1",
+            name: "record-name.pdf",
+            type: "application/pdf",
+            size: 500,
+            storage: { type: "indexeddb", imageId: "img-1" },
+          },
+        ],
+      },
+    ],
+  };
+  const images = [
+    {
+      id: "img-1",
+      name: "stored-name.pdf",
+      type: "application/octet-stream",
+      size: 600,
+    },
+  ];
+
+  const before = JSON.stringify({ caseItem, images });
+  const report = runAttachmentIntegrityCheck({ cases: [caseItem], images });
+  const after = JSON.stringify({ caseItem, images });
+
+  assert.equal(report.orphanedRecordReferences.length, 1);
+  assert.equal(report.orphanedRecordReferences[0].issue, "missing_payload");
+  assert.equal(report.metadataMismatches.length, 1);
+  assert.deepEqual(report.metadataMismatches[0].mismatches.map((item) => item.field), ["filename", "mimeType", "size"]);
+  assert.equal(after, before);
 });

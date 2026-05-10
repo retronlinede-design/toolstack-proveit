@@ -19,7 +19,7 @@ import { getRecordDisplayMeta, resolveRecordById } from "../domain/linkingResolv
 import { buildNarrativeSections } from "../lib/narrativeBuilder.js";
 import { PROVEIT_REPORT_PROMPT_V1, parseProveItReportV1 } from "../lib/proveitReportFormat.js";
 import { DEFAULT_REPORT_DISPLAY_LANGUAGE, REPORT_DISPLAY_LANGUAGES, getReportHeadingLabel } from "../lib/reportHeadingLabels.js";
-import { analyzeCaseDiagnostics } from "../diagnostics/caseDiagnostics.js";
+import { analyzeCaseDiagnostics, runAttachmentIntegrityCheck } from "../diagnostics/caseDiagnostics.js";
 import { buildSequenceGroupReviewPackage, ingestSequenceGroupDelta } from "../gpt/sequenceGroupDelta.js";
 import { buildCaseBundleReport, buildDocumentPackReport, buildEvidencePackReport, buildExecutiveSummaryNarrativePolishPrompt, buildExecutiveSummaryReport, buildLedgerPackReport, buildThreadIssueReport } from "../report/reportBuilder.js";
 import { getLinkChipClasses } from "./linkChipStyles";
@@ -179,6 +179,8 @@ export default function CaseDetail({
   setActiveTab,
   tabs,
   imageCache,
+  attachmentImages = [],
+  attachmentDiagnosticCases = [],
   setSelectedCaseId,
   openRecordModal,
   renderCaseList,
@@ -961,6 +963,14 @@ export default function CaseDetail({
   }
 
   const health = selectedCase ? getCaseHealthReport(selectedCase) : null;
+  const attachmentIntegrity = useMemo(() => runAttachmentIntegrityCheck({
+    cases: attachmentDiagnosticCases.length > 0 ? attachmentDiagnosticCases : (selectedCase ? [selectedCase] : []),
+    images: attachmentImages,
+  }), [attachmentDiagnosticCases, attachmentImages, selectedCase]);
+  const attachmentIntegrityIssueCount =
+    attachmentIntegrity.orphanedRecordReferences.length +
+    attachmentIntegrity.orphanedImages.length +
+    attachmentIntegrity.metadataMismatches.length;
   const overviewIncidents = selectedCase?.incidents || [];
   const overviewEvidence = selectedCase?.evidence || [];
   const overviewDocuments = selectedCase?.documents || [];
@@ -4611,6 +4621,76 @@ ${ungroupedSequenceText}
                       Existing health check: {readinessLabel} · {health.totalIssues || 0} blocker{health.totalIssues === 1 ? "" : "s"} · issue pressure {issuesLabel}
                     </div>
                   )}
+
+                  <div className="mb-4 overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup("Attachment Integrity")}
+                      className="flex w-full items-center justify-between gap-3 p-3 text-left transition-colors hover:bg-neutral-50"
+                    >
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Attachment Integrity</div>
+                        <div className="mt-1 text-sm font-semibold text-neutral-900">
+                          {attachmentIntegrityIssueCount === 0 ? "No attachment integrity issues detected" : `${attachmentIntegrityIssueCount} issue${attachmentIntegrityIssueCount === 1 ? "" : "s"} detected`}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-[10px] font-bold text-neutral-600">
+                          {attachmentIntegrityIssueCount}
+                        </span>
+                        {expandedGroups["Attachment Integrity"] ? <ChevronDown className="h-4 w-4 text-neutral-400" /> : <ChevronRight className="h-4 w-4 text-neutral-400" />}
+                      </div>
+                    </button>
+                    {expandedGroups["Attachment Integrity"] && (
+                      <div className="space-y-3 border-t border-neutral-100 p-3 text-xs text-neutral-700">
+                        <div className="grid gap-2 sm:grid-cols-3">
+                          <div className="rounded-lg border border-neutral-100 bg-neutral-50 p-2">
+                            Missing references: <span className="font-semibold">{attachmentIntegrity.orphanedRecordReferences.length}</span>
+                          </div>
+                          <div className="rounded-lg border border-neutral-100 bg-neutral-50 p-2">
+                            Orphan images: <span className="font-semibold">{attachmentIntegrity.orphanedImages.length}</span>
+                          </div>
+                          <div className="rounded-lg border border-neutral-100 bg-neutral-50 p-2">
+                            Metadata mismatches: <span className="font-semibold">{attachmentIntegrity.metadataMismatches.length}</span>
+                          </div>
+                        </div>
+
+                        {attachmentIntegrityIssueCount === 0 ? (
+                          <p className="text-neutral-500">Attachment references match the loaded image-store diagnostics data.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {attachmentIntegrity.orphanedRecordReferences.slice(0, 8).map((item) => (
+                              <div key={`missing-${item.caseId}-${item.recordId}-${item.imageId}`} className="rounded-lg border border-amber-100 bg-amber-50/60 p-2">
+                                <div className="font-semibold text-amber-900">{item.recordTitle || item.recordId}</div>
+                                <div className="mt-1 text-amber-800">{item.details}</div>
+                                <div className="mt-1 break-all font-mono text-[10px] text-amber-700">case {item.caseId} - record {item.recordId} - image {item.imageId}</div>
+                              </div>
+                            ))}
+                            {attachmentIntegrity.orphanedImages.slice(0, 8).map((item) => (
+                              <div key={`orphan-${item.imageId}`} className="rounded-lg border border-neutral-100 bg-neutral-50 p-2">
+                                <div className="font-semibold text-neutral-800">{item.filename || item.imageId}</div>
+                                <div className="mt-1 text-neutral-600">{item.details}</div>
+                                <div className="mt-1 break-all font-mono text-[10px] text-neutral-500">image {item.imageId}</div>
+                              </div>
+                            ))}
+                            {attachmentIntegrity.metadataMismatches.slice(0, 8).map((item) => (
+                              <div key={`mismatch-${item.caseId}-${item.recordId}-${item.imageId}`} className="rounded-lg border border-blue-100 bg-blue-50/60 p-2">
+                                <div className="font-semibold text-blue-950">{item.recordTitle || item.recordId}</div>
+                                <div className="mt-1 text-blue-900">{item.details}</div>
+                                <ul className="mt-1 space-y-0.5 text-blue-800">
+                                  {item.mismatches.map((mismatch) => (
+                                    <li key={`${item.imageId}-${mismatch.field}`}>
+                                      - {mismatch.field}: record "{String(mismatch.recordValue)}", image "{String(mismatch.imageValue)}"
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
                   {health?.issues.length > 0 && (
                     <div className="space-y-2">

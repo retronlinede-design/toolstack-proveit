@@ -48,9 +48,29 @@ import { ShieldCheck } from "lucide-react";
 const lastUsedGroupByType = {};
 const SHOW_REVIEW_QUEUE = false;
 const CREATE_NEW_SEQUENCE_GROUP_OPTION = "__create_new_sequence_group__";
+const FULL_BACKUP_ALL_RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 function safeText(value) {
   return typeof value === "string" ? value : "";
+}
+
+function hasRecentFullBackupAll(timestamp) {
+  return timestamp > 0 && Date.now() - timestamp <= FULL_BACKUP_ALL_RECENT_WINDOW_MS;
+}
+
+function cleanGptPreviewText(value) {
+  return String(value ?? "")
+    .normalize("NFC")
+    .replaceAll("Ã¢â‚¬â€", "-")
+    .replaceAll("Ã¢â‚¬â€œ", "-")
+    .replaceAll("â€”", "-")
+    .replaceAll("â€“", "-")
+    .replaceAll("â€™", "'")
+    .replaceAll("â€˜", "'")
+    .replaceAll("â€œ", "\"")
+    .replaceAll("â€", "\"")
+    .replaceAll("Â", "")
+    .replace(/\uFFFD/g, "");
 }
 
 function isTrackingRecordDocument(doc) {
@@ -363,6 +383,7 @@ export default function ProveItApp() {
   const [caseSort, setCaseSort] = useState("updated");
   const [editingCase, setEditingCase] = useState(null);
   const [imageCache, setImageCache] = useState({});
+  const [attachmentDiagnosticImages, setAttachmentDiagnosticImages] = useState([]);
   const [previewFile, setPreviewFile] = useState(null);
   const [viewingRecord, setViewingRecord] = useState(null);
   const [unlockedCaseIds, setUnlockedCaseIds] = useState([]);
@@ -403,6 +424,8 @@ export default function ProveItApp() {
   const [gptDeltaPreview, setGptDeltaPreview] = useState(null);
   const [gptDeltaValidatedCase, setGptDeltaValidatedCase] = useState(null);
   const [gptDeltaApplying, setGptDeltaApplying] = useState(false);
+  const [gptDeltaBackupPromptOpen, setGptDeltaBackupPromptOpen] = useState(false);
+  const [lastFullBackupAllAt, setLastFullBackupAllAt] = useState(0);
 
   const [ledgerModalOpen, setLedgerModalOpen] = useState(false);
   const [ledgerForm, setLedgerForm] = useState(EMPTY_LEDGER_FORM);
@@ -452,10 +475,13 @@ export default function ProveItApp() {
           .slice(0, 10)}.json`
       );
 
+      setLastFullBackupAllAt(Date.now());
+      return true;
     } catch (err) {
       console.error("FULL BACKUP failed", err);
       showAppNotice("error", "Full backup failed.");
       alert("Full backup failed");
+      return false;
     }
   };
 
@@ -655,6 +681,7 @@ export default function ProveItApp() {
     setGptDeltaPreview(null);
     setGptDeltaValidatedCase(null);
     setGptDeltaApplying(false);
+    setGptDeltaBackupPromptOpen(false);
   };
 
   const openGptDeltaModal = () => {
@@ -663,6 +690,7 @@ export default function ProveItApp() {
     setGptDeltaPreview(null);
     setGptDeltaValidatedCase(null);
     setGptDeltaApplying(false);
+    setGptDeltaBackupPromptOpen(false);
     setShowGptDeltaModal(true);
   };
 
@@ -671,12 +699,14 @@ export default function ProveItApp() {
     setGptDeltaError("");
     setGptDeltaPreview(null);
     setGptDeltaValidatedCase(null);
+    setGptDeltaBackupPromptOpen(false);
   };
 
   const handleValidateGptDelta = () => {
     setGptDeltaError("");
     setGptDeltaPreview(null);
     setGptDeltaValidatedCase(null);
+    setGptDeltaBackupPromptOpen(false);
 
     if (!selectedCase) {
       setGptDeltaError("Select a case before applying a GPT update.");
@@ -702,12 +732,7 @@ export default function ProveItApp() {
     setGptDeltaPreview(buildGptDeltaPreview(payloadForValidation, selectedCase, result.case, result));
   };
 
-  const handleApplyGptDelta = async () => {
-    if (!gptDeltaValidatedCase) return;
-
-    setGptDeltaApplying(true);
-    setGptDeltaError("");
-
+  const applyValidatedGptDelta = async () => {
     try {
       await saveCase(gptDeltaValidatedCase);
       setCases((prev) => prev.map((c) => (c.id === gptDeltaValidatedCase.id ? gptDeltaValidatedCase : c)));
@@ -717,6 +742,41 @@ export default function ProveItApp() {
       setGptDeltaError(error.message || "Failed to apply GPT update.");
       setGptDeltaApplying(false);
     }
+  };
+
+  const handleApplyGptDelta = async () => {
+    if (!gptDeltaValidatedCase) return;
+
+    setGptDeltaError("");
+
+    // Backup prompt: this stays session-local so GPT delta safety does not add or change storage keys.
+    if (!hasRecentFullBackupAll(lastFullBackupAllAt)) {
+      setGptDeltaBackupPromptOpen(true);
+      return;
+    }
+
+    setGptDeltaApplying(true);
+    await applyValidatedGptDelta();
+  };
+
+  const handleCreateBackupThenApplyGptDelta = async () => {
+    if (!gptDeltaValidatedCase) return;
+
+    setGptDeltaBackupPromptOpen(false);
+    setGptDeltaApplying(true);
+    const backupCreated = await handleFullBackup();
+    if (!backupCreated) {
+      setGptDeltaError("Create a full backup before applying this GPT delta.");
+      setGptDeltaApplying(false);
+      return;
+    }
+
+    await applyValidatedGptDelta();
+  };
+
+  const handleCancelGptDeltaBackupPrompt = () => {
+    setGptDeltaBackupPromptOpen(false);
+    setGptDeltaApplying(false);
   };
 
 
@@ -1299,6 +1359,27 @@ export default function ProveItApp() {
 
     loadAllImages();
   }, [selectedCase, selectedCaseRequiresPin, reviewQueue.length]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAttachmentDiagnosticImages() {
+      try {
+        const { dbPromise } = await import("./db");
+        const db = await dbPromise;
+        const images = await db.getAll("images");
+        if (!cancelled) setAttachmentDiagnosticImages(images || []);
+      } catch (error) {
+        console.error("Failed to load attachment diagnostics images", error);
+        if (!cancelled) setAttachmentDiagnosticImages([]);
+      }
+    }
+
+    loadAttachmentDiagnosticImages();
+    return () => {
+      cancelled = true;
+    };
+  }, [cases, selectedCaseId, imageCache]);
 
   useEffect(() => {
     localStorage.setItem("toolstack.proveit.v1.captures", JSON.stringify(quickCaptures));
@@ -2295,6 +2376,8 @@ const handleRecordFiles = async (event) => {
             setActiveTab={setActiveTab}
             tabs={tabs}
             imageCache={imageCache}
+            attachmentImages={attachmentDiagnosticImages}
+            attachmentDiagnosticCases={cases}
             setSelectedCaseId={setSelectedCaseId}
             openRecordModal={openRecordModal}
             renderCaseList={renderCaseList}
@@ -2364,6 +2447,33 @@ const handleRecordFiles = async (event) => {
                   </div>
                 )}
 
+                {gptDeltaBackupPromptOpen && (
+                  <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+                    <div className="font-semibold">No recent backup found. Create backup before applying GPT delta?</div>
+                    <p className="mt-1 text-xs leading-5">
+                      This creates a FULL_BACKUP_ALL download first, then applies the already validated GPT delta.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCreateBackupThenApplyGptDelta}
+                        disabled={gptDeltaApplying}
+                        className="rounded-md border border-amber-700 bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Create backup now &rarr; Apply delta
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCancelGptDeltaBackupPrompt}
+                        disabled={gptDeltaApplying}
+                        className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {gptDeltaPreview && (
                   <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
                     <h3 className="font-semibold text-neutral-900">Preview</h3>
@@ -2417,11 +2527,11 @@ const handleRecordFiles = async (event) => {
                               <div className="mt-1 grid gap-2 sm:grid-cols-2">
                                 <div>
                                   <span className="block text-[10px] font-bold uppercase text-neutral-400">Before</span>
-                                  <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-600">{change.before || "—"}</pre>
+                                  <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-600">{cleanGptPreviewText(change.before) || "-"}</pre>
                                 </div>
                                 <div>
                                   <span className="block text-[10px] font-bold uppercase text-neutral-400">After</span>
-                                  <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-900">{change.after || "—"}</pre>
+                                  <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-900">{cleanGptPreviewText(change.after) || "-"}</pre>
                                 </div>
                               </div>
                             </div>
@@ -2449,11 +2559,11 @@ const handleRecordFiles = async (event) => {
                                       <div className="mt-1 grid gap-2 sm:grid-cols-2">
                                         <div>
                                           <span className="block text-[10px] font-bold uppercase text-neutral-400">Before</span>
-                                          <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-600">{change.before || "—"}</pre>
+                                          <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-600">{cleanGptPreviewText(change.before) || "-"}</pre>
                                         </div>
                                         <div>
                                           <span className="block text-[10px] font-bold uppercase text-neutral-400">After</span>
-                                          <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-900">{change.after || "—"}</pre>
+                                          <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-900">{cleanGptPreviewText(change.after) || "-"}</pre>
                                         </div>
                                       </div>
                                     </div>
@@ -2487,11 +2597,11 @@ const handleRecordFiles = async (event) => {
                                       <div className="mt-1 grid gap-2 sm:grid-cols-2">
                                         <div>
                                           <span className="block text-[10px] font-bold uppercase text-neutral-400">Before</span>
-                                          <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-600">{change.before || "-"}</pre>
+                                          <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-600">{cleanGptPreviewText(change.before) || "-"}</pre>
                                         </div>
                                         <div>
                                           <span className="block text-[10px] font-bold uppercase text-neutral-400">After</span>
-                                          <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-900">{change.after || "-"}</pre>
+                                          <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-900">{cleanGptPreviewText(change.after) || "-"}</pre>
                                         </div>
                                       </div>
                                     </div>
