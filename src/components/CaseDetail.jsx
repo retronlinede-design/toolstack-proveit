@@ -2648,59 +2648,112 @@ ${ungroupedSequenceText}
       </span>
     ));
   };
-  const parseExecutivePolishMarkdown = (text = "") => {
-    const sections = {};
-    const allowedHeadings = new Set([
-      "Current Position",
-      "Key Timeline",
-      "Strongest Evidence",
-      "Risks and Concerns",
-      "Recommended Next Steps",
-    ]);
-    let currentHeading = "";
-
-    safeText(text).split("\n").forEach((line) => {
-      const heading = line.replace(/^#+\s*/, "").trim();
-      if (/^#{1,3}\s+/.test(line) && allowedHeadings.has(heading)) {
-        currentHeading = heading;
-        sections[currentHeading] = [];
-        return;
-      }
-      if (currentHeading) sections[currentHeading].push(line);
-    });
-
-    return Object.fromEntries(
-      Object.entries(sections).map(([heading, lines]) => [heading, lines.join("\n").trim()])
-    );
-  };
-  const renderPolishedMarkdownBlock = (text = "", fallback = null) => {
+  const cleanPolishedMarkdownInline = (text = "") => (
+    safeText(text)
+      .replace(/\*\*(.*?)\*\*/g, "$1")
+      .replace(/__(.*?)__/g, "$1")
+      .replace(/`([^`]+)`/g, "$1")
+      .trim()
+  );
+  const renderExecutivePolishedMarkdown = (text = "", fallback = null) => {
     const cleanText = safeText(text).trim();
     if (!cleanText) return fallback;
-    const lines = cleanText.split("\n").map((line) => line.trim()).filter(Boolean);
-    const listLines = lines.filter((line) => /^[-*]\s+/.test(line) || /^\d+\.\s+/.test(line));
-    if (listLines.length === lines.length && lines.length > 0) {
-      return (
-        <ul className="mt-4 space-y-3 text-sm leading-6 text-neutral-700">
-          {lines.map((line, index) => (
-            <li key={`${line}-${index}`} className="rounded-lg border border-neutral-200 bg-white p-3">
-              {line.replace(/^[-*]\s+/, "").replace(/^\d+\.\s+/, "")}
-            </li>
-          ))}
-        </ul>
+
+    const elements = [];
+    let paragraphLines = [];
+    let listItems = [];
+    let listType = "";
+
+    const flushParagraph = () => {
+      if (paragraphLines.length === 0) return;
+      const paragraphText = cleanPolishedMarkdownInline(paragraphLines.join(" "));
+      if (paragraphText) {
+        elements.push(
+          <p key={`p-${elements.length}`} className="text-sm leading-7 text-neutral-700">
+            {paragraphText}
+          </p>
+        );
+      }
+      paragraphLines = [];
+    };
+
+    const flushList = () => {
+      if (listItems.length === 0) return;
+      const listClassName = "space-y-2 text-sm leading-6 text-neutral-700";
+      const renderedItems = listItems.map((item, index) => (
+        <li key={`${item}-${index}`} className="pl-1">
+          {cleanPolishedMarkdownInline(item)}
+        </li>
+      ));
+      elements.push(
+        listType === "numbered" ? (
+          <ol key={`ol-${elements.length}`} className={`${listClassName} list-decimal pl-5`}>
+            {renderedItems}
+          </ol>
+        ) : (
+          <ul key={`ul-${elements.length}`} className={`${listClassName} list-disc pl-5`}>
+            {renderedItems}
+          </ul>
+        )
       );
-    }
+      listItems = [];
+      listType = "";
+    };
+
+    cleanText.split("\n").forEach((rawLine) => {
+      const line = rawLine.trim();
+      if (!line) {
+        flushParagraph();
+        flushList();
+        return;
+      }
+
+      const headingMatch = line.match(/^(#{1,3})\s+(.+)$/);
+      if (headingMatch) {
+        flushParagraph();
+        flushList();
+        const level = headingMatch[1].length;
+        const headingText = cleanPolishedMarkdownInline(headingMatch[2]);
+        const headingClassName = level === 1
+          ? "text-2xl font-bold leading-tight text-neutral-950"
+          : level === 2
+            ? "text-lg font-bold leading-tight text-neutral-950"
+            : "text-sm font-bold uppercase tracking-wider text-neutral-500";
+        elements.push(
+          <h2 key={`h-${elements.length}`} className={headingClassName}>
+            {headingText}
+          </h2>
+        );
+        return;
+      }
+
+      const bulletMatch = line.match(/^[-*•]\s+(.+)$/);
+      const numberedMatch = line.match(/^\d+[.)]\s+(.+)$/);
+      if (bulletMatch || numberedMatch) {
+        flushParagraph();
+        const nextListType = numberedMatch ? "numbered" : "bullet";
+        if (listType && listType !== nextListType) flushList();
+        listType = nextListType;
+        listItems.push(bulletMatch?.[1] || numberedMatch?.[1] || "");
+        return;
+      }
+
+      flushList();
+      paragraphLines.push(line);
+    });
+
+    flushParagraph();
+    flushList();
+
     return (
-      <div className="mt-4 space-y-3 text-sm leading-6 text-neutral-700">
-        {lines.map((line, index) => (
-          <p key={`${line}-${index}`}>{line.replace(/^[-*]\s+/, "").replace(/^\d+\.\s+/, "")}</p>
-        ))}
+      <div className="space-y-4">
+        {elements}
       </div>
     );
   };
   const renderExecutiveSummaryReportArticle = (report, className = "") => {
     if (!report) return null;
-    const polishedSections = parseExecutivePolishMarkdown(executiveSummaryPolishDraft);
-    const hasPolishedNarrative = Object.values(polishedSections).some((value) => safeText(value).trim());
+    const hasPolishedNarrative = Boolean(safeText(executiveSummaryPolishDraft).trim());
     const metricItems = [
       ["Incidents", report.atAGlance.incidentCount],
       ["Evidence", report.atAGlance.evidenceCount],
@@ -2748,21 +2801,21 @@ ${ungroupedSequenceText}
           )}
         </header>
 
-        <section className="border-b border-neutral-200 py-7">
-          <div className="rounded-2xl border border-lime-200 bg-lime-50 p-5">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-lime-800">Current Position</h2>
-            {hasPolishedNarrative && polishedSections["Current Position"] ? (
-              <div className="mt-3 text-base leading-7 text-neutral-950">
-                {renderPolishedMarkdownBlock(polishedSections["Current Position"])}
-              </div>
-            ) : (
-              <>
+        {hasPolishedNarrative ? (
+          <section className="border-b border-neutral-200 py-7">
+            <div className="mb-5 rounded-xl border border-lime-200 bg-lime-50 p-4 text-sm font-semibold text-lime-900 print:hidden">
+              Using polished narrative. Review before sharing.
+            </div>
+            {renderExecutivePolishedMarkdown(executiveSummaryPolishDraft)}
+          </section>
+        ) : (
+          <>
+            <section className="border-b border-neutral-200 py-7">
+              <div className="rounded-2xl border border-lime-200 bg-lime-50 p-5">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-lime-800">Current Position</h2>
                 <p className="mt-3 text-xl font-semibold leading-8 text-neutral-950">{report.currentPosition.operationalSummary}</p>
                 <p className="mt-3 text-sm leading-6 text-lime-950">{report.currentPosition.whyItMatters}</p>
-              </>
-            )}
-          </div>
-          {!hasPolishedNarrative && (
+              </div>
             <div className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
               <div className="rounded-xl border border-neutral-200 bg-white p-4">
                 <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Procedural Position</div>
@@ -2773,111 +2826,104 @@ ${ungroupedSequenceText}
                 <p className="mt-2 text-sm leading-6 text-amber-950">{headlineConcern}</p>
               </div>
             </div>
-          )}
-          {!hasPolishedNarrative && report.currentPosition.mainProblems?.length > 0 && (
-            <div className="mt-5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500">What matters most now</h3>
-              {renderPlainList(report.currentPosition.mainProblems, (item) => item)}
+              {report.currentPosition.mainProblems?.length > 0 && (
+                <div className="mt-5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500">What matters most now</h3>
+                  {renderPlainList(report.currentPosition.mainProblems, (item) => item)}
+                </div>
+              )}
+            </section>
+
+            <section className="border-b border-neutral-200 py-5">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Case at a Glance</h2>
+              <div className="mt-4 grid gap-3 sm:grid-cols-4">
+                {metricItems.map(([label, value]) => (
+                  <div key={label} className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{label}</div>
+                    <div className="mt-1 text-lg font-semibold text-neutral-950">{value}</div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <div className="grid gap-6 border-b border-neutral-200 py-7 lg:grid-cols-[1fr_1fr]">
+              <section>
+                <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Key Timeline</h2>
+                {report.keyTimeline.length === 0 ? (
+                  <p className="mt-3 text-sm text-neutral-500">No dated chronology has been recorded yet.</p>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {report.keyTimeline.slice(0, 6).map((item) => (
+                      <div key={`${item.recordType}-${item.id}`} className="rounded-xl border border-neutral-200 bg-white p-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-bold text-neutral-500">{item.date || "No date"}</span>
+                          {item.importanceLabel && (
+                            <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[10px] font-bold uppercase text-neutral-500">{item.importanceLabel}</span>
+                          )}
+                        </div>
+                        <div className="mt-2 font-semibold text-neutral-950">{item.title}</div>
+                        {item.summary && <p className="mt-1 text-sm leading-6 text-neutral-700">{item.summary}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+              <section>
+                <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Strongest Evidence</h2>
+                {report.strongestEvidence.length === 0 ? (
+                  <p className="mt-3 text-sm text-neutral-500">No evidence has been recorded yet.</p>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {report.strongestEvidence.slice(0, 5).map((item) => (
+                      <div key={item.id} className="rounded-xl border border-neutral-200 bg-white p-4">
+                        <div className="font-semibold text-neutral-950">{item.title}</div>
+                        <p className="mt-2 text-sm leading-6 text-neutral-700">{item.whyItMatters}</p>
+                        {item.supports?.length > 0 && (
+                          <p className="mt-2 text-xs font-medium text-neutral-500">Supports: {item.supports.join(", ")}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
             </div>
-          )}
-        </section>
 
-        <section className="border-b border-neutral-200 py-5">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Case at a Glance</h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-4">
-            {metricItems.map(([label, value]) => (
-              <div key={label} className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{label}</div>
-                <div className="mt-1 text-lg font-semibold text-neutral-950">{value}</div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <div className="grid gap-6 border-b border-neutral-200 py-7 lg:grid-cols-[1fr_1fr]">
-          <section>
-            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Key Timeline</h2>
-            {hasPolishedNarrative && polishedSections["Key Timeline"] ? (
-              renderPolishedMarkdownBlock(polishedSections["Key Timeline"])
-            ) : report.keyTimeline.length === 0 ? (
-              <p className="mt-3 text-sm text-neutral-500">No dated chronology has been recorded yet.</p>
-            ) : (
-              <div className="mt-4 space-y-3">
-                {report.keyTimeline.slice(0, 6).map((item) => (
-                  <div key={`${item.recordType}-${item.id}`} className="rounded-xl border border-neutral-200 bg-white p-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-bold text-neutral-500">{item.date || "No date"}</span>
-                      {item.importanceLabel && (
-                        <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[10px] font-bold uppercase text-neutral-500">{item.importanceLabel}</span>
-                      )}
-                    </div>
-                    <div className="mt-2 font-semibold text-neutral-950">{item.title}</div>
-                    {item.summary && <p className="mt-1 text-sm leading-6 text-neutral-700">{item.summary}</p>}
+            <div className="grid gap-6 border-b border-neutral-200 py-7 lg:grid-cols-[0.9fr_1.1fr]">
+              <section>
+                <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Risks and Concerns</h2>
+                {report.risksAndConcerns.length === 0 ? (
+                  <p className="mt-3 text-sm text-neutral-500">No major operational concerns are currently flagged.</p>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {report.risksAndConcerns.slice(0, 5).map((item) => (
+                      <div key={item.id} className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                        <div className="font-semibold text-amber-950">{item.title || "Concern"}</div>
+                        <p className="mt-1 text-sm leading-6 text-amber-900">{item.message}</p>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-          </section>
-          <section>
-            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Strongest Evidence</h2>
-            {hasPolishedNarrative && polishedSections["Strongest Evidence"] ? (
-              renderPolishedMarkdownBlock(polishedSections["Strongest Evidence"])
-            ) : report.strongestEvidence.length === 0 ? (
-              <p className="mt-3 text-sm text-neutral-500">No evidence has been recorded yet.</p>
-            ) : (
-              <div className="mt-4 space-y-3">
-                {report.strongestEvidence.slice(0, 5).map((item) => (
-                  <div key={item.id} className="rounded-xl border border-neutral-200 bg-white p-4">
-                    <div className="font-semibold text-neutral-950">{item.title}</div>
-                    <p className="mt-2 text-sm leading-6 text-neutral-700">{item.whyItMatters}</p>
-                    {item.supports?.length > 0 && (
-                      <p className="mt-2 text-xs font-medium text-neutral-500">Supports: {item.supports.join(", ")}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
-
-        <div className="grid gap-6 border-b border-neutral-200 py-7 lg:grid-cols-[0.9fr_1.1fr]">
-          <section>
-            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Risks and Concerns</h2>
-            {hasPolishedNarrative && polishedSections["Risks and Concerns"] ? (
-              renderPolishedMarkdownBlock(polishedSections["Risks and Concerns"])
-            ) : report.risksAndConcerns.length === 0 ? (
-              <p className="mt-3 text-sm text-neutral-500">No major operational concerns are currently flagged.</p>
-            ) : (
-              <div className="mt-4 space-y-3">
-                {report.risksAndConcerns.slice(0, 5).map((item) => (
-                  <div key={item.id} className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                    <div className="font-semibold text-amber-950">{item.title || "Concern"}</div>
-                    <p className="mt-1 text-sm leading-6 text-amber-900">{item.message}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-          <section>
-            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">What Should Happen Next</h2>
-            {hasPolishedNarrative && polishedSections["Recommended Next Steps"] ? (
-              renderPolishedMarkdownBlock(polishedSections["Recommended Next Steps"])
-            ) : report.recommendedNextSteps.length === 0 ? (
-              <p className="mt-3 text-sm text-neutral-500">No next actions have been recorded yet.</p>
-            ) : (
-              <ol className="mt-4 space-y-3">
-                {report.recommendedNextSteps.slice(0, 7).map((item, index) => (
-                  <li key={item.id || `${item.text}-${index}`} className={`rounded-xl border p-4 ${index < 3 ? "border-lime-200 bg-lime-50" : "border-neutral-200 bg-white"}`}>
-                    <div className="flex gap-3">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-neutral-700">{index + 1}</span>
-                      <div className="text-sm font-semibold leading-6 text-neutral-900">{item.text}</div>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </section>
-        </div>
+                )}
+              </section>
+              <section>
+                <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">What Should Happen Next</h2>
+                {report.recommendedNextSteps.length === 0 ? (
+                  <p className="mt-3 text-sm text-neutral-500">No next actions have been recorded yet.</p>
+                ) : (
+                  <ol className="mt-4 space-y-3">
+                    {report.recommendedNextSteps.slice(0, 7).map((item, index) => (
+                      <li key={item.id || `${item.text}-${index}`} className={`rounded-xl border p-4 ${index < 3 ? "border-lime-200 bg-lime-50" : "border-neutral-200 bg-white"}`}>
+                        <div className="flex gap-3">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-neutral-700">{index + 1}</span>
+                          <div className="text-sm font-semibold leading-6 text-neutral-900">{item.text}</div>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </section>
+            </div>
+          </>
+        )}
 
         <section className="py-6">
           <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Issue Threads</h2>
@@ -4655,9 +4701,20 @@ ${ungroupedSequenceText}
                             </button>
                           </div>
                         </div>
-                        {executiveSummaryPolishFeedback && (
-                          <p className="mt-3 text-xs font-semibold text-lime-700">{executiveSummaryPolishFeedback}</p>
-                        )}
+                        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold">
+                          {executiveSummaryPolishDraft.trim() ? (
+                            <span className="rounded-full border border-lime-200 bg-lime-50 px-2 py-1 text-lime-800">
+                              Using polished narrative
+                            </span>
+                          ) : (
+                            <span className="rounded-full border border-neutral-200 bg-white px-2 py-1 text-neutral-500">
+                              Using deterministic version
+                            </span>
+                          )}
+                          {executiveSummaryPolishFeedback && (
+                            <span className="text-lime-700">{executiveSummaryPolishFeedback}</span>
+                          )}
+                        </div>
                         <textarea
                           value={executiveSummaryPolishDraft}
                           onChange={(event) => {
