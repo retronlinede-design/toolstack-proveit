@@ -49,14 +49,31 @@ import { ShieldCheck } from "lucide-react";
 const lastUsedGroupByType = {};
 const SHOW_REVIEW_QUEUE = false;
 const CREATE_NEW_SEQUENCE_GROUP_OPTION = "__create_new_sequence_group__";
-const FULL_BACKUP_ALL_RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
+const LAST_FULL_BACKUP_ALL_AT_KEY = "toolstack.proveit.v1.lastFullBackupAt";
+const FULL_BACKUP_ALL_RECENT_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 function safeText(value) {
   return typeof value === "string" ? value : "";
 }
 
+function parseBackupTimestamp(value) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value !== "string" || !value.trim()) return 0;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function readLastFullBackupAllAt() {
+  try {
+    return localStorage.getItem(LAST_FULL_BACKUP_ALL_AT_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
 function hasRecentFullBackupAll(timestamp) {
-  return timestamp > 0 && Date.now() - timestamp <= FULL_BACKUP_ALL_RECENT_WINDOW_MS;
+  const parsedTimestamp = parseBackupTimestamp(timestamp);
+  return parsedTimestamp > 0 && Date.now() - parsedTimestamp <= FULL_BACKUP_ALL_RECENT_WINDOW_MS;
 }
 
 function isTrackingRecordDocument(doc) {
@@ -411,7 +428,7 @@ export default function ProveItApp() {
   const [gptDeltaValidatedCase, setGptDeltaValidatedCase] = useState(null);
   const [gptDeltaApplying, setGptDeltaApplying] = useState(false);
   const [gptDeltaBackupPromptOpen, setGptDeltaBackupPromptOpen] = useState(false);
-  const [lastFullBackupAllAt, setLastFullBackupAllAt] = useState(0);
+  const [lastFullBackupAllAt, setLastFullBackupAllAt] = useState(() => readLastFullBackupAllAt());
 
   const [ledgerModalOpen, setLedgerModalOpen] = useState(false);
   const [ledgerForm, setLedgerForm] = useState(EMPTY_LEDGER_FORM);
@@ -461,7 +478,13 @@ export default function ProveItApp() {
           .slice(0, 10)}.json`
       );
 
-      setLastFullBackupAllAt(Date.now());
+      const backupTimestamp = new Date().toISOString();
+      try {
+        localStorage.setItem(LAST_FULL_BACKUP_ALL_AT_KEY, backupTimestamp);
+      } catch {
+        // If localStorage is unavailable, keep the timestamp in state for this session only.
+      }
+      setLastFullBackupAllAt(backupTimestamp);
       return true;
     } catch (err) {
       console.error("FULL BACKUP failed", err);
@@ -735,7 +758,6 @@ export default function ProveItApp() {
 
     setGptDeltaError("");
 
-    // Backup prompt: this stays session-local so GPT delta safety does not add or change storage keys.
     if (!hasRecentFullBackupAll(lastFullBackupAllAt)) {
       setGptDeltaBackupPromptOpen(true);
       return;

@@ -44,7 +44,7 @@ export default function GptDeltaModal({
 
           {backupPromptOpen && (
             <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
-              <div className="font-semibold">No recent backup found. Create backup before applying GPT delta?</div>
+              <div className="font-semibold">No recent full backup detected within the last 2 hours. Create a backup before applying GPT updates?</div>
               <p className="mt-1 text-xs leading-5">
                 This creates a FULL_BACKUP_ALL download first, then applies the already validated GPT delta.
               </p>
