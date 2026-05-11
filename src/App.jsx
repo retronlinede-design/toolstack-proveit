@@ -4,6 +4,7 @@ import AttachmentPreview from "./components/AttachmentPreview";
 import RecordModal from "./components/RecordModal";
 import CaseDetail from "./components/CaseDetail";
 import FilePreviewModal from "./components/FilePreviewModal";
+import GptDeltaModal from "./components/gpt/GptDeltaModal";
 import {
   buildFullBackupAllPayload,
   buildFullBackupCasePayload,
@@ -56,21 +57,6 @@ function safeText(value) {
 
 function hasRecentFullBackupAll(timestamp) {
   return timestamp > 0 && Date.now() - timestamp <= FULL_BACKUP_ALL_RECENT_WINDOW_MS;
-}
-
-function cleanGptPreviewText(value) {
-  return String(value ?? "")
-    .normalize("NFC")
-    .replaceAll("Ã¢â‚¬â€", "-")
-    .replaceAll("Ã¢â‚¬â€œ", "-")
-    .replaceAll("â€”", "-")
-    .replaceAll("â€“", "-")
-    .replaceAll("â€™", "'")
-    .replaceAll("â€˜", "'")
-    .replaceAll("â€œ", "\"")
-    .replaceAll("â€", "\"")
-    .replaceAll("Â", "")
-    .replace(/\uFFFD/g, "");
 }
 
 function isTrackingRecordDocument(doc) {
@@ -2420,281 +2406,21 @@ const handleRecordFiles = async (event) => {
         )}
 
         {showGptDeltaModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-xl">
-              <div className="border-b border-neutral-200 p-5">
-                <h2 className="text-xl font-semibold text-neutral-900">GPT Update</h2>
-                <p className="mt-1 text-sm text-neutral-600">
-                  Paste a ProveIt GPT delta, validate it, then review the supported changes before applying.
-                  gpt-delta-1.0 supports actionSummary patching and strategy patching. gpt-delta-2.0 supports create for incidents, evidence, documents, and ledger, and patch for incidents, evidence, documents, ledger, and strategy.
-                </p>
-              </div>
-
-              <div className="flex-1 space-y-4 overflow-y-auto p-5">
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
-                  Binary fields and attachment payloads are not accepted through GPT delta. Review all generated records, patches, and links before applying.
-                </div>
-                <textarea
-                  value={gptDeltaText}
-                  onChange={handleGptDeltaTextChange}
-                  placeholder='{"app":"proveit","contractVersion":"gpt-delta-1.0","target":{"caseId":"..."},"operations":{"patch":{}}}'
-                  className="min-h-52 w-full rounded-lg border border-neutral-300 p-3 font-mono text-sm text-neutral-800 outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-100"
-                />
-
-                {gptDeltaError && (
-                  <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
-                    {gptDeltaError}
-                  </div>
-                )}
-
-                {gptDeltaBackupPromptOpen && (
-                  <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
-                    <div className="font-semibold">No recent backup found. Create backup before applying GPT delta?</div>
-                    <p className="mt-1 text-xs leading-5">
-                      This creates a FULL_BACKUP_ALL download first, then applies the already validated GPT delta.
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={handleCreateBackupThenApplyGptDelta}
-                        disabled={gptDeltaApplying}
-                        className="rounded-md border border-amber-700 bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Create backup now &rarr; Apply delta
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleCancelGptDeltaBackupPrompt}
-                        disabled={gptDeltaApplying}
-                        className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {gptDeltaPreview && (
-                  <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
-                    <h3 className="font-semibold text-neutral-900">Preview</h3>
-                    {gptDeltaPreview.warnings?.length > 0 && (
-                      <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs font-medium text-amber-900">
-                        <div className="mb-1 font-bold uppercase tracking-wide">Warnings</div>
-                        <ul className="space-y-1">
-                          {gptDeltaPreview.warnings.map((warning, index) => (
-                            <li key={`${warning}-${index}`}>- {warning}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                      <div>
-                        <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">Case</span>
-                        <span>{gptDeltaPreview.caseName}</span>
-                      </div>
-                      <div>
-                        <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">Case ID</span>
-                        <span className="break-all font-mono text-xs">{gptDeltaPreview.caseId}</span>
-                      </div>
-                      <div>
-                        <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">Contract</span>
-                        <span>{gptDeltaPreview.contractVersion}</span>
-                      </div>
-                      <div>
-                        <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">Supported Sections</span>
-                        <span>{gptDeltaPreview.supportedSections.join(", ")}</span>
-                      </div>
-                    </div>
-
-                    {gptDeltaPreview.actionSummaryFields.length > 0 && (
-                      <div className="mt-4">
-                        <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">
-                          Action Summary Fields
-                        </span>
-                        <span>{gptDeltaPreview.actionSummaryFields.join(", ")}</span>
-                      </div>
-                    )}
-
-                    {gptDeltaPreview.actionSummaryChanges?.length > 0 && (
-                      <div className="mt-4">
-                        <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">
-                          Action Summary Changes
-                        </span>
-                        <div className="mt-2 space-y-2">
-                          {gptDeltaPreview.actionSummaryChanges.map((change) => (
-                            <div key={change.field} className="rounded-md bg-white p-2">
-                              <div className="text-xs font-bold text-neutral-800">{change.field}</div>
-                              <div className="mt-1 grid gap-2 sm:grid-cols-2">
-                                <div>
-                                  <span className="block text-[10px] font-bold uppercase text-neutral-400">Before</span>
-                                  <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-600">{cleanGptPreviewText(change.before) || "-"}</pre>
-                                </div>
-                                <div>
-                                  <span className="block text-[10px] font-bold uppercase text-neutral-400">After</span>
-                                  <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-900">{cleanGptPreviewText(change.after) || "-"}</pre>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {gptDeltaPreview.strategyItems.length > 0 && (
-                      <div className="mt-4">
-                        <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">
-                          Strategy Records Patched
-                        </span>
-                        <p>{gptDeltaPreview.strategyItems.length} record(s)</p>
-                        <ul className="mt-2 space-y-1">
-                          {gptDeltaPreview.strategyItems.map((item) => (
-                            <li key={item.id} className="rounded-md bg-white px-2 py-1">
-                              <span className="font-medium">{item.title}</span>
-                              <span className="ml-2 break-all font-mono text-xs text-neutral-500">{item.id}</span>
-                              {item.changes?.length > 0 && (
-                                <div className="mt-2 space-y-2">
-                                  {item.changes.map((change) => (
-                                    <div key={`${item.id}-${change.field}`} className="rounded border border-neutral-100 bg-neutral-50 p-2">
-                                      <div className="text-xs font-bold text-neutral-800">{change.field}</div>
-                                      <div className="mt-1 grid gap-2 sm:grid-cols-2">
-                                        <div>
-                                          <span className="block text-[10px] font-bold uppercase text-neutral-400">Before</span>
-                                          <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-600">{cleanGptPreviewText(change.before) || "-"}</pre>
-                                        </div>
-                                        <div>
-                                          <span className="block text-[10px] font-bold uppercase text-neutral-400">After</span>
-                                          <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-900">{cleanGptPreviewText(change.after) || "-"}</pre>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {gptDeltaPreview.patchedRecords?.length > 0 && (
-                      <div className="mt-4">
-                        <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">
-                          Records To Patch
-                        </span>
-                        <ul className="mt-2 space-y-2">
-                          {gptDeltaPreview.patchedRecords.map((item) => (
-                            <li key={`${item.section}-${item.id}`} className="rounded-md bg-white p-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase text-neutral-500">{item.recordType}</span>
-                                <span className="font-medium">{item.title}</span>
-                                <span className="break-all font-mono text-xs text-neutral-500">{item.id}</span>
-                              </div>
-                              {item.changes?.length > 0 && (
-                                <div className="mt-2 space-y-2">
-                                  {item.changes.map((change) => (
-                                    <div key={`${item.section}-${item.id}-${change.field}`} className="rounded border border-neutral-100 bg-neutral-50 p-2">
-                                      <div className="text-xs font-bold text-neutral-800">{change.field}</div>
-                                      <div className="mt-1 grid gap-2 sm:grid-cols-2">
-                                        <div>
-                                          <span className="block text-[10px] font-bold uppercase text-neutral-400">Before</span>
-                                          <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-600">{cleanGptPreviewText(change.before) || "-"}</pre>
-                                        </div>
-                                        <div>
-                                          <span className="block text-[10px] font-bold uppercase text-neutral-400">After</span>
-                                          <pre className="whitespace-pre-wrap break-words font-sans text-xs text-neutral-900">{cleanGptPreviewText(change.after) || "-"}</pre>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {gptDeltaPreview.createdRecords?.length > 0 && (
-                      <div className="mt-4">
-                        <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">
-                          Records To Create
-                        </span>
-                        <ul className="mt-2 space-y-2">
-                          {gptDeltaPreview.createdRecords.map((item) => (
-                            <li key={item.id} className="rounded-md bg-white p-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase text-neutral-500">{item.recordType}</span>
-                                <span className="font-medium">{item.title}</span>
-                                <span className="break-all font-mono text-xs text-neutral-500">{item.id}</span>
-                              </div>
-                              {item.tempId && (
-                                <div className="mt-1 text-xs text-neutral-500">
-                                  tempId <span className="font-mono">{item.tempId}</span>
-                                </div>
-                              )}
-                              {item.links && Object.keys(item.links).length > 0 && (
-                                <div className="mt-2 text-xs text-neutral-600">
-                                  <span className="font-semibold text-neutral-800">Links:</span>{" "}
-                                  {Object.entries(item.links).map(([field, value]) => (
-                                    <span key={`${item.id}-${field}`} className="mr-2">
-                                      {field}: <span className="font-mono">{Array.isArray(value) ? value.map((link) => typeof link === "object" ? JSON.stringify(link) : link).join(", ") : String(value)}</span>
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {gptDeltaPreview.tempIdMappings?.length > 0 && (
-                      <div className="mt-4">
-                        <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">
-                          Temp ID Mapping
-                        </span>
-                        <ul className="mt-2 space-y-1">
-                          {gptDeltaPreview.tempIdMappings.map((item) => (
-                            <li key={item.tempId} className="rounded-md bg-white px-2 py-1 font-mono text-xs">
-                              {item.tempId} -&gt; {item.finalId}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs font-medium text-amber-800">
-                      gpt-delta-1.0 applies only supported actionSummary and strategy fields. gpt-delta-2.0 creates and patches supported records. Unsupported sections or unsafe fields are rejected.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-wrap justify-end gap-2 border-t border-neutral-200 p-5">
-                <button
-                  onClick={resetGptDeltaModal}
-                  className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleValidateGptDelta}
-                  className="rounded-md border border-lime-500 bg-white px-4 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/30"
-                >
-                  Validate
-                </button>
-                <button
-                  onClick={handleApplyGptDelta}
-                  disabled={!gptDeltaValidatedCase || gptDeltaApplying}
-                  className="rounded-md border border-lime-600 bg-lime-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-lime-600 disabled:cursor-not-allowed disabled:border-neutral-300 disabled:bg-neutral-200 disabled:text-neutral-500"
-                >
-                  {gptDeltaApplying ? "Applying..." : "Apply Update"}
-                </button>
-              </div>
-            </div>
-          </div>
+          <GptDeltaModal
+            applying={gptDeltaApplying}
+            backupPromptOpen={gptDeltaBackupPromptOpen}
+            error={gptDeltaError}
+            onApply={handleApplyGptDelta}
+            onCancel={resetGptDeltaModal}
+            onCancelBackupPrompt={handleCancelGptDeltaBackupPrompt}
+            onChangeText={handleGptDeltaTextChange}
+            onCreateBackupThenApply={handleCreateBackupThenApplyGptDelta}
+            onValidate={handleValidateGptDelta}
+            preview={gptDeltaPreview}
+            text={gptDeltaText}
+            validatedCase={gptDeltaValidatedCase}
+          />
         )}
-
         {pinManagerState.open && pinManagerCase && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
             <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl">
