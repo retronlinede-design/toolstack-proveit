@@ -18,6 +18,7 @@ import { buildNarrativeSections } from "../lib/narrativeBuilder.js";
 import { PROVEIT_REPORT_PROMPT_V1, parseProveItReportV1 } from "../lib/proveitReportFormat.js";
 import { DEFAULT_REPORT_DISPLAY_LANGUAGE, REPORT_DISPLAY_LANGUAGES, getReportHeadingLabel } from "../lib/reportHeadingLabels.js";
 import { analyzeCaseDiagnostics, runAttachmentIntegrityCheck } from "../diagnostics/caseDiagnostics.js";
+import { runOperationalIntegrityCheck } from "../diagnostics/operationalIntegrity.js";
 import { buildSequenceGroupReviewPackage, ingestSequenceGroupDelta } from "../gpt/sequenceGroupDelta.js";
 import { buildCaseBundleReport, buildDocumentPackReport, buildEvidencePackReport, buildExecutiveSummaryNarrativePolishPrompt, buildExecutiveSummaryReport, buildLedgerPackReport, buildThreadIssueReport } from "../report/reportBuilder.js";
 import { getLinkChipClasses } from "./linkChipStyles";
@@ -977,6 +978,14 @@ export default function CaseDetail({
     attachmentIntegrity.orphanedRecordReferences.length +
     attachmentIntegrity.orphanedImages.length +
     attachmentIntegrity.metadataMismatches.length;
+  const operationalIntegrity = useMemo(
+    () => runOperationalIntegrityCheck(selectedCase || {}),
+    [selectedCase]
+  );
+  const exportFreshness = operationalIntegrity.exportFreshness;
+  const exportFreshnessIssueCount = exportFreshness.issues.length;
+  const openOperationalLoops = operationalIntegrity.openOperationalLoops;
+  const openOperationalLoopIssueCount = openOperationalLoops.issues.length;
   const overviewIncidents = selectedCase?.incidents || [];
   const overviewEvidence = selectedCase?.evidence || [];
   const overviewDocuments = selectedCase?.documents || [];
@@ -2952,6 +2961,107 @@ ${ungroupedSequenceText}
                     </div>
                   )}
 
+                  <div className="mb-4 overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup("Operational Integrity")}
+                      className="flex w-full items-center justify-between gap-3 p-3 text-left transition-colors hover:bg-neutral-50"
+                    >
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Operational Integrity</div>
+                        <div className="mt-1 text-sm font-semibold text-neutral-900">
+                          Export freshness: {exportFreshness.status} · open loops: {openOperationalLoopIssueCount} issue{openOperationalLoopIssueCount === 1 ? "" : "s"}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ${
+                          exportFreshness.status === "critical"
+                            ? "bg-red-100 text-red-700"
+                            : exportFreshness.status === "warning"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-lime-100 text-lime-700"
+                        }`}>
+                          {exportFreshness.status}
+                        </span>
+                        {expandedGroups["Operational Integrity"] ? <ChevronDown className="h-4 w-4 text-neutral-400" /> : <ChevronRight className="h-4 w-4 text-neutral-400" />}
+                      </div>
+                    </button>
+                    {expandedGroups["Operational Integrity"] && (
+                      <div className="space-y-3 border-t border-neutral-100 p-3 text-xs text-neutral-700">
+                        <div className="grid gap-2 sm:grid-cols-3">
+                          <div className="rounded-lg border border-neutral-100 bg-neutral-50 p-2">
+                            Generated: <span className="font-semibold">{exportFreshness.stats.generatedAt || "Unknown"}</span>
+                          </div>
+                          <div className="rounded-lg border border-neutral-100 bg-neutral-50 p-2">
+                            Case updated: <span className="font-semibold">{exportFreshness.stats.caseUpdatedAt || "Unknown"}</span>
+                          </div>
+                          <div className="rounded-lg border border-neutral-100 bg-neutral-50 p-2">
+                            Newest record: <span className="font-semibold">{exportFreshness.stats.newestRecordUpdatedAt || "Unknown"}</span>
+                          </div>
+                        </div>
+
+                        {exportFreshnessIssueCount === 0 ? (
+                          <p className="text-neutral-500">Reasoning export metadata appears current against the loaded case timestamps.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {exportFreshness.issues.map((issue, index) => (
+                              <div key={`${issue.code}-${index}`} className={`rounded-lg border p-2 ${
+                                issue.severity === "critical"
+                                  ? "border-red-100 bg-red-50/70"
+                                  : "border-amber-100 bg-amber-50/70"
+                              }`}>
+                                <div className={`font-semibold ${issue.severity === "critical" ? "text-red-800" : "text-amber-900"}`}>
+                                  {issue.code}
+                                </div>
+                                <div className={issue.severity === "critical" ? "text-red-700" : "text-amber-800"}>
+                                  {issue.message}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="rounded-lg border border-neutral-100 bg-neutral-50 p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Open Operational Loops</div>
+                              <div className="mt-1 text-sm font-semibold text-neutral-900">
+                                {openOperationalLoops.status} · {openOperationalLoopIssueCount} issue{openOperationalLoopIssueCount === 1 ? "" : "s"}
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-[10px] text-neutral-600 sm:grid-cols-4">
+                              <div>Strategy: <span className="font-semibold">{openOperationalLoops.stats.staleStrategyItemCount}</span></div>
+                              <div>Incidents: <span className="font-semibold">{openOperationalLoops.stats.weakIncidentCount}</span></div>
+                              <div>Threads: <span className="font-semibold">{openOperationalLoops.stats.dormantThreadCount}</span></div>
+                              <div>Actions: <span className="font-semibold">{openOperationalLoops.issues.filter((issue) => issue.code === "STALE_ACTION_SUMMARY").length}</span></div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {openOperationalLoopIssueCount === 0 ? (
+                          <p className="text-neutral-500">No stale strategy items, weak incidents, dormant threads, or action summary drift detected.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {openOperationalLoops.issues.map((issue, index) => (
+                              <div key={`${issue.code}-${index}`} className="rounded-lg border border-amber-100 bg-amber-50/70 p-2">
+                                <div className="font-semibold text-amber-900">{issue.code}</div>
+                                <div className="text-amber-800">{issue.message}</div>
+                                {issue.details?.sequenceGroup && (
+                                  <div className="mt-1 text-[10px] font-medium text-amber-700">Thread: {issue.details.sequenceGroup}</div>
+                                )}
+                                {Number.isFinite(issue.details?.daysStale) && (
+                                  <div className="mt-1 text-[10px] font-medium text-amber-700">Days stale: {issue.details.daysStale}</div>
+                                )}
+                                {Number.isFinite(issue.details?.daysInactive) && (
+                                  <div className="mt-1 text-[10px] font-medium text-amber-700">Days inactive: {issue.details.daysInactive}</div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   <div className="mb-4 overflow-hidden rounded-xl border border-neutral-200 bg-white">
                     <button
                       type="button"
