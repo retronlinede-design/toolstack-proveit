@@ -30,6 +30,7 @@ export default function GptDeltaModal({
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
             Do not include attachments, binary payloads, files, dataUrl, backupDataUrl, delete operations, schema changes, unsupported fields, guessed IDs, or partial array append instructions.
             If a record already exists, patch it instead of creating a new one. Duplicate-risk warnings are shown before apply.
+            Enums: importance = unreviewed/critical/strong/supporting/weak; evidence relevance = high/medium/low.
           </div>
           <textarea
             value={text}

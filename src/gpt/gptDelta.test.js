@@ -266,6 +266,32 @@ test("ingestGptDelta gpt-delta-2.0 warns when creating an incident with exact ti
   assert.deepEqual(preview.warnings, result.warnings);
 });
 
+test("ingestGptDelta gpt-delta-2.0 normalizes incident create importance aliases with warnings", () => {
+  const result = ingestGptDelta(baseCase(), {
+    app: "proveit",
+    contractVersion: "gpt-delta-2.0",
+    target: { caseId: "case-1" },
+    operations: {
+      create: {
+        incidents: [
+          {
+            tempId: "tmp-inc",
+            title: "High importance incident",
+            date: "2024-03-03",
+            importance: "high",
+          },
+        ],
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.case.incidents.some((item) => item.title === "High importance incident"), true);
+  assert.deepEqual(result.warnings, [
+    'Normalized incidents.create item 1.importance from "high" to "strong".',
+  ]);
+});
+
 test("ingestGptDelta gpt-delta-2.0 warns when creating evidence with exact title and date match", () => {
   const result = ingestGptDelta(baseCase(), {
     app: "proveit",
@@ -292,6 +318,35 @@ test("ingestGptDelta gpt-delta-2.0 warns when creating evidence with exact title
   );
   assert.deepEqual(result.warnings, [
     "Possible duplicate evidence create: 'Evidence' matches existing evidence 'Evidence' on 2024-01-02 (id: ev-1). Consider patching the existing record instead.",
+  ]);
+});
+
+test("ingestGptDelta gpt-delta-2.0 normalizes evidence create importance aliases and leaves relevance unchanged", () => {
+  const result = ingestGptDelta(baseCase(), {
+    app: "proveit",
+    contractVersion: "gpt-delta-2.0",
+    target: { caseId: "case-1" },
+    operations: {
+      create: {
+        evidence: [
+          {
+            tempId: "tmp-ev",
+            title: "Medium importance evidence",
+            date: "2024-03-04",
+            importance: "medium",
+            relevance: "high",
+          },
+        ],
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  const created = result.case.evidence.find((item) => item.title === "Medium importance evidence");
+  assert.equal(created.importance, "supporting");
+  assert.equal(created.relevance, "high");
+  assert.deepEqual(result.warnings, [
+    'Normalized evidence.create item 1.importance from "medium" to "supporting".',
   ]);
 });
 
@@ -503,6 +558,56 @@ test("ingestGptDelta gpt-delta-2.0 patches evidence and syncs incident links", (
   assert.equal(evidence.createdAt, "2024-01-02T08:00:00.000Z");
   assert.deepEqual(evidence.linkedIncidentIds, ["inc-1"]);
   assert.deepEqual(result.case.incidents.find((item) => item.id === "inc-1").linkedEvidenceIds, ["ev-1"]);
+});
+
+test("ingestGptDelta gpt-delta-2.0 normalizes evidence patch importance aliases with warnings", () => {
+  const result = ingestGptDelta(baseCase(), {
+    app: "proveit",
+    contractVersion: "gpt-delta-2.0",
+    target: { caseId: "case-1" },
+    operations: {
+      patch: {
+        evidence: [
+          {
+            id: "ev-1",
+            patch: {
+              importance: "low",
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.case.evidence.find((item) => item.id === "ev-1").importance, "weak");
+  assert.deepEqual(result.warnings, [
+    'Normalized evidence.patch ev-1.importance from "low" to "weak".',
+  ]);
+});
+
+test("ingestGptDelta gpt-delta-2.0 rejects unknown importance aliases", () => {
+  assert.deepEqual(
+    ingestGptDelta(baseCase(), {
+      app: "proveit",
+      contractVersion: "gpt-delta-2.0",
+      target: { caseId: "case-1" },
+      operations: {
+        create: {
+          evidence: [
+            {
+              title: "Urgent evidence",
+              importance: "urgent",
+            },
+          ],
+        },
+      },
+    }),
+    {
+      ok: false,
+      reason: 'evidence.create item 1.importance has unsupported value "urgent". Valid values: unreviewed, critical, strong, supporting, weak.',
+    }
+  );
 });
 
 test("ingestGptDelta gpt-delta-2.0 patches documents and ledger entries", () => {

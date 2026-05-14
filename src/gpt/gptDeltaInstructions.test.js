@@ -11,6 +11,8 @@ test("AI-facing GPT delta instructions describe the current v1 and v2 contract",
   assert.match(caseDetailSource, /gpt-delta-2\.0 supports operations\.create\.incidents, operations\.create\.evidence, operations\.create\.documents, operations\.create\.ledger/);
   assert.match(caseDetailSource, /operations\.patch\.incidents, operations\.patch\.evidence, operations\.patch\.documents, operations\.patch\.ledger, operations\.patch\.strategy/);
   assert.match(caseDetailSource, /gpt-delta-2\.0 does not support operations\.patch\.actionSummary or operations\.create\.strategy/);
+  assert.match(caseDetailSource, /importance must be unreviewed \| critical \| strong \| supporting \| weak/);
+  assert.match(caseDetailSource, /Evidence relevance must be high \| medium \| low/);
   assert.doesNotMatch(caseDetailSource, /GPT delta updates are currently limited to actionSummary and strategy patches/);
 });
 
@@ -19,6 +21,7 @@ test("GPT delta UI copy warns about forbidden fields, ID rules, and full replace
   assert.match(gptDeltaModalSource, /gpt-delta-2\.0 supports incident, evidence, document, and ledger creates/);
   assert.match(gptDeltaModalSource, /does not support actionSummary patches or strategy creates/);
   assert.match(gptDeltaModalSource, /attachments, binary payloads, files, dataUrl, backupDataUrl, delete operations, schema changes, unsupported fields, guessed IDs, or partial array append instructions/);
+  assert.match(gptDeltaModalSource, /Enums: importance = unreviewed\/critical\/strong\/supporting\/weak; evidence relevance = high\/medium\/low/);
   assert.match(gptDeltaModalSource, /Patch IDs must be existing record IDs/);
 });
 

@@ -2277,6 +2277,7 @@ GPT delta import contract:
 - Never include attachments, binary payloads, files, dataUrl, backupDataUrl, delete operations, schema changes, or unsupported fields in GPT deltas.
 - Patch ids must be existing baseline record ids. Create operations may include unique tempId values for cross-links, but must not invent final ids. Do not guess ids or produce broken links.
 - Array fields are full replacements, not incremental append instructions.
+- Enum rules: importance must be unreviewed | critical | strong | supporting | weak. Evidence relevance must be high | medium | low. Do not put high, medium, or low in importance.
 
 [CASE REPORT INPUT]
 CASE_TITLE: ${compactLine(selectedCase?.name, "Untitled case")}

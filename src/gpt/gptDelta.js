@@ -281,6 +281,15 @@ const INCIDENT_STATUS_VALUES = ["open", "archived"];
 const RECORD_IMPORTANCE_VALUES = ["unreviewed", "critical", "strong", "supporting", "weak"];
 const EVIDENCE_STATUS_VALUES = ["verified", "needs_review", "incomplete"];
 const EVIDENCE_RELEVANCE_VALUES = ["high", "medium", "low"];
+const IMPORTANCE_ALIAS_VALUES = {
+  high: "strong",
+  medium: "supporting",
+  low: "weak",
+  severe: "critical",
+  major: "strong",
+  minor: "weak",
+  important: "strong",
+};
 const EVIDENCE_SOURCE_TYPE_VALUES = [
   "digital",
   "physical",
@@ -467,6 +476,30 @@ function validateGptDeltaFields(section, source = {}, contextLabel = section) {
     if (fieldError) return fieldError;
   }
   return "";
+}
+
+function normalizeGptImportanceAlias(section, source = {}, contextLabel = section) {
+  const allowlist = CREATE_FIELD_ALLOWLISTS[section] || PATCH_FIELD_ALLOWLISTS[section] || [];
+  if (!allowlist.includes("importance") || !Object.prototype.hasOwnProperty.call(source, "importance")) {
+    return { source, warnings: [] };
+  }
+
+  const value = source.importance;
+  if (typeof value !== "string") return { source, warnings: [] };
+
+  const normalized = value.trim().toLowerCase();
+  const canonical = RECORD_IMPORTANCE_VALUES.includes(normalized)
+    ? normalized
+    : IMPORTANCE_ALIAS_VALUES[normalized];
+  if (!canonical || canonical === value) return { source, warnings: [] };
+
+  return {
+    source: {
+      ...source,
+      importance: canonical,
+    },
+    warnings: [`Normalized ${contextLabel}.importance from "${value}" to "${canonical}".`],
+  };
 }
 
 function validateActionSummaryPatchFields(actionSummaryPatch = {}) {
@@ -1040,19 +1073,23 @@ export function normalizeGptCreateDelta(caseItem, payload = {}) {
       return { ok: false, reason: `${section}.create has unsupported field(s): ${listFields(unsupportedFields)}.` };
     }
 
-    const fieldError = validateGptDeltaFields(section, item, `${section}.create item ${index + 1}`);
+    const normalizedImportance = normalizeGptImportanceAlias(section, item, `${section}.create item ${index + 1}`);
+    const normalizedItem = normalizedImportance.source;
+    warnings.push(...normalizedImportance.warnings);
+
+    const fieldError = validateGptDeltaFields(section, normalizedItem, `${section}.create item ${index + 1}`);
     if (fieldError) return { ok: false, reason: fieldError };
 
-    const title = getCreateTitle(section, item);
+    const title = getCreateTitle(section, normalizedItem);
     if (!title) {
       return { ok: false, reason: `${section}.create item ${index + 1} requires ${section === "ledger" ? "label" : "title"}.` };
     }
 
-    if (item.tempId != null && typeof item.tempId !== "string") {
+    if (normalizedItem.tempId != null && typeof normalizedItem.tempId !== "string") {
       return { ok: false, reason: `${section}.create item ${title} has a non-string tempId.` };
     }
 
-    const tempId = safeText(item.tempId).trim();
+    const tempId = safeText(normalizedItem.tempId).trim();
     const finalId = generateId();
     if (tempId) {
       if (tempIdMap.has(tempId)) {
@@ -1062,13 +1099,13 @@ export function normalizeGptCreateDelta(caseItem, payload = {}) {
       tempIdSections.set(tempId, section);
     }
 
-    if (section === "documents" && item.isTrackingRecord && !safeText(item.textContent).includes("[TRACK RECORD]")) {
+    if (section === "documents" && normalizedItem.isTrackingRecord && !safeText(normalizedItem.textContent).includes("[TRACK RECORD]")) {
       warnings.push(`documents.create ${title} has isTrackingRecord=true but textContent does not contain [TRACK RECORD]; it will be saved as a normal document.`);
     }
 
-    warnings.push(...getDuplicateCreateWarnings(caseItem, section, item, title));
+    warnings.push(...getDuplicateCreateWarnings(caseItem, section, normalizedItem, title));
 
-    plannedCreates.push({ section, index, item, tempId, finalId, title });
+    plannedCreates.push({ section, index, item: normalizedItem, tempId, finalId, title });
   }
 
   const validIds = getExistingRecordIds(caseItem);
@@ -1239,11 +1276,15 @@ export function normalizeGptV2Delta(caseItem, payload = {}) {
       return { ok: false, reason: `${section}.patch ${recordId} must include at least one supported field.` };
     }
 
-    const fieldError = validateGptDeltaFields(section, item.patch, `${section}.patch ${recordId}`);
+    const normalizedImportance = normalizeGptImportanceAlias(section, item.patch, `${section}.patch ${recordId}`);
+    const normalizedPatch = normalizedImportance.source;
+    warnings.push(...normalizedImportance.warnings);
+
+    const fieldError = validateGptDeltaFields(section, normalizedPatch, `${section}.patch ${recordId}`);
     if (fieldError) return { ok: false, reason: fieldError };
 
-    const invalidArrayFields = Object.keys(item.patch).filter((field) =>
-      ARRAY_PATCH_FIELDS.includes(field) && !Array.isArray(item.patch[field])
+    const invalidArrayFields = Object.keys(normalizedPatch).filter((field) =>
+      ARRAY_PATCH_FIELDS.includes(field) && !Array.isArray(normalizedPatch[field])
     );
     if (invalidArrayFields.length > 0) {
       return { ok: false, reason: `${section}.patch ${recordId} array field(s) must be full replacement arrays: ${listFields(invalidArrayFields)}.` };
@@ -1252,14 +1293,14 @@ export function normalizeGptV2Delta(caseItem, payload = {}) {
     const linkError = validateLinkedIdsForItem(
       section,
       `patch ${recordId}`,
-      item.patch,
+      normalizedPatch,
       LINK_FIELDS_BY_PATCH_SECTION[section] || [],
       validationContext
     );
     if (linkError) return { ok: false, reason: linkError };
 
-    if (Array.isArray(item.patch.linkedIncidentRefs)) {
-      const invalidRefs = item.patch.linkedIncidentRefs.filter((ref) => {
+    if (Array.isArray(normalizedPatch.linkedIncidentRefs)) {
+      const invalidRefs = normalizedPatch.linkedIncidentRefs.filter((ref) => {
         const incidentId = String(ref?.incidentId || "");
         return !validationContext.isValidTypedLink(incidentId, "incidents");
       });
@@ -1271,7 +1312,7 @@ export function normalizeGptV2Delta(caseItem, payload = {}) {
     plannedPatches.push({
       section,
       id: recordId,
-      patch: item.patch,
+      patch: normalizedPatch,
       title: getRecordTitle(existingRecord, section),
     });
   }
