@@ -544,6 +544,64 @@ function getCreateTitle(section, item = {}) {
   return section === "ledger" ? safeText(item.label).trim() : safeText(item.title).trim();
 }
 
+function normalizeDuplicateTitle(value) {
+  return safeText(value)
+    .toLowerCase()
+    .replace(/[.,/#!$%^&*;:{}=\-_`~()[\]"'?]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeDuplicateDate(source = {}) {
+  const raw = safeText(source.eventDate || source.date || source.capturedAt).trim();
+  if (!raw) return "";
+  const isoDate = raw.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+  if (isoDate) return isoDate;
+
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().split("T")[0];
+  }
+  return raw;
+}
+
+function hasSimilarDuplicateTitle(left, right) {
+  if (!left || !right || left === right) return false;
+  const shortest = Math.min(left.length, right.length);
+  if (shortest < 12) return false;
+
+  const distance = levenshteinDistance(left, right);
+  const threshold = Math.max(2, Math.floor(shortest * 0.15));
+  return distance <= threshold;
+}
+
+function getDuplicateCreateWarnings(caseItem, section, item = {}, title = "") {
+  if (!["incidents", "evidence"].includes(section)) return [];
+
+  const newTitle = normalizeDuplicateTitle(title);
+  const newDate = normalizeDuplicateDate(item);
+  if (!newTitle || !newDate) return [];
+
+  const recordType = section === "incidents" ? "incident" : "evidence";
+  const existingRecords = Array.isArray(caseItem?.[section]) ? caseItem[section] : [];
+  const warnings = [];
+
+  for (const record of existingRecords) {
+    const existingTitle = normalizeDuplicateTitle(record?.title);
+    const existingDate = normalizeDuplicateDate(record);
+    if (!existingTitle || !existingDate || existingDate !== newDate) continue;
+
+    const isDuplicateRisk = existingTitle === newTitle || hasSimilarDuplicateTitle(newTitle, existingTitle);
+    if (!isDuplicateRisk) continue;
+
+    warnings.push(
+      `Possible duplicate ${recordType} create: '${title}' matches existing ${recordType} '${record?.title || "Untitled"}' on ${newDate} (id: ${record?.id || "unknown"}). Consider patching the existing record instead.`
+    );
+  }
+
+  return warnings;
+}
+
 function hasBinaryCreateField(item = {}) {
   return BINARY_CREATE_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(item, field));
 }
@@ -1007,6 +1065,8 @@ export function normalizeGptCreateDelta(caseItem, payload = {}) {
     if (section === "documents" && item.isTrackingRecord && !safeText(item.textContent).includes("[TRACK RECORD]")) {
       warnings.push(`documents.create ${title} has isTrackingRecord=true but textContent does not contain [TRACK RECORD]; it will be saved as a normal document.`);
     }
+
+    warnings.push(...getDuplicateCreateWarnings(caseItem, section, item, title));
 
     plannedCreates.push({ section, index, item, tempId, finalId, title });
   }

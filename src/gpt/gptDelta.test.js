@@ -224,6 +224,113 @@ test("ingestGptDelta gpt-delta-2.0 creates evidence", () => {
   assert.deepEqual(result.case.incidents.find((item) => item.id === "inc-1").linkedEvidenceIds, [created.id]);
 });
 
+test("ingestGptDelta gpt-delta-2.0 warns when creating an incident with exact title and date match", () => {
+  const result = ingestGptDelta(baseCase(), {
+    app: "proveit",
+    contractVersion: "gpt-delta-2.0",
+    target: { caseId: "case-1" },
+    operations: {
+      create: {
+        incidents: [
+          {
+            tempId: "tmp-inc",
+            title: "Incident",
+            date: "2024-01-01",
+            description: "Still allowed, but should warn.",
+          },
+        ],
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(
+    result.case.incidents.some((item) => item.title === "Incident" && item.id !== "inc-1"),
+    true
+  );
+  assert.deepEqual(result.warnings, [
+    "Possible duplicate incident create: 'Incident' matches existing incident 'Incident' on 2024-01-01 (id: inc-1). Consider patching the existing record instead.",
+  ]);
+
+  const preview = buildGptDeltaPreview({
+    app: "proveit",
+    contractVersion: "gpt-delta-2.0",
+    target: { caseId: "case-1" },
+    operations: {
+      create: {
+        incidents: [{ tempId: "tmp-inc", title: "Incident", date: "2024-01-01" }],
+      },
+    },
+  }, baseCase(), result.case, result);
+
+  assert.deepEqual(preview.warnings, result.warnings);
+});
+
+test("ingestGptDelta gpt-delta-2.0 warns when creating evidence with exact title and date match", () => {
+  const result = ingestGptDelta(baseCase(), {
+    app: "proveit",
+    contractVersion: "gpt-delta-2.0",
+    target: { caseId: "case-1" },
+    operations: {
+      create: {
+        evidence: [
+          {
+            tempId: "tmp-ev",
+            title: "Evidence",
+            date: "2024-01-02",
+            functionSummary: "Still allowed, but should warn.",
+          },
+        ],
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(
+    result.case.evidence.some((item) => item.title === "Evidence" && item.id !== "ev-1"),
+    true
+  );
+  assert.deepEqual(result.warnings, [
+    "Possible duplicate evidence create: 'Evidence' matches existing evidence 'Evidence' on 2024-01-02 (id: ev-1). Consider patching the existing record instead.",
+  ]);
+});
+
+test("ingestGptDelta gpt-delta-2.0 warns when creating an incident with similar title and same date", () => {
+  const currentCase = {
+    ...baseCase(),
+    incidents: [
+      {
+        ...baseCase().incidents[0],
+        id: "inc-formal",
+        title: "Formal wellbeing deterioration notification sent to Consul General",
+        date: "2026-05-15",
+      },
+    ],
+  };
+
+  const result = ingestGptDelta(currentCase, {
+    app: "proveit",
+    contractVersion: "gpt-delta-2.0",
+    target: { caseId: "case-1" },
+    operations: {
+      create: {
+        incidents: [
+          {
+            tempId: "tmp-inc",
+            title: "Formal wellbeing deterioration notice sent to Consul General",
+            eventDate: "2026-05-15",
+          },
+        ],
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.warnings, [
+    "Possible duplicate incident create: 'Formal wellbeing deterioration notice sent to Consul General' matches existing incident 'Formal wellbeing deterioration notification sent to Consul General' on 2026-05-15 (id: inc-formal). Consider patching the existing record instead.",
+  ]);
+});
+
 test("ingestGptDelta gpt-delta-2.0 creates documents and ledger entries", () => {
   const result = ingestGptDelta(baseCase(), {
     app: "proveit",
