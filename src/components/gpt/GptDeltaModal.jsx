@@ -21,13 +21,14 @@ export default function GptDeltaModal({
           <h2 className="text-xl font-semibold text-neutral-900">GPT Update</h2>
           <p className="mt-1 text-sm text-neutral-600">
             Paste a ProveIt GPT delta, validate it, then review the supported changes before applying.
-            gpt-delta-1.0 supports actionSummary patching and strategy patching. gpt-delta-2.0 supports create for incidents, evidence, documents, and ledger, and patch for incidents, evidence, documents, ledger, and strategy.
+            gpt-delta-1.0 supports only actionSummary and strategy patches. gpt-delta-2.0 supports incident, evidence, document, and ledger creates, plus incident, evidence, document, ledger, and strategy patches.
+            Use sequence-group-delta-1.0 for sequence group cleanup.
           </p>
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto p-5">
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
-            Binary fields and attachment payloads are not accepted through GPT delta. Review all generated records, patches, and links before applying.
+            Do not include attachments, binary payloads, files, dataUrl, backupDataUrl, delete operations, schema changes, unsupported fields, guessed IDs, or partial array append instructions.
           </div>
           <textarea
             value={text}
@@ -259,7 +260,7 @@ export default function GptDeltaModal({
               )}
 
               <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs font-medium text-amber-800">
-                gpt-delta-1.0 applies only supported actionSummary and strategy fields. gpt-delta-2.0 creates and patches supported records. Unsupported sections or unsafe fields are rejected.
+                gpt-delta-2.0 does not support actionSummary patches or strategy creates. Patch IDs must be existing record IDs; create links may use tempId values that are declared in the same delta.
               </p>
             </div>
           )}

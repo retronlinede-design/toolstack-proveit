@@ -2269,7 +2269,14 @@ ${PROVEIT_REPORT_PROMPT_V1}
 CASE_REASONING_EXPORT is the AI-facing, non-importable reasoning snapshot. It contains incidents, evidence, documents, ledger, strategy, actionSummary, chronology, milestones, links, and resolvedLinks.
 Incidents are timeline anchors. Evidence proves or supports incidents. Documents are source or working documents. Ledger entries are measurable financial, time, or compliance records. Strategy records are analysis and planning notes. actionSummary is the active operational summary.
 functionSummary says what evidence proves. evidenceRole says how evidence functions in the case. evidenceStatus on incidents describes proof coverage or gaps. sequenceGroup can connect incidents, evidence, documents, and strategy into one issue or thread.
-GPT delta updates are currently limited to actionSummary and strategy patches. Do not output create or patch operations for incidents, evidence, documents, or ledger; list those as proposed next actions or strategy notes instead.
+GPT delta import contract:
+- gpt-delta-1.0 supports only operations.patch.actionSummary and operations.patch.strategy. It does not support create operations or incidents, evidence, documents, or ledger patches.
+- gpt-delta-2.0 supports operations.create.incidents, operations.create.evidence, operations.create.documents, operations.create.ledger, and operations.patch.incidents, operations.patch.evidence, operations.patch.documents, operations.patch.ledger, operations.patch.strategy.
+- gpt-delta-2.0 does not support operations.patch.actionSummary or operations.create.strategy. Use gpt-delta-1.0 for actionSummary patches and patch existing strategy records instead of creating strategy records.
+- sequenceGroup content fields may be patched through supported gpt-delta-2.0 record patches, but sequence group cleanup belongs to sequence-group-delta-1.0, not gpt-delta-2.0. Use sequence-group-delta-1.0 only to move records, rename groups, merge groups, or clear records.
+- Never include attachments, binary payloads, files, dataUrl, backupDataUrl, delete operations, schema changes, or unsupported fields in GPT deltas.
+- Patch ids must be existing baseline record ids. Create operations may include unique tempId values for cross-links, but must not invent final ids. Do not guess ids or produce broken links.
+- Array fields are full replacements, not incremental append instructions.
 
 [CASE REPORT INPUT]
 CASE_TITLE: ${compactLine(selectedCase?.name, "Untitled case")}

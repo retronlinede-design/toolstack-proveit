@@ -519,6 +519,34 @@ test("ingestGptDelta gpt-delta-2.0 rejects unsafe record patches", () => {
   );
 });
 
+test("ingestGptDelta gpt-delta-2.0 rejects actionSummary patches and strategy creates", () => {
+  assert.deepEqual(
+    ingestGptDelta(baseCase(), {
+      app: "proveit",
+      contractVersion: "gpt-delta-2.0",
+      target: { caseId: "case-1" },
+      operations: { patch: { actionSummary: { currentFocus: "Nope" } } },
+    }),
+    {
+      ok: false,
+      reason: "Unsupported gpt-delta-2.0 patch section(s): actionSummary. Current patch support is incidents, evidence, documents, ledger, and strategy.",
+    }
+  );
+
+  assert.deepEqual(
+    ingestGptDelta(baseCase(), {
+      app: "proveit",
+      contractVersion: "gpt-delta-2.0",
+      target: { caseId: "case-1" },
+      operations: { create: { strategy: [{ tempId: "tmp-str", title: "Nope" }] } },
+    }),
+    {
+      ok: false,
+      reason: "Unsupported gpt-delta-2.0 create section(s): strategy. Current create support is incidents, evidence, documents, and ledger.",
+    }
+  );
+});
+
 test("buildGptDeltaPreview shows gpt-delta-2.0 array replacement record patches", () => {
   const currentCase = baseCase();
   const result = ingestGptDelta(currentCase, {
