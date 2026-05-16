@@ -39,6 +39,8 @@ import {
   formToActionSummary,
   normalizeActionSummary,
 } from "./caseDetail/actionSummaryHelpers";
+import ActiveLedgerRecordModal from "./caseDetail/ActiveLedgerRecordModal";
+import FloatingWorkspaceMenu from "./caseDetail/FloatingWorkspaceMenu";
 import {
   filterLedgerEntries,
   groupLedgerEntriesByBatch,
@@ -5194,91 +5196,18 @@ ${ungroupedSequenceText}
         </button>
       )}
 
-      {showFloatingWorkspaceMenu && (
-        <div className="fixed bottom-5 right-4 z-30 w-[calc(100vw-2rem)] max-w-sm print:hidden sm:bottom-6 sm:right-6 sm:w-80">
-          {workspaceActionMenuOpen && (
-            <>
-              <button
-                type="button"
-                aria-label="Close workspace action menu"
-                className="fixed inset-0 z-0 cursor-default"
-                onClick={closeWorkspaceActionMenu}
-              />
-              <div className="relative z-10 mb-3 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl">
-                <div className="border-b border-neutral-100 p-3">
-                  <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Add records</div>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    {floatingAddActions.map((action) => (
-                      <button
-                        key={action.label}
-                        type="button"
-                        onClick={action.onClick}
-                        className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-left text-sm font-semibold text-neutral-800 hover:border-lime-300 hover:bg-lime-400/20"
-                      >
-                        {action.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="p-3">
-                  <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Navigate</div>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    {floatingNavigationActions.map((action) => (
-                      <button
-                        key={action.id}
-                        type="button"
-                        onClick={() => handleWorkspaceNavigate(action.id)}
-                        className={`rounded-lg border px-3 py-2 text-left text-sm font-semibold ${
-                          activeTab === action.id
-                            ? "border-lime-400 bg-lime-400/30 text-neutral-950"
-                            : "border-neutral-200 bg-white text-neutral-700 hover:border-lime-300 hover:bg-lime-400/20"
-                        }`}
-                      >
-                        {action.label}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={handleWorkspaceBackToTop}
-                      className="col-span-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-left text-sm font-semibold text-neutral-700 hover:border-lime-300 hover:bg-lime-400/20"
-                    >
-                      Back to top
-                    </button>
-                  </div>
-                </div>
-
-                <div className="border-t border-neutral-100 p-3">
-                  <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Tools</div>
-                  <div className="mt-2 grid gap-2">
-                    {floatingToolActions.map((action) => (
-                      <button
-                        key={action.label}
-                        type="button"
-                        onClick={action.onClick}
-                        className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-left text-sm font-semibold text-neutral-700 hover:border-lime-300 hover:bg-lime-400/20"
-                      >
-                        {action.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setWorkspaceActionMenuOpen((open) => !open)}
-            aria-expanded={workspaceActionMenuOpen}
-            className="relative z-10 ml-auto flex min-h-12 items-center gap-3 rounded-full border-2 border-lime-500 bg-white px-4 py-3 text-sm font-bold text-neutral-950 shadow-xl transition-all hover:bg-lime-400/30 active:scale-95"
-          >
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-lime-400 text-lg leading-none text-neutral-950">+</span>
-            <span>Workspace</span>
-            <ChevronDown className={`h-4 w-4 transition-transform ${workspaceActionMenuOpen ? "rotate-180" : ""}`} />
-          </button>
-        </div>
-      )}
+      <FloatingWorkspaceMenu
+        visible={showFloatingWorkspaceMenu}
+        open={workspaceActionMenuOpen}
+        activeTab={activeTab}
+        addActions={floatingAddActions}
+        navigationActions={floatingNavigationActions}
+        toolActions={floatingToolActions}
+        onClose={closeWorkspaceActionMenu}
+        onNavigate={handleWorkspaceNavigate}
+        onBackToTop={handleWorkspaceBackToTop}
+        onToggleOpen={() => setWorkspaceActionMenuOpen((open) => !open)}
+      />
 
       {sequenceGroupManagerOpen && (
         <SequenceGroupManager
@@ -5388,45 +5317,11 @@ ${ungroupedSequenceText}
         </div>
       )}
 
-      {activeLedgerRecord && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-4 shadow-xl">
-            
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold">
-                Ledger — {activeLedgerRecord.title}
-              </h3>
-              <button
-                onClick={() => setActiveLedgerRecord(null)}
-                className="text-xs text-neutral-500"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="space-y-2 max-h-[400px] overflow-y-auto">
-              {generateLedgerEntries([activeLedgerRecord]).map((entry) => (
-                <div
-                  key={entry.id}
-                  className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs"
-                >
-                  <div>
-                    <div className="font-medium">{entry.date}</div>
-                    <div className="text-neutral-500">{entry.direction}</div>
-                  </div>
-
-                  <div className="text-right">
-                    <div className="font-semibold">€{entry.amount}</div>
-                    <div className="text-[10px] uppercase text-neutral-500">
-                      {entry.status}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      <ActiveLedgerRecordModal
+        record={activeLedgerRecord}
+        entries={activeLedgerRecord ? generateLedgerEntries([activeLedgerRecord]) : []}
+        onClose={() => setActiveLedgerRecord(null)}
+      />
     </div>
   );
 }
