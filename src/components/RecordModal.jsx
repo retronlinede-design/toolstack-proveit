@@ -511,23 +511,6 @@ export default function RecordModal({
     Document: "Document",
   };
 
-  const getRecordDetails = (id) => {
-    const all = [
-      ...selectedCase.evidence,
-      ...selectedCase.incidents,
-      ...selectedCase.strategy,
-      ...(selectedCase.documents || []),
-    ];
-    const found = all.find((r) => r.id === id);
-    if (!found) return null;
-    return { 
-      title: found.title || "Untitled", 
-      type: found.type, 
-      typeLabel: typeLabelMap[found.type] || "Record", 
-      raw: found 
-    };
-  };
-
   const typeLabel = typeLabelMap[recordType] || recordType;
 
   useEffect(() => {
@@ -559,11 +542,15 @@ export default function RecordModal({
 
     if (!attachmentWasAdded && !descriptionCrossedThreshold) return;
 
-    setHasAutoSuggested(true);
-    setShowAutoSuggestedIndicator(true);
-    setRecordForm((currentForm) =>
-      applySafeAutoEvidenceSuggestions(currentForm, selectedCase, userEditedSuggestionFields)
-    );
+    const timeout = window.setTimeout(() => {
+      setHasAutoSuggested(true);
+      setShowAutoSuggestedIndicator(true);
+      setRecordForm((currentForm) =>
+        applySafeAutoEvidenceSuggestions(currentForm, selectedCase, userEditedSuggestionFields)
+      );
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
   }, [
     evidenceAttachmentCount,
     hasAutoSuggested,
@@ -577,14 +564,16 @@ export default function RecordModal({
   useEffect(() => {
     if (recordType !== "evidence") return;
     if (hasStructuredEvidenceDetails) {
-      setShowAdvancedEvidenceDetails(true);
+      const timeout = window.setTimeout(() => setShowAdvancedEvidenceDetails(true), 0);
+      return () => window.clearTimeout(timeout);
     }
   }, [hasStructuredEvidenceDetails, recordType]);
 
   useEffect(() => {
     if (recordType !== "incidents") return;
     if (hasStructuredIncidentDetails) {
-      setShowAdvancedIncidentDetails(true);
+      const timeout = window.setTimeout(() => setShowAdvancedIncidentDetails(true), 0);
+      return () => window.clearTimeout(timeout);
     }
   }, [hasStructuredIncidentDetails, recordType]);
 
@@ -592,7 +581,8 @@ export default function RecordModal({
     if (recordType !== "evidence") return;
     if (!selectedEvidenceTemplate) return;
     if (!EVIDENCE_TEMPLATE_CONFIG[selectedEvidenceTemplate]) {
-      setSelectedEvidenceTemplate("");
+      const timeout = window.setTimeout(() => setSelectedEvidenceTemplate(""), 0);
+      return () => window.clearTimeout(timeout);
     }
   }, [recordType, selectedEvidenceTemplate]);
 
@@ -601,16 +591,17 @@ export default function RecordModal({
 
     const currentValue = safeText(recordForm.sequenceGroup).trim();
     if (!currentValue) {
-      setSequenceGroupMode("");
-      return;
+      const timeout = window.setTimeout(() => setSequenceGroupMode(""), 0);
+      return () => window.clearTimeout(timeout);
     }
 
     if (existingSequenceGroups.includes(currentValue)) {
-      setSequenceGroupMode(currentValue);
-      return;
+      const timeout = window.setTimeout(() => setSequenceGroupMode(currentValue), 0);
+      return () => window.clearTimeout(timeout);
     }
 
-    setSequenceGroupMode(CREATE_NEW_SEQUENCE_GROUP_OPTION);
+    const timeout = window.setTimeout(() => setSequenceGroupMode(CREATE_NEW_SEQUENCE_GROUP_OPTION), 0);
+    return () => window.clearTimeout(timeout);
   }, [existingSequenceGroups, recordForm.sequenceGroup, supportsSequenceGroup]);
 
   const renderSequenceGroupField = () => (
@@ -734,7 +725,7 @@ export default function RecordModal({
               <p className="mt-1 text-sm text-neutral-600">Start with the essentials. You can add structured evidence metadata below if needed.</p>
             </div>
 
-            {false && (
+            {selectedEvidenceTemplate === "__disabled__" && (
             <div>
               <label className="mb-1 block text-xs font-semibold text-neutral-600">Evidence Template</label>
               <select

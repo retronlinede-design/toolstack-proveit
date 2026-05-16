@@ -181,7 +181,6 @@ function formToActionSummary(form) {
 
 export default function CaseDetail({
   selectedCase,
-  reviewQueue,
   activeTab,
   setActiveTab,
   tabs,
@@ -199,8 +198,6 @@ export default function CaseDetail({
   onExportSnapshot,
   onCopyLinkMapExport,
   onSendReasoningSnapshotToSupabase,
-  onSendReasoningExportToSupabase,
-  onExportFullBackup,
   onOpenGptDeltaModal,
   onOpenPinManager,
   isPinLocked = false,
@@ -360,15 +357,17 @@ export default function CaseDetail({
   }, [selectedCase]);
 
   useEffect(() => {
-    const nextText = getGeneratedReportTextForLanguage(selectedCase, activeGeneratedReportLanguage);
-    setReportDisplayLanguage(activeGeneratedReportLanguage);
-    setGeneratedReportDraft(nextText);
-    setRenderedReportText(nextText);
-    setReportPromptFeedback("");
+    const timeout = window.setTimeout(() => {
+      const nextText = getGeneratedReportTextForLanguage(selectedCase, activeGeneratedReportLanguage);
+      setReportDisplayLanguage(activeGeneratedReportLanguage);
+      setGeneratedReportDraft(nextText);
+      setRenderedReportText(nextText);
+      setReportPromptFeedback("");
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
   }, [
-    selectedCase?.id,
-    selectedCase?.generatedReportText,
-    selectedCase?.generatedReportVersions,
+    selectedCase,
     activeGeneratedReportLanguage,
   ]);
 
@@ -383,20 +382,25 @@ export default function CaseDetail({
 
   useEffect(() => {
     if (activeTab !== "generate-report") return;
-    setClientReportGeneratorOpen(false);
-    setInternalReportGeneratorOpen(false);
-    setCaseStructureReportOpen(false);
-    setThreadIssueReportOpen(false);
-    setEvidencePackReportOpen(false);
-    setDocumentPackReportOpen(false);
-    setLedgerPackReportOpen(false);
-    setCaseBundleReportOpen(false);
-    setExecutiveSummaryReportOpen(true);
-    setExecutiveSummaryPolishFeedback("");
+    const timeout = window.setTimeout(() => {
+      setClientReportGeneratorOpen(false);
+      setInternalReportGeneratorOpen(false);
+      setCaseStructureReportOpen(false);
+      setThreadIssueReportOpen(false);
+      setEvidencePackReportOpen(false);
+      setDocumentPackReportOpen(false);
+      setLedgerPackReportOpen(false);
+      setCaseBundleReportOpen(false);
+      setExecutiveSummaryReportOpen(true);
+      setExecutiveSummaryPolishFeedback("");
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
   }, [activeTab]);
 
   useEffect(() => {
-    setWorkspaceActionMenuOpen(false);
+    const timeout = window.setTimeout(() => setWorkspaceActionMenuOpen(false), 0);
+    return () => window.clearTimeout(timeout);
   }, [selectedCase?.id, isPinLocked]);
 
   const scrollToTop = () => {
@@ -1099,17 +1103,6 @@ export default function CaseDetail({
     "High risk": "Not ready",
   };
   const readinessLabel = readinessDisplayMap[health?.status] || health?.status || "Unknown";
-  const completenessPercent =
-    ((health?.totals.incidents || 0) > 0 ? 30 : 0) +
-    ((health?.totals.evidence || 0) > 0 ? 30 : 0) +
-    ((selectedCase?.documents || []).length > 0 ? 25 : 0) +
-    ((health?.totals.strategy || 0) > 0 ? 15 : 0);
-  const completenessLabel =
-    completenessPercent >= 80
-      ? "Strong"
-      : completenessPercent >= 50
-        ? "Usable"
-        : "Thin";
   const issuesLabel = !health || health.totalIssues === 0
     ? "Low"
     : health.totalIssues <= 5
@@ -1256,12 +1249,6 @@ ${strategyFocus.join("\n") || "—"}`;
     openEditRecordModal(targetType, found.record);
   };
 
-  const statusConfig = {
-    Healthy: { color: "text-lime-600 bg-lime-50 border-lime-200", icon: CheckCircle2 },
-    "Needs review": { color: "text-amber-600 bg-amber-50 border-amber-200", icon: AlertTriangle },
-    "High risk": { color: "text-red-600 bg-red-50 border-red-200", icon: AlertCircle },
-  };
-
   const timelineFilterOptions = [
     { id: "all", label: "All" },
     { id: "incident", label: "Incidents" },
@@ -1275,9 +1262,7 @@ ${strategyFocus.join("\n") || "—"}`;
     return (selectedCase?.documents || []).filter(isTrackingRecord);
   }, [selectedCase?.documents]);
 
-  const parsedTrackingRecords = useMemo(() => {
-    return trackingDocuments.map(parseTrackingRecord);
-  }, [trackingDocuments]);
+  const parsedTrackingRecords = trackingDocuments.map(parseTrackingRecord);
 
   const getBasedOnEvidenceForTrackingRecord = (record) => {
     const evidenceIds = Array.isArray(record?.rawDocument?.basedOnEvidenceIds)
@@ -1288,55 +1273,16 @@ ${strategyFocus.join("\n") || "—"}`;
       .filter(Boolean);
   };
 
-  const derivedTrackingLedger = useMemo(() => {
-    return generateLedgerEntries(parsedTrackingRecords);
-  }, [parsedTrackingRecords]);
+  const derivedTrackingLedger = generateLedgerEntries(parsedTrackingRecords);
 
-  const { totalOutgoing, totalIncoming } = useMemo(() => {
-    let totalOutgoing = 0;
-    let totalIncoming = 0;
+  let totalOutgoing = 0;
+  let totalIncoming = 0;
 
-    derivedTrackingLedger.forEach(entry => {
-      if (entry.status === "disputed" || entry.status === "pending") return;
-      if (entry.direction === "outgoing") totalOutgoing += entry.amount;
-      if (entry.direction === "incoming") totalIncoming += entry.amount;
-    });
-
-    return { totalOutgoing, totalIncoming };
-  }, [derivedTrackingLedger]);
-  const statusNotes = useMemo(() => {
-  const notes = [];
-
-  parsedTrackingRecords.forEach(record => {
-    if (record.meta.type !== "payment_tracker") return;
-
-    record.table.forEach((row, index) => {
-      const status = (row["Status"] || "").trim().toLowerCase();
-      const directionRaw = (row["Direction"] || "").trim().toLowerCase();
-
-      if (
-        status === "waived" ||
-        status === "disputed" ||
-        status === "pending" ||
-        directionRaw === "not_paid"
-      ) {
-        notes.push({
-          id: `${record.id}__status__${index}`,
-          subject: record.meta.subject || record.title || "unknown_subject",
-          date: row["Date"] || "",
-          status: status || directionRaw,
-          note: row["Notes"] || "",
-        });
-      }
-    });
+  derivedTrackingLedger.forEach(entry => {
+    if (entry.status === "disputed" || entry.status === "pending") return;
+    if (entry.direction === "outgoing") totalOutgoing += entry.amount;
+    if (entry.direction === "incoming") totalIncoming += entry.amount;
   });
-
-  return notes;
-}, [parsedTrackingRecords]);
-
-
-  if (!selectedCase) return renderCaseList();
-
   const sortChronological = (items) => {
     return [...items].sort((a, b) => {
       const dateA = a.eventDate || a.date || "";
@@ -1477,8 +1423,6 @@ ${strategyFocus.join("\n") || "—"}`;
     );
   };
 
-
-  const caseInboxCount = reviewQueue.filter((item) => item.caseId === selectedCase.id).length;
   const allEvidence = selectedCase?.evidence || [];
   const needsReviewEvidence = allEvidence.filter(item => item.status === "needs_review");
   const incompleteEvidence = allEvidence.filter(item => item.status === "incomplete");
@@ -2033,7 +1977,7 @@ ${strategyFocus.join("\n") || "—"}`;
       .filter((item, index) => actions.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index)
       .slice(0, 5);
   }, [clientSelectedChains, reportGapItems, selectedCase?.category]);
-  const clientMetricItems = useMemo(() => {
+  const clientMetricItems = (() => {
     const items = [];
     const keyIncidentCount = clientSelectedChains.length;
     const keyEvidenceCount = clientSelectedChains.reduce(
@@ -2077,7 +2021,7 @@ ${strategyFocus.join("\n") || "—"}`;
     }
 
     return items.slice(0, 4);
-  }, [clientSelectedChains, derivedTrackingLedger.length, selectedCase?.category, totalIncoming, totalOutgoing]);
+  })();
   const parsedGeneratedReport = useMemo(
     () => parseProveItReportV1(renderedReportText),
     [renderedReportText]
@@ -2135,7 +2079,13 @@ ${strategyFocus.join("\n") || "—"}`;
         if (a.recordType !== b.recordType) return a.recordType === "incident" ? -1 : 1;
         return a.originalIndex - b.originalIndex;
       })
-      .map(({ originalIndex, ...item }) => item);
+      .map((item) => ({
+        id: item.id,
+        recordType: item.recordType,
+        date: item.date,
+        title: item.title,
+        summary: item.summary,
+      }));
   }, [selectedCase?.incidents, selectedCase?.evidence]);
   const generatedReportOrderedIssues = useMemo(() => {
     const normalizeIssueKey = (value) =>
@@ -2332,6 +2282,8 @@ ${milestoneBlock}`;
     selectedCase?.status,
     selectedCase?.caseState?.mainProblem,
   ]);
+
+  if (!selectedCase) return renderCaseList();
 
   const germanReportLanguageInstruction = `[LANGUAGE INSTRUCTION]
 Generate the report in German.

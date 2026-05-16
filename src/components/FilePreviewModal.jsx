@@ -1,12 +1,23 @@
 import { X, Download, FileText } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
 import {
   getPreviewMimeType,
   isAllowedPreviewImageMimeType,
 } from "../lib/fileSecurity.js";
 
 export default function FilePreviewModal({ file, onClose, imageCache = {} }) {
-  const [url, setUrl] = useState(null);
+  const url = useMemo(() => {
+    if (!file) return null;
+
+    const imageId = file.storage?.imageId;
+    const cached = imageId ? imageCache[imageId] : null;
+
+    if (cached?.dataUrl) return cached.dataUrl;
+    if (file.dataUrl) return file.dataUrl;
+    if (file.backupDataUrl) return file.backupDataUrl;
+    if (file.file) return URL.createObjectURL(file.file);
+    return null;
+  }, [file, imageCache]);
 
   const type = file?.type || file?.mimeType || "";
   const name = file?.name || file?.fileName || "file";
@@ -15,31 +26,10 @@ export default function FilePreviewModal({ file, onClose, imageCache = {} }) {
   const isPDF = previewType === "application/pdf";
 
   useEffect(() => {
-    if (!file) return;
-
-    let objectUrl = null;
-    const imageId = file.storage?.imageId;
-    const cached = imageId ? imageCache[imageId] : null;
-
-    if (cached?.dataUrl) {
-      setUrl(cached.dataUrl);
-    } else if (file.dataUrl) {
-      // legacy fallback for older serializable attachments
-      setUrl(file.dataUrl);
-    } else if (file.backupDataUrl) {
-      setUrl(file.backupDataUrl);
-    } else if (file.file) {
-      // create a temporary blob URL for raw-file attachments
-      objectUrl = URL.createObjectURL(file.file);
-      setUrl(objectUrl);
-    } else {
-      setUrl(null);
-    }
-
     return () => {
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
     };
-  }, [file, imageCache]);
+  }, [url]);
 
   if (!file) return null;
 

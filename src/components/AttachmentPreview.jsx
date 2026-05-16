@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { Eye } from "lucide-react";
 import {
   getPreviewMimeType,
@@ -9,28 +8,16 @@ function isPreviewableImageAttachment(attachment, imageUrl) {
   return isAllowedPreviewImageMimeType(getPreviewMimeType(imageUrl, attachment?.type || attachment?.mimeType));
 }
 
+function getAttachmentImageUrl(attachment, imageCache = {}) {
+  if (!attachment) return null;
+
+  const imageId = attachment.storage?.imageId;
+  const cached = imageId ? imageCache[imageId] : null;
+  return cached?.dataUrl || attachment.dataUrl || null;
+}
+
 function AttachmentImage({ attachment, alt, onClick, imageCache = {} }) {
-  const [imageUrl, setImageUrl] = useState(null);
-
-  useEffect(() => {
-    if (!attachment) return;
-
-    const imageId = attachment.storage?.imageId;
-    const cached = imageId ? imageCache[imageId] : null;
-
-    if (cached?.dataUrl) {
-      setImageUrl(cached.dataUrl);
-      return;
-    }
-
-    // legacy fallback for older attachments
-    if (attachment.dataUrl) {
-      setImageUrl(attachment.dataUrl);
-      return;
-    }
-
-    setImageUrl(null);
-  }, [attachment, imageCache]);
+  const imageUrl = getAttachmentImageUrl(attachment, imageCache);
 
   if (!imageUrl || !isPreviewableImageAttachment(attachment, imageUrl)) return null;
 

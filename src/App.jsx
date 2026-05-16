@@ -14,7 +14,6 @@ import {
 import { downloadJson } from "./browser/downloadJson";
 import {
   buildCaseReasoningExportPayload,
-  sanitizeCaseForExport,
 } from "./export/caseExport";
 import { buildCaseLinkMapExportPayload } from "./export/linkMapExport";
 import {
@@ -1366,7 +1365,7 @@ export default function ProveItApp() {
     }
 
     loadAllImages();
-  }, [selectedCase, selectedCaseRequiresPin, reviewQueue.length]);
+  }, [selectedCase, selectedCaseRequiresPin, reviewQueue]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1400,27 +1399,6 @@ export default function ProveItApp() {
   useEffect(() => {
     localStorage.setItem("toolstack.proveit.v1.activeTab", activeTab);
   }, [activeTab]);
-
-  const exportData = () => {
-    try {
-      const payload = {
-        version: "1.0",
-        exportedAt: new Date().toISOString(),
-        app: "proveit",
-        storageKey: "toolstack.proveit.v1",
-        data: {
-          cases: cases.map(sanitizeCaseForExport),
-          quickCaptures,
-          selectedCaseId,
-          activeTab,
-        },
-      };
-      downloadJson(payload, `proveit-export-${new Date().toISOString().slice(0, 10)}.json`, { space: 2 });
-    } catch (error) {
-      console.error("Export failed", error);
-      showAppNotice("error", "Could not export data.");
-    }
-  };
 
   const exportSelectedCaseBackup = async () => {
     if (!selectedCase) return;
@@ -1793,17 +1771,6 @@ export default function ProveItApp() {
     setRecordOpenedFromIssue(false);
     setRecordForm(EMPTY_RECORD_FORM);
     setParentRecordForNewChild(null);
-  };
-
-  const openQuickCapture = () => {
-    setCaptureForm({
-      caseId: selectedCase ? String(selectedCase.id) : cases[0] ? String(cases[0].id) : "",
-      title: "",
-      date: new Date().toISOString().slice(0, 10),
-      note: "",
-      attachments: [],
-    });
-    setShowQuickCapture(true);
   };
 
   const closeQuickCapture = () => {
