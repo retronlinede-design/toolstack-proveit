@@ -49,7 +49,7 @@ const lastUsedGroupByType = {};
 const SHOW_REVIEW_QUEUE = false;
 const CREATE_NEW_SEQUENCE_GROUP_OPTION = "__create_new_sequence_group__";
 const LAST_FULL_BACKUP_ALL_AT_KEY = "toolstack.proveit.v1.lastFullBackupAt";
-const FULL_BACKUP_ALL_RECENT_WINDOW_MS = 2 * 60 * 60 * 1000;
+const FULL_BACKUP_ALL_RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 function safeText(value) {
   return typeof value === "string" ? value : "";
@@ -72,7 +72,8 @@ function readLastFullBackupAllAt() {
 
 function hasRecentFullBackupAll(timestamp) {
   const parsedTimestamp = parseBackupTimestamp(timestamp);
-  return parsedTimestamp > 0 && Date.now() - parsedTimestamp <= FULL_BACKUP_ALL_RECENT_WINDOW_MS;
+  const ageMs = Date.now() - parsedTimestamp;
+  return parsedTimestamp > 0 && ageMs >= 0 && ageMs <= FULL_BACKUP_ALL_RECENT_WINDOW_MS;
 }
 
 function isTrackingRecordDocument(doc) {
@@ -757,7 +758,17 @@ export default function ProveItApp() {
 
     setGptDeltaError("");
 
-    if (!hasRecentFullBackupAll(lastFullBackupAllAt)) {
+    const storedLastFullBackupAllAt = readLastFullBackupAllAt();
+    const hasRecentStoredBackup = hasRecentFullBackupAll(storedLastFullBackupAllAt);
+    const freshestLastFullBackupAllAt = hasRecentStoredBackup
+      ? storedLastFullBackupAllAt
+      : lastFullBackupAllAt;
+
+    if (hasRecentStoredBackup && storedLastFullBackupAllAt !== lastFullBackupAllAt) {
+      setLastFullBackupAllAt(storedLastFullBackupAllAt);
+    }
+
+    if (!hasRecentFullBackupAll(freshestLastFullBackupAllAt)) {
       setGptDeltaBackupPromptOpen(true);
       return;
     }
@@ -778,6 +789,14 @@ export default function ProveItApp() {
       return;
     }
 
+    await applyValidatedGptDelta();
+  };
+
+  const handleApplyGptDeltaWithoutBackup = async () => {
+    if (!gptDeltaValidatedCase) return;
+
+    setGptDeltaBackupPromptOpen(false);
+    setGptDeltaApplying(true);
     await applyValidatedGptDelta();
   };
 
@@ -2404,6 +2423,7 @@ const handleRecordFiles = async (event) => {
             onCancelBackupPrompt={handleCancelGptDeltaBackupPrompt}
             onChangeText={handleGptDeltaTextChange}
             onCreateBackupThenApply={handleCreateBackupThenApplyGptDelta}
+            onApplyWithoutBackup={handleApplyGptDeltaWithoutBackup}
             onValidate={handleValidateGptDelta}
             preview={gptDeltaPreview}
             text={gptDeltaText}

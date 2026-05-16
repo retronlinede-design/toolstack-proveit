@@ -8,6 +8,7 @@ export default function GptDeltaModal({
   onCancel,
   onCancelBackupPrompt,
   onChangeText,
+  onApplyWithoutBackup,
   onCreateBackupThenApply,
   onValidate,
   preview,
@@ -47,7 +48,7 @@ export default function GptDeltaModal({
 
           {backupPromptOpen && (
             <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
-              <div className="font-semibold">No recent full backup detected within the last 2 hours. Create a backup before applying GPT updates?</div>
+              <div className="font-semibold">No recent full backup detected within the last 24 hours. Create a backup before applying GPT updates?</div>
               <p className="mt-1 text-xs leading-5">
                 This creates a FULL_BACKUP_ALL download first, then applies the already validated GPT delta.
               </p>
@@ -59,6 +60,14 @@ export default function GptDeltaModal({
                   className="rounded-md border border-amber-700 bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Create backup now &rarr; Apply delta
+                </button>
+                <button
+                  type="button"
+                  onClick={onApplyWithoutBackup}
+                  disabled={applying}
+                  className="rounded-md border border-amber-500 bg-white px-3 py-1.5 text-xs font-semibold text-amber-950 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Apply without backup this time
                 </button>
                 <button
                   type="button"
