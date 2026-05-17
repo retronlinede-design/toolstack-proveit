@@ -156,6 +156,7 @@ export default function CaseDetail({
   const [workspaceActionMenuOpen, setWorkspaceActionMenuOpen] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [timelineView, setTimelineView] = useState("all");
+  const [timelineMilestonesOnly, setTimelineMilestonesOnly] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [ledgerFilter, setLedgerFilter] = useState("all");
   const [expandedDocuments, setExpandedDocuments] = useState({});
@@ -3970,11 +3971,23 @@ ${ungroupedSequenceText}
                         {filter.label}
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      onClick={() => setTimelineMilestonesOnly((value) => !value)}
+                      className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                        timelineMilestonesOnly
+                          ? "border-amber-400 bg-amber-50 text-amber-800"
+                          : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+                      }`}
+                    >
+                      Milestones only
+                    </button>
                   </div>
                 </div>
 
                 {(() => {
                   const filteredTimelineItems = timelineItems.filter((item) => {
+                    if (timelineMilestonesOnly && item.isMilestone !== true) return false;
                     if (timelineView === "all") return true;
                     if (timelineView === "payment") return item.recordType === "ledger";
                     return item.recordType === timelineView;
