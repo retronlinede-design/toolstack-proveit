@@ -43,6 +43,7 @@ import ActionSummaryModal from "./caseDetail/ActionSummaryModal";
 import ActiveLedgerRecordModal from "./caseDetail/ActiveLedgerRecordModal";
 import FloatingWorkspaceMenu from "./caseDetail/FloatingWorkspaceMenu";
 import LedgerTab from "./caseDetail/LedgerTab";
+import RecordsTab from "./caseDetail/RecordsTab";
 import { sortChronological } from "./caseDetail/ledgerViewHelpers";
 import { toTimelineItems } from "./caseDetail/timelineItemHelpers";
 import {
@@ -4083,18 +4084,12 @@ ${ungroupedSequenceText}
             )}
 
             {activeTab === "records" && (
-              <div className="space-y-5">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold">Records</h3>
-                    <p className="mt-1 text-sm text-neutral-500">
-                      Table-based tracking records live here. Source documents stay in Documents.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => openDocumentModal({
-                      title: "New Tracking Record",
-                      textContent: `[TRACK RECORD]
+              <RecordsTab
+                trackingRecords={parsedTrackingRecords}
+                generatedLedgerEntries={derivedTrackingLedger}
+                onAddRecord={() => openDocumentModal({
+                  title: "New Tracking Record",
+                  textContent: `[TRACK RECORD]
 
     meta:
     type:
@@ -4119,179 +4114,14 @@ ${ungroupedSequenceText}
 
 
     `
-                    }, null, "record")}
-                    className="rounded-lg border border-blue-400 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md hover:bg-blue-50 transition-all active:scale-95"
-                  >
-                    Add Record
-                  </button>
-                </div>
-
-                <section className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
-                  <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold uppercase tracking-wider text-blue-900">Tracking Records</h3>
-                      <p className="mt-1 text-xs text-blue-800">
-                        Structured tables parsed from tracking-record text. Generated payment previews are temporary and do not update the Ledger yet.
-                      </p>
-                    </div>
-                    <span className="shrink-0 rounded-lg border border-blue-200 bg-white px-2 py-1 text-xs font-semibold text-blue-700">
-                      {parsedTrackingRecords.length} tracking record{parsedTrackingRecords.length === 1 ? "" : "s"} · {derivedTrackingLedger.length} generated payment preview{derivedTrackingLedger.length === 1 ? "" : "s"}
-                    </span>
-                  </div>
-
-                  {parsedTrackingRecords.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-blue-200 bg-white/70 p-5 text-sm text-blue-800">
-                      No tracking records yet.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {parsedTrackingRecords.map((record) => {
-                        const tableRows = record.table || [];
-                        const tableHeaders = getRecordTableHeaders(tableRows);
-                        const previewRows = tableRows.slice(0, 5);
-                        const usedByIncidents = getIncidentsUsingRecord(selectedCase, record.id);
-                        const basedOnEvidence = getBasedOnEvidenceForTrackingRecord(record);
-
-                        return (
-                        <div key={record.id} className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-base font-semibold text-neutral-900">{record.title}</span>
-                                <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
-                                  {getRecordTypeLabel(record.meta.type)}
-                                </span>
-                                {record.meta.status && (
-                                  <span className={`rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${getRecordStatusClasses(record.meta.status)}`}>
-                                    {record.meta.status}
-                                  </span>
-                                )}
-                                {renderSequenceGroupChip(record.rawDocument?.sequenceGroup)}
-                              </div>
-
-                              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-600">
-                                <span><span className="font-medium text-neutral-800">Purpose:</span> {record.meta.subject || "—"}</span>
-                                {record.meta.period && <span><span className="font-medium text-neutral-800">Period:</span> {record.meta.period}</span>}
-                                <span>{tableRows.length} row{tableRows.length === 1 ? "" : "s"}</span>
-                                {record.fileLinks.length > 0 && <span>{record.fileLinks.length} file link{record.fileLinks.length === 1 ? "" : "s"}</span>}
-                              </div>
-                            </div>
-
-                            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                              <button
-                                onClick={() => setActiveLedgerRecord(record)}
-                                className="rounded-lg border border-blue-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-blue-50 transition-colors"
-                              >
-                                View Payments
-                              </button>
-                              <button
-                                onClick={() => openDocumentModal(record.rawDocument, record.rawDocument.id, "record")}
-                                className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
-                              >
-                                Open / Edit
-                              </button>
-                              <button
-                                onClick={() => deleteDocumentEntry(record.rawDocument.id)}
-                                className="rounded-lg border border-red-300 bg-white px-2 py-0.5 text-[10px] font-bold text-red-700 shadow-sm hover:bg-red-50 transition-colors"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </div>
-
-                          {record.summary && (
-                            <p className="mt-3 border-l-2 border-blue-100 pl-3 text-sm text-neutral-700 line-clamp-3">{record.summary}</p>
-                          )}
-
-                          {basedOnEvidence.length > 0 && (
-                            <div className="mt-1 border-t border-neutral-100 pt-1">
-                              {renderCompactLinkRow("Based on Evidence", basedOnEvidence, (evidenceItem) => (
-                                <LinkedChip
-                                  key={evidenceItem.id}
-                                  onClick={() => openLinkedRecord(evidenceItem.id)}
-                                  titleText={evidenceItem.title || "Untitled evidence"}
-                                  variant="evidence"
-                                  className="flex items-center gap-1 text-left transition-colors"
-                                  leading={<span className="font-bold uppercase opacity-50">Evidence</span>}
-                                >
-                                  {evidenceItem.title || "Untitled evidence"}
-                                </LinkedChip>
-                              ))}
-                            </div>
-                          )}
-
-                          {usedByIncidents.length > 0 && (
-                            <div className="mt-1 border-t border-neutral-100 pt-1">
-                              {renderCompactLinkRow("Used By", usedByIncidents, (incident) => (
-                                <LinkedChip
-                                  key={incident.id}
-                                  onClick={() => openLinkedRecord(incident.id)}
-                                  titleText={incident.title || "Untitled incident"}
-                                  variant="incident"
-                                  className="flex items-center gap-1 text-left transition-colors"
-                                  leading={<span className="font-bold uppercase opacity-50">Incident</span>}
-                                >
-                                  {incident.title || "Untitled incident"}
-                                </LinkedChip>
-                              ))}
-                            </div>
-                          )}
-
-                          {previewRows.length > 0 ? (
-                            <div className="mt-4 overflow-x-auto rounded-xl border border-neutral-200">
-                              <table className="min-w-full border-collapse text-left text-xs">
-                                <thead className="bg-neutral-50 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                                  <tr>
-                                    {tableHeaders.map((header) => (
-                                      <th key={header} className="border-b border-neutral-200 px-3 py-2 whitespace-nowrap">
-                                        {formatRecordTableHeader(header)}
-                                      </th>
-                                    ))}
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-neutral-100 bg-white">
-                                  {previewRows.map((row, index) => (
-                                    <tr key={`${record.id}-row-${index}`} className="align-top">
-                                      {tableHeaders.map((header) => {
-                                        const value = row[header] || "";
-                                        const isStatus = header.toLowerCase() === "status";
-                                        const isDifference = header.toLowerCase() === "difference";
-                                        return (
-                                          <td key={header} className="px-3 py-2 text-neutral-700">
-                                            {isStatus && value ? (
-                                              <span className={`inline-flex rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${getRecordStatusClasses(value)}`}>
-                                                {value}
-                                              </span>
-                                            ) : (
-                                              <span className={isDifference ? `font-semibold ${getDifferenceClasses(value)}` : ""}>
-                                                {value || "—"}
-                                              </span>
-                                            )}
-                                          </td>
-                                        );
-                                      })}
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                              {tableRows.length > previewRows.length && (
-                                <div className="border-t border-neutral-100 bg-neutral-50 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
-                                  {tableRows.length - previewRows.length} more row{tableRows.length - previewRows.length === 1 ? "" : "s"}
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="mt-4 rounded-xl border border-dashed border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-500">
-                              No table rows parsed yet.
-                            </div>
-                          )}
-                        </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </section>
-              </div>
+                }, null, "record")}
+                onViewPayments={setActiveLedgerRecord}
+                onOpenRecord={(record) => openDocumentModal(record.rawDocument, record.rawDocument.id, "record")}
+                onDeleteRecord={(record) => deleteDocumentEntry(record.rawDocument.id)}
+                getUsedByIncidents={(recordId) => getIncidentsUsingRecord(selectedCase, recordId)}
+                getBasedOnEvidence={getBasedOnEvidenceForTrackingRecord}
+                onOpenLinkedRecord={openLinkedRecord}
+              />
             )}
 
             {activeTab === "ideas" && (
