@@ -4001,6 +4001,17 @@ ${ungroupedSequenceText}
                     );
                   }
 
+                  const timelineGroups = [];
+                  filteredTimelineItems.forEach((item) => {
+                    const dateLabel = item.date || "No date";
+                    const lastGroup = timelineGroups[timelineGroups.length - 1];
+                    if (lastGroup?.date === dateLabel) {
+                      lastGroup.items.push(item);
+                    } else {
+                      timelineGroups.push({ date: dateLabel, items: [item] });
+                    }
+                  });
+
                   const badgeClassMap = {
                     incident: "border-red-200 bg-red-50 text-red-700",
                     evidence: "border-lime-200 bg-lime-50 text-lime-700",
@@ -4021,52 +4032,62 @@ ${ungroupedSequenceText}
                   };
 
                   return (
-                    <div className="space-y-2">
-                      {filteredTimelineItems.map((item) => {
-                        const isTimelineMilestone =
-                          (item.recordType === "incident" || item.recordType === "evidence") && item.isMilestone === true;
-                        return (
-                          <div
-                            key={`${item.recordType}-${item.id}`}
-                            className={`grid gap-3 rounded-xl border p-3 shadow-sm sm:grid-cols-[7.5rem_1fr] ${
-                              isTimelineMilestone
-                                ? "border-amber-300 border-l-4 bg-amber-50/50 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]"
-                                : "border-neutral-200 bg-white"
-                            }`}
-                          >
-                            <div className="text-xs font-semibold text-neutral-500">
-                              {item.date || "No date"}
-                            </div>
-                            <div className="min-w-0">
-                              {isTimelineMilestone && (
-                                <div className="mb-2">
-                                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-700">
-                                    Milestone
-                                  </span>
-                                </div>
-                              )}
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className={`rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${badgeClassMap[item.recordType] || "border-neutral-200 bg-neutral-50 text-neutral-600"}`}>
-                                  {labelMap[item.recordType] || item.recordType}
-                                </span>
-                                {detailLabelMap[item.typeDetail] && detailLabelMap[item.typeDetail] !== labelMap[item.recordType] && (
-                                  <span className="rounded-md border border-neutral-200 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                                    {detailLabelMap[item.typeDetail]}
-                                  </span>
-                                )}
-                                <h4 className="min-w-0 flex-1 truncate text-sm font-semibold text-neutral-900">
-                                  {item.title}
-                                </h4>
-                              </div>
-                              {item.summary ? (
-                                <p className="mt-1 text-sm leading-5 text-neutral-600">{item.summary}</p>
-                              ) : (
-                                <p className="mt-1 text-sm text-neutral-400">No summary yet.</p>
-                              )}
-                            </div>
+                    <div className="space-y-4">
+                      {timelineGroups.map((group) => (
+                        <section key={group.date} className="space-y-2">
+                          <div className="flex items-center justify-between gap-3 border-b border-neutral-200 pb-1">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">{group.date}</h4>
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                              {group.items.length} item{group.items.length === 1 ? "" : "s"}
+                            </span>
                           </div>
-                        );
-                      })}
+                          {group.items.map((item) => {
+                            const isTimelineMilestone =
+                              (item.recordType === "incident" || item.recordType === "evidence") && item.isMilestone === true;
+                            return (
+                              <div
+                                key={`${item.recordType}-${item.id}`}
+                                className={`grid gap-3 rounded-xl border p-3 shadow-sm sm:grid-cols-[7.5rem_1fr] ${
+                                  isTimelineMilestone
+                                    ? "border-amber-300 border-l-4 bg-amber-50/50 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]"
+                                    : "border-neutral-200 bg-white"
+                                }`}
+                              >
+                                <div className="text-xs font-semibold text-neutral-500">
+                                  {item.date || "No date"}
+                                </div>
+                                <div className="min-w-0">
+                                  {isTimelineMilestone && (
+                                    <div className="mb-2">
+                                      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-700">
+                                        Milestone
+                                      </span>
+                                    </div>
+                                  )}
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className={`rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${badgeClassMap[item.recordType] || "border-neutral-200 bg-neutral-50 text-neutral-600"}`}>
+                                      {labelMap[item.recordType] || item.recordType}
+                                    </span>
+                                    {detailLabelMap[item.typeDetail] && detailLabelMap[item.typeDetail] !== labelMap[item.recordType] && (
+                                      <span className="rounded-md border border-neutral-200 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                                        {detailLabelMap[item.typeDetail]}
+                                      </span>
+                                    )}
+                                    <h4 className="min-w-0 flex-1 truncate text-sm font-semibold text-neutral-900">
+                                      {item.title}
+                                    </h4>
+                                  </div>
+                                  {item.summary ? (
+                                    <p className="mt-1 text-sm leading-5 text-neutral-600">{item.summary}</p>
+                                  ) : (
+                                    <p className="mt-1 text-sm text-neutral-400">No summary yet.</p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </section>
+                      ))}
                     </div>
                   );
                 })()}
