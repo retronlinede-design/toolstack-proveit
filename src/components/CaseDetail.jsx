@@ -4073,6 +4073,7 @@ ${ungroupedSequenceText}
                                         {detailLabelMap[item.typeDetail]}
                                       </span>
                                     )}
+                                    {renderSequenceGroupChip(item.source?.sequenceGroup)}
                                     <h4 className="min-w-0 flex-1 truncate text-sm font-semibold text-neutral-900">
                                       {item.title}
                                     </h4>
