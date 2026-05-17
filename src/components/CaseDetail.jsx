@@ -809,6 +809,19 @@ ${strategyFocus.join("\n") || "—"}`;
     });
   };
 
+  const handleMoveNextAction = (fromIndex, toIndex) => {
+    if (toIndex < 0 || toIndex >= nextActions.length || fromIndex === toIndex) return;
+
+    const reordered = [...nextActions];
+    const [item] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, item);
+
+    applyActionSummaryUpdate({
+      nextActions: reordered,
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
   const packText = (value, fallback = "") => (typeof value === "string" && value.trim()) ? value.trim() : fallback;
   const packExecutiveSummary = (
     packText(currentFocus) ||
@@ -2301,13 +2314,33 @@ ${ungroupedSequenceText}
                         {action}
                       </span>
                     </span>
-                    <button
-                      onClick={() => handleRemoveNextAction(i)}
-                      className="shrink-0 rounded-md border border-neutral-200 bg-white p-1 text-neutral-400 transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-500"
-                      title="Remove"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleMoveNextAction(i, i - 1)}
+                        disabled={i === 0}
+                        className="rounded-md border border-neutral-200 bg-white px-1.5 py-1 text-[10px] font-bold text-neutral-500 transition-all hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-30"
+                        title="Move up"
+                      >
+                        Up
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleMoveNextAction(i, i + 1)}
+                        disabled={i === nextActions.length - 1}
+                        className="rounded-md border border-neutral-200 bg-white px-1.5 py-1 text-[10px] font-bold text-neutral-500 transition-all hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-30"
+                        title="Move down"
+                      >
+                        Down
+                      </button>
+                      <button
+                        onClick={() => handleRemoveNextAction(i)}
+                        className="rounded-md border border-neutral-200 bg-white p-1 text-neutral-400 transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-500"
+                        title="Remove"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
