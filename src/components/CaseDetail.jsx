@@ -157,6 +157,7 @@ export default function CaseDetail({
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [timelineView, setTimelineView] = useState("all");
   const [timelineMilestonesOnly, setTimelineMilestonesOnly] = useState(false);
+  const [timelineSequenceGroupFilter, setTimelineSequenceGroupFilter] = useState("all");
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [ledgerFilter, setLedgerFilter] = useState("all");
   const [expandedDocuments, setExpandedDocuments] = useState({});
@@ -3982,12 +3983,41 @@ ${ungroupedSequenceText}
                     >
                       Milestones only
                     </button>
+                    {sequenceGroups.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={timelineSequenceGroupFilter}
+                          onChange={(event) => setTimelineSequenceGroupFilter(event.target.value)}
+                          className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-600 outline-none transition-colors hover:bg-neutral-50 focus:border-lime-500"
+                        >
+                          <option value="all">All sequence groups</option>
+                          {sequenceGroups.map((group) => (
+                            <option key={group.name} value={group.name}>
+                              {group.name}
+                            </option>
+                          ))}
+                        </select>
+                        {timelineSequenceGroupFilter !== "all" && (
+                          <button
+                            type="button"
+                            onClick={() => setTimelineSequenceGroupFilter("all")}
+                            className="rounded-lg border border-neutral-200 bg-white px-2 py-1.5 text-xs font-semibold text-neutral-500 transition-colors hover:bg-neutral-50"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {(() => {
                   const filteredTimelineItems = timelineItems.filter((item) => {
                     if (timelineMilestonesOnly && item.isMilestone !== true) return false;
+                    if (
+                      timelineSequenceGroupFilter !== "all" &&
+                      String(item.source?.sequenceGroup || "").trim() !== timelineSequenceGroupFilter
+                    ) return false;
                     if (timelineView === "all") return true;
                     if (timelineView === "payment") return item.recordType === "ledger";
                     return item.recordType === timelineView;
