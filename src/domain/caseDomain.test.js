@@ -688,6 +688,7 @@ test("normalizeCase builds the current canonical shape and sorts timeline arrays
     name: "  Housing Case  ",
     category: " HOUSING ",
     status: "invalid",
+    folderId: " folder-1 ",
     notes: "notes",
     description: "description",
     tags: "not-array",
@@ -720,6 +721,7 @@ test("normalizeCase builds the current canonical shape and sorts timeline arrays
   assert.equal(normalized.name, "Housing Case");
   assert.equal(normalized.category, "housing");
   assert.equal(normalized.status, "open");
+  assert.equal(normalized.folderId, "folder-1");
   assert.deepEqual(normalized.tags, []);
   assert.deepEqual(normalized.incidents.map((item) => item.id), ["inc-early", "inc-late"]);
   assert.deepEqual(normalized.evidence.map((item) => item.id), ["ev-a", "ev-b"]);
@@ -2106,6 +2108,7 @@ test("mergeCase normalizes both sides, merges collections by id, and keeps curre
     name: "Existing Name",
     category: "housing",
     status: "open",
+    folderId: "folder-old",
     notes: "existing notes",
     description: "existing description",
     tags: ["existing", "shared"],
@@ -2139,6 +2142,7 @@ test("mergeCase normalizes both sides, merges collections by id, and keeps curre
     name: "Incoming Name",
     category: "",
     status: "archived",
+    folderId: "folder-new",
     notes: "",
     description: "incoming description",
     tags: ["incoming", "shared"],
@@ -2167,6 +2171,7 @@ test("mergeCase normalizes both sides, merges collections by id, and keeps curre
   assert.equal(merged.name, "Incoming Name");
   assert.equal(merged.category, "general");
   assert.equal(merged.status, "archived");
+  assert.equal(merged.folderId, "folder-new");
   assert.equal(merged.notes, "existing notes");
   assert.equal(merged.description, "incoming description");
   assert.deepEqual(merged.tags, ["existing", "shared", "incoming"]);

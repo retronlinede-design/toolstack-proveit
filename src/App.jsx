@@ -43,7 +43,7 @@ import {
 } from "./domain/quickCaptureDomain";
 import { getFileSizeWarning } from "./lib/fileSecurity.js";
 import { removeRecordAttachmentFromForm } from "./domain/recordFormDomain";
-import { Database, Download, FileJson, Plus, Search, Upload, X } from "lucide-react";
+import { Database, Download, FileJson, Folder, FolderOpen, Plus, Settings, Trash2, Upload, X } from "lucide-react";
 import { getStorageDiagnostics } from "./storageDiagnostics";
 import proveItLogo from "./assets/proveit-logo.png";
 
@@ -52,6 +52,7 @@ const SHOW_REVIEW_QUEUE = false;
 const CREATE_NEW_SEQUENCE_GROUP_OPTION = "__create_new_sequence_group__";
 const LAST_FULL_BACKUP_ALL_AT_KEY = "toolstack.proveit.v1.lastFullBackupAt";
 const LAST_BACKUP_META_KEY = "toolstack.proveit.v1.lastBackupMeta";
+const CASE_FOLDERS_STORAGE_KEY = "toolstack.proveit.v1.folders";
 const FULL_BACKUP_ALL_RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const RISKY_ACTION_BACKUP_MESSAGE = "Before applying changes, download a Full App Backup. ProveIt stores data locally in this browser, and browser storage can be lost.";
 const EMPTY_DB_WARNING_MESSAGE = "No cases found in this browser storage. If this is unexpected, stop and check Storage Diagnostics before importing or creating new data.";
@@ -117,6 +118,31 @@ function formatBackupMetaTimestamp(meta) {
 
 function isTrackingRecordDocument(doc) {
   return typeof doc?.textContent === "string" && doc.textContent.includes("[TRACK RECORD]");
+}
+
+function normalizeCaseFolder(folder) {
+  if (!folder || typeof folder !== "object") return null;
+  const name = safeText(folder.name).trim();
+  if (!name) return null;
+  const now = new Date().toISOString();
+  return {
+    id: safeText(folder.id).trim() || generateId(),
+    name,
+    description: safeText(folder.description).trim(),
+    color: safeText(folder.color).trim(),
+    createdAt: safeText(folder.createdAt).trim() || now,
+    updatedAt: safeText(folder.updatedAt).trim() || safeText(folder.createdAt).trim() || now,
+  };
+}
+
+function readCaseFolders() {
+  try {
+    const saved = localStorage.getItem(CASE_FOLDERS_STORAGE_KEY);
+    const parsed = saved ? JSON.parse(saved) : [];
+    return Array.isArray(parsed) ? parsed.map(normalizeCaseFolder).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
 }
 
 const EVIDENCE_TYPE_LABELS = {
@@ -423,6 +449,10 @@ export default function ProveItApp() {
   const [loadingCases, setLoadingCases] = useState(true);
   const [caseSearchQuery, setCaseSearchQuery] = useState("");
   const [caseSort, setCaseSort] = useState("updated");
+  const [caseFolders, setCaseFolders] = useState(() => readCaseFolders());
+  const [activeFolderId, setActiveFolderId] = useState("unfiled");
+  const [folderModalOpen, setFolderModalOpen] = useState(false);
+  const [folderNameInput, setFolderNameInput] = useState("");
   const [editingCase, setEditingCase] = useState(null);
   const [imageCache, setImageCache] = useState({});
   const [attachmentDiagnosticImages, setAttachmentDiagnosticImages] = useState([]);
@@ -581,6 +611,7 @@ export default function ProveItApp() {
       const payload = await buildFullBackupAllPayload({
         cases: allCases,
         quickCaptures,
+        folders: caseFolders,
         selectedCaseId,
         activeTab,
       }, { getImageById });
@@ -1393,15 +1424,6 @@ export default function ProveItApp() {
     getCountLabel(getOpenTaskCount(caseItem), "open task"),
   ];
 
-  const getEnvironmentLabel = () => {
-    if (typeof window === "undefined") return "Unknown";
-    const { hostname, origin } = window.location;
-    if (hostname === "localhost" || hostname === "127.0.0.1") return "Localhost";
-    if (hostname.endsWith(".vercel.app") || hostname.endsWith(".netlify.app") || origin.includes("preview")) return "Preview";
-    if (window.location.protocol === "https:") return "Production";
-    return "Unknown";
-  };
-
   const getCaseFallbackFocus = (caseItem) => {
     const description = String(caseItem?.description || "").trim();
     const notes = String(caseItem?.notes || "").trim();
@@ -1421,6 +1443,8 @@ export default function ProveItApp() {
   const caseListItems = useMemo(() => {
     const query = normalizeSearchText(caseSearchQuery);
     const filteredCases = cases.filter((caseItem) => {
+      if (activeFolderId === "unfiled" && caseItem?.folderId) return false;
+      if (activeFolderId !== "all" && activeFolderId !== "unfiled" && caseItem?.folderId !== activeFolderId) return false;
       if (!query) return true;
       return [caseItem?.name, caseItem?.category]
         .map(normalizeSearchText)
@@ -1442,28 +1466,98 @@ export default function ProveItApp() {
     });
 
     return sortedCases;
-  }, [cases, caseSearchQuery, caseSort]);
+  }, [cases, caseSearchQuery, caseSort, activeFolderId]);
+
+  const getFolderCaseCount = (folderId) => {
+    if (folderId === "all") return cases.length;
+    if (folderId === "unfiled") return cases.filter((caseItem) => !caseItem?.folderId).length;
+    return cases.filter((caseItem) => caseItem?.folderId === folderId).length;
+  };
+
+  const getCaseFolder = (caseItem) =>
+    caseFolders.find((folder) => folder.id === caseItem?.folderId) || null;
+
+  const getCaseFolderName = (caseItem) => getCaseFolder(caseItem)?.name || "Inbox";
+
+  const activeFolderName = activeFolderId === "unfiled"
+    ? "Inbox"
+    : caseFolders.find((folder) => folder.id === activeFolderId)?.name || "Folder";
+
+  const createFolder = () => {
+    const name = folderNameInput.trim();
+    if (!name) return;
+    const now = new Date().toISOString();
+    setCaseFolders((prev) => [
+      ...prev,
+      {
+        id: generateId(),
+        name,
+        description: "",
+        color: "",
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+    setFolderNameInput("");
+  };
+
+  const updateFolder = (folderId, patch = {}) => {
+    setCaseFolders((prev) =>
+      prev.map((item) =>
+        item.id === folderId
+          ? {
+              ...item,
+              ...patch,
+              name: Object.prototype.hasOwnProperty.call(patch, "name") ? safeText(patch.name).trim() : item.name,
+              description: Object.prototype.hasOwnProperty.call(patch, "description") ? safeText(patch.description) : item.description,
+              color: Object.prototype.hasOwnProperty.call(patch, "color") ? safeText(patch.color) : item.color,
+              updatedAt: new Date().toISOString(),
+            }
+        : item
+      )
+    );
+  };
+
+  const deleteFolder = async (folderId) => {
+    const folder = caseFolders.find((item) => item.id === folderId);
+    if (!folder) return;
+    const affectedCases = cases.filter((caseItem) => caseItem.folderId === folderId);
+    if (!window.confirm(`Delete folder "${folder.name}"? ${affectedCases.length} case(s) will move to Unfiled.`)) return;
+
+    const updatedCases = cases.map((caseItem) => caseItem.folderId === folderId
+      ? { ...caseItem, folderId: null, updatedAt: new Date().toISOString() }
+      : caseItem
+    );
+
+    try {
+      for (const caseItem of updatedCases.filter((item) => item.folderId === null && cases.find((c) => c.id === item.id)?.folderId === folderId)) {
+        await saveCase(caseItem);
+      }
+      setCases(updatedCases);
+      setCaseFolders((prev) => prev.filter((item) => item.id !== folderId));
+      if (activeFolderId === folderId) setActiveFolderId("unfiled");
+    } catch (error) {
+      console.error("Failed to delete folder", error);
+      showAppNotice("error", error.message || "Could not delete this folder.");
+    }
+  };
+
+  const moveCaseToFolder = async (caseItem, folderId) => {
+    if (!caseItem) return;
+    const normalizedFolderId = folderId === "unfiled" ? null : folderId;
+    const updatedCase = {
+      ...caseItem,
+      folderId: normalizedFolderId,
+      updatedAt: new Date().toISOString(),
+    };
+    await handleUpdateCase(updatedCase);
+  };
 
   const mostRecentlyUpdatedCaseId = useMemo(() => {
     if (cases.length === 0) return null;
     return [...cases]
       .sort((a, b) => new Date(getCaseLastUpdated(b) || 0) - new Date(getCaseLastUpdated(a) || 0))[0]?.id || null;
   }, [cases]);
-
-  const dashboardCounts = useMemo(() => {
-    const embeddedImageIds = new Set();
-    cases.forEach((caseItem) => {
-      collectEmbeddedCaseImageIds(caseItem).forEach((imageId) => embeddedImageIds.add(imageId));
-    });
-
-    const diagnosticCounts = storageDiagnostics?.recordCounts || {};
-
-    return {
-      cases: diagnosticCounts.cases ?? cases.length,
-      evidence: cases.reduce((total, caseItem) => total + (caseItem?.evidence?.length || 0), 0),
-      images: diagnosticCounts.images ?? embeddedImageIds.size,
-    };
-  }, [cases, storageDiagnostics]);
 
   // Load cases from IndexedDB
   useEffect(() => {
@@ -1572,6 +1666,10 @@ export default function ProveItApp() {
   useEffect(() => {
     localStorage.setItem("toolstack.proveit.v1.captures", JSON.stringify(quickCaptures));
   }, [quickCaptures]);
+
+  useEffect(() => {
+    localStorage.setItem(CASE_FOLDERS_STORAGE_KEY, JSON.stringify(caseFolders));
+  }, [caseFolders]);
 
   useEffect(() => {
     localStorage.setItem("toolstack.proveit.v1.selectedCase", JSON.stringify(selectedCaseId));
@@ -1692,6 +1790,9 @@ export default function ProveItApp() {
       let incomingCases = imported.cases || [];
       const hasIncomingQuickCaptures = Array.isArray(imported.quickCaptures);
       let incomingQuickCaptures = hasIncomingQuickCaptures ? imported.quickCaptures : [];
+      const incomingFolders = Array.isArray(imported.folders)
+        ? imported.folders.map(normalizeCaseFolder).filter(Boolean)
+        : [];
 
       if (isFullBackup) {
         incomingCases = await Promise.all(incomingCases.map((caseItem) =>
@@ -1753,6 +1854,13 @@ export default function ProveItApp() {
         });
       }
       if (importFailures.length === 0) {
+        if (incomingFolders.length > 0 && shouldImportQuickCaptures) {
+          setCaseFolders((prev) => {
+            const folderMap = new Map(prev.map((folder) => [folder.id, folder]));
+            incomingFolders.forEach((folder) => folderMap.set(folder.id, folder));
+            return Array.from(folderMap.values());
+          });
+        }
         setSelectedCaseId(imported.selectedCaseId ?? null);
         setActiveTab(imported.activeTab || "overview");
       }
@@ -1787,6 +1895,7 @@ export default function ProveItApp() {
       name: `New Case ${cases.length + 1}`,
       category: "general",
       status: "open",
+      folderId: null,
       notes: "",
       description: "",
       createdAt: new Date().toISOString(),
@@ -1836,6 +1945,7 @@ export default function ProveItApp() {
         name: form.name || `New Case ${cases.length + 1}`,
         category: normalizeCategory(form.category === "custom" ? form.customCategory : form.category),
         status: "open",
+        folderId: null,
         notes: form.notes,
         description: form.description,
         createdAt: new Date().toISOString(),
@@ -2188,9 +2298,91 @@ const handleRecordFiles = async (event) => {
     );
   };
 
+  const folderTiles = [
+    ...caseFolders.map((folder) => ({
+      ...folder,
+      count: getFolderCaseCount(folder.id),
+      system: false,
+    })),
+    {
+      id: "unfiled",
+      name: "Inbox",
+      description: "New and unassigned cases",
+      count: getFolderCaseCount("unfiled"),
+      system: true,
+    },
+  ];
+
+  const renderFolderTiles = () => (
+    <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm print:hidden">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Case Folders</h2>
+          <p className="mt-1 text-sm text-neutral-700">
+            {activeFolderName} | {getFolderCaseCount(activeFolderId)} case{getFolderCaseCount(activeFolderId) === 1 ? "" : "s"}
+          </p>
+          <p className="mt-1 text-xs text-neutral-500">
+            Folder privacy controls will apply per folder. Inbox is not password protected.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setFolderModalOpen(true)}
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-800 shadow-sm transition-colors hover:bg-neutral-100"
+        >
+          <Settings className="h-4 w-4" />
+          Manage Folders
+        </button>
+      </div>
+
+      {caseFolders.length === 0 ? (
+        <div className="mt-4 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-600">
+          Create folders to organize cases. New cases appear in Inbox until assigned.
+        </div>
+      ) : null}
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {folderTiles.map((folder) => {
+          const isActive = activeFolderId === folder.id;
+          const FolderIcon = isActive ? FolderOpen : Folder;
+          return (
+          <button
+            key={folder.id}
+            type="button"
+            onClick={() => setActiveFolderId(folder.id)}
+            className={`min-w-0 rounded-xl border p-3 text-left transition-colors ${
+              isActive
+                ? "border-lime-500 bg-lime-50 shadow-[0_0_0_1px_rgba(132,204,22,0.25)]"
+                : "border-neutral-200 bg-neutral-50 hover:border-neutral-300 hover:bg-white"
+            }`}
+          >
+            <div className="flex min-w-0 items-start gap-3">
+              <FolderIcon
+                className={`mt-0.5 h-8 w-8 shrink-0 ${isActive ? "text-lime-700" : "text-neutral-500"}`}
+                style={folder.color ? { color: folder.color } : undefined}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-bold text-neutral-900">{folder.name}</div>
+                <div className="mt-0.5 text-xs font-semibold text-neutral-500">
+                  {folder.count} case{folder.count === 1 ? "" : "s"}
+                </div>
+                {folder.description ? (
+                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-neutral-500">{folder.description}</p>
+                ) : null}
+              </div>
+            </div>
+          </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+
   const renderEmptyState = () => (
-    <div className="grid gap-6 lg:grid-cols-12">
-      <section className="lg:col-span-8 space-y-6">
+    <div className="space-y-6">
+      {renderFolderTiles()}
+      <div className="grid gap-6 lg:grid-cols-12">
+      <section className="space-y-6 lg:col-span-8">
         <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-xl font-semibold">Getting Started</h2>
           <div className="grid gap-4 md:grid-cols-2">
@@ -2226,6 +2418,7 @@ const handleRecordFiles = async (event) => {
           <p className="mt-2 text-sm text-neutral-600">Create your first case to begin.</p>
         </div>
       </aside>
+      </div>
     </div>
   );
 
@@ -2240,9 +2433,10 @@ const handleRecordFiles = async (event) => {
 
     return (
       <div className="grid gap-4">
+        {renderFolderTiles()}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h2 className="text-xl font-semibold">Your Cases</h2>
+            <h2 className="text-xl font-semibold">{activeFolderName}</h2>
             <p className="mt-1 text-sm text-neutral-500">Jump straight back into the right case.</p>
           </div>
           <div className="text-sm text-neutral-500">
@@ -2300,6 +2494,9 @@ const handleRecordFiles = async (event) => {
                   )}
                   {!caseIsLocked && (
                     <div className="mt-3 flex flex-wrap gap-1.5">
+                      <span className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
+                        Folder: {getCaseFolderName(c)}
+                      </span>
                       {caseMetadata.map((item) => (
                         <span key={item} className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] font-semibold text-neutral-600">
                           {item}
@@ -2317,7 +2514,27 @@ const handleRecordFiles = async (event) => {
                   </div>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-2 self-start lg:self-center">
+                <div className="flex shrink-0 flex-wrap items-center gap-2 self-start lg:max-w-xs lg:justify-end">
+                  <label
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex min-w-[9rem] items-center gap-1 rounded-xl border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-semibold text-neutral-600"
+                  >
+                    Move
+                    <select
+                      value={c.folderId || "unfiled"}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        moveCaseToFolder(c, e.target.value);
+                      }}
+                      className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-neutral-800 outline-none"
+                    >
+                      <option value="unfiled">Inbox</option>
+                      {caseFolders.map((folder) => (
+                        <option key={folder.id} value={folder.id}>{folder.name}</option>
+                      ))}
+                    </select>
+                  </label>
                   <button
                     onClick={(e) => { e.stopPropagation(); openCase(c.id); }}
                     className="rounded-xl border border-lime-500 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
@@ -2382,7 +2599,6 @@ const handleRecordFiles = async (event) => {
   const backupStatus = getBackupStatus(lastBackupMeta);
   const backupTimestampLabel = formatBackupMetaTimestamp(lastBackupMeta);
   const currentOrigin = typeof window !== "undefined" ? window.location.origin : "";
-  const environmentLabel = getEnvironmentLabel();
   const diagnosticCaseCount = storageDiagnostics?.recordCounts?.cases;
   const backupNeedsAttention = !hasRecentFullBackupMeta(lastBackupMeta);
   const onCaseListPage = !selectedCase && !selectedCaseRequiresPin;
@@ -2569,6 +2785,106 @@ const handleRecordFiles = async (event) => {
           </div>
         </div>
       ) : null}
+      {folderModalOpen ? (
+        <div className="fixed inset-0 z-[125] flex items-center justify-center bg-black/40 p-3 sm:p-4">
+          <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b border-neutral-200 p-4 sm:p-5">
+              <div>
+                <h2 className="text-lg font-semibold text-neutral-900">Manage Folders</h2>
+                <p className="mt-1 text-sm text-neutral-500">Create folders and organize cases without changing case contents.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFolderModalOpen(false)}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50"
+                aria-label="Close folder manager"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
+              <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                <h3 className="text-sm font-bold text-neutral-900">Create Folder</h3>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <input
+                    type="text"
+                    value={folderNameInput}
+                    onChange={(event) => setFolderNameInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") createFolder();
+                    }}
+                    placeholder="Folder name"
+                    className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-800 outline-none transition-colors focus:border-lime-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={createFolder}
+                    className="w-full rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/20 sm:w-auto"
+                  >
+                    Create
+                  </button>
+                </div>
+              </section>
+
+              <section className="space-y-3">
+                <h3 className="text-sm font-bold text-neutral-900">Folders</h3>
+                {caseFolders.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-600">
+                    No custom folders yet.
+                  </div>
+                ) : (
+                  caseFolders.map((folder) => (
+                    <div key={folder.id} className="rounded-xl border border-neutral-200 bg-white p-4">
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_9rem_auto] md:items-end">
+                        <label className="min-w-0">
+                          <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-neutral-500">Name</span>
+                          <input
+                            type="text"
+                            value={folder.name}
+                            onChange={(event) => updateFolder(folder.id, { name: event.target.value })}
+                            className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-800 outline-none transition-colors focus:border-lime-500"
+                          />
+                        </label>
+                        <label>
+                          <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-neutral-500">Color</span>
+                          <input
+                            type="color"
+                            value={/^#[0-9a-f]{6}$/i.test(folder.color || "") ? folder.color : "#737373"}
+                            onChange={(event) => updateFolder(folder.id, { color: event.target.value })}
+                            className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-2 py-1"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => deleteFolder(folder.id)}
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-700 shadow-sm transition-colors hover:bg-red-50 md:w-auto"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete
+                        </button>
+                      </div>
+                      <label className="mt-3 block">
+                        <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-neutral-500">Description</span>
+                        <textarea
+                          value={folder.description || ""}
+                          onChange={(event) => updateFolder(folder.id, { description: event.target.value })}
+                          rows={2}
+                          placeholder="Optional short description"
+                          className="w-full resize-y rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-800 outline-none transition-colors focus:border-lime-500"
+                        />
+                      </label>
+                      <div className="mt-2 text-xs text-neutral-500">
+                        {getFolderCaseCount(folder.id)} case{getFolderCaseCount(folder.id) === 1 ? "" : "s"} assigned
+                      </div>
+                    </div>
+                  ))
+                )}
+              </section>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="mx-auto max-w-7xl px-4 py-6">
         <header className="proveit-app-header relative mb-6 flex flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -2577,33 +2893,11 @@ const handleRecordFiles = async (event) => {
               <img
                 src={proveItLogo}
                 alt="ProveIt"
-                className="block h-auto max-h-14 w-auto max-w-[min(78vw,22rem)] object-contain sm:max-h-20 sm:max-w-[28rem]"
+                className="block h-auto max-h-[5.25rem] w-auto max-w-[min(82vw,33rem)] object-contain sm:max-h-[7.5rem] sm:max-w-[42rem]"
               />
             </div>
 
             <div className="flex flex-col gap-2 sm:items-end print:hidden">
-              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                <div className="inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-600">
-                  Env: {environmentLabel}
-                </div>
-                <div className="inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-600">
-                  {dashboardCounts.cases} cases
-                </div>
-                <div className="inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-600">
-                  {dashboardCounts.evidence} evidence
-                </div>
-                <div className="inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-600">
-                  {dashboardCounts.images} images
-                </div>
-                <div className={`inline-flex items-center justify-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${backupStatus.className}`}>
-                  {backupStatus.label}
-                </div>
-                {currentOrigin ? (
-                  <div className="inline-flex min-w-0 max-w-full rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-neutral-500 sm:max-w-[22rem]">
-                    <span className="truncate font-mono">{currentOrigin}</span>
-                  </div>
-                ) : null}
-              </div>
               <p className="mt-1 text-[10px] text-neutral-400">Secure • Browser Only • Offline First</p>
 
               <div className="mt-1 flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
@@ -2628,25 +2922,6 @@ const handleRecordFiles = async (event) => {
           </div>
           {onCaseListPage ? (
             <div className="flex flex-wrap gap-2 border-t border-neutral-100 pt-4 print:hidden sm:justify-end">
-              <label className="relative min-w-0 flex-1 sm:flex-none">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
-                <input
-                  type="search"
-                  value={caseSearchQuery}
-                  onChange={(e) => setCaseSearchQuery(e.target.value)}
-                  placeholder="Search cases"
-                  className="w-full rounded-lg border border-neutral-300 bg-white py-2 pl-8 pr-3 text-sm text-neutral-800 outline-none transition-colors focus:border-lime-500 sm:w-64"
-                />
-              </label>
-              <select
-                value={caseSort}
-                onChange={(e) => setCaseSort(e.target.value)}
-                className="min-w-[10rem] flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-800 outline-none transition-colors focus:border-lime-500 sm:flex-none"
-              >
-                <option value="updated">Recently updated</option>
-                <option value="name">Name</option>
-                <option value="status">Status</option>
-              </select>
               <button
                 type="button"
                 onClick={openCreateCaseModal}

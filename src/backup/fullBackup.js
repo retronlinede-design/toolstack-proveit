@@ -204,6 +204,7 @@ export async function restoreFullBackupQuickCapture(capture, deps = {}) {
 export async function buildFullBackupAllPayload({
   cases = [],
   quickCaptures = [],
+  folders = [],
   selectedCaseId = null,
   activeTab = "overview",
 } = {}, deps = {}) {
@@ -217,6 +218,7 @@ export async function buildFullBackupAllPayload({
     data: {
       cases: await Promise.all((cases || []).map((caseItem) => buildFullBackupCase(caseItem, deps))),
       quickCaptures: await Promise.all((quickCaptures || []).map((capture) => buildFullBackupQuickCapture(capture, deps))),
+      folders: Array.isArray(folders) ? folders : [],
       selectedCaseId,
       activeTab,
     },

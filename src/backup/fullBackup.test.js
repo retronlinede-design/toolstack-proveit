@@ -207,6 +207,7 @@ test("full backup payload builders return the current top-level shape", async ()
   const allPayload = await buildFullBackupAllPayload({
     cases: [caseItem],
     quickCaptures: [capture],
+    folders: [{ id: "folder-1", name: "Finance" }],
     selectedCaseId: "case-1",
     activeTab: "evidence",
   }, deps);
@@ -226,6 +227,7 @@ test("full backup payload builders return the current top-level shape", async ()
   assert.equal(allPayload.data.activeTab, "evidence");
   assert.equal(allPayload.data.cases[0].evidence[0].attachments[0].backupDataUrl, "data:img-1");
   assert.equal(allPayload.data.quickCaptures[0].attachments[0].backupDataUrl, "data:img-cap");
+  assert.deepEqual(allPayload.data.folders, [{ id: "folder-1", name: "Finance" }]);
 
   assert.equal(casePayload.exportType, "FULL_BACKUP_CASE");
   assert.deepEqual(casePayload.data.quickCaptures, undefined);
