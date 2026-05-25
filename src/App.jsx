@@ -2977,6 +2977,14 @@ const handleRecordFiles = async (event) => {
             <div className="flex flex-wrap gap-2 sm:justify-end">
               <button
                 type="button"
+                onClick={openCreateCaseModal}
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/20 active:scale-95 sm:w-auto"
+              >
+                <Plus className="h-4 w-4 shrink-0" />
+                <span>New Case</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setExportImportOpen(true)}
                 className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-bold text-neutral-800 shadow-sm transition-colors hover:bg-neutral-100 active:scale-95 sm:flex-none"
               >
@@ -2990,14 +2998,6 @@ const handleRecordFiles = async (event) => {
               >
                 <Database className="h-3.5 w-3.5 shrink-0" />
                 <span>Diagnostics</span>
-              </button>
-              <button
-                type="button"
-                onClick={openCreateCaseModal}
-                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/20 active:scale-95 sm:w-auto"
-              >
-                <Plus className="h-4 w-4 shrink-0" />
-                <span>New Case</span>
               </button>
             </div>
           </section>
