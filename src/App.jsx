@@ -478,7 +478,7 @@ export default function ProveItApp() {
   const [caseSearchQuery, setCaseSearchQuery] = useState("");
   const [caseSort, setCaseSort] = useState("updated");
   const [caseFolders, setCaseFolders] = useState(() => readCaseFolders());
-  const [activeFolderId, setActiveFolderId] = useState("unfiled");
+  const [activeFolderId, setActiveFolderId] = useState(null);
   const [folderModalOpen, setFolderModalOpen] = useState(false);
   const [folderNameInput, setFolderNameInput] = useState("");
   const [editingCase, setEditingCase] = useState(null);
@@ -1471,6 +1471,7 @@ export default function ProveItApp() {
   const caseListItems = useMemo(() => {
     const query = normalizeSearchText(caseSearchQuery);
     const filteredCases = cases.filter((caseItem) => {
+      if (!activeFolderId) return false;
       if (activeFolderId === "unfiled" && caseItem?.folderId) return false;
       if (activeFolderId !== "all" && activeFolderId !== "unfiled" && caseItem?.folderId !== activeFolderId) return false;
       if (!query) return true;
@@ -1507,7 +1508,9 @@ export default function ProveItApp() {
 
   const getCaseFolderName = (caseItem) => getCaseFolder(caseItem)?.name || "Inbox";
 
-  const activeFolderName = activeFolderId === "unfiled"
+  const activeFolderName = !activeFolderId
+    ? "Folders"
+    : activeFolderId === "unfiled"
     ? "Inbox"
     : caseFolders.find((folder) => folder.id === activeFolderId)?.name || "Folder";
 
@@ -1563,7 +1566,7 @@ export default function ProveItApp() {
       }
       setCases(updatedCases);
       setCaseFolders((prev) => prev.filter((item) => item.id !== folderId));
-      if (activeFolderId === folderId) setActiveFolderId("unfiled");
+      if (activeFolderId === folderId) setActiveFolderId(null);
     } catch (error) {
       console.error("Failed to delete folder", error);
       showAppNotice("error", error.message || "Could not delete this folder.");
@@ -1579,6 +1582,10 @@ export default function ProveItApp() {
       updatedAt: new Date().toISOString(),
     };
     await handleUpdateCase(updatedCase);
+  };
+
+  const toggleFolderView = (folderId) => {
+    setActiveFolderId((currentFolderId) => currentFolderId === folderId ? null : folderId);
   };
 
   const mostRecentlyUpdatedCaseId = useMemo(() => {
@@ -2355,7 +2362,7 @@ const handleRecordFiles = async (event) => {
 
       <button
         type="button"
-        onClick={() => setActiveFolderId("unfiled")}
+        onClick={() => toggleFolderView("unfiled")}
         className={`mt-4 flex w-full max-w-xl items-center gap-3 rounded-xl border p-3 text-left transition-colors ${
           activeFolderId === "unfiled"
             ? "border-lime-500 bg-lime-50 shadow-[0_0_0_1px_rgba(132,204,22,0.2)]"
@@ -2389,7 +2396,7 @@ const handleRecordFiles = async (event) => {
           <button
             key={folder.id}
             type="button"
-            onClick={() => setActiveFolderId(folder.id)}
+            onClick={() => toggleFolderView(folder.id)}
             className={`min-w-0 rounded-xl border p-3 text-left transition-colors ${
               isActive
                 ? "border-lime-500 bg-lime-50 shadow-[0_0_0_1px_rgba(132,204,22,0.25)]"
@@ -2476,18 +2483,24 @@ const handleRecordFiles = async (event) => {
     return (
       <div className="grid gap-4">
         {renderFolderTiles()}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold">{activeFolderName}</h2>
-            <p className="mt-1 text-sm text-neutral-500">Jump straight back into the right case.</p>
-          </div>
-          <div className="text-sm text-neutral-500">
-            Showing {caseListItems.length} of {cases.length}
-          </div>
-        </div>
-        {caseListItems.length === 0 ? (
+        {!activeFolderId ? (
           <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-            No cases match the current search.
+            Select a folder to view its cases.
+          </div>
+        ) : (
+          <>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold">{activeFolderName}</h2>
+                <p className="mt-1 text-sm text-neutral-500">Jump straight back into the right case.</p>
+              </div>
+              <div className="text-sm text-neutral-500">
+                Showing {caseListItems.length}
+              </div>
+            </div>
+            {caseListItems.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+            No cases in this folder.
           </div>
         ) : (
           caseListItems.map((c) => {
@@ -2593,6 +2606,8 @@ const handleRecordFiles = async (event) => {
               </div>
             );
           })
+        )}
+          </>
         )}
       </div>
     );
@@ -2974,11 +2989,11 @@ const handleRecordFiles = async (event) => {
             </div>
           </div>
           {onCaseListPage ? (
-            <div className="flex flex-wrap gap-2 border-t border-neutral-100 pt-4 print:hidden sm:justify-end">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/30 p-3 print:hidden">
               <button
                 type="button"
                 onClick={openCreateCaseModal}
-                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/20 active:scale-95 sm:flex-none"
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-emerald-600 bg-white px-3 py-2 text-sm font-bold text-neutral-900 shadow-sm transition-colors hover:bg-emerald-50 active:scale-95 sm:w-auto"
               >
                 <Plus className="h-4 w-4 shrink-0" />
                 <span>New Case</span>
