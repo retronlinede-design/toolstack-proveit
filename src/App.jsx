@@ -116,6 +116,34 @@ function formatBackupMetaTimestamp(meta) {
   return new Date(parsedTimestamp).toLocaleString();
 }
 
+function getCompactBackupStatus(meta) {
+  if (!meta || meta.exportType !== "FULL_BACKUP_ALL" || !meta.timestamp) {
+    return {
+      label: "Backup: None",
+      className: "border-red-200 bg-red-50 text-red-700",
+    };
+  }
+
+  const parsedTimestamp = parseBackupTimestamp(meta.timestamp);
+  if (!parsedTimestamp) {
+    return {
+      label: "Backup: None",
+      className: "border-red-200 bg-red-50 text-red-700",
+    };
+  }
+
+  const ageMs = Math.max(0, Date.now() - parsedTimestamp);
+  const ageDays = Math.floor(ageMs / (24 * 60 * 60 * 1000));
+  const label = ageDays === 0 ? "Backup: Today" : `Backup: ${ageDays}d old`;
+
+  return {
+    label,
+    className: hasRecentFullBackupMeta(meta)
+      ? "border-lime-200 bg-lime-50 text-lime-700"
+      : "border-amber-200 bg-amber-50 text-amber-800",
+  };
+}
+
 function isTrackingRecordDocument(doc) {
   return typeof doc?.textContent === "string" && doc.textContent.includes("[TRACK RECORD]");
 }
@@ -2597,6 +2625,7 @@ const handleRecordFiles = async (event) => {
   };
 
   const backupStatus = getBackupStatus(lastBackupMeta);
+  const compactBackupStatus = getCompactBackupStatus(lastBackupMeta);
   const backupTimestampLabel = formatBackupMetaTimestamp(lastBackupMeta);
   const currentOrigin = typeof window !== "undefined" ? window.location.origin : "";
   const diagnosticCaseCount = storageDiagnostics?.recordCounts?.cases;
@@ -2898,6 +2927,16 @@ const handleRecordFiles = async (event) => {
             </div>
 
             <div className="flex flex-col gap-2 sm:items-end print:hidden">
+              <div className="flex max-w-full flex-wrap gap-2 sm:justify-end">
+                <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${compactBackupStatus.className}`}>
+                  {compactBackupStatus.label}
+                </span>
+                {lastBackupMeta?.exportType === "FULL_BACKUP_ALL" ? (
+                  <span className="inline-flex max-w-full items-center rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-neutral-500">
+                    <span className="truncate">Last: {backupTimestampLabel}</span>
+                  </span>
+                ) : null}
+              </div>
               <p className="mt-1 text-[10px] text-neutral-400">Secure • Browser Only • Offline First</p>
 
               <div className="mt-1 flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
