@@ -43,8 +43,9 @@ import {
 } from "./domain/quickCaptureDomain";
 import { getFileSizeWarning } from "./lib/fileSecurity.js";
 import { removeRecordAttachmentFromForm } from "./domain/recordFormDomain";
-import { Database, Download, FileJson, Plus, Search, ShieldCheck, Upload, X } from "lucide-react";
+import { Database, Download, FileJson, Plus, Search, Upload, X } from "lucide-react";
 import { getStorageDiagnostics } from "./storageDiagnostics";
+import proveItLogo from "./assets/proveit-logo.png";
 
 const lastUsedGroupByType = {};
 const SHOW_REVIEW_QUEUE = false;
@@ -2571,17 +2572,13 @@ const handleRecordFiles = async (event) => {
       <div className="mx-auto max-w-7xl px-4 py-6">
         <header className="proveit-app-header relative mb-6 flex flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-white shadow-sm">
-                <ShieldCheck className="h-6 w-6" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-3xl font-bold tracking-tight text-neutral-900 sm:text-4xl">ProveIt</h1>
-                  <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500">v1.0</span>
-                </div>
-                <p className="mt-1 text-sm font-medium text-neutral-500">Evidence management and local case engine</p>
-              </div>
+            <div className="min-w-0">
+              <h1 className="sr-only">ProveIt</h1>
+              <img
+                src={proveItLogo}
+                alt="ProveIt"
+                className="block h-auto max-h-14 w-auto max-w-[min(78vw,22rem)] object-contain sm:max-h-20 sm:max-w-[28rem]"
+              />
             </div>
 
             <div className="flex flex-col gap-2 sm:items-end print:hidden">
