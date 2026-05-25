@@ -43,7 +43,7 @@ import {
 } from "./domain/quickCaptureDomain";
 import { getFileSizeWarning } from "./lib/fileSecurity.js";
 import { removeRecordAttachmentFromForm } from "./domain/recordFormDomain";
-import { Database, Download, FileJson, ShieldCheck, Upload, X } from "lucide-react";
+import { Database, Download, FileJson, Plus, Search, ShieldCheck, Upload, X } from "lucide-react";
 import { getStorageDiagnostics } from "./storageDiagnostics";
 
 const lastUsedGroupByType = {};
@@ -1359,10 +1359,47 @@ export default function ProveItApp() {
     return "border-blue-200 bg-blue-50 text-blue-700";
   };
 
+  const getCaseCreatedLabel = (caseItem) => {
+    const timestamp = caseItem?.createdAt || "";
+    if (!timestamp) return "";
+
+    const parsed = new Date(timestamp);
+    if (Number.isNaN(parsed.getTime())) return "";
+
+    return parsed.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
   const formatCaseStatus = (status = "") =>
     String(status || "open")
       .replaceAll("_", " ")
       .replace(/\b\w/g, (char) => char.toUpperCase());
+
+  const getCountLabel = (count, singular, plural = `${singular}s`) =>
+    `${count} ${count === 1 ? singular : plural}`;
+
+  const getOpenTaskCount = (caseItem) =>
+    (caseItem?.tasks || []).filter((task) => !["done", "completed", "closed", "archived"].includes(String(task?.status || "").toLowerCase())).length;
+
+  const getCaseListMetadata = (caseItem) => [
+    getCountLabel(caseItem?.incidents?.length || 0, "incident"),
+    getCountLabel(caseItem?.evidence?.length || 0, "evidence", "evidence"),
+    getCountLabel(caseItem?.documents?.length || 0, "document"),
+    getCountLabel(caseItem?.ledger?.length || 0, "ledger", "ledger"),
+    getCountLabel(getOpenTaskCount(caseItem), "open task"),
+  ];
+
+  const getEnvironmentLabel = () => {
+    if (typeof window === "undefined") return "Unknown";
+    const { hostname, origin } = window.location;
+    if (hostname === "localhost" || hostname === "127.0.0.1") return "Localhost";
+    if (hostname.endsWith(".vercel.app") || hostname.endsWith(".netlify.app") || origin.includes("preview")) return "Preview";
+    if (window.location.protocol === "https:") return "Production";
+    return "Unknown";
+  };
 
   const getCaseFallbackFocus = (caseItem) => {
     const description = String(caseItem?.description || "").trim();
@@ -1411,6 +1448,21 @@ export default function ProveItApp() {
     return [...cases]
       .sort((a, b) => new Date(getCaseLastUpdated(b) || 0) - new Date(getCaseLastUpdated(a) || 0))[0]?.id || null;
   }, [cases]);
+
+  const dashboardCounts = useMemo(() => {
+    const embeddedImageIds = new Set();
+    cases.forEach((caseItem) => {
+      collectEmbeddedCaseImageIds(caseItem).forEach((imageId) => embeddedImageIds.add(imageId));
+    });
+
+    const diagnosticCounts = storageDiagnostics?.recordCounts || {};
+
+    return {
+      cases: diagnosticCounts.cases ?? cases.length,
+      evidence: cases.reduce((total, caseItem) => total + (caseItem?.evidence?.length || 0), 0),
+      images: diagnosticCounts.images ?? embeddedImageIds.size,
+    };
+  }, [cases, storageDiagnostics]);
 
   // Load cases from IndexedDB
   useEffect(() => {
@@ -2187,37 +2239,14 @@ const handleRecordFiles = async (event) => {
 
     return (
       <div className="grid gap-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="text-xl font-semibold">Your Cases</h2>
-            <p className="mt-1 text-sm text-neutral-500">Search, sort, and jump straight back into the right case.</p>
+            <p className="mt-1 text-sm text-neutral-500">Jump straight back into the right case.</p>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <input
-              type="search"
-              value={caseSearchQuery}
-              onChange={(e) => setCaseSearchQuery(e.target.value)}
-              placeholder="Search by case name or category"
-              className="w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-800 outline-none transition-colors focus:border-lime-500 sm:w-72"
-            />
-            <select
-              value={caseSort}
-              onChange={(e) => setCaseSort(e.target.value)}
-              className="rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-800 outline-none transition-colors focus:border-lime-500"
-            >
-              <option value="updated">Recently updated</option>
-              <option value="name">Name</option>
-              <option value="status">Status</option>
-            </select>
-          </div>
-        </div>
-        <div className="flex items-center justify-between gap-4">
           <div className="text-sm text-neutral-500">
-            {caseListItems.length} case{caseListItems.length === 1 ? "" : "s"}
+            Showing {caseListItems.length} of {cases.length}
           </div>
-          <button onClick={openCreateCaseModal} className="inline-flex items-center px-3 py-1.5 text-sm rounded-md whitespace-nowrap border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95">
-            + Create Case
-          </button>
         </div>
         {caseListItems.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
@@ -2231,20 +2260,22 @@ const handleRecordFiles = async (event) => {
               ? "Unlock to view this case."
               : String(c.actionSummary?.currentFocus || "").trim() || getCaseFallbackFocus(c);
             const primaryActionLabel = caseIsLocked ? "Unlock" : (c.id === selectedCaseId || isMostRecent ? "Continue" : "Open");
+            const caseMetadata = getCaseListMetadata(c);
+            const createdLabel = getCaseCreatedLabel(c);
 
             return (
               <div
                 key={c.id}
                 onClick={() => openCase(c.id)}
-                className={`flex flex-col gap-4 rounded-2xl border bg-white p-4 shadow-sm cursor-pointer transition-colors hover:border-neutral-300 lg:flex-row lg:items-center lg:justify-between ${
+                className={`flex flex-col gap-4 rounded-2xl border bg-white p-4 shadow-sm cursor-pointer transition-colors hover:border-neutral-300 lg:flex-row lg:items-start lg:justify-between ${
                   isMostRecent
                     ? "border-lime-300 bg-lime-50/30 shadow-[0_0_0_1px_rgba(163,230,53,0.35)]"
                     : "border-neutral-200"
                 }`}
               >
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="min-w-0 truncate font-semibold text-neutral-900">{caseIsLocked ? "Locked Case" : c.name}</div>
+                  <div className="flex flex-wrap items-start gap-2">
+                    <div className="min-w-0 break-words text-lg font-bold leading-snug text-neutral-900">{caseIsLocked ? "Locked Case" : c.name}</div>
                     {!caseIsLocked && isMostRecent && (
                       <span className="rounded-full border border-lime-300 bg-lime-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-lime-700">
                         Most Recent
@@ -2263,6 +2294,16 @@ const handleRecordFiles = async (event) => {
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500">
                       <span>{c.category || "Uncategorized"}</span>
                       <span>Updated {formatCaseLastUpdated(c)}</span>
+                      {createdLabel ? <span>Created {createdLabel}</span> : null}
+                    </div>
+                  )}
+                  {!caseIsLocked && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {caseMetadata.map((item) => (
+                        <span key={item} className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] font-semibold text-neutral-600">
+                          {item}
+                        </span>
+                      ))}
                     </div>
                   )}
                   <div className="mt-3">
@@ -2340,6 +2381,14 @@ const handleRecordFiles = async (event) => {
   const backupStatus = getBackupStatus(lastBackupMeta);
   const backupTimestampLabel = formatBackupMetaTimestamp(lastBackupMeta);
   const currentOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const environmentLabel = getEnvironmentLabel();
+  const diagnosticCaseCount = storageDiagnostics?.recordCounts?.cases;
+  const backupNeedsAttention = !hasRecentFullBackupMeta(lastBackupMeta);
+  const onCaseListPage = !selectedCase && !selectedCaseRequiresPin;
+  const showRecoveryPanel = onCaseListPage && (backupNeedsAttention || diagnosticCaseCount === 0 || !!emptyDbWarning);
+  const recoveryMessage = diagnosticCaseCount === 0 || emptyDbWarning
+    ? (emptyDbWarning || EMPTY_DB_WARNING_MESSAGE)
+    : "Full app backup is missing or older than 24 hours. Download a fresh backup before import, restore, or larger edits.";
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-800">
@@ -2520,33 +2569,43 @@ const handleRecordFiles = async (event) => {
         </div>
       ) : null}
       <div className="mx-auto max-w-7xl px-4 py-6">
-        <header className="proveit-app-header relative mb-6 flex flex-col gap-6 rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm">
+        <header className="proveit-app-header relative mb-6 flex flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-lime-500 text-white shadow-lg shadow-lime-100">
-                <ShieldCheck className="h-8 w-8" />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-white shadow-sm">
+                <ShieldCheck className="h-6 w-6" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="text-4xl font-bold tracking-tight text-neutral-900">ProveIt</h1>
-                  <span className="rounded-lg bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500">v1.0</span>
+                  <h1 className="text-3xl font-bold tracking-tight text-neutral-900 sm:text-4xl">ProveIt</h1>
+                  <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500">v1.0</span>
                 </div>
-                <p className="text-sm font-medium text-neutral-500">Advanced Evidence Management & Case Engine</p>
+                <p className="mt-1 text-sm font-medium text-neutral-500">Evidence management and local case engine</p>
               </div>
             </div>
 
             <div className="flex flex-col gap-2 sm:items-end print:hidden">
               <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                <div className="inline-flex items-center gap-2 rounded-full bg-lime-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-lime-700 border border-lime-100">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-lime-400 opacity-75"></span>
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-lime-500"></span>
-                </span>
-                  Local
+                <div className="inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-600">
+                  Env: {environmentLabel}
+                </div>
+                <div className="inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-600">
+                  {dashboardCounts.cases} cases
+                </div>
+                <div className="inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-600">
+                  {dashboardCounts.evidence} evidence
+                </div>
+                <div className="inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-600">
+                  {dashboardCounts.images} images
                 </div>
                 <div className={`inline-flex items-center justify-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${backupStatus.className}`}>
                   {backupStatus.label}
                 </div>
+                {currentOrigin ? (
+                  <div className="inline-flex min-w-0 max-w-full rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-neutral-500 sm:max-w-[22rem]">
+                    <span className="truncate font-mono">{currentOrigin}</span>
+                  </div>
+                ) : null}
               </div>
               <p className="mt-1 text-[10px] text-neutral-400">Secure • Browser Only • Offline First</p>
 
@@ -2554,27 +2613,62 @@ const handleRecordFiles = async (event) => {
                 <button
                   type="button"
                   onClick={() => setExportImportOpen(true)}
-                  className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-lime-500 bg-white px-3 py-1.5 text-xs font-bold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/20 active:scale-95 sm:flex-none"
+                  className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-bold text-neutral-800 shadow-sm transition-colors hover:bg-neutral-100 active:scale-95 sm:flex-none"
                 >
                   <Download className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">Export / Import</span>
+                  <span>Export / Import</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleStorageDiagnostics}
-                  className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs font-bold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-100 active:scale-95 sm:flex-none"
+                  className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-bold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-100 active:scale-95 sm:flex-none"
                 >
                   <Database className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">Diagnostics</span>
+                  <span>Diagnostics</span>
                 </button>
               </div>
             </div>
           </div>
+          {onCaseListPage ? (
+            <div className="flex flex-wrap gap-2 border-t border-neutral-100 pt-4 print:hidden sm:justify-end">
+              <label className="relative min-w-0 flex-1 sm:flex-none">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
+                <input
+                  type="search"
+                  value={caseSearchQuery}
+                  onChange={(e) => setCaseSearchQuery(e.target.value)}
+                  placeholder="Search cases"
+                  className="w-full rounded-lg border border-neutral-300 bg-white py-2 pl-8 pr-3 text-sm text-neutral-800 outline-none transition-colors focus:border-lime-500 sm:w-64"
+                />
+              </label>
+              <select
+                value={caseSort}
+                onChange={(e) => setCaseSort(e.target.value)}
+                className="min-w-[10rem] flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-800 outline-none transition-colors focus:border-lime-500 sm:flex-none"
+              >
+                <option value="updated">Recently updated</option>
+                <option value="name">Name</option>
+                <option value="status">Status</option>
+              </select>
+              <button
+                type="button"
+                onClick={openCreateCaseModal}
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/20 active:scale-95 sm:flex-none"
+              >
+                <Plus className="h-4 w-4 shrink-0" />
+                <span>New Case</span>
+              </button>
+            </div>
+          ) : null}
         </header>
 
-        {emptyDbWarning ? (
-          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold leading-6 text-red-800 print:hidden">
-            {emptyDbWarning}
+        {showRecoveryPanel ? (
+          <div className={`mb-6 rounded-2xl border p-4 text-sm font-semibold leading-6 print:hidden ${
+            diagnosticCaseCount === 0 || emptyDbWarning
+              ? "border-red-200 bg-red-50 text-red-800"
+              : "border-amber-200 bg-amber-50 text-amber-900"
+          }`}>
+            {recoveryMessage}
           </div>
         ) : null}
 
