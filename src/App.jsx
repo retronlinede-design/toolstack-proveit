@@ -43,7 +43,7 @@ import {
 } from "./domain/quickCaptureDomain";
 import { getFileSizeWarning } from "./lib/fileSecurity.js";
 import { removeRecordAttachmentFromForm } from "./domain/recordFormDomain";
-import { Database, ShieldCheck } from "lucide-react";
+import { Database, Download, FileJson, ShieldCheck, Upload, X } from "lucide-react";
 import { getStorageDiagnostics } from "./storageDiagnostics";
 
 const lastUsedGroupByType = {};
@@ -105,6 +105,13 @@ function getBackupStatus(meta) {
     label: "Full backup older than 24h",
     className: "border-amber-200 bg-amber-50 text-amber-800",
   };
+}
+
+function formatBackupMetaTimestamp(meta) {
+  const timestamp = meta?.exportType === "FULL_BACKUP_ALL" ? meta.timestamp : "";
+  const parsedTimestamp = parseBackupTimestamp(timestamp);
+  if (!parsedTimestamp) return "No full app backup recorded";
+  return new Date(parsedTimestamp).toLocaleString();
 }
 
 function isTrackingRecordDocument(doc) {
@@ -480,6 +487,7 @@ export default function ProveItApp() {
   const [storageDiagnosticsError, setStorageDiagnosticsError] = useState("");
   const [storageDiagnosticsLoading, setStorageDiagnosticsLoading] = useState(false);
   const [emptyDbWarning, setEmptyDbWarning] = useState("");
+  const [exportImportOpen, setExportImportOpen] = useState(false);
 
   const showAppNotice = (tone, message) => {
     if (!message) return;
@@ -2330,6 +2338,8 @@ const handleRecordFiles = async (event) => {
   };
 
   const backupStatus = getBackupStatus(lastBackupMeta);
+  const backupTimestampLabel = formatBackupMetaTimestamp(lastBackupMeta);
+  const currentOrigin = typeof window !== "undefined" ? window.location.origin : "";
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-800">
@@ -2388,6 +2398,127 @@ const handleRecordFiles = async (event) => {
           </div>
         </div>
       ) : null}
+      {exportImportOpen ? (
+        <div className="fixed inset-0 z-[125] flex items-center justify-center bg-black/40 p-3 sm:p-4">
+          <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b border-neutral-200 p-4 sm:p-5">
+              <div>
+                <h2 className="text-lg font-semibold text-neutral-900">Export & Import</h2>
+                <p className="mt-1 text-sm text-neutral-500">Back up, export, or import local browser data.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setExportImportOpen(false)}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50"
+                aria-label="Close Export and Import"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
+              <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-neutral-900">Backups</h3>
+                    <p className="mt-1 text-xs leading-5 text-neutral-500">
+                      Full app backups are importable and include all cases, quick captures, and stored attachment data.
+                    </p>
+                  </div>
+                  <span className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${backupStatus.className}`}>
+                    {backupStatus.label}
+                  </span>
+                </div>
+                <div className="mt-3 rounded-lg border border-neutral-200 bg-white p-3 text-xs text-neutral-600">
+                  <div>Last backup: <span className="font-semibold text-neutral-800">{backupTimestampLabel}</span></div>
+                  {lastBackupMeta?.exportType === "FULL_BACKUP_ALL" ? (
+                    <div className="mt-1">
+                      Cases: {lastBackupMeta.caseCount ?? 0} | Quick captures: {lastBackupMeta.quickCaptureCount ?? 0}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={handleFullBackup}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20"
+                  >
+                    <Download className="h-4 w-4" />
+                    Full App Backup
+                  </button>
+                  {selectedCase ? (
+                    <button
+                      type="button"
+                      onClick={exportSelectedCaseBackup}
+                      disabled={selectedCaseRequiresPin}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+                    >
+                      <Download className="h-4 w-4" />
+                      Selected Case Backup
+                    </button>
+                  ) : null}
+                </div>
+              </section>
+
+              <section className="rounded-xl border border-neutral-200 bg-white p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-neutral-900">AI / Reasoning</h3>
+                    <p className="mt-1 text-xs leading-5 text-neutral-500">
+                      Reasoning exports are for AI review and are not backups. They are not importable and do not preserve attachment payloads.
+                    </p>
+                  </div>
+                  <span className="inline-flex w-fit rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                    Not a backup
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => selectedCase && exportCaseReasoningExport(selectedCase.id)}
+                  disabled={!selectedCase || selectedCaseRequiresPin}
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400 sm:w-auto"
+                >
+                  <FileJson className="h-4 w-4" />
+                  Reasoning Export
+                </button>
+              </section>
+
+              <section className="rounded-xl border border-neutral-200 bg-white p-4">
+                <h3 className="text-sm font-bold text-neutral-900">Import</h3>
+                <p className="mt-1 text-xs leading-5 text-amber-800">
+                  Import changes local browser data. Download a Full App Backup before importing.
+                </p>
+                <label className="mt-4 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20 sm:w-auto">
+                  <Upload className="h-4 w-4" />
+                  Import Backup JSON
+                  <input type="file" accept="application/json,.json" className="hidden" onChange={importData} />
+                </label>
+              </section>
+
+              <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                <h3 className="text-sm font-bold text-neutral-900">Safety Notes</h3>
+                <p className="mt-1 text-xs leading-5 text-neutral-600">
+                  ProveIt is local-first. Data is stored in this browser profile for the current origin, so browser storage loss or using another origin can make data unavailable.
+                </p>
+                <div className="mt-3 break-all rounded-lg border border-neutral-200 bg-white p-3 text-xs text-neutral-600">
+                  Current origin: <span className="font-mono text-neutral-800">{currentOrigin || "Unknown"}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExportImportOpen(false);
+                    if (!storageDiagnosticsOpen) handleStorageDiagnostics();
+                  }}
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 sm:w-auto"
+                >
+                  <Database className="h-4 w-4" />
+                  Storage Diagnostics
+                </button>
+              </section>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="mx-auto max-w-7xl px-4 py-6">
         <header className="proveit-app-header relative mb-6 flex flex-col gap-6 rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -2404,37 +2535,37 @@ const handleRecordFiles = async (event) => {
               </div>
             </div>
 
-            <div className="flex flex-col sm:items-end print:hidden">
-              <div className="inline-flex items-center gap-2 rounded-full bg-lime-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-lime-700 border border-lime-100">
+            <div className="flex flex-col gap-2 sm:items-end print:hidden">
+              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                <div className="inline-flex items-center gap-2 rounded-full bg-lime-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-lime-700 border border-lime-100">
                 <span className="relative flex h-2 w-2">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-lime-400 opacity-75"></span>
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-lime-500"></span>
                 </span>
-                Local Storage Active
-              </div>
-              <div className={`mt-2 inline-flex items-center justify-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${backupStatus.className}`}>
-                {backupStatus.label}
+                  Local
+                </div>
+                <div className={`inline-flex items-center justify-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${backupStatus.className}`}>
+                  {backupStatus.label}
+                </div>
               </div>
               <p className="mt-1 text-[10px] text-neutral-400">Secure • Browser Only • Offline First</p>
 
-              <div className="mt-3 flex flex-col gap-1.5 w-28">
+              <div className="mt-1 flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
                 <button
-                  onClick={handleFullBackup}
-                  className="px-2 py-1 text-[10px] rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-sm hover:bg-lime-400/30 transition-all active:scale-95"
+                  type="button"
+                  onClick={() => setExportImportOpen(true)}
+                  className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-lime-500 bg-white px-3 py-1.5 text-xs font-bold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/20 active:scale-95 sm:flex-none"
                 >
-                  Full App Backup (Importable)
+                  <Download className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">Export / Import</span>
                 </button>
-                <label className="px-2 py-1 text-[10px] rounded-md whitespace-nowrap text-center border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-sm hover:bg-lime-400/30 transition-all active:scale-95 cursor-pointer">
-                  Import
-                  <input type="file" accept="application/json,.json" className="hidden" onChange={importData} />
-                </label>
                 <button
                   type="button"
                   onClick={handleStorageDiagnostics}
-                  className="inline-flex items-center justify-center gap-1 px-2 py-1 text-[10px] rounded-md whitespace-nowrap text-center border-2 border-neutral-300 bg-white font-bold text-neutral-700 shadow-sm hover:bg-neutral-100 transition-all active:scale-95"
+                  className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs font-bold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-100 active:scale-95 sm:flex-none"
                 >
-                  <Database className="h-3 w-3" />
-                  Storage Diagnostics
+                  <Database className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">Diagnostics</span>
                 </button>
               </div>
             </div>
