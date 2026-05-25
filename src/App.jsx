@@ -2968,7 +2968,11 @@ const handleRecordFiles = async (event) => {
               </div>
               <p className="mt-1 text-[10px] text-neutral-400">Secure • Browser Only • Offline First</p>
 
-              <div className="mt-1 flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+            </div>
+          </div>
+          {onCaseListPage ? (
+            <div className="rounded-xl border border-lime-500 bg-lime-50 p-3 shadow-[0_0_0_1px_rgba(132,204,22,0.25)] print:hidden">
+              <div className="flex flex-wrap gap-2 sm:justify-end">
                 <button
                   type="button"
                   onClick={() => setExportImportOpen(true)}
@@ -2985,19 +2989,15 @@ const handleRecordFiles = async (event) => {
                   <Database className="h-3.5 w-3.5 shrink-0" />
                   <span>Diagnostics</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={openCreateCaseModal}
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/20 active:scale-95 sm:w-auto"
+                >
+                  <Plus className="h-4 w-4 shrink-0" />
+                  <span>New Case</span>
+                </button>
               </div>
-            </div>
-          </div>
-          {onCaseListPage ? (
-            <div className="rounded-xl border border-lime-500 bg-lime-50 p-3 shadow-[0_0_0_1px_rgba(132,204,22,0.25)] print:hidden">
-              <button
-                type="button"
-                onClick={openCreateCaseModal}
-                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/20 active:scale-95 sm:w-auto"
-              >
-                <Plus className="h-4 w-4 shrink-0" />
-                <span>New Case</span>
-              </button>
             </div>
           ) : null}
         </header>
