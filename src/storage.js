@@ -4,6 +4,8 @@
 // - evidence store is legacy/transitional and is not the canonical source
 // - all live case updates must end in saveCase(updatedCase)
 
+import { STORE_NAMES } from "./dbConstants.js";
+
 async function getDb() {
   const { dbPromise } = await import("./db.js");
   return dbPromise;
@@ -11,12 +13,12 @@ async function getDb() {
 
 export async function getAllCases() {
   const db = await getDb();
-  return db.getAll("cases");
+  return db.getAll(STORE_NAMES.cases);
 }
 
 export async function saveCase(caseItem) {
   const db = await getDb();
-  return db.put("cases", caseItem);
+  return db.put(STORE_NAMES.cases, caseItem);
 }
 
 function collectAttachmentImageIds(attachments, imageIds) {
@@ -52,26 +54,26 @@ export function collectEmbeddedCaseImageIds(caseItem) {
 }
 
 export async function deleteCaseFromDb(db, caseId) {
-  const caseItem = await db.get("cases", caseId);
+  const caseItem = await db.get(STORE_NAMES.cases, caseId);
   const candidateImageIds = collectEmbeddedCaseImageIds(caseItem);
   const deletedImageIds = new Set();
 
-  const evidenceItems = await db.getAllFromIndex("evidence", "caseId", caseId);
+  const evidenceItems = await db.getAllFromIndex(STORE_NAMES.evidence, "caseId", caseId);
   for (const item of evidenceItems) {
-    const images = await db.getAllFromIndex("images", "evidenceId", item.id);
+    const images = await db.getAllFromIndex(STORE_NAMES.images, "evidenceId", item.id);
     for (const img of images) {
-      await db.delete("images", img.id);
+      await db.delete(STORE_NAMES.images, img.id);
       deletedImageIds.add(img.id);
     }
-    await db.delete("evidence", item.id);
+    await db.delete(STORE_NAMES.evidence, item.id);
   }
 
-  await db.delete("cases", caseId);
+  await db.delete(STORE_NAMES.cases, caseId);
 
   if (candidateImageIds.size === 0) return;
 
   const remainingReferencedImageIds = new Set();
-  const remainingCases = await db.getAll("cases");
+  const remainingCases = await db.getAll(STORE_NAMES.cases);
   for (const remainingCase of remainingCases) {
     for (const imageId of collectEmbeddedCaseImageIds(remainingCase)) {
       remainingReferencedImageIds.add(imageId);
@@ -81,7 +83,7 @@ export async function deleteCaseFromDb(db, caseId) {
   for (const imageId of candidateImageIds) {
     if (deletedImageIds.has(imageId)) continue;
     if (remainingReferencedImageIds.has(imageId)) continue;
-    await db.delete("images", imageId);
+    await db.delete(STORE_NAMES.images, imageId);
   }
 }
 
@@ -96,38 +98,38 @@ export async function deleteCase(caseId) {
 
 export async function getEvidenceByCase(caseId) {
   const db = await getDb();
-  return db.getAllFromIndex("evidence", "caseId", caseId);
+  return db.getAllFromIndex(STORE_NAMES.evidence, "caseId", caseId);
 }
 
 export async function saveEvidence(evidenceItem) {
   const db = await getDb();
-  return db.put("evidence", evidenceItem);
+  return db.put(STORE_NAMES.evidence, evidenceItem);
 }
 
 export async function deleteEvidence(evidenceId) {
   const db = await getDb();
 
-  const images = await db.getAllFromIndex("images", "evidenceId", evidenceId);
+  const images = await db.getAllFromIndex(STORE_NAMES.images, "evidenceId", evidenceId);
   for (const img of images) {
-    await db.delete("images", img.id);
+    await db.delete(STORE_NAMES.images, img.id);
   }
 
-  await db.delete("evidence", evidenceId);
+  await db.delete(STORE_NAMES.evidence, evidenceId);
 }
 
 export async function getImagesByEvidence(evidenceId) {
   const db = await getDb();
-  return db.getAllFromIndex("images", "evidenceId", evidenceId);
+  return db.getAllFromIndex(STORE_NAMES.images, "evidenceId", evidenceId);
 }
 
 export async function saveImage(imageItem) {
   const db = await getDb();
-  return db.put("images", imageItem);
+  return db.put(STORE_NAMES.images, imageItem);
 }
 
 export async function deleteImage(imageId) {
   const db = await getDb();
-  return db.delete("images", imageId);
+  return db.delete(STORE_NAMES.images, imageId);
 }
 
 export async function deleteImages(imageIds = []) {
@@ -139,5 +141,5 @@ export async function deleteImages(imageIds = []) {
 
 export async function getImageById(id) {
   const db = await getDb();
-  return db.get("images", id);
+  return db.get(STORE_NAMES.images, id);
 }

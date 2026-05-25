@@ -1,16 +1,17 @@
 import { openDB } from "idb";
+import { DB_NAME, DB_VERSION, STORE_NAMES } from "./dbConstants.js";
 
-export const dbPromise = openDB("proveit-db", 2, {
+export const dbPromise = openDB(DB_NAME, DB_VERSION, {
   upgrade(db, oldVersion, newVersion, transaction) {
-    if (!db.objectStoreNames.contains("cases")) {
-      db.createObjectStore("cases", { keyPath: "id" });
+    if (!db.objectStoreNames.contains(STORE_NAMES.cases)) {
+      db.createObjectStore(STORE_NAMES.cases, { keyPath: "id" });
     }
 
     let evidenceStore;
-    if (!db.objectStoreNames.contains("evidence")) {
-      evidenceStore = db.createObjectStore("evidence", { keyPath: "id" });
+    if (!db.objectStoreNames.contains(STORE_NAMES.evidence)) {
+      evidenceStore = db.createObjectStore(STORE_NAMES.evidence, { keyPath: "id" });
     } else {
-      evidenceStore = transaction.objectStore("evidence");
+      evidenceStore = transaction.objectStore(STORE_NAMES.evidence);
     }
 
     if (!evidenceStore.indexNames.contains("caseId")) {
@@ -18,10 +19,10 @@ export const dbPromise = openDB("proveit-db", 2, {
     }
 
     let imageStore;
-    if (!db.objectStoreNames.contains("images")) {
-      imageStore = db.createObjectStore("images", { keyPath: "id" });
+    if (!db.objectStoreNames.contains(STORE_NAMES.images)) {
+      imageStore = db.createObjectStore(STORE_NAMES.images, { keyPath: "id" });
     } else {
-      imageStore = transaction.objectStore("images");
+      imageStore = transaction.objectStore(STORE_NAMES.images);
     }
 
     if (!imageStore.indexNames.contains("caseId")) {

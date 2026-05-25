@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { getAllCases, saveCase, deleteCase, saveImage, getImageById, collectEmbeddedCaseImageIds, deleteImages } from "./storage";
 import AttachmentPreview from "./components/AttachmentPreview";
 import RecordModal from "./components/RecordModal";
@@ -43,13 +43,17 @@ import {
 } from "./domain/quickCaptureDomain";
 import { getFileSizeWarning } from "./lib/fileSecurity.js";
 import { removeRecordAttachmentFromForm } from "./domain/recordFormDomain";
-import { ShieldCheck } from "lucide-react";
+import { Database, ShieldCheck } from "lucide-react";
+import { getStorageDiagnostics } from "./storageDiagnostics";
 
 const lastUsedGroupByType = {};
 const SHOW_REVIEW_QUEUE = false;
 const CREATE_NEW_SEQUENCE_GROUP_OPTION = "__create_new_sequence_group__";
 const LAST_FULL_BACKUP_ALL_AT_KEY = "toolstack.proveit.v1.lastFullBackupAt";
+const LAST_BACKUP_META_KEY = "toolstack.proveit.v1.lastBackupMeta";
 const FULL_BACKUP_ALL_RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
+const RISKY_ACTION_BACKUP_MESSAGE = "Before applying changes, download a Full App Backup. ProveIt stores data locally in this browser, and browser storage can be lost.";
+const EMPTY_DB_WARNING_MESSAGE = "No cases found in this browser storage. If this is unexpected, stop and check Storage Diagnostics before importing or creating new data.";
 
 function safeText(value) {
   return typeof value === "string" ? value : "";
@@ -62,11 +66,13 @@ function parseBackupTimestamp(value) {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
-function readLastFullBackupAllAt() {
+function readLastBackupMeta() {
   try {
-    return localStorage.getItem(LAST_FULL_BACKUP_ALL_AT_KEY) || "";
+    const saved = localStorage.getItem(LAST_BACKUP_META_KEY);
+    const parsed = saved ? JSON.parse(saved) : null;
+    return parsed && typeof parsed === "object" ? parsed : null;
   } catch {
-    return "";
+    return null;
   }
 }
 
@@ -74,6 +80,31 @@ function hasRecentFullBackupAll(timestamp) {
   const parsedTimestamp = parseBackupTimestamp(timestamp);
   const ageMs = Date.now() - parsedTimestamp;
   return parsedTimestamp > 0 && ageMs >= 0 && ageMs <= FULL_BACKUP_ALL_RECENT_WINDOW_MS;
+}
+
+function hasRecentFullBackupMeta(meta) {
+  return meta?.exportType === "FULL_BACKUP_ALL" && hasRecentFullBackupAll(meta.timestamp);
+}
+
+function getBackupStatus(meta) {
+  if (!meta || meta.exportType !== "FULL_BACKUP_ALL" || !meta.timestamp) {
+    return {
+      label: "Backup none recorded",
+      className: "border-red-200 bg-red-50 text-red-700",
+    };
+  }
+
+  if (hasRecentFullBackupMeta(meta)) {
+    return {
+      label: "Full backup within 24h",
+      className: "border-lime-200 bg-lime-50 text-lime-700",
+    };
+  }
+
+  return {
+    label: "Full backup older than 24h",
+    className: "border-amber-200 bg-amber-50 text-amber-800",
+  };
 }
 
 function isTrackingRecordDocument(doc) {
@@ -428,7 +459,9 @@ export default function ProveItApp() {
   const [gptDeltaValidatedCase, setGptDeltaValidatedCase] = useState(null);
   const [gptDeltaApplying, setGptDeltaApplying] = useState(false);
   const [gptDeltaBackupPromptOpen, setGptDeltaBackupPromptOpen] = useState(false);
-  const [lastFullBackupAllAt, setLastFullBackupAllAt] = useState(() => readLastFullBackupAllAt());
+  const [lastBackupMeta, setLastBackupMeta] = useState(() => readLastBackupMeta());
+  const [riskyActionGuardOpen, setRiskyActionGuardOpen] = useState(false);
+  const riskyActionGuardResolverRef = useRef(null);
 
   const [ledgerModalOpen, setLedgerModalOpen] = useState(false);
   const [ledgerForm, setLedgerForm] = useState(EMPTY_LEDGER_FORM);
@@ -442,6 +475,11 @@ export default function ProveItApp() {
   const [recordPromptCopied, setRecordPromptCopied] = useState(false);
   const [documentModalMode, setDocumentModalMode] = useState("document");
   const [appNotice, setAppNotice] = useState(null);
+  const [storageDiagnosticsOpen, setStorageDiagnosticsOpen] = useState(false);
+  const [storageDiagnostics, setStorageDiagnostics] = useState(null);
+  const [storageDiagnosticsError, setStorageDiagnosticsError] = useState("");
+  const [storageDiagnosticsLoading, setStorageDiagnosticsLoading] = useState(false);
+  const [emptyDbWarning, setEmptyDbWarning] = useState("");
 
   const showAppNotice = (tone, message) => {
     if (!message) return;
@@ -455,11 +493,78 @@ export default function ProveItApp() {
     }
   };
 
+  const refreshBackupMeta = () => {
+    const meta = readLastBackupMeta();
+    setLastBackupMeta(meta);
+    return meta;
+  };
+
+  const closeRiskyActionGuard = (shouldContinue) => {
+    setRiskyActionGuardOpen(false);
+    const resolve = riskyActionGuardResolverRef.current;
+    riskyActionGuardResolverRef.current = null;
+    if (resolve) resolve(shouldContinue);
+  };
+
+  const requireRecentFullBackup = () => {
+    if (hasRecentFullBackupMeta(refreshBackupMeta())) return Promise.resolve(true);
+
+    return new Promise((resolve) => {
+      riskyActionGuardResolverRef.current = resolve;
+      setRiskyActionGuardOpen(true);
+    });
+  };
+
+  const handleRiskyActionDownloadBackup = async () => {
+    const backupCreated = await handleFullBackup();
+    if (backupCreated) {
+      closeRiskyActionGuard(true);
+    }
+  };
+
+  const handleStorageDiagnostics = async () => {
+    const nextOpen = !storageDiagnosticsOpen;
+    setStorageDiagnosticsOpen(nextOpen);
+    if (!nextOpen) return;
+
+    setStorageDiagnosticsLoading(true);
+    setStorageDiagnosticsError("");
+    try {
+      setStorageDiagnostics(await getStorageDiagnostics());
+    } catch (error) {
+      console.error("Storage diagnostics failed", error);
+      setStorageDiagnostics(null);
+      setStorageDiagnosticsError(error.message || "Could not read storage diagnostics.");
+    } finally {
+      setStorageDiagnosticsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!appNotice) return;
     const timeout = window.setTimeout(() => setAppNotice(null), appNotice.tone === "error" ? 8000 : 6000);
     return () => window.clearTimeout(timeout);
   }, [appNotice]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkEmptyStorage() {
+      try {
+        const diagnostics = await getStorageDiagnostics();
+        if (!cancelled && diagnostics.recordCounts?.cases === 0) {
+          setEmptyDbWarning(EMPTY_DB_WARNING_MESSAGE);
+        }
+      } catch (error) {
+        console.error("Startup storage diagnostics failed", error);
+      }
+    }
+
+    checkEmptyStorage();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleFullBackup = async () => {
     try {
@@ -479,12 +584,19 @@ export default function ProveItApp() {
       );
 
       const backupTimestamp = new Date().toISOString();
+      const backupMeta = {
+        exportType: "FULL_BACKUP_ALL",
+        timestamp: backupTimestamp,
+        caseCount: allCases.length,
+        quickCaptureCount: quickCaptures.length,
+      };
       try {
         localStorage.setItem(LAST_FULL_BACKUP_ALL_AT_KEY, backupTimestamp);
+        localStorage.setItem(LAST_BACKUP_META_KEY, JSON.stringify(backupMeta));
       } catch {
         // If localStorage is unavailable, keep the timestamp in state for this session only.
       }
-      setLastFullBackupAllAt(backupTimestamp);
+      setLastBackupMeta(backupMeta);
       return true;
     } catch (err) {
       console.error("FULL BACKUP failed", err);
@@ -758,18 +870,7 @@ export default function ProveItApp() {
 
     setGptDeltaError("");
 
-    const storedLastFullBackupAllAt = readLastFullBackupAllAt();
-    const hasRecentStoredBackup = hasRecentFullBackupAll(storedLastFullBackupAllAt);
-    const freshestLastFullBackupAllAt = hasRecentStoredBackup
-      ? storedLastFullBackupAllAt
-      : lastFullBackupAllAt;
-
-    if (hasRecentStoredBackup && storedLastFullBackupAllAt !== lastFullBackupAllAt) {
-      setLastFullBackupAllAt(storedLastFullBackupAllAt);
-    }
-
-    if (!hasRecentFullBackupAll(freshestLastFullBackupAllAt)) {
-      setGptDeltaBackupPromptOpen(true);
+    if (!(await requireRecentFullBackup())) {
       return;
     }
 
@@ -1479,6 +1580,10 @@ export default function ProveItApp() {
   const importData = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (!(await requireRecentFullBackup())) {
+      event.target.value = "";
+      return;
+    }
     const importSizeWarning = getFileSizeWarning(file);
     if (importSizeWarning) {
       showAppNotice("warning", importSizeWarning);
@@ -2224,6 +2329,8 @@ const handleRecordFiles = async (event) => {
     );
   };
 
+  const backupStatus = getBackupStatus(lastBackupMeta);
+
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-800">
       {appNotice ? (
@@ -2245,6 +2352,37 @@ const handleRecordFiles = async (event) => {
                 className="rounded-lg border border-current/15 px-2 py-1 text-xs font-semibold opacity-80 hover:opacity-100"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {riskyActionGuardOpen ? (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-amber-200 bg-white p-5 shadow-xl">
+            <h2 className="text-lg font-semibold text-neutral-900">Full App Backup Recommended</h2>
+            <p className="mt-2 text-sm leading-6 text-neutral-700">{RISKY_ACTION_BACKUP_MESSAGE}</p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={handleRiskyActionDownloadBackup}
+                className="rounded-md border border-lime-600 bg-lime-500 px-3 py-2 text-sm font-semibold text-white hover:bg-lime-600"
+              >
+                Download Full Backup
+              </button>
+              <button
+                type="button"
+                onClick={() => closeRiskyActionGuard(true)}
+                className="rounded-md border border-amber-400 bg-white px-3 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-50"
+              >
+                Continue Anyway
+              </button>
+              <button
+                type="button"
+                onClick={() => closeRiskyActionGuard(false)}
+                className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
+              >
+                Cancel
               </button>
             </div>
           </div>
@@ -2274,6 +2412,9 @@ const handleRecordFiles = async (event) => {
                 </span>
                 Local Storage Active
               </div>
+              <div className={`mt-2 inline-flex items-center justify-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${backupStatus.className}`}>
+                {backupStatus.label}
+              </div>
               <p className="mt-1 text-[10px] text-neutral-400">Secure • Browser Only • Offline First</p>
 
               <div className="mt-3 flex flex-col gap-1.5 w-28">
@@ -2287,10 +2428,53 @@ const handleRecordFiles = async (event) => {
                   Import
                   <input type="file" accept="application/json,.json" className="hidden" onChange={importData} />
                 </label>
+                <button
+                  type="button"
+                  onClick={handleStorageDiagnostics}
+                  className="inline-flex items-center justify-center gap-1 px-2 py-1 text-[10px] rounded-md whitespace-nowrap text-center border-2 border-neutral-300 bg-white font-bold text-neutral-700 shadow-sm hover:bg-neutral-100 transition-all active:scale-95"
+                >
+                  <Database className="h-3 w-3" />
+                  Storage Diagnostics
+                </button>
               </div>
             </div>
           </div>
         </header>
+
+        {emptyDbWarning ? (
+          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold leading-6 text-red-800 print:hidden">
+            {emptyDbWarning}
+          </div>
+        ) : null}
+
+        {storageDiagnosticsOpen ? (
+          <section className="mb-6 rounded-2xl border border-neutral-200 bg-white p-4 text-sm text-neutral-700 shadow-sm print:hidden">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-sm font-bold text-neutral-900">Storage Diagnostics</h2>
+                <p className="mt-1 text-xs text-neutral-500">Read-only browser storage snapshot.</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleStorageDiagnostics}
+                className="rounded-md border border-neutral-300 bg-white px-2 py-1 text-xs font-semibold text-neutral-700 hover:bg-neutral-100"
+              >
+                Refresh
+              </button>
+            </div>
+            {storageDiagnosticsLoading ? (
+              <div className="mt-3 text-xs text-neutral-500">Reading storage...</div>
+            ) : storageDiagnosticsError ? (
+              <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-800">
+                {storageDiagnosticsError}
+              </div>
+            ) : storageDiagnostics ? (
+              <pre className="mt-3 overflow-x-auto rounded-md bg-neutral-950 p-3 text-xs leading-5 text-neutral-100">
+                {JSON.stringify(storageDiagnostics, null, 2)}
+              </pre>
+            ) : null}
+          </section>
+        ) : null}
 
         {loadingCases ? (
           <div className="p-8 text-center text-neutral-500">Loading cases...</div>
