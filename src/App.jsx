@@ -2989,11 +2989,11 @@ const handleRecordFiles = async (event) => {
             </div>
           </div>
           {onCaseListPage ? (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/30 p-3 print:hidden">
+            <div className="rounded-xl border border-lime-500 bg-lime-50 p-3 shadow-[0_0_0_1px_rgba(132,204,22,0.25)] print:hidden">
               <button
                 type="button"
                 onClick={openCreateCaseModal}
-                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-emerald-600 bg-white px-3 py-2 text-sm font-bold text-neutral-900 shadow-sm transition-colors hover:bg-emerald-50 active:scale-95 sm:w-auto"
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/20 active:scale-95 sm:w-auto"
               >
                 <Plus className="h-4 w-4 shrink-0" />
                 <span>New Case</span>
