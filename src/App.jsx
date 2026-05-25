@@ -2944,7 +2944,7 @@ const handleRecordFiles = async (event) => {
         </div>
       ) : null}
       <div className="mx-auto max-w-7xl px-4 py-6">
-        <header className="proveit-app-header relative mb-6 flex flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
+        <header className="proveit-app-header relative mb-3 flex flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <h1 className="sr-only">ProveIt</h1>
@@ -2970,37 +2970,38 @@ const handleRecordFiles = async (event) => {
 
             </div>
           </div>
-          {onCaseListPage ? (
-            <div className="rounded-xl border border-lime-500 bg-lime-50 p-3 shadow-[0_0_0_1px_rgba(132,204,22,0.25)] print:hidden">
-              <div className="flex flex-wrap gap-2 sm:justify-end">
-                <button
-                  type="button"
-                  onClick={() => setExportImportOpen(true)}
-                  className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-bold text-neutral-800 shadow-sm transition-colors hover:bg-neutral-100 active:scale-95 sm:flex-none"
-                >
-                  <Download className="h-3.5 w-3.5 shrink-0" />
-                  <span>Export / Import</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleStorageDiagnostics}
-                  className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-bold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-100 active:scale-95 sm:flex-none"
-                >
-                  <Database className="h-3.5 w-3.5 shrink-0" />
-                  <span>Diagnostics</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={openCreateCaseModal}
-                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/20 active:scale-95 sm:w-auto"
-                >
-                  <Plus className="h-4 w-4 shrink-0" />
-                  <span>New Case</span>
-                </button>
-              </div>
-            </div>
-          ) : null}
         </header>
+
+        {onCaseListPage ? (
+          <section className="mb-6 rounded-xl border border-lime-500 bg-lime-50 p-3 shadow-[0_0_0_1px_rgba(132,204,22,0.25)] print:hidden">
+            <div className="flex flex-wrap gap-2 sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setExportImportOpen(true)}
+                className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-bold text-neutral-800 shadow-sm transition-colors hover:bg-neutral-100 active:scale-95 sm:flex-none"
+              >
+                <Download className="h-3.5 w-3.5 shrink-0" />
+                <span>Export / Import</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleStorageDiagnostics}
+                className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-bold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-100 active:scale-95 sm:flex-none"
+              >
+                <Database className="h-3.5 w-3.5 shrink-0" />
+                <span>Diagnostics</span>
+              </button>
+              <button
+                type="button"
+                onClick={openCreateCaseModal}
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/20 active:scale-95 sm:w-auto"
+              >
+                <Plus className="h-4 w-4 shrink-0" />
+                <span>New Case</span>
+              </button>
+            </div>
+          </section>
+        ) : null}
 
         {showRecoveryPanel ? (
           <div className={`mb-6 rounded-2xl border p-4 text-sm font-semibold leading-6 print:hidden ${
