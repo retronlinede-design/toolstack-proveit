@@ -2326,20 +2326,10 @@ const handleRecordFiles = async (event) => {
     );
   };
 
-  const folderTiles = [
-    ...caseFolders.map((folder) => ({
-      ...folder,
-      count: getFolderCaseCount(folder.id),
-      system: false,
-    })),
-    {
-      id: "unfiled",
-      name: "Inbox",
-      description: "New and unassigned cases",
-      count: getFolderCaseCount("unfiled"),
-      system: true,
-    },
-  ];
+  const folderTiles = caseFolders.map((folder) => ({
+    ...folder,
+    count: getFolderCaseCount(folder.id),
+  }));
 
   const renderFolderTiles = () => (
     <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm print:hidden">
@@ -2363,14 +2353,36 @@ const handleRecordFiles = async (event) => {
         </button>
       </div>
 
-      {caseFolders.length === 0 ? (
-        <div className="mt-4 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-600">
-          Create folders to organize cases. New cases appear in Inbox until assigned.
+      <button
+        type="button"
+        onClick={() => setActiveFolderId("unfiled")}
+        className={`mt-4 flex w-full max-w-xl items-center gap-3 rounded-xl border p-3 text-left transition-colors ${
+          activeFolderId === "unfiled"
+            ? "border-lime-500 bg-lime-50 shadow-[0_0_0_1px_rgba(132,204,22,0.2)]"
+            : "border-neutral-200 bg-neutral-50 hover:border-neutral-300 hover:bg-white"
+        }`}
+      >
+        <FolderOpen className={`h-6 w-6 shrink-0 ${activeFolderId === "unfiled" ? "text-lime-700" : "text-neutral-500"}`} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span className="text-sm font-bold text-neutral-900">Inbox</span>
+            <span className="text-xs font-semibold text-neutral-500">
+              {getFolderCaseCount("unfiled")} case{getFolderCaseCount("unfiled") === 1 ? "" : "s"}
+            </span>
+          </div>
+          <p className="mt-0.5 text-xs text-neutral-500">New cases start here</p>
         </div>
-      ) : null}
+      </button>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {folderTiles.map((folder) => {
+      <div className="mt-5">
+        <h3 className="text-sm font-bold text-neutral-900">Folders</h3>
+        {caseFolders.length === 0 ? (
+          <div className="mt-3 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-600">
+            Create folders to organize your cases. New cases remain in Inbox until assigned.
+          </div>
+        ) : (
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {folderTiles.map((folder) => {
           const isActive = activeFolderId === folder.id;
           const FolderIcon = isActive ? FolderOpen : Folder;
           return (
@@ -2401,7 +2413,9 @@ const handleRecordFiles = async (event) => {
             </div>
           </button>
           );
-        })}
+            })}
+          </div>
+        )}
       </div>
     </section>
   );
