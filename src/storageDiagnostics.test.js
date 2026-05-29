@@ -3,12 +3,14 @@ import assert from "node:assert/strict";
 
 import {
   CASE_FOLDERS_STORAGE_KEY,
-  LOCAL_MIRROR_STORAGE_KEY,
   countCaseFolders,
   getLocalStorageDiagnostics,
-  readLocalMirrorSummary,
-  writeLocalMirrorFromFullBackup,
 } from "./storageDiagnostics.js";
+import {
+  RESCUE_SNAPSHOT_STORAGE_KEY,
+  readRescueSnapshotSummary,
+  writeRescueSnapshot,
+} from "./rescueSnapshot.js";
 
 function withFakeLocalStorage(callback) {
   const originalLocalStorage = globalThis.localStorage;
@@ -46,120 +48,41 @@ test("countCaseFolders treats missing or invalid folder data as empty", () => {
   });
 });
 
-test("readLocalMirrorSummary reports mirror metadata", () => {
-  withFakeLocalStorage((values) => {
-    values.set(LOCAL_MIRROR_STORAGE_KEY, JSON.stringify({
-      exportType: "FULL_BACKUP_ALL",
-      timestamp: "2026-05-29T10:00:00.000Z",
-      caseCount: 3,
-      quickCaptureCount: 1,
-      folderCount: 2,
-      payload: { exportType: "FULL_BACKUP_ALL", data: { cases: [] } },
-    }));
-
-    assert.deepEqual(readLocalMirrorSummary(), {
-      exists: true,
-      timestamp: "2026-05-29T10:00:00.000Z",
-      caseCount: 3,
-      folderCount: 2,
-      corrupt: false,
+test("local storage diagnostics sees rescue snapshot after write", () => {
+  withFakeLocalStorage(() => {
+    writeRescueSnapshot({
+      cases: [{ id: "case-1" }],
+      folders: [{ id: "folder-1", name: "Finance" }],
+      imageCount: 48,
     });
+
+    const diagnostics = getLocalStorageDiagnostics();
+    assert.equal(diagnostics.rescueSnapshotExists, true);
+    assert.equal(diagnostics.rescueSnapshotCaseCount, 1);
+    assert.equal(diagnostics.rescueSnapshotFolderCount, 1);
+    assert.equal(diagnostics.rescueSnapshotImageCount, 48);
   });
 });
 
-test("readLocalMirrorSummary handles missing and corrupt mirror data", () => {
+test("readRescueSnapshotSummary handles missing and corrupt rescue data", () => {
   withFakeLocalStorage((values) => {
-    assert.deepEqual(readLocalMirrorSummary(), {
+    assert.deepEqual(readRescueSnapshotSummary(), {
       exists: false,
       timestamp: "",
       caseCount: 0,
       folderCount: 0,
+      imageCount: 0,
       corrupt: false,
     });
 
-    values.set(LOCAL_MIRROR_STORAGE_KEY, "{bad json");
-    assert.deepEqual(readLocalMirrorSummary(), {
-      exists: true,
+    values.set(RESCUE_SNAPSHOT_STORAGE_KEY, "{bad json");
+    assert.deepEqual(readRescueSnapshotSummary(), {
+      exists: false,
       timestamp: "",
       caseCount: 0,
       folderCount: 0,
+      imageCount: 0,
       corrupt: true,
     });
-  });
-});
-
-test("writeLocalMirrorFromFullBackup writes mirror for valid full backups with cases", () => {
-  withFakeLocalStorage((values) => {
-    const payload = {
-      exportType: "FULL_BACKUP_ALL",
-      appData: { folders: [{ id: "folder-1", name: "Finance" }] },
-      data: {
-        cases: [{ id: "case-1" }],
-        quickCaptures: [{ id: "capture-1" }],
-      },
-    };
-
-    const mirror = writeLocalMirrorFromFullBackup(payload);
-    const stored = JSON.parse(values.get(LOCAL_MIRROR_STORAGE_KEY));
-
-    assert.equal(mirror.caseCount, 1);
-    assert.equal(stored.caseCount, 1);
-    assert.equal(stored.quickCaptureCount, 1);
-    assert.equal(stored.folderCount, 1);
-    assert.deepEqual(stored.payload, payload);
-  });
-});
-
-test("writeLocalMirrorFromFullBackup refuses to overwrite with zero-case backup", () => {
-  withFakeLocalStorage((values) => {
-    const existing = {
-      exportType: "FULL_BACKUP_ALL",
-      timestamp: "2026-05-29T10:00:00.000Z",
-      caseCount: 2,
-      quickCaptureCount: 0,
-      folderCount: 0,
-      payload: { exportType: "FULL_BACKUP_ALL", data: { cases: [{ id: "case-old" }, { id: "case-2" }] } },
-    };
-    values.set(LOCAL_MIRROR_STORAGE_KEY, JSON.stringify(existing));
-
-    const result = writeLocalMirrorFromFullBackup({
-      exportType: "FULL_BACKUP_ALL",
-      data: { cases: [] },
-    });
-
-    assert.equal(result, null);
-    assert.deepEqual(JSON.parse(values.get(LOCAL_MIRROR_STORAGE_KEY)), existing);
-  });
-});
-
-test("writeLocalMirrorFromFullBackup reads folders from appData.folders", () => {
-  withFakeLocalStorage((values) => {
-    writeLocalMirrorFromFullBackup({
-      exportType: "FULL_BACKUP_ALL",
-      appData: { folders: [{ id: "folder-app", name: "App Folder" }] },
-      data: {
-        folders: [{ id: "folder-data", name: "Data Folder" }],
-        cases: [{ id: "case-1" }],
-      },
-    });
-
-    const stored = JSON.parse(values.get(LOCAL_MIRROR_STORAGE_KEY));
-    assert.equal(stored.folderCount, 1);
-    assert.deepEqual(stored.payload.appData.folders, [{ id: "folder-app", name: "App Folder" }]);
-  });
-});
-
-test("local storage diagnostics sees mirror after write", () => {
-  withFakeLocalStorage(() => {
-    writeLocalMirrorFromFullBackup({
-      exportType: "FULL_BACKUP_ALL",
-      appData: { folders: [{ id: "folder-1", name: "Finance" }] },
-      data: { cases: [{ id: "case-1" }] },
-    });
-
-    const diagnostics = getLocalStorageDiagnostics();
-    assert.equal(diagnostics.localMirrorExists, true);
-    assert.equal(diagnostics.localMirrorCaseCount, 1);
-    assert.equal(diagnostics.localMirrorFolderCount, 1);
   });
 });

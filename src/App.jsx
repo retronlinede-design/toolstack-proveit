@@ -44,7 +44,8 @@ import {
 import { getFileSizeWarning } from "./lib/fileSecurity.js";
 import { removeRecordAttachmentFromForm } from "./domain/recordFormDomain";
 import { Database, Download, FileJson, Folder, FolderOpen, Plus, Settings, Trash2, Upload, X } from "lucide-react";
-import { getStorageDiagnostics, writeLocalMirrorFromFullBackup } from "./storageDiagnostics";
+import { getStorageDiagnostics } from "./storageDiagnostics";
+import { readRescueSnapshot, writeRescueSnapshot } from "./rescueSnapshot";
 import proveItLogo from "./assets/proveit-logo.png";
 
 const lastUsedGroupByType = {};
@@ -53,7 +54,6 @@ const CREATE_NEW_SEQUENCE_GROUP_OPTION = "__create_new_sequence_group__";
 const LAST_FULL_BACKUP_ALL_AT_KEY = "toolstack.proveit.v1.lastFullBackupAt";
 const LAST_BACKUP_META_KEY = "toolstack.proveit.v1.lastBackupMeta";
 const CASE_FOLDERS_STORAGE_KEY = "toolstack.proveit.v1.folders";
-const LOCAL_MIRROR_STORAGE_KEY = "toolstack.proveit.v1.localMirror";
 const FULL_BACKUP_ALL_RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const RISKY_ACTION_BACKUP_MESSAGE = "Before applying changes, download a Full App Backup. ProveIt stores data locally in this browser, and browser storage can be lost.";
 const EMPTY_DB_WARNING_MESSAGE = "No cases found in this browser storage. If this is unexpected, stop and check Storage Diagnostics before importing or creating new data.";
@@ -250,41 +250,6 @@ function getFullBackupPayloadCounts(payload) {
     quickCaptureCount: Array.isArray(imported?.quickCaptures) ? imported.quickCaptures.length : 0,
     folderCount: folders.length,
   };
-}
-
-function readLocalMirrorRecord() {
-  try {
-    const saved = localStorage.getItem(LOCAL_MIRROR_STORAGE_KEY);
-    if (!saved) {
-      return { available: false, corrupt: false, message: "No local mirror found." };
-    }
-
-    const mirror = JSON.parse(saved);
-    if (
-      !mirror ||
-      typeof mirror !== "object" ||
-      mirror.exportType !== "FULL_BACKUP_ALL" ||
-      !mirror.payload ||
-      mirror.payload.exportType !== "FULL_BACKUP_ALL"
-    ) {
-      return { available: false, corrupt: true, message: "Local mirror unavailable/corrupt" };
-    }
-
-    const payloadCounts = getFullBackupPayloadCounts(mirror.payload);
-    const caseCount = Number.isFinite(mirror.caseCount) ? mirror.caseCount : payloadCounts.caseCount;
-    return {
-      available: caseCount > 0,
-      corrupt: false,
-      message: "",
-      timestamp: typeof mirror.timestamp === "string" ? mirror.timestamp : "",
-      caseCount,
-      quickCaptureCount: Number.isFinite(mirror.quickCaptureCount) ? mirror.quickCaptureCount : payloadCounts.quickCaptureCount,
-      folderCount: Number.isFinite(mirror.folderCount) ? mirror.folderCount : payloadCounts.folderCount,
-      payload: mirror.payload,
-    };
-  } catch {
-    return { available: false, corrupt: true, message: "Local mirror unavailable/corrupt" };
-  }
 }
 
 function readCaseFolders() {
@@ -671,8 +636,9 @@ export default function ProveItApp() {
   const [storageDiagnosticsLoading, setStorageDiagnosticsLoading] = useState(false);
   const [emptyDbWarning, setEmptyDbWarning] = useState("");
   const [exportImportOpen, setExportImportOpen] = useState(false);
-  const [localMirror, setLocalMirror] = useState(() => readLocalMirrorRecord());
-  const [localMirrorRecoveryIgnored, setLocalMirrorRecoveryIgnored] = useState(false);
+  const [rescueSnapshot, setRescueSnapshot] = useState(() => readRescueSnapshot());
+  const [rescueSnapshotRecoveryIgnored, setRescueSnapshotRecoveryIgnored] = useState(false);
+  const rescueSnapshotTimerRef = useRef(null);
 
   const showAppNotice = (tone, message) => {
     if (!message) return;
@@ -692,10 +658,29 @@ export default function ProveItApp() {
     return meta;
   };
 
-  const refreshLocalMirror = () => {
-    const mirror = readLocalMirrorRecord();
-    setLocalMirror(mirror);
-    return mirror;
+  const refreshRescueSnapshot = () => {
+    const rescue = readRescueSnapshot();
+    setRescueSnapshot(rescue);
+    return rescue;
+  };
+
+  const updateRescueSnapshot = async ({
+    cases: snapshotCases,
+    folders: snapshotFolders,
+    quickCaptures: snapshotQuickCaptures,
+  } = {}) => {
+    const sourceCases = Array.isArray(snapshotCases) ? snapshotCases : await getAllCases();
+    if (sourceCases.length === 0) return null;
+
+    const diagnostics = await getStorageDiagnostics();
+    const snapshot = writeRescueSnapshot({
+      cases: sourceCases,
+      folders: Array.isArray(snapshotFolders) ? snapshotFolders : readCaseFolders(),
+      quickCaptures: Array.isArray(snapshotQuickCaptures) ? snapshotQuickCaptures : quickCaptures,
+      imageCount: diagnostics.recordCounts?.images ?? 0,
+    });
+    refreshRescueSnapshot();
+    return snapshot;
   };
 
   const closeRiskyActionGuard = (shouldContinue) => {
@@ -726,7 +711,7 @@ export default function ProveItApp() {
     setStorageDiagnosticsOpen(nextOpen);
     if (!nextOpen) return;
 
-    refreshLocalMirror();
+    refreshRescueSnapshot();
     setStorageDiagnosticsLoading(true);
     setStorageDiagnosticsError("");
     try {
@@ -754,7 +739,7 @@ export default function ProveItApp() {
         const diagnostics = await getStorageDiagnostics();
         if (!cancelled) {
           setStorageDiagnostics(diagnostics);
-          refreshLocalMirror();
+          refreshRescueSnapshot();
           if (diagnostics.recordCounts?.cases === 0) {
             setEmptyDbWarning(EMPTY_DB_WARNING_MESSAGE);
           }
@@ -788,7 +773,11 @@ export default function ProveItApp() {
           .toISOString()
           .slice(0, 10)}.json`
       );
-      writeLocalMirrorFromFullBackup(payload);
+      await updateRescueSnapshot({
+        cases: allCases,
+        folders: foldersForBackup,
+        quickCaptures,
+      });
 
       const backupTimestamp = new Date().toISOString();
       const backupMeta = {
@@ -805,7 +794,7 @@ export default function ProveItApp() {
         // If localStorage is unavailable, keep the timestamp in state for this session only.
       }
       setLastBackupMeta(backupMeta);
-      refreshLocalMirror();
+      refreshRescueSnapshot();
       return true;
     } catch (err) {
       console.error("FULL BACKUP failed", err);
@@ -1848,6 +1837,25 @@ export default function ProveItApp() {
   }, [caseFolders]);
 
   useEffect(() => {
+    if (loadingCases || cases.length === 0) return;
+    if (rescueSnapshotTimerRef.current) {
+      window.clearTimeout(rescueSnapshotTimerRef.current);
+    }
+
+    rescueSnapshotTimerRef.current = window.setTimeout(() => {
+      updateRescueSnapshot({ cases, folders: caseFolders, quickCaptures }).catch((error) => {
+        console.warn("Could not update Rescue Snapshot", error);
+      });
+    }, 1200);
+
+    return () => {
+      if (rescueSnapshotTimerRef.current) {
+        window.clearTimeout(rescueSnapshotTimerRef.current);
+      }
+    };
+  }, [cases, caseFolders, quickCaptures, loadingCases]);
+
+  useEffect(() => {
     localStorage.setItem("toolstack.proveit.v1.selectedCase", JSON.stringify(selectedCaseId));
   }, [selectedCaseId]);
 
@@ -2035,9 +2043,20 @@ export default function ProveItApp() {
         } catch {
           // Import should still complete if localStorage metadata cannot be written.
         }
-        writeLocalMirrorFromFullBackup(parsed);
+        await updateRescueSnapshot({
+          cases: persistedCases,
+          folders: readCaseFolders(),
+          quickCaptures: incomingQuickCaptures,
+        });
         setLastBackupMeta(backupMeta);
-        refreshLocalMirror();
+        refreshRescueSnapshot();
+      }
+      if (exportType !== "FULL_BACKUP_ALL") {
+        await updateRescueSnapshot({
+          cases: persistedCases,
+          folders: readCaseFolders(),
+          quickCaptures,
+        });
       }
       setEmptyDbWarning("");
       setStorageDiagnostics(await getStorageDiagnostics());
@@ -2093,29 +2112,49 @@ export default function ProveItApp() {
     event.target.value = "";
   };
 
-  const restoreLocalMirror = async () => {
-    const mirror = readLocalMirrorRecord();
-    setLocalMirror(mirror);
+  const restoreRescueSnapshot = async () => {
+    const rescue = readRescueSnapshot();
+    setRescueSnapshot(rescue);
 
-    if (mirror.corrupt || !mirror.available || !mirror.payload) {
-      showAppNotice("error", mirror.message || "Local mirror unavailable/corrupt");
+    if (rescue.corrupt || !rescue.available || !rescue.snapshot?.data) {
+      showAppNotice("error", "Rescue Snapshot unavailable/corrupt");
       return;
     }
 
     try {
-      const result = await restoreBackupPayload(mirror.payload, { source: "localMirror" });
-      if (result.importFailures.length > 0) {
-        const failedNames = result.importFailures.map((item) => item.name).slice(0, 3).join(", ");
-        showAppNotice("warning", `Local mirror partially restored. Failed: ${failedNames}`);
-        return;
+      const snapshotCases = rescue.snapshot.data.cases.map(normalizeCase);
+      for (const caseItem of snapshotCases) {
+        await saveCase(caseItem);
       }
 
-      refreshLocalMirror();
-      setLocalMirrorRecoveryIgnored(false);
-      showAppNotice("success", `Local mirror restored for ${result.importSuccesses.length} case(s).`);
+      const snapshotFolders = Array.isArray(rescue.snapshot.data.folders)
+        ? rescue.snapshot.data.folders.map(normalizeCaseFolder).filter(Boolean)
+        : [];
+      setCaseFolders(snapshotFolders);
+      try {
+        localStorage.setItem(CASE_FOLDERS_STORAGE_KEY, JSON.stringify(snapshotFolders));
+      } catch {
+        // State still updates the folder dashboard when localStorage is unavailable.
+      }
+
+      if (Array.isArray(rescue.snapshot.data.quickCaptures) && rescue.snapshot.data.quickCaptures.length > 0) {
+        setQuickCaptures(rescue.snapshot.data.quickCaptures.map((capture) =>
+          normalizeQuickCapture(capture, { normalizeAttachments: true })
+        ));
+      }
+
+      const persistedCases = (await getAllCases()).map(normalizeCase);
+      setCases(persistedCases);
+      setSelectedCaseId(null);
+      setActiveTab("overview");
+      setEmptyDbWarning("");
+      setRescueSnapshotRecoveryIgnored(false);
+      setStorageDiagnostics(await getStorageDiagnostics());
+      refreshRescueSnapshot();
+      showAppNotice("warning", `Rescue Snapshot restored ${snapshotCases.length} case structure(s). Images and attachments require a Full App Backup.`);
     } catch (error) {
-      console.error("Local mirror restore failed", error);
-      showAppNotice("error", error.message || "Local mirror unavailable/corrupt");
+      console.error("Rescue Snapshot restore failed", error);
+      showAppNotice("error", error.message || "Could not restore Rescue Snapshot.");
     }
   };
 
@@ -2855,22 +2894,22 @@ const handleRecordFiles = async (event) => {
   const diagnosticCaseCount = storageDiagnostics?.recordCounts?.cases;
   const backupNeedsAttention = !hasRecentFullBackupMeta(lastBackupMeta);
   const onCaseListPage = !selectedCase && !selectedCaseRequiresPin;
-  const localMirrorCanRestore = Boolean(localMirror?.available && localMirror.caseCount > 0 && !localMirror.corrupt);
-  const localMirrorCorrupt = Boolean(localMirror?.corrupt);
-  const showLocalMirrorRecovery = onCaseListPage && !localMirrorRecoveryIgnored && diagnosticCaseCount === 0 && localMirrorCanRestore;
-  const showRecoveryPanel = onCaseListPage && (showLocalMirrorRecovery || backupNeedsAttention || diagnosticCaseCount === 0 || !!emptyDbWarning);
-  const recoveryMessage = showLocalMirrorRecovery
-    ? "IndexedDB is empty, but a local mirror backup exists."
+  const rescueSnapshotCanRestore = Boolean(rescueSnapshot?.available && rescueSnapshot.caseCount > 0 && !rescueSnapshot.corrupt);
+  const rescueSnapshotCorrupt = Boolean(rescueSnapshot?.corrupt);
+  const showRescueSnapshotRecovery = onCaseListPage && !rescueSnapshotRecoveryIgnored && diagnosticCaseCount === 0 && rescueSnapshotCanRestore;
+  const showRecoveryPanel = onCaseListPage && (showRescueSnapshotRecovery || backupNeedsAttention || diagnosticCaseCount === 0 || !!emptyDbWarning);
+  const recoveryMessage = showRescueSnapshotRecovery
+    ? "IndexedDB is empty, but a Rescue Snapshot exists."
     : diagnosticCaseCount === 0 || emptyDbWarning
     ? (emptyDbWarning || EMPTY_DB_WARNING_MESSAGE)
     : "Full app backup is missing or older than 24 hours. Download a fresh backup before import, restore, or larger edits.";
-  const localMirrorStatusLabel = localMirrorCorrupt
-    ? "Local mirror unavailable/corrupt"
-    : localMirrorCanRestore
-      ? `Available: ${localMirror.caseCount} case${localMirror.caseCount === 1 ? "" : "s"}, ${localMirror.folderCount || 0} folder${(localMirror.folderCount || 0) === 1 ? "" : "s"}`
-      : "No local mirror available";
-  const localMirrorTimestampLabel = localMirror?.timestamp
-    ? new Date(localMirror.timestamp).toLocaleString()
+  const rescueSnapshotStatusLabel = rescueSnapshotCorrupt
+    ? "Rescue Snapshot unavailable/corrupt"
+    : rescueSnapshotCanRestore
+      ? `Available: ${rescueSnapshot.caseCount} case${rescueSnapshot.caseCount === 1 ? "" : "s"}, ${rescueSnapshot.folderCount || 0} folder${(rescueSnapshot.folderCount || 0) === 1 ? "" : "s"}, ${rescueSnapshot.imageCount || 0} image${(rescueSnapshot.imageCount || 0) === 1 ? "" : "s"}`
+      : "No Rescue Snapshot available";
+  const rescueSnapshotTimestampLabel = rescueSnapshot?.timestamp
+    ? new Date(rescueSnapshot.timestamp).toLocaleString()
     : "";
 
   return (
@@ -3032,33 +3071,33 @@ const handleRecordFiles = async (event) => {
                   <div>
                     <h3 className="text-sm font-bold text-neutral-900">Recovery</h3>
                     <p className="mt-1 text-xs leading-5 text-neutral-500">
-                      The local mirror is a browser-side fallback. It does not replace downloaded backups.
+                      Rescue Snapshot restores case structure only. Images/attachments require a Full App Backup.
                     </p>
                   </div>
                   <span className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
-                    localMirrorCorrupt
+                    rescueSnapshotCorrupt
                       ? "border-red-200 bg-red-50 text-red-700"
-                      : localMirrorCanRestore
+                      : rescueSnapshotCanRestore
                         ? "border-lime-200 bg-lime-50 text-lime-700"
                         : "border-neutral-200 bg-neutral-50 text-neutral-600"
                   }`}>
-                    {localMirrorCorrupt ? "Unavailable" : localMirrorCanRestore ? "Available" : "None"}
+                    {rescueSnapshotCorrupt ? "Unavailable" : rescueSnapshotCanRestore ? "Available" : "None"}
                   </span>
                 </div>
                 <div className="mt-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-xs leading-5 text-neutral-600">
-                  <div>{localMirrorStatusLabel}</div>
-                  {localMirrorTimestampLabel ? (
-                    <div>Mirror timestamp: <span className="font-semibold text-neutral-800">{localMirrorTimestampLabel}</span></div>
+                  <div>{rescueSnapshotStatusLabel}</div>
+                  {rescueSnapshotTimestampLabel ? (
+                    <div>Snapshot timestamp: <span className="font-semibold text-neutral-800">{rescueSnapshotTimestampLabel}</span></div>
                   ) : null}
                 </div>
-                {localMirrorCanRestore ? (
+                {rescueSnapshotCanRestore ? (
                   <button
                     type="button"
-                    onClick={restoreLocalMirror}
+                    onClick={restoreRescueSnapshot}
                     className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20 sm:w-auto"
                   >
                     <Upload className="h-4 w-4" />
-                    Restore Local Mirror
+                    Restore Case Structure from Rescue Snapshot
                   </button>
                 ) : null}
               </section>
@@ -3249,19 +3288,24 @@ const handleRecordFiles = async (event) => {
 
         {showRecoveryPanel ? (
           <div className={`mb-6 rounded-2xl border p-4 text-sm font-semibold leading-6 print:hidden ${
-            showLocalMirrorRecovery || diagnosticCaseCount === 0 || emptyDbWarning
+            showRescueSnapshotRecovery || diagnosticCaseCount === 0 || emptyDbWarning
               ? "border-red-200 bg-red-50 text-red-800"
               : "border-amber-200 bg-amber-50 text-amber-900"
           }`}>
             <div>{recoveryMessage}</div>
-            {showLocalMirrorRecovery ? (
+            {showRescueSnapshotRecovery ? (
+              <div className="mt-1 text-xs font-medium text-red-700">
+                Rescue Snapshot restores case structure only. Images/attachments require a Full App Backup.
+              </div>
+            ) : null}
+            {showRescueSnapshotRecovery ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={restoreLocalMirror}
+                  onClick={restoreRescueSnapshot}
                   className="rounded-md border border-red-700 bg-white px-3 py-2 text-xs font-bold text-red-800 hover:bg-red-100"
                 >
-                  Restore Local Mirror
+                  Restore Case Structure from Rescue Snapshot
                 </button>
                 <button
                   type="button"
@@ -3274,7 +3318,7 @@ const handleRecordFiles = async (event) => {
                   type="button"
                   onClick={() => {
                     setEmptyDbWarning("");
-                    setLocalMirrorRecoveryIgnored(true);
+                    setRescueSnapshotRecoveryIgnored(true);
                   }}
                   className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-800 hover:bg-red-100"
                 >
