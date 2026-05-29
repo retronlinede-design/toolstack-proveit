@@ -53,6 +53,7 @@ const CREATE_NEW_SEQUENCE_GROUP_OPTION = "__create_new_sequence_group__";
 const LAST_FULL_BACKUP_ALL_AT_KEY = "toolstack.proveit.v1.lastFullBackupAt";
 const LAST_BACKUP_META_KEY = "toolstack.proveit.v1.lastBackupMeta";
 const CASE_FOLDERS_STORAGE_KEY = "toolstack.proveit.v1.folders";
+const LOCAL_MIRROR_STORAGE_KEY = "toolstack.proveit.v1.localMirror";
 const FULL_BACKUP_ALL_RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const RISKY_ACTION_BACKUP_MESSAGE = "Before applying changes, download a Full App Backup. ProveIt stores data locally in this browser, and browser storage can be lost.";
 const EMPTY_DB_WARNING_MESSAGE = "No cases found in this browser storage. If this is unexpected, stop and check Storage Diagnostics before importing or creating new data.";
@@ -239,6 +240,70 @@ function mergeImportedCaseFolders(localFolders, importedFolders, importedCases) 
   }
 
   return makeUniqueFolderNames(Array.from(folderMap.values()));
+}
+
+function getFullBackupPayloadCounts(payload) {
+  const imported = payload?.data || payload;
+  const folders = getImportedFolderSource(payload, imported).folders;
+  return {
+    caseCount: Array.isArray(imported?.cases) ? imported.cases.length : 0,
+    quickCaptureCount: Array.isArray(imported?.quickCaptures) ? imported.quickCaptures.length : 0,
+    folderCount: folders.length,
+  };
+}
+
+function readLocalMirrorRecord() {
+  try {
+    const saved = localStorage.getItem(LOCAL_MIRROR_STORAGE_KEY);
+    if (!saved) {
+      return { available: false, corrupt: false, message: "No local mirror found." };
+    }
+
+    const mirror = JSON.parse(saved);
+    if (
+      !mirror ||
+      typeof mirror !== "object" ||
+      mirror.exportType !== "FULL_BACKUP_ALL" ||
+      !mirror.payload ||
+      mirror.payload.exportType !== "FULL_BACKUP_ALL"
+    ) {
+      return { available: false, corrupt: true, message: "Local mirror unavailable/corrupt" };
+    }
+
+    const payloadCounts = getFullBackupPayloadCounts(mirror.payload);
+    const caseCount = Number.isFinite(mirror.caseCount) ? mirror.caseCount : payloadCounts.caseCount;
+    return {
+      available: caseCount > 0,
+      corrupt: false,
+      message: "",
+      timestamp: typeof mirror.timestamp === "string" ? mirror.timestamp : "",
+      caseCount,
+      quickCaptureCount: Number.isFinite(mirror.quickCaptureCount) ? mirror.quickCaptureCount : payloadCounts.quickCaptureCount,
+      folderCount: Number.isFinite(mirror.folderCount) ? mirror.folderCount : payloadCounts.folderCount,
+      payload: mirror.payload,
+    };
+  } catch {
+    return { available: false, corrupt: true, message: "Local mirror unavailable/corrupt" };
+  }
+}
+
+function writeLocalMirror(payload) {
+  if (!payload || payload.exportType !== "FULL_BACKUP_ALL") return null;
+  const counts = getFullBackupPayloadCounts(payload);
+  if (counts.caseCount === 0) return null;
+
+  const timestamp = new Date().toISOString();
+  const mirror = {
+    exportType: "FULL_BACKUP_ALL",
+    timestamp,
+    caseCount: counts.caseCount,
+    quickCaptureCount: counts.quickCaptureCount,
+    folderCount: counts.folderCount,
+    payload,
+  };
+
+  localStorage.setItem(LOCAL_MIRROR_STORAGE_KEY, JSON.stringify(mirror));
+  return mirror;
 }
 
 function readCaseFolders() {
@@ -625,6 +690,8 @@ export default function ProveItApp() {
   const [storageDiagnosticsLoading, setStorageDiagnosticsLoading] = useState(false);
   const [emptyDbWarning, setEmptyDbWarning] = useState("");
   const [exportImportOpen, setExportImportOpen] = useState(false);
+  const [localMirror, setLocalMirror] = useState(() => readLocalMirrorRecord());
+  const [localMirrorRecoveryIgnored, setLocalMirrorRecoveryIgnored] = useState(false);
 
   const showAppNotice = (tone, message) => {
     if (!message) return;
@@ -642,6 +709,12 @@ export default function ProveItApp() {
     const meta = readLastBackupMeta();
     setLastBackupMeta(meta);
     return meta;
+  };
+
+  const refreshLocalMirror = () => {
+    const mirror = readLocalMirrorRecord();
+    setLocalMirror(mirror);
+    return mirror;
   };
 
   const closeRiskyActionGuard = (shouldContinue) => {
@@ -672,6 +745,7 @@ export default function ProveItApp() {
     setStorageDiagnosticsOpen(nextOpen);
     if (!nextOpen) return;
 
+    refreshLocalMirror();
     setStorageDiagnosticsLoading(true);
     setStorageDiagnosticsError("");
     try {
@@ -697,8 +771,12 @@ export default function ProveItApp() {
     async function checkEmptyStorage() {
       try {
         const diagnostics = await getStorageDiagnostics();
-        if (!cancelled && diagnostics.recordCounts?.cases === 0) {
-          setEmptyDbWarning(EMPTY_DB_WARNING_MESSAGE);
+        if (!cancelled) {
+          setStorageDiagnostics(diagnostics);
+          refreshLocalMirror();
+          if (diagnostics.recordCounts?.cases === 0) {
+            setEmptyDbWarning(EMPTY_DB_WARNING_MESSAGE);
+          }
         }
       } catch (error) {
         console.error("Startup storage diagnostics failed", error);
@@ -741,10 +819,12 @@ export default function ProveItApp() {
       try {
         localStorage.setItem(LAST_FULL_BACKUP_ALL_AT_KEY, backupTimestamp);
         localStorage.setItem(LAST_BACKUP_META_KEY, JSON.stringify(backupMeta));
+        writeLocalMirror(payload);
       } catch {
         // If localStorage is unavailable, keep the timestamp in state for this session only.
       }
       setLastBackupMeta(backupMeta);
+      refreshLocalMirror();
       return true;
     } catch (err) {
       console.error("FULL BACKUP failed", err);
@@ -1851,6 +1931,145 @@ export default function ProveItApp() {
     }
   };
 
+  const restoreBackupPayload = async (parsed, { source = "file" } = {}) => {
+    const imported = parsed?.data || parsed;
+    const exportType = parsed?.exportType;
+
+    if (exportType === "CASE_REASONING_EXPORT" || parsed?.importable === false) {
+      throw new Error("This is a reasoning export and not an importable backup.");
+    }
+
+    if (exportType && !["FULL_BACKUP_ALL", "FULL_BACKUP_CASE"].includes(exportType)) {
+      throw new Error("Unsupported ProveIt export type.");
+    }
+
+    if (!imported || !Array.isArray(imported.cases)) {
+      throw new Error("Invalid import file.");
+    }
+
+    if (exportType === "FULL_BACKUP_CASE" && imported.cases.length !== 1) {
+      throw new Error("Invalid full case backup. Expected exactly one case.");
+    }
+
+    const isFullBackup =
+      exportType === "FULL_BACKUP_ALL" ||
+      exportType === "FULL_BACKUP_CASE" ||
+      parsed?.type === "FULL_BACKUP" ||
+      parsed?.includesBinaryData === true ||
+      parsed?.version === "2.1-full-backup";
+    const shouldImportQuickCaptures = exportType !== "FULL_BACKUP_CASE";
+    const restoreStats = { failedAttachments: [] };
+
+    let incomingCases = imported.cases || [];
+    const hasIncomingQuickCaptures = Array.isArray(imported.quickCaptures);
+    let incomingQuickCaptures = hasIncomingQuickCaptures ? imported.quickCaptures : [];
+    const { hasFolderData: hasIncomingFolderData, folders: incomingFolders } =
+      getImportedFolderSource(parsed, imported);
+
+    if (isFullBackup) {
+      incomingCases = await Promise.all(incomingCases.map((caseItem) =>
+        restoreFullBackupCase(caseItem, { saveImage, generateId, restoreStats })
+      ));
+      if (shouldImportQuickCaptures) {
+        incomingQuickCaptures = await Promise.all(incomingQuickCaptures.map((capture) =>
+          restoreFullBackupQuickCapture(capture, { saveImage, generateId, restoreStats })
+        ));
+      }
+    }
+
+    const normalizedCases = incomingCases.map(normalizeCase);
+    const currentCases = await getAllCases();
+    const caseMap = new Map(currentCases.map(c => [c.id, c]));
+
+    for (const importedCase of normalizedCases) {
+      if (caseMap.has(importedCase.id)) {
+        const existingCase = caseMap.get(importedCase.id);
+        const mergedCase = mergeCase(existingCase, importedCase);
+        caseMap.set(mergedCase.id, mergedCase);
+      } else {
+        caseMap.set(importedCase.id, importedCase);
+      }
+    }
+
+    const mergedCases = Array.from(caseMap.values());
+    const importSuccesses = [];
+    const importFailures = [];
+
+    for (const caseItem of mergedCases) {
+      try {
+        await saveCase(caseItem);
+        importSuccesses.push(caseItem.name || caseItem.id || "Untitled case");
+      } catch (error) {
+        console.error("Failed to save imported case", caseItem?.id, error);
+        importFailures.push({
+          id: caseItem.id,
+          name: caseItem.name || caseItem.id || "Untitled case",
+          message: error.message || "Unknown save error",
+        });
+        const restoredImageIds = restoreStats.restoredImageIdsByCase?.[caseItem.id] || [];
+        if (restoredImageIds.length > 0) {
+          await deleteImages(restoredImageIds);
+        }
+      }
+    }
+
+    const persistedCases = (await getAllCases()).map(normalizeCase);
+    reconcileUnlockedCaseIds(persistedCases, currentCases);
+    setCases(persistedCases);
+    if (importFailures.length === 0 && hasIncomingQuickCaptures && shouldImportQuickCaptures) {
+      setQuickCaptures((prev) => {
+        const captureMap = new Map(prev.map(q => [q.id, q]));
+        for (const q of incomingQuickCaptures) {
+          captureMap.set(q.id, normalizeQuickCapture(q, { normalizeAttachments: true }));
+        }
+        return Array.from(captureMap.values());
+      });
+    }
+    if (importFailures.length === 0) {
+      if (shouldImportQuickCaptures && (hasIncomingFolderData || normalizedCases.some((caseItem) => caseItem?.folderId))) {
+        const mergedFolders = mergeImportedCaseFolders(caseFolders, incomingFolders, normalizedCases);
+        setCaseFolders(mergedFolders);
+        try {
+          localStorage.setItem(CASE_FOLDERS_STORAGE_KEY, JSON.stringify(mergedFolders));
+        } catch {
+          // State still updates the folder dashboard when localStorage is unavailable.
+        }
+      }
+      setSelectedCaseId(imported.selectedCaseId ?? null);
+      setActiveTab(imported.activeTab || "overview");
+
+      if (exportType === "FULL_BACKUP_ALL") {
+        const counts = getFullBackupPayloadCounts(parsed);
+        const backupTimestamp = new Date().toISOString();
+        const backupMeta = {
+          exportType: "FULL_BACKUP_ALL",
+          timestamp: backupTimestamp,
+          caseCount: counts.caseCount,
+          quickCaptureCount: counts.quickCaptureCount,
+          folderCount: counts.folderCount,
+        };
+        try {
+          localStorage.setItem(LAST_FULL_BACKUP_ALL_AT_KEY, backupTimestamp);
+          localStorage.setItem(LAST_BACKUP_META_KEY, JSON.stringify(backupMeta));
+          writeLocalMirror(parsed);
+        } catch {
+          // Import should still complete if localStorage metadata cannot be written.
+        }
+        setLastBackupMeta(backupMeta);
+        refreshLocalMirror();
+      }
+      setEmptyDbWarning("");
+      setStorageDiagnostics(await getStorageDiagnostics());
+    }
+
+    return {
+      source,
+      importSuccesses,
+      importFailures,
+      restoreStats,
+    };
+  };
+
   const importData = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -1866,135 +2085,23 @@ export default function ProveItApp() {
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
-      const imported = parsed?.data || parsed;
-      const exportType = parsed?.exportType;
+      const result = await restoreBackupPayload(parsed, { source: "file" });
 
-      if (exportType === "CASE_REASONING_EXPORT" || parsed?.importable === false) {
-        alert("This is a reasoning export and not an importable backup.");
-        event.target.value = "";
-        return;
-      }
-
-      if (exportType && !["FULL_BACKUP_ALL", "FULL_BACKUP_CASE"].includes(exportType)) {
-        alert("Unsupported ProveIt export type.");
-        event.target.value = "";
-        return;
-      }
-
-      if (!imported || !Array.isArray(imported.cases)) {
-        alert("Invalid import file.");
-        event.target.value = "";
-        return;
-      }
-
-      if (exportType === "FULL_BACKUP_CASE" && imported.cases.length !== 1) {
-        alert("Invalid full case backup. Expected exactly one case.");
-        event.target.value = "";
-        return;
-      }
-
-      const isFullBackup =
-        exportType === "FULL_BACKUP_ALL" ||
-        exportType === "FULL_BACKUP_CASE" ||
-        parsed?.type === "FULL_BACKUP" ||
-        parsed?.includesBinaryData === true ||
-        parsed?.version === "2.1-full-backup";
-      const shouldImportQuickCaptures = exportType !== "FULL_BACKUP_CASE";
-      const restoreStats = { failedAttachments: [] };
-
-      let incomingCases = imported.cases || [];
-      const hasIncomingQuickCaptures = Array.isArray(imported.quickCaptures);
-      let incomingQuickCaptures = hasIncomingQuickCaptures ? imported.quickCaptures : [];
-      const { hasFolderData: hasIncomingFolderData, folders: incomingFolders } =
-        getImportedFolderSource(parsed, imported);
-
-      if (isFullBackup) {
-        incomingCases = await Promise.all(incomingCases.map((caseItem) =>
-          restoreFullBackupCase(caseItem, { saveImage, generateId, restoreStats })
-        ));
-        if (shouldImportQuickCaptures) {
-          incomingQuickCaptures = await Promise.all(incomingQuickCaptures.map((capture) =>
-            restoreFullBackupQuickCapture(capture, { saveImage, generateId, restoreStats })
-          ));
-        }
-      }
-
-      const normalizedCases = incomingCases.map(normalizeCase);
-      const currentCases = await getAllCases();
-      const caseMap = new Map(currentCases.map(c => [c.id, c]));
-
-      for (const importedCase of normalizedCases) {
-        if (caseMap.has(importedCase.id)) {
-          const existingCase = caseMap.get(importedCase.id);
-          const mergedCase = mergeCase(existingCase, importedCase);
-          caseMap.set(mergedCase.id, mergedCase);
-        } else {
-          caseMap.set(importedCase.id, importedCase);
-        }
-      }
-
-      const mergedCases = Array.from(caseMap.values());
-      const importSuccesses = [];
-      const importFailures = [];
-
-      for (const caseItem of mergedCases) {
-        try {
-          await saveCase(caseItem);
-          importSuccesses.push(caseItem.name || caseItem.id || "Untitled case");
-        } catch (error) {
-          console.error("Failed to save imported case", caseItem?.id, error);
-          importFailures.push({
-            id: caseItem.id,
-            name: caseItem.name || caseItem.id || "Untitled case",
-            message: error.message || "Unknown save error",
-          });
-          const restoredImageIds = restoreStats.restoredImageIdsByCase?.[caseItem.id] || [];
-          if (restoredImageIds.length > 0) {
-            await deleteImages(restoredImageIds);
-          }
-        }
-      }
-
-      const persistedCases = (await getAllCases()).map(normalizeCase);
-      reconcileUnlockedCaseIds(persistedCases, currentCases);
-      setCases(persistedCases);
-      if (importFailures.length === 0 && hasIncomingQuickCaptures && shouldImportQuickCaptures) {
-        setQuickCaptures((prev) => {
-          const captureMap = new Map(prev.map(q => [q.id, q]));
-          for (const q of incomingQuickCaptures) {
-            captureMap.set(q.id, normalizeQuickCapture(q, { normalizeAttachments: true }));
-          }
-          return Array.from(captureMap.values());
-        });
-      }
-      if (importFailures.length === 0) {
-        if (shouldImportQuickCaptures && (hasIncomingFolderData || normalizedCases.some((caseItem) => caseItem?.folderId))) {
-          const mergedFolders = mergeImportedCaseFolders(caseFolders, incomingFolders, normalizedCases);
-          setCaseFolders(mergedFolders);
-          try {
-            localStorage.setItem(CASE_FOLDERS_STORAGE_KEY, JSON.stringify(mergedFolders));
-          } catch {
-            // State still updates the folder dashboard when localStorage is unavailable.
-          }
-        }
-        setSelectedCaseId(imported.selectedCaseId ?? null);
-        setActiveTab(imported.activeTab || "overview");
-      }
-      if (restoreStats.failedAttachments.length > 0) {
+      if (result.restoreStats.failedAttachments.length > 0) {
         showAppNotice(
           "warning",
-          `Import completed, but ${restoreStats.failedAttachments.length} attachment(s) could not be restored.`
+          `Import completed, but ${result.restoreStats.failedAttachments.length} attachment(s) could not be restored.`
         );
       }
-      if (importFailures.length > 0) {
-        const failedNames = importFailures.map((item) => item.name).slice(0, 3).join(", ");
-        const remainingCount = importFailures.length - Math.min(importFailures.length, 3);
+      if (result.importFailures.length > 0) {
+        const failedNames = result.importFailures.map((item) => item.name).slice(0, 3).join(", ");
+        const remainingCount = result.importFailures.length - Math.min(result.importFailures.length, 3);
         showAppNotice(
           "warning",
-          `Import partially completed. Imported ${importSuccesses.length} case(s); failed ${importFailures.length}: ${failedNames}${remainingCount > 0 ? ` +${remainingCount} more` : ""}.`
+          `Import partially completed. Imported ${result.importSuccesses.length} case(s); failed ${result.importFailures.length}: ${failedNames}${remainingCount > 0 ? ` +${remainingCount} more` : ""}.`
         );
       } else {
-        showAppNotice("success", `Import completed for ${importSuccesses.length} case(s).`);
+        showAppNotice("success", `Import completed for ${result.importSuccesses.length} case(s).`);
       }
     } catch (error) {
       console.error("Import failed", error);
@@ -2003,6 +2110,32 @@ export default function ProveItApp() {
     }
 
     event.target.value = "";
+  };
+
+  const restoreLocalMirror = async () => {
+    const mirror = readLocalMirrorRecord();
+    setLocalMirror(mirror);
+
+    if (mirror.corrupt || !mirror.available || !mirror.payload) {
+      showAppNotice("error", mirror.message || "Local mirror unavailable/corrupt");
+      return;
+    }
+
+    try {
+      const result = await restoreBackupPayload(mirror.payload, { source: "localMirror" });
+      if (result.importFailures.length > 0) {
+        const failedNames = result.importFailures.map((item) => item.name).slice(0, 3).join(", ");
+        showAppNotice("warning", `Local mirror partially restored. Failed: ${failedNames}`);
+        return;
+      }
+
+      refreshLocalMirror();
+      setLocalMirrorRecoveryIgnored(false);
+      showAppNotice("success", `Local mirror restored for ${result.importSuccesses.length} case(s).`);
+    } catch (error) {
+      console.error("Local mirror restore failed", error);
+      showAppNotice("error", error.message || "Local mirror unavailable/corrupt");
+    }
   };
 
   const createDefaultCase = async () => {
@@ -2741,10 +2874,23 @@ const handleRecordFiles = async (event) => {
   const diagnosticCaseCount = storageDiagnostics?.recordCounts?.cases;
   const backupNeedsAttention = !hasRecentFullBackupMeta(lastBackupMeta);
   const onCaseListPage = !selectedCase && !selectedCaseRequiresPin;
-  const showRecoveryPanel = onCaseListPage && (backupNeedsAttention || diagnosticCaseCount === 0 || !!emptyDbWarning);
-  const recoveryMessage = diagnosticCaseCount === 0 || emptyDbWarning
+  const localMirrorCanRestore = Boolean(localMirror?.available && localMirror.caseCount > 0 && !localMirror.corrupt);
+  const localMirrorCorrupt = Boolean(localMirror?.corrupt);
+  const showLocalMirrorRecovery = onCaseListPage && !localMirrorRecoveryIgnored && diagnosticCaseCount === 0 && localMirrorCanRestore;
+  const showRecoveryPanel = onCaseListPage && (showLocalMirrorRecovery || backupNeedsAttention || diagnosticCaseCount === 0 || !!emptyDbWarning);
+  const recoveryMessage = showLocalMirrorRecovery
+    ? "IndexedDB is empty, but a local mirror backup exists."
+    : diagnosticCaseCount === 0 || emptyDbWarning
     ? (emptyDbWarning || EMPTY_DB_WARNING_MESSAGE)
     : "Full app backup is missing or older than 24 hours. Download a fresh backup before import, restore, or larger edits.";
+  const localMirrorStatusLabel = localMirrorCorrupt
+    ? "Local mirror unavailable/corrupt"
+    : localMirrorCanRestore
+      ? `Available: ${localMirror.caseCount} case${localMirror.caseCount === 1 ? "" : "s"}, ${localMirror.folderCount || 0} folder${(localMirror.folderCount || 0) === 1 ? "" : "s"}`
+      : "No local mirror available";
+  const localMirrorTimestampLabel = localMirror?.timestamp
+    ? new Date(localMirror.timestamp).toLocaleString()
+    : "";
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-800">
@@ -2838,7 +2984,7 @@ const handleRecordFiles = async (event) => {
                   <div>Last backup: <span className="font-semibold text-neutral-800">{backupTimestampLabel}</span></div>
                   {lastBackupMeta?.exportType === "FULL_BACKUP_ALL" ? (
                     <div className="mt-1">
-                      Cases: {lastBackupMeta.caseCount ?? 0} | Quick captures: {lastBackupMeta.quickCaptureCount ?? 0}
+                      Cases: {lastBackupMeta.caseCount ?? 0} | Quick captures: {lastBackupMeta.quickCaptureCount ?? 0} | Folders: {lastBackupMeta.folderCount ?? 0}
                     </div>
                   ) : null}
                 </div>
@@ -2898,6 +3044,42 @@ const handleRecordFiles = async (event) => {
                   Import Backup JSON
                   <input type="file" accept="application/json,.json" className="hidden" onChange={importData} />
                 </label>
+              </section>
+
+              <section className="rounded-xl border border-neutral-200 bg-white p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-neutral-900">Recovery</h3>
+                    <p className="mt-1 text-xs leading-5 text-neutral-500">
+                      The local mirror is a browser-side fallback. It does not replace downloaded backups.
+                    </p>
+                  </div>
+                  <span className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                    localMirrorCorrupt
+                      ? "border-red-200 bg-red-50 text-red-700"
+                      : localMirrorCanRestore
+                        ? "border-lime-200 bg-lime-50 text-lime-700"
+                        : "border-neutral-200 bg-neutral-50 text-neutral-600"
+                  }`}>
+                    {localMirrorCorrupt ? "Unavailable" : localMirrorCanRestore ? "Available" : "None"}
+                  </span>
+                </div>
+                <div className="mt-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-xs leading-5 text-neutral-600">
+                  <div>{localMirrorStatusLabel}</div>
+                  {localMirrorTimestampLabel ? (
+                    <div>Mirror timestamp: <span className="font-semibold text-neutral-800">{localMirrorTimestampLabel}</span></div>
+                  ) : null}
+                </div>
+                {localMirrorCanRestore ? (
+                  <button
+                    type="button"
+                    onClick={restoreLocalMirror}
+                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20 sm:w-auto"
+                  >
+                    <Upload className="h-4 w-4" />
+                    Restore Local Mirror
+                  </button>
+                ) : null}
               </section>
 
               <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
@@ -3086,11 +3268,39 @@ const handleRecordFiles = async (event) => {
 
         {showRecoveryPanel ? (
           <div className={`mb-6 rounded-2xl border p-4 text-sm font-semibold leading-6 print:hidden ${
-            diagnosticCaseCount === 0 || emptyDbWarning
+            showLocalMirrorRecovery || diagnosticCaseCount === 0 || emptyDbWarning
               ? "border-red-200 bg-red-50 text-red-800"
               : "border-amber-200 bg-amber-50 text-amber-900"
           }`}>
-            {recoveryMessage}
+            <div>{recoveryMessage}</div>
+            {showLocalMirrorRecovery ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={restoreLocalMirror}
+                  className="rounded-md border border-red-700 bg-white px-3 py-2 text-xs font-bold text-red-800 hover:bg-red-100"
+                >
+                  Restore Local Mirror
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExportImportOpen(true)}
+                  className="rounded-md border border-red-300 bg-white px-3 py-2 text-xs font-bold text-red-800 hover:bg-red-100"
+                >
+                  Import Backup File
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmptyDbWarning("");
+                    setLocalMirrorRecoveryIgnored(true);
+                  }}
+                  className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-800 hover:bg-red-100"
+                >
+                  Ignore
+                </button>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
