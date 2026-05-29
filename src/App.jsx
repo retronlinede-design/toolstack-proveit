@@ -44,7 +44,7 @@ import {
 import { getFileSizeWarning } from "./lib/fileSecurity.js";
 import { removeRecordAttachmentFromForm } from "./domain/recordFormDomain";
 import { Database, Download, FileJson, Folder, FolderOpen, Plus, Settings, Trash2, Upload, X } from "lucide-react";
-import { getStorageDiagnostics } from "./storageDiagnostics";
+import { getStorageDiagnostics, writeLocalMirrorFromFullBackup } from "./storageDiagnostics";
 import proveItLogo from "./assets/proveit-logo.png";
 
 const lastUsedGroupByType = {};
@@ -285,25 +285,6 @@ function readLocalMirrorRecord() {
   } catch {
     return { available: false, corrupt: true, message: "Local mirror unavailable/corrupt" };
   }
-}
-
-function writeLocalMirror(payload) {
-  if (!payload || payload.exportType !== "FULL_BACKUP_ALL") return null;
-  const counts = getFullBackupPayloadCounts(payload);
-  if (counts.caseCount === 0) return null;
-
-  const timestamp = new Date().toISOString();
-  const mirror = {
-    exportType: "FULL_BACKUP_ALL",
-    timestamp,
-    caseCount: counts.caseCount,
-    quickCaptureCount: counts.quickCaptureCount,
-    folderCount: counts.folderCount,
-    payload,
-  };
-
-  localStorage.setItem(LOCAL_MIRROR_STORAGE_KEY, JSON.stringify(mirror));
-  return mirror;
 }
 
 function readCaseFolders() {
@@ -807,6 +788,7 @@ export default function ProveItApp() {
           .toISOString()
           .slice(0, 10)}.json`
       );
+      writeLocalMirrorFromFullBackup(payload);
 
       const backupTimestamp = new Date().toISOString();
       const backupMeta = {
@@ -819,7 +801,6 @@ export default function ProveItApp() {
       try {
         localStorage.setItem(LAST_FULL_BACKUP_ALL_AT_KEY, backupTimestamp);
         localStorage.setItem(LAST_BACKUP_META_KEY, JSON.stringify(backupMeta));
-        writeLocalMirror(payload);
       } catch {
         // If localStorage is unavailable, keep the timestamp in state for this session only.
       }
@@ -2051,10 +2032,10 @@ export default function ProveItApp() {
         try {
           localStorage.setItem(LAST_FULL_BACKUP_ALL_AT_KEY, backupTimestamp);
           localStorage.setItem(LAST_BACKUP_META_KEY, JSON.stringify(backupMeta));
-          writeLocalMirror(parsed);
         } catch {
           // Import should still complete if localStorage metadata cannot be written.
         }
+        writeLocalMirrorFromFullBackup(parsed);
         setLastBackupMeta(backupMeta);
         refreshLocalMirror();
       }
