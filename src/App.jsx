@@ -163,6 +163,84 @@ function normalizeCaseFolder(folder) {
   };
 }
 
+function getShortFolderId(folderId) {
+  return safeText(folderId).trim().slice(0, 8) || "unknown";
+}
+
+function makeUniqueFolderNames(folders) {
+  const usedNames = new Set();
+
+  return folders.map((folder) => {
+    const baseName = safeText(folder.name).trim() || `Recovered Folder ${getShortFolderId(folder.id)}`;
+    let name = baseName;
+    const normalizedBaseName = baseName.toLowerCase();
+
+    if (usedNames.has(normalizedBaseName)) {
+      name = `${baseName} (${getShortFolderId(folder.id)})`;
+    }
+
+    let normalizedName = name.toLowerCase();
+    let suffix = 2;
+    while (usedNames.has(normalizedName)) {
+      name = `${baseName} (${getShortFolderId(folder.id)}-${suffix})`;
+      normalizedName = name.toLowerCase();
+      suffix += 1;
+    }
+
+    usedNames.add(normalizedName);
+    return { ...folder, name };
+  });
+}
+
+function getImportedFolderSource(parsed, imported) {
+  const candidates = [
+    parsed?.appData?.folders,
+    imported?.appData?.folders,
+    imported?.folders,
+  ];
+  const folderSource = candidates.find((candidate) => Array.isArray(candidate));
+
+  return {
+    hasFolderData: Array.isArray(folderSource),
+    folders: Array.isArray(folderSource) ? folderSource.map(normalizeCaseFolder).filter(Boolean) : [],
+  };
+}
+
+function mergeImportedCaseFolders(localFolders, importedFolders, importedCases) {
+  const folderMap = new Map();
+
+  for (const folder of localFolders || []) {
+    const normalized = normalizeCaseFolder(folder);
+    if (normalized) folderMap.set(normalized.id, normalized);
+  }
+
+  for (const folder of importedFolders || []) {
+    const normalized = normalizeCaseFolder(folder);
+    if (normalized) folderMap.set(normalized.id, normalized);
+  }
+
+  const now = new Date().toISOString();
+  const referencedFolderIds = new Set(
+    (importedCases || [])
+      .map((caseItem) => typeof caseItem?.folderId === "string" ? caseItem.folderId.trim() : "")
+      .filter(Boolean)
+  );
+
+  for (const folderId of referencedFolderIds) {
+    if (folderMap.has(folderId)) continue;
+    folderMap.set(folderId, {
+      id: folderId,
+      name: `Recovered Folder ${getShortFolderId(folderId)}`,
+      description: "",
+      color: "",
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  return makeUniqueFolderNames(Array.from(folderMap.values()));
+}
+
 function readCaseFolders() {
   try {
     const saved = localStorage.getItem(CASE_FOLDERS_STORAGE_KEY);
@@ -636,10 +714,11 @@ export default function ProveItApp() {
   const handleFullBackup = async () => {
     try {
       const allCases = await getAllCases();
+      const foldersForBackup = readCaseFolders();
       const payload = await buildFullBackupAllPayload({
         cases: allCases,
         quickCaptures,
-        folders: caseFolders,
+        folders: foldersForBackup,
         selectedCaseId,
         activeTab,
       }, { getImageById });
@@ -657,6 +736,7 @@ export default function ProveItApp() {
         timestamp: backupTimestamp,
         caseCount: allCases.length,
         quickCaptureCount: quickCaptures.length,
+        folderCount: foldersForBackup.length,
       };
       try {
         localStorage.setItem(LAST_FULL_BACKUP_ALL_AT_KEY, backupTimestamp);
@@ -1825,9 +1905,8 @@ export default function ProveItApp() {
       let incomingCases = imported.cases || [];
       const hasIncomingQuickCaptures = Array.isArray(imported.quickCaptures);
       let incomingQuickCaptures = hasIncomingQuickCaptures ? imported.quickCaptures : [];
-      const incomingFolders = Array.isArray(imported.folders)
-        ? imported.folders.map(normalizeCaseFolder).filter(Boolean)
-        : [];
+      const { hasFolderData: hasIncomingFolderData, folders: incomingFolders } =
+        getImportedFolderSource(parsed, imported);
 
       if (isFullBackup) {
         incomingCases = await Promise.all(incomingCases.map((caseItem) =>
@@ -1889,12 +1968,14 @@ export default function ProveItApp() {
         });
       }
       if (importFailures.length === 0) {
-        if (incomingFolders.length > 0 && shouldImportQuickCaptures) {
-          setCaseFolders((prev) => {
-            const folderMap = new Map(prev.map((folder) => [folder.id, folder]));
-            incomingFolders.forEach((folder) => folderMap.set(folder.id, folder));
-            return Array.from(folderMap.values());
-          });
+        if (shouldImportQuickCaptures && (hasIncomingFolderData || normalizedCases.some((caseItem) => caseItem?.folderId))) {
+          const mergedFolders = mergeImportedCaseFolders(caseFolders, incomingFolders, normalizedCases);
+          setCaseFolders(mergedFolders);
+          try {
+            localStorage.setItem(CASE_FOLDERS_STORAGE_KEY, JSON.stringify(mergedFolders));
+          } catch {
+            // State still updates the folder dashboard when localStorage is unavailable.
+          }
         }
         setSelectedCaseId(imported.selectedCaseId ?? null);
         setActiveTab(imported.activeTab || "overview");

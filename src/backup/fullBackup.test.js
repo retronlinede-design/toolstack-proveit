@@ -223,6 +223,12 @@ test("full backup payload builders return the current top-level shape", async ()
   assert.equal(allPayload.importable, true);
   assert.equal(allPayload.includesBinaryData, true);
   assert.match(allPayload.exportedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.deepEqual(allPayload.metadata, {
+    caseCount: 1,
+    quickCaptureCount: 1,
+    folderCount: 1,
+  });
+  assert.deepEqual(allPayload.appData.folders, [{ id: "folder-1", name: "Finance" }]);
   assert.equal(allPayload.data.selectedCaseId, "case-1");
   assert.equal(allPayload.data.activeTab, "evidence");
   assert.equal(allPayload.data.cases[0].evidence[0].attachments[0].backupDataUrl, "data:img-1");

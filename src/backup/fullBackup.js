@@ -208,6 +208,10 @@ export async function buildFullBackupAllPayload({
   selectedCaseId = null,
   activeTab = "overview",
 } = {}, deps = {}) {
+  const backupFolders = Array.isArray(folders) ? folders : [];
+  const backupCases = await Promise.all((cases || []).map((caseItem) => buildFullBackupCase(caseItem, deps)));
+  const backupQuickCaptures = await Promise.all((quickCaptures || []).map((capture) => buildFullBackupQuickCapture(capture, deps)));
+
   return {
     app: "proveit",
     contractVersion: "2.0",
@@ -215,10 +219,18 @@ export async function buildFullBackupAllPayload({
     exportedAt: new Date().toISOString(),
     importable: true,
     includesBinaryData: true,
+    metadata: {
+      caseCount: backupCases.length,
+      quickCaptureCount: backupQuickCaptures.length,
+      folderCount: backupFolders.length,
+    },
+    appData: {
+      folders: backupFolders,
+    },
     data: {
-      cases: await Promise.all((cases || []).map((caseItem) => buildFullBackupCase(caseItem, deps))),
-      quickCaptures: await Promise.all((quickCaptures || []).map((capture) => buildFullBackupQuickCapture(capture, deps))),
-      folders: Array.isArray(folders) ? folders : [],
+      cases: backupCases,
+      quickCaptures: backupQuickCaptures,
+      folders: backupFolders,
       selectedCaseId,
       activeTab,
     },

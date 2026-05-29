@@ -1,10 +1,21 @@
 import { DB_NAME, DB_VERSION, STORE_NAMES } from "./dbConstants.js";
 
 export const QUICK_CAPTURE_STORAGE_KEY = "toolstack.proveit.v1.captures";
+export const CASE_FOLDERS_STORAGE_KEY = "toolstack.proveit.v1.folders";
 
 function countQuickCaptures() {
   try {
     const saved = localStorage.getItem(QUICK_CAPTURE_STORAGE_KEY);
+    const parsed = saved ? JSON.parse(saved) : [];
+    return Array.isArray(parsed) ? parsed.length : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function countCaseFolders() {
+  try {
+    const saved = localStorage.getItem(CASE_FOLDERS_STORAGE_KEY);
     const parsed = saved ? JSON.parse(saved) : [];
     return Array.isArray(parsed) ? parsed.length : 0;
   } catch {
@@ -30,6 +41,7 @@ export async function getStorageDiagnostics() {
     recordCounts,
     localStorage: {
       quickCaptureCount: countQuickCaptures(),
+      folderCount: countCaseFolders(),
     },
   };
 }
