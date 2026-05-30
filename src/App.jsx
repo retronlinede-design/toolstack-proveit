@@ -660,6 +660,7 @@ export default function ProveItApp() {
   const [storageDiagnosticsLoading, setStorageDiagnosticsLoading] = useState(false);
   const [emptyDbWarning, setEmptyDbWarning] = useState("");
   const [exportImportOpen, setExportImportOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [rescueSnapshot, setRescueSnapshot] = useState(() => readRescueSnapshot());
   const [rescueSnapshotRecoveryIgnored, setRescueSnapshotRecoveryIgnored] = useState(false);
   const rescueSnapshotTimerRef = useRef(null);
@@ -752,6 +753,7 @@ export default function ProveItApp() {
     setAppUnlockPin("");
     setAppUnlockError("");
     setExportImportOpen(false);
+    setSettingsOpen(false);
     setStorageDiagnosticsOpen(false);
     setSelectedCaseId(null);
   };
@@ -3069,7 +3071,7 @@ const handleRecordFiles = async (event) => {
   const appLockCorrupt = Boolean(appLockState.corrupt);
   const appLockEnabled = Boolean(appLockState.enabled && !appLockCorrupt);
   const appLocked = appLockEnabled && !appUnlocked;
-  const appLockStatusLabel = appLockCorrupt ? "Corrupted" : appLockEnabled ? "Enabled" : "Off";
+  const appLockStatusLabel = appLockCorrupt ? "Corrupted" : appLockEnabled ? "Enabled" : "Disabled";
   const diagnosticCaseCount = storageDiagnostics?.recordCounts?.cases;
   const backupNeedsAttention = !hasRecentFullBackupMeta(lastBackupMeta);
   const onCaseListPage = !selectedCase && !selectedCaseRequiresPin;
@@ -3357,12 +3359,35 @@ const handleRecordFiles = async (event) => {
                 ) : null}
               </section>
 
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {settingsOpen ? (
+        <div className="fixed inset-0 z-[125] flex items-center justify-center bg-black/40 p-3 sm:p-4">
+          <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b border-neutral-200 p-4 sm:p-5">
+              <div>
+                <h2 className="text-lg font-semibold text-neutral-900">Settings</h2>
+                <p className="mt-1 text-sm text-neutral-500">Manage privacy, data tools, diagnostics, and app details.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(false)}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50"
+                aria-label="Close Settings"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
               <section className="rounded-xl border border-neutral-200 bg-white p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h3 className="text-sm font-bold text-neutral-900">Security / Privacy</h3>
+                    <h3 className="text-sm font-bold text-neutral-900">Security & Privacy</h3>
                     <p className="mt-1 text-xs leading-5 text-neutral-500">
-                      App Lock is a privacy screen. It does not encrypt stored data.
+                      App Lock is a privacy screen. It does not encrypt stored browser data.
                     </p>
                     <p className="mt-1 text-xs leading-5 text-neutral-500">
                       Full backups remain plaintext unless exported with encryption in a future version.
@@ -3375,9 +3400,20 @@ const handleRecordFiles = async (event) => {
                         ? "border-lime-200 bg-lime-50 text-lime-700"
                         : "border-neutral-200 bg-neutral-50 text-neutral-600"
                   }`}>
-                    {appLockStatusLabel}
+                    App Lock: {appLockStatusLabel}
                   </span>
                 </div>
+
+                {appLockEnabled ? (
+                  <button
+                    type="button"
+                    onClick={lockApp}
+                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 sm:w-auto"
+                  >
+                    <Lock className="h-4 w-4" />
+                    Lock App
+                  </button>
+                ) : null}
 
                 {appLockCorrupt ? (
                   <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs leading-5 text-red-800">
@@ -3518,25 +3554,58 @@ const handleRecordFiles = async (event) => {
                 )}
               </section>
 
-              <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-                <h3 className="text-sm font-bold text-neutral-900">Safety Notes</h3>
-                <p className="mt-1 text-xs leading-5 text-neutral-600">
-                  ProveIt is local-first. Data is stored in this browser profile for the current origin, so browser storage loss or using another origin can make data unavailable.
+              <section className="rounded-xl border border-neutral-200 bg-white p-4">
+                <h3 className="text-sm font-bold text-neutral-900">Data & Backups</h3>
+                <p className="mt-1 text-xs leading-5 text-neutral-500">
+                  Full App Backup remains the complete backup path for cases, folders, quick captures, images, and attachments.
                 </p>
-                <div className="mt-3 break-all rounded-lg border border-neutral-200 bg-white p-3 text-xs text-neutral-600">
-                  Current origin: <span className="font-mono text-neutral-800">{currentOrigin || "Unknown"}</span>
+                <div className="mt-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-xs text-neutral-600">
+                  <div>Last backup: <span className="font-semibold text-neutral-800">{backupTimestampLabel}</span></div>
+                  {lastBackupMeta?.exportType === "FULL_BACKUP_ALL" ? (
+                    <div className="mt-1">
+                      Cases: {lastBackupMeta.caseCount ?? 0} | Quick captures: {lastBackupMeta.quickCaptureCount ?? 0} | Folders: {lastBackupMeta.folderCount ?? 0}
+                    </div>
+                  ) : null}
                 </div>
                 <button
                   type="button"
                   onClick={() => {
-                    setExportImportOpen(false);
+                    setSettingsOpen(false);
+                    setExportImportOpen(true);
+                  }}
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 sm:w-auto"
+                >
+                  <Download className="h-4 w-4" />
+                  Open Export / Import
+                </button>
+              </section>
+
+              <section className="rounded-xl border border-neutral-200 bg-white p-4">
+                <h3 className="text-sm font-bold text-neutral-900">Storage Diagnostics</h3>
+                <p className="mt-1 text-xs leading-5 text-neutral-500">
+                  Open the existing read-only diagnostics panel for IndexedDB and localStorage status.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettingsOpen(false);
                     if (!storageDiagnosticsOpen) handleStorageDiagnostics();
                   }}
                   className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 sm:w-auto"
                 >
                   <Database className="h-4 w-4" />
-                  Storage Diagnostics
+                  Open Storage Diagnostics
                 </button>
+              </section>
+
+              <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                <h3 className="text-sm font-bold text-neutral-900">App Info</h3>
+                <p className="mt-1 text-xs leading-5 text-neutral-600">
+                  ProveIt is local-first. Data is stored in this browser profile for the current origin.
+                </p>
+                <div className="mt-3 break-all rounded-lg border border-neutral-200 bg-white p-3 text-xs text-neutral-600">
+                  Current origin: <span className="font-mono text-neutral-800">{currentOrigin || "Unknown"}</span>
+                </div>
               </section>
             </div>
           </div>
@@ -3689,6 +3758,14 @@ const handleRecordFiles = async (event) => {
               >
                 <Download className="h-3.5 w-3.5 shrink-0" />
                 <span>Export / Import</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(true)}
+                className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-bold text-neutral-800 shadow-sm transition-colors hover:bg-neutral-100 active:scale-95 sm:flex-none"
+              >
+                <Settings className="h-3.5 w-3.5 shrink-0" />
+                <span>Settings</span>
               </button>
               <button
                 type="button"
