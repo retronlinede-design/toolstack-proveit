@@ -43,9 +43,18 @@ import {
 } from "./domain/quickCaptureDomain";
 import { getFileSizeWarning } from "./lib/fileSecurity.js";
 import { removeRecordAttachmentFromForm } from "./domain/recordFormDomain";
-import { Database, Download, FileJson, Folder, FolderOpen, Plus, Settings, Trash2, Upload, X } from "lucide-react";
+import { Database, Download, FileJson, Folder, FolderOpen, Lock, Plus, Settings, Trash2, Upload, X } from "lucide-react";
 import { getStorageDiagnostics } from "./storageDiagnostics";
 import { readRescueSnapshot, writeRescueSnapshot } from "./rescueSnapshot";
+import {
+  createAppLockConfig,
+  createDisabledAppLockConfig,
+  isValidAppPin,
+  readAppLockConfig,
+  sanitizeAppPinInput,
+  verifyAppPin,
+  writeAppLockConfig,
+} from "./appLock";
 import proveItLogo from "./assets/proveit-logo.png";
 
 const lastUsedGroupByType = {};
@@ -418,6 +427,13 @@ const EMPTY_PIN_FORM = {
   confirmRemoval: false,
 };
 
+const EMPTY_APP_LOCK_FORM = {
+  currentPin: "",
+  newPin: "",
+  confirmPin: "",
+  confirmDisable: false,
+};
+
 function sanitizePinInput(value = "") {
   return String(value || "").replace(/\D/g, "").slice(0, 6);
 }
@@ -581,6 +597,14 @@ export default function ProveItApp() {
   const [pinModalError, setPinModalError] = useState("");
   const [lockPromptPin, setLockPromptPin] = useState("");
   const [lockPromptError, setLockPromptError] = useState("");
+  const [appLockState, setAppLockState] = useState(() => readAppLockConfig());
+  const [appUnlocked, setAppUnlocked] = useState(() => !readAppLockConfig().enabled);
+  const [appUnlockPin, setAppUnlockPin] = useState("");
+  const [appUnlockError, setAppUnlockError] = useState("");
+  const [appLockMode, setAppLockMode] = useState("set");
+  const [appLockForm, setAppLockForm] = useState(EMPTY_APP_LOCK_FORM);
+  const [appLockFormError, setAppLockFormError] = useState("");
+  const [appLockSaving, setAppLockSaving] = useState(false);
 
   const [showCreate, setShowCreate] = useState(false);
   const [selectedCaseId, setSelectedCaseId] = useState(() => {
@@ -681,6 +705,157 @@ export default function ProveItApp() {
     });
     refreshRescueSnapshot();
     return snapshot;
+  };
+
+  const refreshAppLockState = () => {
+    const nextState = readAppLockConfig();
+    setAppLockState(nextState);
+    return nextState;
+  };
+
+  const resetAppLockForm = () => {
+    setAppLockForm(EMPTY_APP_LOCK_FORM);
+    setAppLockFormError("");
+    setAppLockSaving(false);
+  };
+
+  const handleUnlockApp = async (event) => {
+    event.preventDefault();
+    const pin = sanitizeAppPinInput(appUnlockPin);
+    if (!isValidAppPin(pin)) {
+      setAppUnlockError("Enter your 4 to 8 digit app PIN.");
+      return;
+    }
+
+    try {
+      const latestState = refreshAppLockState();
+      if (!latestState.enabled || latestState.corrupt) {
+        setAppUnlockError("App lock settings are unavailable.");
+        return;
+      }
+      const verified = await verifyAppPin(pin, latestState.config);
+      if (!verified) {
+        setAppUnlockError("Wrong PIN. Check the digits and try again.");
+        return;
+      }
+      setAppUnlocked(true);
+      setAppUnlockPin("");
+      setAppUnlockError("");
+    } catch (error) {
+      console.error("App unlock failed", error);
+      setAppUnlockError("Could not verify the app PIN.");
+    }
+  };
+
+  const lockApp = () => {
+    setAppUnlocked(false);
+    setAppUnlockPin("");
+    setAppUnlockError("");
+    setExportImportOpen(false);
+    setStorageDiagnosticsOpen(false);
+    setSelectedCaseId(null);
+  };
+
+  const handleSaveAppLock = async () => {
+    const currentPin = sanitizeAppPinInput(appLockForm.currentPin);
+    const newPin = sanitizeAppPinInput(appLockForm.newPin);
+    const confirmPin = sanitizeAppPinInput(appLockForm.confirmPin);
+    const latestState = refreshAppLockState();
+    const effectiveMode = latestState.enabled ? appLockMode : "set";
+
+    setAppLockSaving(true);
+    setAppLockFormError("");
+
+    try {
+      if (effectiveMode === "set") {
+        if (!isValidAppPin(newPin)) {
+          setAppLockFormError("PIN must be numeric and 4 to 8 digits.");
+          return;
+        }
+        if (newPin !== confirmPin) {
+          setAppLockFormError("PIN confirmation does not match.");
+          return;
+        }
+        const config = await createAppLockConfig(newPin, latestState.config);
+        writeAppLockConfig(config);
+        setAppLockState({ enabled: true, corrupt: false, config });
+        setAppUnlocked(true);
+        resetAppLockForm();
+        showAppNotice("success", "App Lock enabled.");
+        return;
+      }
+
+      if (effectiveMode === "change") {
+        if (!latestState.enabled || latestState.corrupt) {
+          setAppLockFormError("App Lock is not available to change.");
+          return;
+        }
+        if (!(await verifyAppPin(currentPin, latestState.config))) {
+          setAppLockFormError("Current PIN is incorrect.");
+          return;
+        }
+        if (!isValidAppPin(newPin)) {
+          setAppLockFormError("New PIN must be numeric and 4 to 8 digits.");
+          return;
+        }
+        if (newPin !== confirmPin) {
+          setAppLockFormError("New PIN confirmation does not match.");
+          return;
+        }
+        const config = await createAppLockConfig(newPin, latestState.config);
+        writeAppLockConfig(config);
+        setAppLockState({ enabled: true, corrupt: false, config });
+        setAppUnlocked(true);
+        resetAppLockForm();
+        showAppNotice("success", "App Lock PIN changed.");
+        return;
+      }
+
+      if (effectiveMode === "disable") {
+        if (!latestState.enabled || latestState.corrupt) {
+          setAppLockFormError("App Lock is not available to disable.");
+          return;
+        }
+        if (!(await verifyAppPin(currentPin, latestState.config))) {
+          setAppLockFormError("Current PIN is incorrect.");
+          return;
+        }
+        if (!appLockForm.confirmDisable) {
+          setAppLockFormError("Confirm that you want to disable App Lock.");
+          return;
+        }
+        const config = createDisabledAppLockConfig(latestState.config);
+        writeAppLockConfig(config);
+        setAppLockState({ enabled: false, corrupt: false, config });
+        setAppUnlocked(true);
+        resetAppLockForm();
+        setAppLockMode("set");
+        showAppNotice("warning", "App Lock disabled.");
+      }
+    } catch (error) {
+      console.error("Could not save App Lock settings", error);
+      setAppLockFormError(error.message || "Could not save App Lock settings.");
+    } finally {
+      setAppLockSaving(false);
+    }
+  };
+
+  const resetCorruptAppLock = () => {
+    const confirmed = window.confirm("Reset corrupted App Lock settings? This does not delete cases or attachments.");
+    if (!confirmed) return;
+    const config = createDisabledAppLockConfig();
+    try {
+      writeAppLockConfig(config);
+      setAppLockState({ enabled: false, corrupt: false, config });
+      setAppUnlocked(true);
+      setAppUnlockPin("");
+      setAppUnlockError("");
+      resetAppLockForm();
+      showAppNotice("warning", "Corrupted App Lock settings were reset. Case data was not deleted.");
+    } catch (error) {
+      console.error("Could not reset App Lock settings", error);
+      showAppNotice("error", "Could not reset App Lock settings.");
+    }
   };
 
   const closeRiskyActionGuard = (shouldContinue) => {
@@ -2891,6 +3066,10 @@ const handleRecordFiles = async (event) => {
   const compactBackupStatus = getCompactBackupStatus(lastBackupMeta);
   const backupTimestampLabel = formatBackupMetaTimestamp(lastBackupMeta);
   const currentOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const appLockCorrupt = Boolean(appLockState.corrupt);
+  const appLockEnabled = Boolean(appLockState.enabled && !appLockCorrupt);
+  const appLocked = appLockEnabled && !appUnlocked;
+  const appLockStatusLabel = appLockCorrupt ? "Corrupted" : appLockEnabled ? "Enabled" : "Off";
   const diagnosticCaseCount = storageDiagnostics?.recordCounts?.cases;
   const backupNeedsAttention = !hasRecentFullBackupMeta(lastBackupMeta);
   const onCaseListPage = !selectedCase && !selectedCaseRequiresPin;
@@ -2911,6 +3090,82 @@ const handleRecordFiles = async (event) => {
   const rescueSnapshotTimestampLabel = rescueSnapshot?.timestamp
     ? new Date(rescueSnapshot.timestamp).toLocaleString()
     : "";
+
+  if (appLockCorrupt) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-neutral-950 p-4 text-neutral-100">
+        <div className="w-full max-w-md rounded-2xl border border-red-300/40 bg-white p-6 text-neutral-900 shadow-xl">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-red-700">App Lock Warning</div>
+          <h1 className="mt-2 text-2xl font-semibold">App lock settings are corrupted</h1>
+          <p className="mt-3 text-sm leading-6 text-neutral-700">
+            ProveIt cannot verify the saved App Lock settings. Resetting App Lock does not delete cases, folders, images, or backups.
+          </p>
+          <p className="mt-3 text-sm leading-6 text-neutral-700">
+            App Lock is a privacy screen. It does not encrypt stored data.
+          </p>
+          <button
+            type="button"
+            onClick={resetCorruptAppLock}
+            className="mt-5 w-full rounded-lg border border-red-600 bg-red-600 px-3 py-2 text-sm font-bold text-white hover:bg-red-700"
+          >
+            Reset App Lock Settings
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (appLocked) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-neutral-950 p-4 text-neutral-100">
+        <div className="w-full max-w-md rounded-2xl border border-neutral-700 bg-white p-6 text-neutral-900 shadow-xl">
+          <div className="flex items-center gap-3">
+            <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-lime-500 bg-lime-50 text-neutral-900">
+              <Lock className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-lime-700">App Lock</div>
+              <h1 className="text-xl font-semibold">ProveIt is locked</h1>
+            </div>
+          </div>
+          <p className="mt-4 text-sm leading-6 text-neutral-700">
+            Enter your App Lock PIN to view cases, folders, diagnostics, and backups.
+          </p>
+          <form onSubmit={handleUnlockApp} className="mt-5 space-y-4">
+            <label className="block">
+              <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-neutral-500">App PIN</span>
+              <input
+                type="password"
+                inputMode="numeric"
+                autoFocus
+                value={appUnlockPin}
+                onChange={(event) => {
+                  setAppUnlockPin(sanitizeAppPinInput(event.target.value));
+                  setAppUnlockError("");
+                }}
+                placeholder="Enter 4 to 8 digits"
+                className="w-full rounded-xl border border-neutral-300 p-3 outline-none transition-colors focus:border-lime-500"
+              />
+            </label>
+            {appUnlockError ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-800">
+                {appUnlockError}
+              </div>
+            ) : null}
+            <button
+              type="submit"
+              className="w-full rounded-lg border border-lime-600 bg-lime-500 px-3 py-2 text-sm font-bold text-white hover:bg-lime-600"
+            >
+              Unlock App
+            </button>
+          </form>
+          <p className="mt-4 text-xs leading-5 text-neutral-500">
+            App Lock is a privacy screen. It does not encrypt stored data.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-800">
@@ -3102,6 +3357,167 @@ const handleRecordFiles = async (event) => {
                 ) : null}
               </section>
 
+              <section className="rounded-xl border border-neutral-200 bg-white p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-neutral-900">Security / Privacy</h3>
+                    <p className="mt-1 text-xs leading-5 text-neutral-500">
+                      App Lock is a privacy screen. It does not encrypt stored data.
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-neutral-500">
+                      Full backups remain plaintext unless exported with encryption in a future version.
+                    </p>
+                  </div>
+                  <span className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
+                    appLockCorrupt
+                      ? "border-red-200 bg-red-50 text-red-700"
+                      : appLockEnabled
+                        ? "border-lime-200 bg-lime-50 text-lime-700"
+                        : "border-neutral-200 bg-neutral-50 text-neutral-600"
+                  }`}>
+                    {appLockStatusLabel}
+                  </span>
+                </div>
+
+                {appLockCorrupt ? (
+                  <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs leading-5 text-red-800">
+                    App Lock settings are corrupted. Resetting App Lock does not delete cases or attachments.
+                    <button
+                      type="button"
+                      onClick={resetCorruptAppLock}
+                      className="mt-3 block rounded-md border border-red-600 bg-white px-3 py-2 text-xs font-bold text-red-800 hover:bg-red-100"
+                    >
+                      Reset App Lock Settings
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {appLockEnabled ? (
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAppLockMode("change");
+                            resetAppLockForm();
+                          }}
+                          className={`rounded-md border px-3 py-2 text-xs font-bold ${
+                            appLockMode === "change"
+                              ? "border-lime-600 bg-lime-50 text-neutral-900"
+                              : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50"
+                          }`}
+                        >
+                          Change PIN
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAppLockMode("disable");
+                            resetAppLockForm();
+                          }}
+                          className={`rounded-md border px-3 py-2 text-xs font-bold ${
+                            appLockMode === "disable"
+                              ? "border-red-500 bg-red-50 text-red-800"
+                              : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50"
+                          }`}
+                        >
+                          Disable App Lock
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-xs font-medium text-neutral-600">Set a 4 to 8 digit PIN to enable App Lock.</div>
+                    )}
+
+                    {(appLockEnabled && appLockMode === "disable") ? (
+                      <div className="grid gap-3">
+                        <label>
+                          <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-neutral-500">Current PIN</span>
+                          <input
+                            type="password"
+                            inputMode="numeric"
+                            value={appLockForm.currentPin}
+                            onChange={(event) => {
+                              setAppLockForm((prev) => ({ ...prev, currentPin: sanitizeAppPinInput(event.target.value) }));
+                              setAppLockFormError("");
+                            }}
+                            className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-800 outline-none focus:border-lime-500"
+                          />
+                        </label>
+                        <label className="flex items-start gap-2 text-xs font-medium leading-5 text-neutral-700">
+                          <input
+                            type="checkbox"
+                            checked={appLockForm.confirmDisable}
+                            onChange={(event) => setAppLockForm((prev) => ({ ...prev, confirmDisable: event.target.checked }))}
+                            className="mt-1"
+                          />
+                          <span>Disable the app-wide privacy screen. This does not change per-case PIN locks.</span>
+                        </label>
+                      </div>
+                    ) : (
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        {appLockEnabled ? (
+                          <label>
+                            <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-neutral-500">Current PIN</span>
+                            <input
+                              type="password"
+                              inputMode="numeric"
+                              value={appLockForm.currentPin}
+                              onChange={(event) => {
+                                setAppLockForm((prev) => ({ ...prev, currentPin: sanitizeAppPinInput(event.target.value) }));
+                                setAppLockFormError("");
+                              }}
+                              className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-800 outline-none focus:border-lime-500"
+                            />
+                          </label>
+                        ) : null}
+                        <label>
+                          <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-neutral-500">PIN</span>
+                          <input
+                            type="password"
+                            inputMode="numeric"
+                            value={appLockForm.newPin}
+                            onChange={(event) => {
+                              setAppLockForm((prev) => ({ ...prev, newPin: sanitizeAppPinInput(event.target.value) }));
+                              setAppLockFormError("");
+                            }}
+                            placeholder="4 to 8 digits"
+                            className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-800 outline-none focus:border-lime-500"
+                          />
+                        </label>
+                        <label>
+                          <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-neutral-500">Confirm PIN</span>
+                          <input
+                            type="password"
+                            inputMode="numeric"
+                            value={appLockForm.confirmPin}
+                            onChange={(event) => {
+                              setAppLockForm((prev) => ({ ...prev, confirmPin: sanitizeAppPinInput(event.target.value) }));
+                              setAppLockFormError("");
+                            }}
+                            className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-800 outline-none focus:border-lime-500"
+                          />
+                        </label>
+                      </div>
+                    )}
+
+                    {appLockFormError ? (
+                      <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-800">
+                        {appLockFormError}
+                      </div>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={handleSaveAppLock}
+                      disabled={appLockSaving}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400 sm:w-auto"
+                    >
+                      <Lock className="h-4 w-4" />
+                      {appLockEnabled ? (appLockMode === "disable" ? "Disable App Lock" : "Change PIN") : "Enable App Lock"}
+                    </button>
+                  </div>
+                )}
+              </section>
+
               <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
                 <h3 className="text-sm font-bold text-neutral-900">Safety Notes</h3>
                 <p className="mt-1 text-xs leading-5 text-neutral-600">
@@ -3282,6 +3698,16 @@ const handleRecordFiles = async (event) => {
                 <Database className="h-3.5 w-3.5 shrink-0" />
                 <span>Diagnostics</span>
               </button>
+              {appLockEnabled ? (
+                <button
+                  type="button"
+                  onClick={lockApp}
+                  className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-bold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-100 active:scale-95 sm:flex-none"
+                >
+                  <Lock className="h-3.5 w-3.5 shrink-0" />
+                  <span>Lock App</span>
+                </button>
+              ) : null}
             </div>
           </section>
         ) : null}
