@@ -1789,15 +1789,11 @@ export default function ProveItApp() {
   const getCountLabel = (count, singular, plural = `${singular}s`) =>
     `${count} ${count === 1 ? singular : plural}`;
 
-  const getOpenTaskCount = (caseItem) =>
-    (caseItem?.tasks || []).filter((task) => !["done", "completed", "closed", "archived"].includes(String(task?.status || "").toLowerCase())).length;
-
   const getCaseListMetadata = (caseItem) => [
-    getCountLabel(caseItem?.incidents?.length || 0, "incident"),
     getCountLabel(caseItem?.evidence?.length || 0, "evidence", "evidence"),
+    getCountLabel(caseItem?.tasks?.length || 0, "task"),
     getCountLabel(caseItem?.documents?.length || 0, "document"),
     getCountLabel(caseItem?.ledger?.length || 0, "ledger", "ledger"),
-    getCountLabel(getOpenTaskCount(caseItem), "open task"),
   ];
 
   const getCaseFallbackFocus = (caseItem) => {
@@ -1849,6 +1845,29 @@ export default function ProveItApp() {
     if (folderId === "all") return cases.length;
     if (folderId === "unfiled") return cases.filter((caseItem) => !caseItem?.folderId).length;
     return cases.filter((caseItem) => caseItem?.folderId === folderId).length;
+  };
+
+  const getCasesForFolder = (folderId) => {
+    if (folderId === "all") return cases;
+    if (folderId === "unfiled") return cases.filter((caseItem) => !caseItem?.folderId);
+    return cases.filter((caseItem) => caseItem?.folderId === folderId);
+  };
+
+  const getFolderLastActivityTimestamp = (folderId) =>
+    getCasesForFolder(folderId).reduce((latestTimestamp, caseItem) => {
+      const caseTime = new Date(getCaseLastUpdated(caseItem) || 0).getTime();
+      return Number.isFinite(caseTime) && caseTime > latestTimestamp ? caseTime : latestTimestamp;
+    }, 0);
+
+  const formatFolderLastActivity = (folderId) => {
+    const timestamp = getFolderLastActivityTimestamp(folderId);
+    if (!timestamp) return "No activity yet";
+
+    return new Date(timestamp).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   };
 
   const getCaseFolder = (caseItem) =>
@@ -2788,18 +2807,19 @@ const handleRecordFiles = async (event) => {
   const folderTiles = caseFolders.map((folder) => ({
     ...folder,
     count: getFolderCaseCount(folder.id),
+    lastActivity: formatFolderLastActivity(folder.id),
   }));
 
   const renderFolderTiles = () => (
     <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm print:hidden">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Case Folders</h2>
-          <p className="mt-1 text-sm text-neutral-700">
-            {activeFolderName} | {getFolderCaseCount(activeFolderId)} case{getFolderCaseCount(activeFolderId) === 1 ? "" : "s"}
+          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Folders</h2>
+          <p className="mt-1 text-lg font-semibold text-neutral-900">
+            {activeFolderName}
           </p>
-          <p className="mt-1 text-xs text-neutral-500">
-            Folder privacy controls will apply per folder. Inbox is not password protected.
+          <p className="mt-1 text-xs leading-5 text-neutral-500">
+            Choose a folder to browse cases. Folders organize local cases without changing case content.
           </p>
         </div>
         <button
@@ -2815,7 +2835,7 @@ const handleRecordFiles = async (event) => {
       <button
         type="button"
         onClick={() => toggleFolderView("unfiled")}
-        className={`mt-4 flex w-full max-w-xl items-center gap-3 rounded-xl border p-3 text-left transition-colors ${
+        className={`mt-5 flex w-full max-w-xl items-center gap-3 rounded-xl border p-4 text-left transition-colors ${
           activeFolderId === "unfiled"
             ? "border-lime-500 bg-lime-50 shadow-[0_0_0_1px_rgba(132,204,22,0.2)]"
             : "border-neutral-200 bg-neutral-50 hover:border-neutral-300 hover:bg-white"
@@ -2823,18 +2843,19 @@ const handleRecordFiles = async (event) => {
       >
         <FolderOpen className={`h-6 w-6 shrink-0 ${activeFolderId === "unfiled" ? "text-lime-700" : "text-neutral-500"}`} />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <span className="text-sm font-bold text-neutral-900">Inbox</span>
-            <span className="text-xs font-semibold text-neutral-500">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <span className="text-base font-bold text-neutral-900">Inbox</span>
+            <span className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] font-bold text-neutral-700">
               {getFolderCaseCount("unfiled")} case{getFolderCaseCount("unfiled") === 1 ? "" : "s"}
             </span>
           </div>
-          <p className="mt-0.5 text-xs text-neutral-500">New cases start here</p>
+          <p className="mt-1 text-xs text-neutral-500">New cases start here</p>
+          <p className="mt-1 text-xs font-medium text-neutral-500">Last activity: {formatFolderLastActivity("unfiled")}</p>
         </div>
       </button>
 
       <div className="mt-5">
-        <h3 className="text-sm font-bold text-neutral-900">Folders</h3>
+        <h3 className="text-sm font-bold text-neutral-900">Custom folders</h3>
         {caseFolders.length === 0 ? (
           <div className="mt-3 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-600">
             Create folders to organize your cases. New cases remain in Inbox until assigned.
@@ -2849,7 +2870,7 @@ const handleRecordFiles = async (event) => {
             key={folder.id}
             type="button"
             onClick={() => toggleFolderView(folder.id)}
-            className={`min-w-0 rounded-xl border p-3 text-left transition-colors ${
+            className={`min-w-0 rounded-xl border p-4 text-left transition-colors ${
               isActive
                 ? "border-lime-500 bg-lime-50 shadow-[0_0_0_1px_rgba(132,204,22,0.25)]"
                 : "border-neutral-200 bg-neutral-50 hover:border-neutral-300 hover:bg-white"
@@ -2861,9 +2882,17 @@ const handleRecordFiles = async (event) => {
                 style={folder.color ? { color: folder.color } : undefined}
               />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-bold text-neutral-900">{folder.name}</div>
-                <div className="mt-0.5 text-xs font-semibold text-neutral-500">
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  <div className="truncate text-base font-bold text-neutral-900">{folder.name}</div>
+                  <span className="shrink-0 rounded-full border border-neutral-200 bg-white px-2 py-0.5 text-[11px] font-bold text-neutral-700">
+                    {folder.count}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs font-semibold text-neutral-500">
                   {folder.count} case{folder.count === 1 ? "" : "s"}
+                </div>
+                <div className="mt-1 text-xs font-medium text-neutral-500">
+                  Last activity: {folder.lastActivity}
                 </div>
                 {folder.description ? (
                   <p className="mt-1 line-clamp-2 text-xs leading-5 text-neutral-500">{folder.description}</p>
@@ -2941,18 +2970,24 @@ const handleRecordFiles = async (event) => {
           </div>
         ) : (
           <>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h2 className="text-xl font-semibold">{activeFolderName}</h2>
-                <p className="mt-1 text-sm text-neutral-500">Jump straight back into the right case.</p>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Selected folder</div>
+                <h2 className="mt-1 text-2xl font-semibold text-neutral-900">{activeFolderName}</h2>
+                <p className="mt-1 text-sm text-neutral-500">
+                  {getFolderCaseCount(activeFolderId)} case{getFolderCaseCount(activeFolderId) === 1 ? "" : "s"} | Last activity: {formatFolderLastActivity(activeFolderId)}
+                </p>
               </div>
-              <div className="text-sm text-neutral-500">
+              <div className="text-sm font-semibold text-neutral-500">
                 Showing {caseListItems.length}
+              </div>
               </div>
             </div>
             {caseListItems.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-            No cases in this folder.
+          <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-6 text-sm text-neutral-600">
+            <div className="font-semibold text-neutral-800">No cases in {activeFolderName}.</div>
+            <p className="mt-1 text-sm text-neutral-500">Move an existing case here or create a new case and assign it to this folder.</p>
           </div>
         ) : (
           caseListItems.map((c) => {
@@ -2969,7 +3004,7 @@ const handleRecordFiles = async (event) => {
               <div
                 key={c.id}
                 onClick={() => openCase(c.id)}
-                className={`flex flex-col gap-4 rounded-2xl border bg-white p-4 shadow-sm cursor-pointer transition-colors hover:border-neutral-300 lg:flex-row lg:items-start lg:justify-between ${
+                className={`flex flex-col gap-4 rounded-2xl border bg-white p-5 shadow-sm cursor-pointer transition-colors hover:border-neutral-300 lg:flex-row lg:items-start lg:justify-between ${
                   isMostRecent
                     ? "border-lime-300 bg-lime-50/30 shadow-[0_0_0_1px_rgba(163,230,53,0.35)]"
                     : "border-neutral-200"
@@ -2993,29 +3028,29 @@ const handleRecordFiles = async (event) => {
                     </span>
                   </div>
                   {!caseIsLocked && (
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500">
-                      <span>{c.category || "Uncategorized"}</span>
-                      <span>Updated {formatCaseLastUpdated(c)}</span>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500">
+                      <span className="font-semibold text-neutral-600">{c.category || "Uncategorized"}</span>
+                      <span>Last updated {formatCaseLastUpdated(c)}</span>
                       {createdLabel ? <span>Created {createdLabel}</span> : null}
                     </div>
                   )}
                   {!caseIsLocked && (
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      <span className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
+                    <div className="mt-4 flex flex-wrap gap-1.5">
+                      <span className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">
                         Folder: {getCaseFolderName(c)}
                       </span>
                       {caseMetadata.map((item) => (
-                        <span key={item} className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] font-semibold text-neutral-600">
+                        <span key={item} className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] font-bold text-neutral-600">
                           {item}
                         </span>
                       ))}
                     </div>
                   )}
-                  <div className="mt-3">
+                  <div className="mt-4">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                       {caseIsLocked ? "Privacy" : "Current Focus"}
                     </div>
-                    <div className="mt-1 line-clamp-2 text-sm text-neutral-700">
+                    <div className="mt-1 line-clamp-2 text-sm leading-6 text-neutral-700">
                       {focusText}
                     </div>
                   </div>
