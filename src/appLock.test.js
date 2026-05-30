@@ -8,6 +8,7 @@ import {
   createDisabledAppLockConfig,
   hashAppPin,
   isValidAppPin,
+  normalizeAppAutoLockMinutes,
   readAppLockConfig,
   sanitizeAppPinInput,
   verifyAppPin,
@@ -43,6 +44,7 @@ test("createAppLockConfig stores a PBKDF2 hash instead of plaintext PIN", async 
 
   assert.equal(config.enabled, true);
   assert.equal(config.iterations, APP_LOCK_ITERATIONS);
+  assert.equal(config.autoLockMinutes, null);
   assert.notEqual(config.pinHash, "123456");
   assert.ok(config.pinHash.length > 0);
   assert.ok(config.salt.length > 0);
@@ -80,6 +82,15 @@ test("readAppLockConfig reads valid stored config and flags malformed config", a
   });
 });
 
+test("app lock config preserves valid auto-lock minutes and normalizes invalid values", async () => {
+  const config = await createAppLockConfig("2468", { autoLockMinutes: 30 });
+
+  assert.equal(config.autoLockMinutes, 30);
+  assert.equal(normalizeAppAutoLockMinutes(15), 15);
+  assert.equal(normalizeAppAutoLockMinutes(20), null);
+  assert.equal(normalizeAppAutoLockMinutes(undefined), null);
+});
+
 test("disabled app lock config keeps the expected storage shape", async () => {
   await withFakeLocalStorage((values) => {
     const config = createDisabledAppLockConfig();
@@ -87,6 +98,7 @@ test("disabled app lock config keeps the expected storage shape", async () => {
 
     const stored = JSON.parse(values.get(APP_LOCK_STORAGE_KEY));
     assert.deepEqual(Object.keys(stored).sort(), [
+      "autoLockMinutes",
       "createdAt",
       "enabled",
       "iterations",

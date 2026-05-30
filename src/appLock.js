@@ -1,5 +1,6 @@
 export const APP_LOCK_STORAGE_KEY = "toolstack.proveit.v1.appLock";
 export const APP_LOCK_ITERATIONS = 100000;
+export const APP_LOCK_AUTO_LOCK_OPTIONS = [null, 15, 30, 60];
 
 function getWebCrypto() {
   const cryptoApi = globalThis.crypto;
@@ -15,6 +16,12 @@ export function sanitizeAppPinInput(value = "") {
 
 export function isValidAppPin(pin = "") {
   return /^\d{4,8}$/.test(String(pin || ""));
+}
+
+export function normalizeAppAutoLockMinutes(value) {
+  if (value === null || typeof value === "undefined") return null;
+  const numericValue = Number(value);
+  return APP_LOCK_AUTO_LOCK_OPTIONS.includes(numericValue) ? numericValue : null;
 }
 
 export function bytesToBase64(bytes) {
@@ -82,8 +89,17 @@ export function isValidStoredAppLockConfig(config) {
   if (!Number.isFinite(config.iterations) || config.iterations <= 0) return false;
   if (typeof config.createdAt !== "string" || !config.createdAt) return false;
   if (typeof config.updatedAt !== "string" || !config.updatedAt) return false;
+  if (normalizeAppAutoLockMinutes(config.autoLockMinutes) !== (config.autoLockMinutes ?? null)) return false;
   if (config.enabled === false) return true;
   return config.pinHash.length > 0 && config.salt.length > 0;
+}
+
+export function normalizeStoredAppLockConfig(config) {
+  if (!config || typeof config !== "object") return config;
+  return {
+    ...config,
+    autoLockMinutes: normalizeAppAutoLockMinutes(config.autoLockMinutes),
+  };
 }
 
 export async function createAppLockConfig(pin, existingConfig = null) {
@@ -94,6 +110,7 @@ export async function createAppLockConfig(pin, existingConfig = null) {
     pinHash: await hashAppPin(pin, salt, APP_LOCK_ITERATIONS),
     salt,
     iterations: APP_LOCK_ITERATIONS,
+    autoLockMinutes: normalizeAppAutoLockMinutes(existingConfig?.autoLockMinutes),
     createdAt: existingConfig?.createdAt || now,
     updatedAt: now,
   };
@@ -106,6 +123,7 @@ export function createDisabledAppLockConfig(existingConfig = null) {
     pinHash: "",
     salt: "",
     iterations: APP_LOCK_ITERATIONS,
+    autoLockMinutes: normalizeAppAutoLockMinutes(existingConfig?.autoLockMinutes),
     createdAt: existingConfig?.createdAt || now,
     updatedAt: now,
   };
@@ -126,10 +144,11 @@ export function readAppLockConfig() {
       return { enabled: false, corrupt: false, config: createDisabledAppLockConfig() };
     }
     const parsed = JSON.parse(saved);
-    if (!isValidStoredAppLockConfig(parsed)) {
+    const normalized = normalizeStoredAppLockConfig(parsed);
+    if (!isValidStoredAppLockConfig(normalized)) {
       return { enabled: false, corrupt: true, config: null };
     }
-    return { enabled: parsed.enabled === true, corrupt: false, config: parsed };
+    return { enabled: normalized.enabled === true, corrupt: false, config: normalized };
   } catch {
     return { enabled: false, corrupt: true, config: null };
   }

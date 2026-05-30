@@ -50,6 +50,7 @@ import {
   createAppLockConfig,
   createDisabledAppLockConfig,
   isValidAppPin,
+  normalizeAppAutoLockMinutes,
   readAppLockConfig,
   sanitizeAppPinInput,
   verifyAppPin,
@@ -902,6 +903,25 @@ export default function ProveItApp() {
     setAppLockSessionUnlocked(enabled);
   };
 
+  const handleAutoLockChange = (value) => {
+    const latestState = refreshAppLockState();
+    if (!latestState.config || latestState.corrupt) return;
+
+    const config = {
+      ...latestState.config,
+      autoLockMinutes: normalizeAppAutoLockMinutes(value === "off" ? null : Number(value)),
+      updatedAt: new Date().toISOString(),
+    };
+
+    try {
+      writeAppLockConfig(config);
+      setAppLockState({ enabled: config.enabled === true, corrupt: false, config });
+    } catch (error) {
+      console.error("Could not save Auto-Lock setting", error);
+      showAppNotice("error", "Could not save Auto-Lock setting.");
+    }
+  };
+
   const closeRiskyActionGuard = (shouldContinue) => {
     setRiskyActionGuardOpen(false);
     const resolve = riskyActionGuardResolverRef.current;
@@ -949,6 +969,44 @@ export default function ProveItApp() {
     const timeout = window.setTimeout(() => setAppNotice(null), appNotice.tone === "error" ? 8000 : 6000);
     return () => window.clearTimeout(timeout);
   }, [appNotice]);
+
+  useEffect(() => {
+    const autoLockMinutes = normalizeAppAutoLockMinutes(appLockState.config?.autoLockMinutes);
+    const autoLockEnabled = appLockState.enabled && !appLockState.corrupt && appUnlocked && autoLockMinutes;
+    if (!autoLockEnabled) return undefined;
+
+    let timeoutId = null;
+    const lockAfterInactivity = () => {
+      writeAppLockSessionUnlock(false);
+      setAppUnlocked(false);
+      setAppLockSessionUnlocked(false);
+      setAppLockSessionUnlockEligible(false);
+      setAppUnlockPin("");
+      setAppUnlockError("");
+      setExportImportOpen(false);
+      setSettingsOpen(false);
+      setStorageDiagnosticsOpen(false);
+      setSelectedCaseId(null);
+      showAppNotice("warning", "ProveIt auto-locked after inactivity.");
+    };
+    const resetAutoLockTimer = () => {
+      if (timeoutId) window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(lockAfterInactivity, autoLockMinutes * 60 * 1000);
+    };
+    const activityEvents = ["mousemove", "keydown", "click", "touchstart"];
+
+    resetAutoLockTimer();
+    activityEvents.forEach((eventName) => {
+      window.addEventListener(eventName, resetAutoLockTimer, { passive: true });
+    });
+
+    return () => {
+      if (timeoutId) window.clearTimeout(timeoutId);
+      activityEvents.forEach((eventName) => {
+        window.removeEventListener(eventName, resetAutoLockTimer);
+      });
+    };
+  }, [appLockState, appUnlocked]);
 
   useEffect(() => {
     let cancelled = false;
@@ -3619,6 +3677,36 @@ const handleRecordFiles = async (event) => {
                         When enabled, refresh keeps ProveIt unlocked in this tab/session. This reduces privacy during the current browser session.
                       </p>
                     )}
+                  </div>
+                ) : null}
+
+                {!appLockCorrupt ? (
+                  <div className="mt-4 rounded-lg border border-neutral-200 bg-white p-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="text-sm font-bold text-neutral-900">Auto-Lock</div>
+                        <p className="mt-1 text-xs leading-5 text-neutral-600">
+                          Auto-Lock protects ProveIt when you step away. It is a privacy screen, not encryption.
+                        </p>
+                      </div>
+                      <label className="flex w-full items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-semibold text-neutral-600 sm:w-auto">
+                        <span className="shrink-0">After</span>
+                        <select
+                          value={normalizeAppAutoLockMinutes(appLockState.config?.autoLockMinutes) || "off"}
+                          disabled={!appLockEnabled}
+                          onChange={(event) => handleAutoLockChange(event.target.value)}
+                          className="min-w-0 flex-1 bg-transparent text-xs font-bold text-neutral-800 outline-none disabled:text-neutral-400 sm:w-28"
+                        >
+                          <option value="off">Off</option>
+                          <option value="15">15 minutes</option>
+                          <option value="30">30 minutes</option>
+                          <option value="60">60 minutes</option>
+                        </select>
+                      </label>
+                    </div>
+                    {!appLockEnabled ? (
+                      <p className="mt-2 text-xs text-neutral-500">Enable App Lock to use Auto-Lock.</p>
+                    ) : null}
                   </div>
                 ) : null}
 
