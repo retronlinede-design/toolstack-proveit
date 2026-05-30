@@ -603,6 +603,7 @@ export default function ProveItApp() {
   const [loadingCases, setLoadingCases] = useState(true);
   const [caseSearchQuery, setCaseSearchQuery] = useState("");
   const [caseSort, setCaseSort] = useState("updated");
+  const [folderSort, setFolderSort] = useState("activity");
   const [caseFolders, setCaseFolders] = useState(() => readCaseFolders());
   const [activeFolderId, setActiveFolderId] = useState(null);
   const [folderModalOpen, setFolderModalOpen] = useState(false);
@@ -1825,12 +1826,14 @@ export default function ProveItApp() {
     });
 
     const sortedCases = [...filteredCases].sort((a, b) => {
-      if (caseSort === "name") {
+      if (caseSort === "title") {
         return String(a?.name || "").localeCompare(String(b?.name || ""));
       }
-      if (caseSort === "status") {
-        const statusCompare = String(a?.status || "").localeCompare(String(b?.status || ""));
-        if (statusCompare !== 0) return statusCompare;
+
+      if (caseSort === "created") {
+        const dateA = new Date(a?.createdAt || 0).getTime();
+        const dateB = new Date(b?.createdAt || 0).getTime();
+        return dateB - dateA;
       }
 
       const dateA = new Date(getCaseLastUpdated(a) || 0).getTime();
@@ -1953,6 +1956,15 @@ export default function ProveItApp() {
 
   const toggleFolderView = (folderId) => {
     setActiveFolderId((currentFolderId) => currentFolderId === folderId ? null : folderId);
+  };
+
+  const renameFolderFromDashboard = (folder) => {
+    if (!folder) return;
+    const nextName = window.prompt("Rename folder", folder.name || "");
+    if (nextName === null) return;
+    const trimmedName = nextName.trim();
+    if (!trimmedName) return;
+    updateFolder(folder.id, { name: trimmedName });
   };
 
   const mostRecentlyUpdatedCaseId = useMemo(() => {
@@ -2808,7 +2820,20 @@ const handleRecordFiles = async (event) => {
     ...folder,
     count: getFolderCaseCount(folder.id),
     lastActivity: formatFolderLastActivity(folder.id),
-  }));
+    lastActivityTimestamp: getFolderLastActivityTimestamp(folder.id),
+  })).sort((a, b) => {
+    if (folderSort === "name") {
+      return String(a?.name || "").localeCompare(String(b?.name || ""));
+    }
+    if (folderSort === "count") {
+      if (b.count !== a.count) return b.count - a.count;
+      return String(a?.name || "").localeCompare(String(b?.name || ""));
+    }
+    if (b.lastActivityTimestamp !== a.lastActivityTimestamp) {
+      return b.lastActivityTimestamp - a.lastActivityTimestamp;
+    }
+    return String(a?.name || "").localeCompare(String(b?.name || ""));
+  });
 
   const renderFolderTiles = () => (
     <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm print:hidden">
@@ -2855,7 +2880,21 @@ const handleRecordFiles = async (event) => {
       </button>
 
       <div className="mt-5">
-        <h3 className="text-sm font-bold text-neutral-900">Custom folders</h3>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-sm font-bold text-neutral-900">Custom folders</h3>
+          <label className="flex w-full items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-semibold text-neutral-600 sm:w-auto">
+            Sort
+            <select
+              value={folderSort}
+              onChange={(event) => setFolderSort(event.target.value)}
+              className="min-w-0 flex-1 bg-transparent text-xs font-bold text-neutral-800 outline-none sm:w-32"
+            >
+              <option value="activity">Last activity</option>
+              <option value="name">Name</option>
+              <option value="count">Case count</option>
+            </select>
+          </label>
+        </div>
         {caseFolders.length === 0 ? (
           <div className="mt-3 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-600">
             Create folders to organize your cases. New cases remain in Inbox until assigned.
@@ -2866,10 +2905,17 @@ const handleRecordFiles = async (event) => {
           const isActive = activeFolderId === folder.id;
           const FolderIcon = isActive ? FolderOpen : Folder;
           return (
-          <button
+          <div
             key={folder.id}
-            type="button"
+            role="button"
+            tabIndex={0}
             onClick={() => toggleFolderView(folder.id)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                toggleFolderView(folder.id);
+              }
+            }}
             className={`min-w-0 rounded-xl border p-4 text-left transition-colors ${
               isActive
                 ? "border-lime-500 bg-lime-50 shadow-[0_0_0_1px_rgba(132,204,22,0.25)]"
@@ -2897,9 +2943,43 @@ const handleRecordFiles = async (event) => {
                 {folder.description ? (
                   <p className="mt-1 line-clamp-2 text-xs leading-5 text-neutral-500">{folder.description}</p>
                 ) : null}
+                <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      renameFolderFromDashboard(folder);
+                    }}
+                    className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 hover:bg-neutral-100"
+                  >
+                    Rename
+                  </button>
+                  <label
+                    onClick={(event) => event.stopPropagation()}
+                    className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 hover:bg-neutral-100"
+                  >
+                    Color
+                    <input
+                      type="color"
+                      value={/^#[0-9a-f]{6}$/i.test(folder.color || "") ? folder.color : "#737373"}
+                      onChange={(event) => updateFolder(folder.id, { color: event.target.value })}
+                      className="h-4 w-5 rounded border border-neutral-200 bg-white p-0"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      deleteFolder(folder.id);
+                    }}
+                    className="rounded-md border border-red-100 bg-white px-2 py-1 text-[11px] font-bold text-red-700 hover:bg-red-50"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
-          </button>
+          </div>
           );
             })}
           </div>
@@ -2971,7 +3051,7 @@ const handleRecordFiles = async (event) => {
         ) : (
           <>
             <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Selected folder</div>
                 <h2 className="mt-1 text-2xl font-semibold text-neutral-900">{activeFolderName}</h2>
@@ -2979,8 +3059,22 @@ const handleRecordFiles = async (event) => {
                   {getFolderCaseCount(activeFolderId)} case{getFolderCaseCount(activeFolderId) === 1 ? "" : "s"} | Last activity: {formatFolderLastActivity(activeFolderId)}
                 </p>
               </div>
-              <div className="text-sm font-semibold text-neutral-500">
-                Showing {caseListItems.length}
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-semibold text-neutral-600">
+                  Sort
+                  <select
+                    value={caseSort}
+                    onChange={(event) => setCaseSort(event.target.value)}
+                    className="bg-transparent text-xs font-bold text-neutral-800 outline-none"
+                  >
+                    <option value="updated">Last updated</option>
+                    <option value="created">Created date</option>
+                    <option value="title">Title</option>
+                  </select>
+                </label>
+                <div className="text-sm font-semibold text-neutral-500">
+                  Showing {caseListItems.length}
+                </div>
               </div>
               </div>
             </div>
@@ -3059,9 +3153,9 @@ const handleRecordFiles = async (event) => {
                 <div className="flex shrink-0 flex-wrap items-center gap-2 self-start lg:max-w-xs lg:justify-end">
                   <label
                     onClick={(e) => e.stopPropagation()}
-                    className="flex min-w-[9rem] items-center gap-1 rounded-xl border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-semibold text-neutral-600"
+                    className="flex min-w-[8.5rem] items-center gap-1.5 rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-[11px] font-bold text-neutral-600"
                   >
-                    Move
+                    Folder
                     <select
                       value={c.folderId || "unfiled"}
                       onClick={(e) => e.stopPropagation()}
@@ -3069,7 +3163,7 @@ const handleRecordFiles = async (event) => {
                         e.stopPropagation();
                         moveCaseToFolder(c, e.target.value);
                       }}
-                      className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-neutral-800 outline-none"
+                      className="min-w-0 flex-1 bg-transparent text-[11px] font-bold text-neutral-800 outline-none"
                     >
                       <option value="unfiled">Inbox</option>
                       {caseFolders.map((folder) => (
