@@ -63,6 +63,7 @@ const CREATE_NEW_SEQUENCE_GROUP_OPTION = "__create_new_sequence_group__";
 const LAST_FULL_BACKUP_ALL_AT_KEY = "toolstack.proveit.v1.lastFullBackupAt";
 const LAST_BACKUP_META_KEY = "toolstack.proveit.v1.lastBackupMeta";
 const CASE_FOLDERS_STORAGE_KEY = "toolstack.proveit.v1.folders";
+const APP_LOCK_SESSION_UNLOCK_KEY = "toolstack.proveit.v1.appLock.sessionUnlocked";
 const FULL_BACKUP_ALL_RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const RISKY_ACTION_BACKUP_MESSAGE = "Before applying changes, download a Full App Backup. ProveIt stores data locally in this browser, and browser storage can be lost.";
 const EMPTY_DB_WARNING_MESSAGE = "No cases found in this browser storage. If this is unexpected, stop and check Storage Diagnostics before importing or creating new data.";
@@ -85,6 +86,26 @@ function readLastBackupMeta() {
     return parsed && typeof parsed === "object" ? parsed : null;
   } catch {
     return null;
+  }
+}
+
+function readAppLockSessionUnlock() {
+  try {
+    return sessionStorage.getItem(APP_LOCK_SESSION_UNLOCK_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writeAppLockSessionUnlock(enabled) {
+  try {
+    if (enabled) {
+      sessionStorage.setItem(APP_LOCK_SESSION_UNLOCK_KEY, "true");
+    } else {
+      sessionStorage.removeItem(APP_LOCK_SESSION_UNLOCK_KEY);
+    }
+  } catch {
+    // Session unlock is convenience-only. If sessionStorage is unavailable, keep normal App Lock behavior.
   }
 }
 
@@ -598,13 +619,18 @@ export default function ProveItApp() {
   const [lockPromptPin, setLockPromptPin] = useState("");
   const [lockPromptError, setLockPromptError] = useState("");
   const [appLockState, setAppLockState] = useState(() => readAppLockConfig());
-  const [appUnlocked, setAppUnlocked] = useState(() => !readAppLockConfig().enabled);
+  const [appUnlocked, setAppUnlocked] = useState(() => {
+    const initialAppLockState = readAppLockConfig();
+    return !initialAppLockState.enabled || (!initialAppLockState.corrupt && readAppLockSessionUnlock());
+  });
   const [appUnlockPin, setAppUnlockPin] = useState("");
   const [appUnlockError, setAppUnlockError] = useState("");
   const [appLockMode, setAppLockMode] = useState("set");
   const [appLockForm, setAppLockForm] = useState(EMPTY_APP_LOCK_FORM);
   const [appLockFormError, setAppLockFormError] = useState("");
   const [appLockSaving, setAppLockSaving] = useState(false);
+  const [appLockSessionUnlocked, setAppLockSessionUnlocked] = useState(() => readAppLockSessionUnlock());
+  const [appLockSessionUnlockEligible, setAppLockSessionUnlockEligible] = useState(() => readAppLockSessionUnlock());
 
   const [showCreate, setShowCreate] = useState(false);
   const [selectedCaseId, setSelectedCaseId] = useState(() => {
@@ -740,6 +766,7 @@ export default function ProveItApp() {
         return;
       }
       setAppUnlocked(true);
+      setAppLockSessionUnlockEligible(true);
       setAppUnlockPin("");
       setAppUnlockError("");
     } catch (error) {
@@ -749,7 +776,10 @@ export default function ProveItApp() {
   };
 
   const lockApp = () => {
+    writeAppLockSessionUnlock(false);
     setAppUnlocked(false);
+    setAppLockSessionUnlocked(false);
+    setAppLockSessionUnlockEligible(false);
     setAppUnlockPin("");
     setAppUnlockError("");
     setExportImportOpen(false);
@@ -828,8 +858,11 @@ export default function ProveItApp() {
         }
         const config = createDisabledAppLockConfig(latestState.config);
         writeAppLockConfig(config);
+        writeAppLockSessionUnlock(false);
         setAppLockState({ enabled: false, corrupt: false, config });
         setAppUnlocked(true);
+        setAppLockSessionUnlocked(false);
+        setAppLockSessionUnlockEligible(false);
         resetAppLockForm();
         setAppLockMode("set");
         showAppNotice("warning", "App Lock disabled.");
@@ -848,8 +881,11 @@ export default function ProveItApp() {
     const config = createDisabledAppLockConfig();
     try {
       writeAppLockConfig(config);
+      writeAppLockSessionUnlock(false);
       setAppLockState({ enabled: false, corrupt: false, config });
       setAppUnlocked(true);
+      setAppLockSessionUnlocked(false);
+      setAppLockSessionUnlockEligible(false);
       setAppUnlockPin("");
       setAppUnlockError("");
       resetAppLockForm();
@@ -858,6 +894,11 @@ export default function ProveItApp() {
       console.error("Could not reset App Lock settings", error);
       showAppNotice("error", "Could not reset App Lock settings.");
     }
+  };
+
+  const handleAppLockSessionUnlockToggle = (enabled) => {
+    writeAppLockSessionUnlock(enabled);
+    setAppLockSessionUnlocked(enabled);
   };
 
   const closeRiskyActionGuard = (shouldContinue) => {
@@ -3068,6 +3109,7 @@ const handleRecordFiles = async (event) => {
   const compactBackupStatus = getCompactBackupStatus(lastBackupMeta);
   const backupTimestampLabel = formatBackupMetaTimestamp(lastBackupMeta);
   const currentOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const isLocalhostOrigin = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::|$)/i.test(currentOrigin);
   const appLockCorrupt = Boolean(appLockState.corrupt);
   const appLockEnabled = Boolean(appLockState.enabled && !appLockCorrupt);
   const appLocked = appLockEnabled && !appUnlocked;
@@ -3413,6 +3455,42 @@ const handleRecordFiles = async (event) => {
                     <Lock className="h-4 w-4" />
                     Lock App
                   </button>
+                ) : null}
+
+                {appLockEnabled ? (
+                  <div className="mt-4 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+                    <label className={`flex items-start gap-2 text-sm font-semibold ${
+                      appLockSessionUnlockEligible ? "text-neutral-800" : "text-neutral-400"
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={appLockSessionUnlocked}
+                        disabled={!appLockSessionUnlockEligible}
+                        onChange={(event) => handleAppLockSessionUnlockToggle(event.target.checked)}
+                        className="mt-1"
+                      />
+                      <span>
+                        Keep unlocked during this browser session
+                        {isLocalhostOrigin ? (
+                          <span className="ml-2 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                            Development convenience
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
+                    <p className="mt-2 text-xs leading-5 text-neutral-600">
+                      This is for development/convenience only. Closing the browser or pressing Lock App will lock ProveIt again.
+                    </p>
+                    {!appLockSessionUnlockEligible ? (
+                      <p className="mt-1 text-xs leading-5 text-amber-800">
+                        Unlock with your PIN first to use this option. It reduces privacy during the current browser session.
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-xs leading-5 text-amber-800">
+                        When enabled, refresh keeps ProveIt unlocked in this tab/session. This reduces privacy during the current browser session.
+                      </p>
+                    )}
+                  </div>
                 ) : null}
 
                 {appLockCorrupt ? (
