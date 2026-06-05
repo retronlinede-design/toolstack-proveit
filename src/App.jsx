@@ -4250,6 +4250,7 @@ const handleRecordFiles = async (event) => {
             onOpenGptDeltaModal={openGptDeltaModal}
             onOpenPinManager={openPinManager}
             isPinLocked={selectedCaseLocked}
+            isCaseCurrentlyLocked={selectedCaseRequiresPin}
             issueFixFeedback={recordIssueFeedback}
             onViewRecord={setViewingRecord}
             onPreviewFile={setPreviewFile}

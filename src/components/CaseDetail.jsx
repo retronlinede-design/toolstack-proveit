@@ -63,6 +63,7 @@ import {
   isTrackingRecord,
   parseTrackingRecord,
 } from "./caseDetail/trackingRecordHelpers";
+import { shouldShowFloatingWorkspaceMenu } from "./caseDetail/workspaceMenuVisibility.js";
 
 const ENABLE_SUPABASE_REMOTE = false;
 
@@ -143,6 +144,7 @@ export default function CaseDetail({
   onOpenGptDeltaModal,
   onOpenPinManager,
   isPinLocked = false,
+  isCaseCurrentlyLocked = false,
   issueFixFeedback = "",
   onViewRecord,
   onPreviewFile,
@@ -2258,7 +2260,15 @@ ${ungroupedSequenceText}
       [section]: !current[section],
     }));
   };
-  const showFloatingWorkspaceMenu = Boolean(selectedCase && !isPinLocked && !actionSummaryEditOpen && !sequenceGroupManagerOpen && !sequenceGroupAuditExportOpen && !incidentDateRepairOpen && !activeLedgerRecord);
+  const showFloatingWorkspaceMenu = shouldShowFloatingWorkspaceMenu({
+    selectedCase,
+    isCaseCurrentlyLocked,
+    actionSummaryEditOpen,
+    sequenceGroupManagerOpen,
+    sequenceGroupAuditExportOpen,
+    incidentDateRepairOpen,
+    activeLedgerRecord,
+  });
   const floatingAddActions = [
     { label: "Add Incident", onClick: () => handleWorkspaceAddRecord("incidents") },
     { label: "Add Evidence", onClick: () => handleWorkspaceAddRecord("evidence") },
