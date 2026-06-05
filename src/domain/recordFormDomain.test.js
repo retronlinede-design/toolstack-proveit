@@ -108,15 +108,31 @@ test("prepareRecordFormForSave aligns hidden incident eventDate with visible mod
   assert.equal(prepared.eventDate, "2024-04-12");
 });
 
-test("prepareRecordFormForSave leaves non-incident eventDate untouched", () => {
+test("prepareRecordFormForSave aligns hidden evidence eventDate with visible modal date", () => {
   const form = {
     id: "ev-1",
     title: "Evidence",
     date: "2024-04-12",
     eventDate: "2024-04-01",
+    capturedAt: "2024-04-13",
   };
 
   const prepared = prepareRecordFormForSave(form, "evidence");
+
+  assert.equal(prepared.date, "2024-04-12");
+  assert.equal(prepared.eventDate, "2024-04-12");
+  assert.equal(prepared.capturedAt, "2024-04-13");
+});
+
+test("prepareRecordFormForSave leaves strategy eventDate untouched", () => {
+  const form = {
+    id: "str-1",
+    title: "Strategy",
+    date: "2024-04-12",
+    eventDate: "2024-04-01",
+  };
+
+  const prepared = prepareRecordFormForSave(form, "strategy");
 
   assert.equal(prepared.date, "2024-04-12");
   assert.equal(prepared.eventDate, "2024-04-01");

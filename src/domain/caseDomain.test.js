@@ -1874,6 +1874,56 @@ test("modal-prepared incident date edit stores visible date in date and eventDat
   assert.equal(updated.incidents[0].eventDate, "2024-05-09");
 });
 
+test("modal-prepared evidence date edit stores visible date in date and eventDate", () => {
+  const editingRecord = {
+    id: "ev-1",
+    title: "Evidence",
+    date: "2024-05-01",
+    eventDate: "2024-05-01",
+    capturedAt: "2024-05-01",
+    description: "Original",
+    notes: "",
+    attachments: [],
+    availability: {
+      physical: { hasOriginal: false, location: "", notes: "" },
+      digital: { hasDigital: false, files: [] },
+    },
+    linkedIncidentIds: [],
+    createdAt: iso("2024-05-01T09:00:00Z"),
+  };
+  const caseItem = {
+    id: "case-1",
+    updatedAt: iso("2024-01-01T08:00:00Z"),
+    incidents: [],
+    evidence: [
+      editingRecord,
+      {
+        id: "ev-early",
+        title: "Early evidence",
+        date: "2024-05-03",
+        eventDate: "2024-05-03",
+        capturedAt: "2024-05-03",
+        createdAt: iso("2024-05-03T09:00:00Z"),
+      },
+    ],
+  };
+  const modalDraft = {
+    ...editingRecord,
+    date: "2024-05-09",
+    eventDate: "2024-05-01",
+    capturedAt: "2024-05-09",
+  };
+  const preparedPayload = prepareRecordFormForSave(modalDraft, "evidence");
+
+  const updated = upsertRecordInCase(caseItem, "evidence", preparedPayload, editingRecord);
+  const edited = updated.evidence.find((item) => item.id === "ev-1");
+
+  assert.equal(edited.date, "2024-05-09");
+  assert.equal(edited.eventDate, "2024-05-09");
+  assert.equal(edited.capturedAt, "2024-05-09");
+  assert.deepEqual(updated.evidence.map((item) => item.id), ["ev-early", "ev-1"]);
+});
+
 test("convertQuickCaptureToRecord creates a record, prepends non-timeline targets, and marks capture converted", () => {
   const evidence = [{ id: "ev-1", title: "Evidence" }];
   const existingTask = { id: "task-old", title: "Old task" };

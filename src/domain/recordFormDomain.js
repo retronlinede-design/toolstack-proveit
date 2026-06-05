@@ -148,7 +148,7 @@ export function suggestEvidenceMetadataForForm(recordForm, selectedCase = {}) {
 export function prepareRecordFormForSave(recordForm, recordType) {
   const nextForm = { ...(recordForm || {}) };
 
-  if (recordType === "incidents" && typeof nextForm.date === "string" && nextForm.date) {
+  if ((recordType === "incidents" || recordType === "evidence") && typeof nextForm.date === "string" && nextForm.date) {
     nextForm.eventDate = nextForm.date;
   }
 
