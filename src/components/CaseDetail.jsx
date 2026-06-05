@@ -19,6 +19,11 @@ import { DEFAULT_REPORT_DISPLAY_LANGUAGE, REPORT_DISPLAY_LANGUAGES, getReportHea
 import { analyzeCaseDiagnostics, runAttachmentIntegrityCheck } from "../diagnostics/caseDiagnostics.js";
 import { runOperationalIntegrityCheck } from "../diagnostics/operationalIntegrity.js";
 import { buildSequenceGroupReviewPackage, ingestSequenceGroupDelta } from "../gpt/sequenceGroupDelta.js";
+import {
+  exportSequenceGroupAuditJson,
+  exportSequenceGroupAuditMarkdown,
+  printSequenceGroupAuditPdf,
+} from "../export/sequenceGroupAuditExport.js";
 import { buildCaseBundleReport, buildDocumentPackReport, buildEvidencePackReport, buildExecutiveSummaryNarrativePolishPrompt, buildExecutiveSummaryReport, buildLedgerPackReport, buildThreadIssueReport } from "../report/reportBuilder.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import LinkedChip from "./LinkedChip";
@@ -221,10 +226,19 @@ export default function CaseDetail({
   const [sequenceTimelineSort, setSequenceTimelineSort] = useState("asc");
   const [highlightedSequenceRecordKey, setHighlightedSequenceRecordKey] = useState("");
   const [sequenceRelationshipFilter, setSequenceRelationshipFilter] = useState("all");
+  const [sequenceGroupAuditExportOpen, setSequenceGroupAuditExportOpen] = useState(false);
+  const [sequenceGroupAuditGroup, setSequenceGroupAuditGroup] = useState("");
+  const [sequenceGroupAuditFormat, setSequenceGroupAuditFormat] = useState("json");
+  const [sequenceGroupAuditFeedback, setSequenceGroupAuditFeedback] = useState("");
   const activeGeneratedReportLanguage = normalizeReportLanguage(selectedCase?.activeGeneratedReportLanguage);
   const sequenceGroups = useMemo(() => getCaseSequenceGroups(selectedCase), [selectedCase]);
   const sequenceGroupDetails = useMemo(() => getCaseSequenceGroupDetails(selectedCase), [selectedCase]);
   const threadIssueReportSequenceOptions = useMemo(() => sequenceGroups.map((group) => group.name), [sequenceGroups]);
+  const selectedSequenceGroupAuditGroup = useMemo(() => {
+    const options = sequenceGroups.map((group) => group.name);
+    if (options.includes(sequenceGroupAuditGroup)) return sequenceGroupAuditGroup;
+    return options[0] || "";
+  }, [sequenceGroups, sequenceGroupAuditGroup]);
   const selectedThreadIssueReportSequenceGroup = useMemo(() => {
     if (threadIssueReportSequenceOptions.includes(threadIssueReportSequenceGroup)) {
       return threadIssueReportSequenceGroup;
@@ -398,6 +412,61 @@ export default function CaseDetail({
     setSequenceGroupManagerOpen(true);
   }
 
+  function openSequenceGroupAuditExport() {
+    setSequenceGroupAuditGroup(sequenceGroups[0]?.name || "");
+    setSequenceGroupAuditFormat("json");
+    setSequenceGroupAuditFeedback("");
+    setSequenceGroupAuditExportOpen(true);
+  }
+
+  function downloadTextFile(contents, filename, type) {
+    const blob = new Blob([contents], { type });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  }
+
+  function getAuditExportFilename(extension) {
+    const casePart = (selectedCase?.id || selectedCase?.name || "case").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "case";
+    const groupPart = (selectedSequenceGroupAuditGroup || "sequence-group").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "sequence-group";
+    const datePart = new Date().toISOString().slice(0, 10);
+    return `proveit-sequence-group-audit-${casePart}-${groupPart}-${datePart}.${extension}`;
+  }
+
+  function handleRunSequenceGroupAuditExport() {
+    if (!selectedCase) return;
+    if (!selectedSequenceGroupAuditGroup) {
+      setSequenceGroupAuditFeedback("No sequence groups exist for this case.");
+      return;
+    }
+
+    try {
+      if (sequenceGroupAuditFormat === "json") {
+        const payload = exportSequenceGroupAuditJson(selectedCase, selectedSequenceGroupAuditGroup);
+        downloadTextFile(JSON.stringify(payload, null, 2), getAuditExportFilename("json"), "application/json");
+      } else if (sequenceGroupAuditFormat === "markdown") {
+        const markdown = exportSequenceGroupAuditMarkdown(selectedCase, selectedSequenceGroupAuditGroup);
+        downloadTextFile(markdown, getAuditExportFilename("md"), "text/markdown");
+      } else if (sequenceGroupAuditFormat === "pdf") {
+        const opened = printSequenceGroupAuditPdf(selectedCase, selectedSequenceGroupAuditGroup);
+        if (!opened) {
+          setSequenceGroupAuditFeedback("Could not open the print view. Check popup settings and try JSON or Markdown.");
+          return;
+        }
+      }
+
+      setSequenceGroupAuditFeedback("Sequence Group Audit Export created.");
+    } catch (error) {
+      console.error("Failed to export sequence group audit", error);
+      setSequenceGroupAuditFeedback("Could not create the Sequence Group Audit Export.");
+    }
+  }
+
   const getSequenceRecordKey = (record) => `${record.recordType}:${record.id}`;
 
   function handleRenameSequenceGroup(groupName) {
@@ -538,6 +607,11 @@ export default function CaseDetail({
 
   function handleWorkspaceOpenSequenceGroups() {
     openSequenceGroupManager();
+    closeWorkspaceActionMenu();
+  }
+
+  function handleWorkspaceOpenSequenceGroupAuditExport() {
+    openSequenceGroupAuditExport();
     closeWorkspaceActionMenu();
   }
 
@@ -2123,7 +2197,7 @@ ${ungroupedSequenceText}
       [section]: !current[section],
     }));
   };
-  const showFloatingWorkspaceMenu = Boolean(selectedCase && !isPinLocked && !actionSummaryEditOpen && !sequenceGroupManagerOpen && !activeLedgerRecord);
+  const showFloatingWorkspaceMenu = Boolean(selectedCase && !isPinLocked && !actionSummaryEditOpen && !sequenceGroupManagerOpen && !sequenceGroupAuditExportOpen && !activeLedgerRecord);
   const floatingAddActions = [
     { label: "Add Incident", onClick: () => handleWorkspaceAddRecord("incidents") },
     { label: "Add Evidence", onClick: () => handleWorkspaceAddRecord("evidence") },
@@ -2141,6 +2215,7 @@ ${ungroupedSequenceText}
   ];
   const floatingToolActions = [
     { label: "Manage sequence groups", onClick: handleWorkspaceOpenSequenceGroups },
+    { label: "Sequence Group Audit Export", onClick: handleWorkspaceOpenSequenceGroupAuditExport },
   ];
 
   return (
@@ -2213,6 +2288,15 @@ ${ungroupedSequenceText}
                     className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50"
                   >
                     Copy Link Map JSON
+                  </button>
+                  <div className="mt-2 border-t border-neutral-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    Audit
+                  </div>
+                  <button
+                    onClick={() => { openSequenceGroupAuditExport(); setShowExportMenu(false); }}
+                    className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50"
+                  >
+                    Sequence Group Audit Export
                   </button>
                   <div className="mt-2 border-t border-neutral-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                     Reasoning Snapshot Upload
@@ -4646,6 +4730,124 @@ ${ungroupedSequenceText}
         onBackToTop={handleWorkspaceBackToTop}
         onToggleOpen={() => setWorkspaceActionMenuOpen((open) => !open)}
       />
+
+      {sequenceGroupAuditExportOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 print:hidden">
+          <div className="w-full max-w-xl rounded-2xl bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b border-neutral-100 p-5">
+              <div>
+                <h3 className="text-lg font-semibold text-neutral-900">Sequence Group Audit Export</h3>
+                <p className="mt-1 text-xs text-neutral-500">
+                  Export one sequence group with linked evidence, document metadata, external linked incidents, diagnostics, and a GPT audit prompt.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSequenceGroupAuditExportOpen(false)}
+                className="rounded-md border border-neutral-200 px-2 py-1 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-4 p-5">
+              {sequenceGroupAuditFeedback && (
+                <div className="rounded-md border border-lime-200 bg-lime-50 p-3 text-sm font-medium text-lime-800">
+                  {sequenceGroupAuditFeedback}
+                </div>
+              )}
+
+              <label className="block">
+                <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Case</span>
+                <select
+                  value={selectedCase?.id || ""}
+                  disabled
+                  className="mt-1 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm font-medium text-neutral-600"
+                >
+                  <option value={selectedCase?.id || ""}>
+                    {selectedCase?.name || selectedCase?.id || "Selected case"}
+                  </option>
+                </select>
+              </label>
+
+              {sequenceGroups.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-500">
+                  No sequence groups exist in this case. Assign records to a sequenceGroup before creating this audit export.
+                </div>
+              ) : (
+                <>
+                  <label className="block">
+                    <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Sequence group</span>
+                    <select
+                      value={selectedSequenceGroupAuditGroup}
+                      onChange={(event) => {
+                        setSequenceGroupAuditGroup(event.target.value);
+                        setSequenceGroupAuditFeedback("");
+                      }}
+                      className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
+                    >
+                      {sequenceGroups.map((group) => (
+                        <option key={group.name} value={group.name}>
+                          {group.name} ({group.totalCount} records)
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <fieldset>
+                    <legend className="text-xs font-bold uppercase tracking-wider text-neutral-500">Output format</legend>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                      {[
+                        ["json", "JSON"],
+                        ["markdown", "Markdown"],
+                        ["pdf", "PDF / print"],
+                      ].map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => {
+                            setSequenceGroupAuditFormat(value);
+                            setSequenceGroupAuditFeedback("");
+                          }}
+                          className={`rounded-lg border px-3 py-2 text-sm font-bold ${
+                            sequenceGroupAuditFormat === value
+                              ? "border-lime-400 bg-lime-400/30 text-neutral-950"
+                              : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+
+                  <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-xs leading-5 text-neutral-600">
+                    JSON is complete, non-importable, and metadata-only for attachments. It does not include image binaries or modify the case.
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-neutral-100 p-5">
+              <button
+                type="button"
+                onClick={() => setSequenceGroupAuditExportOpen(false)}
+                className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm font-bold text-neutral-600 hover:bg-neutral-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRunSequenceGroupAuditExport}
+                disabled={sequenceGroups.length === 0}
+                className="rounded-md border border-lime-500 bg-lime-400/20 px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Export
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {sequenceGroupManagerOpen && (
         <SequenceGroupManager
