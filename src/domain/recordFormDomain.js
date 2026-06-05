@@ -145,6 +145,16 @@ export function suggestEvidenceMetadataForForm(recordForm, selectedCase = {}) {
   };
 }
 
+export function prepareRecordFormForSave(recordForm, recordType) {
+  const nextForm = { ...(recordForm || {}) };
+
+  if (recordType === "incidents" && typeof nextForm.date === "string" && nextForm.date) {
+    nextForm.eventDate = nextForm.date;
+  }
+
+  return nextForm;
+}
+
 export function removeRecordAttachmentFromForm(recordForm, recordType, attachmentId, options = {}) {
   const {
     allowLastEvidenceAttachmentRemoval = true,

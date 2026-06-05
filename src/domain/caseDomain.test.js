@@ -29,6 +29,7 @@ import {
   upsertLedgerEntryInCase,
   upsertRecordInCase,
 } from "./caseDomain.js";
+import { prepareRecordFormForSave } from "./recordFormDomain.js";
 
 const iso = (value) => new Date(value).toISOString();
 
@@ -1841,6 +1842,36 @@ test("upsertRecordInCase incident edit preserves intentionally separate eventDat
 
   assert.equal(updated.incidents[0].date, "2024-03-12");
   assert.equal(updated.incidents[0].eventDate, "2024-03-01");
+});
+
+test("modal-prepared incident date edit stores visible date in date and eventDate", () => {
+  const editingRecord = {
+    id: "inc-1",
+    title: "Incident",
+    date: "2024-05-01",
+    eventDate: "2024-05-01",
+    description: "Original",
+    notes: "",
+    linkedEvidenceIds: [],
+    createdAt: iso("2024-05-01T09:00:00Z"),
+  };
+  const caseItem = {
+    id: "case-1",
+    updatedAt: iso("2024-01-01T08:00:00Z"),
+    incidents: [editingRecord],
+    evidence: [],
+  };
+  const modalDraft = {
+    ...editingRecord,
+    date: "2024-05-09",
+    eventDate: "2024-05-01",
+  };
+  const preparedPayload = prepareRecordFormForSave(modalDraft, "incidents");
+
+  const updated = upsertRecordInCase(caseItem, "incidents", preparedPayload, editingRecord);
+
+  assert.equal(updated.incidents[0].date, "2024-05-09");
+  assert.equal(updated.incidents[0].eventDate, "2024-05-09");
 });
 
 test("convertQuickCaptureToRecord creates a record, prepends non-timeline targets, and marks capture converted", () => {

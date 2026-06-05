@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { EVIDENCE_ROLES, EVIDENCE_TYPES, INCIDENT_LINK_TYPES } from "../domain/caseDomain.js";
-import { suggestEvidenceMetadataForForm } from "../domain/recordFormDomain.js";
+import { prepareRecordFormForSave, suggestEvidenceMetadataForForm } from "../domain/recordFormDomain.js";
 
 const INCIDENT_EVIDENCE_STATUS_OPTIONS = [
   { value: "documented", label: "Documented" },
@@ -495,9 +495,10 @@ export default function RecordModal({
     });
   };
   const handleSubmitRecord = () => {
+    const preparedForm = prepareRecordFormForSave(recordForm, recordType);
     const payload = {
-      ...recordForm,
-      isMilestone: !!recordForm.isMilestone,
+      ...preparedForm,
+      isMilestone: !!preparedForm.isMilestone,
     };
     saveRecord(payload);
   };

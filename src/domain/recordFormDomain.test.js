@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  prepareRecordFormForSave,
   removeRecordAttachmentFromForm,
   suggestEvidenceMetadataForForm,
 } from "./recordFormDomain.js";
@@ -91,6 +92,34 @@ test("non-evidence attachment removal only updates attachments", () => {
 
   assert.deepEqual(updated.attachments, [fileB]);
   assert.equal(updated.availability, availability);
+});
+
+test("prepareRecordFormForSave aligns hidden incident eventDate with visible modal date", () => {
+  const form = {
+    id: "inc-1",
+    title: "Incident",
+    date: "2024-04-12",
+    eventDate: "2024-04-01",
+  };
+
+  const prepared = prepareRecordFormForSave(form, "incidents");
+
+  assert.equal(prepared.date, "2024-04-12");
+  assert.equal(prepared.eventDate, "2024-04-12");
+});
+
+test("prepareRecordFormForSave leaves non-incident eventDate untouched", () => {
+  const form = {
+    id: "ev-1",
+    title: "Evidence",
+    date: "2024-04-12",
+    eventDate: "2024-04-01",
+  };
+
+  const prepared = prepareRecordFormForSave(form, "evidence");
+
+  assert.equal(prepared.date, "2024-04-12");
+  assert.equal(prepared.eventDate, "2024-04-01");
 });
 
 test("suggestEvidenceMetadataForForm biases image attachments toward visual corroboration", () => {
