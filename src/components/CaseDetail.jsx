@@ -18,6 +18,7 @@ import { PROVEIT_REPORT_PROMPT_V1, parseProveItReportV1 } from "../lib/proveitRe
 import { DEFAULT_REPORT_DISPLAY_LANGUAGE, REPORT_DISPLAY_LANGUAGES, getReportHeadingLabel } from "../lib/reportHeadingLabels.js";
 import { analyzeCaseDiagnostics, runAttachmentIntegrityCheck } from "../diagnostics/caseDiagnostics.js";
 import { runOperationalIntegrityCheck } from "../diagnostics/operationalIntegrity.js";
+import { repairIncidentEventDates, scanIncidentDateMismatches } from "../domain/incidentDateRepair.js";
 import { buildSequenceGroupReviewPackage, ingestSequenceGroupDelta } from "../gpt/sequenceGroupDelta.js";
 import {
   exportSequenceGroupAuditJson,
@@ -230,6 +231,9 @@ export default function CaseDetail({
   const [sequenceGroupAuditGroup, setSequenceGroupAuditGroup] = useState("");
   const [sequenceGroupAuditFormat, setSequenceGroupAuditFormat] = useState("json");
   const [sequenceGroupAuditFeedback, setSequenceGroupAuditFeedback] = useState("");
+  const [incidentDateRepairOpen, setIncidentDateRepairOpen] = useState(false);
+  const [incidentDateRepairSelectedIds, setIncidentDateRepairSelectedIds] = useState([]);
+  const [incidentDateRepairFeedback, setIncidentDateRepairFeedback] = useState("");
   const activeGeneratedReportLanguage = normalizeReportLanguage(selectedCase?.activeGeneratedReportLanguage);
   const sequenceGroups = useMemo(() => getCaseSequenceGroups(selectedCase), [selectedCase]);
   const sequenceGroupDetails = useMemo(() => getCaseSequenceGroupDetails(selectedCase), [selectedCase]);
@@ -239,6 +243,10 @@ export default function CaseDetail({
     if (options.includes(sequenceGroupAuditGroup)) return sequenceGroupAuditGroup;
     return options[0] || "";
   }, [sequenceGroups, sequenceGroupAuditGroup]);
+  const incidentDateMismatchReport = useMemo(
+    () => scanIncidentDateMismatches(selectedCase),
+    [selectedCase]
+  );
   const selectedThreadIssueReportSequenceGroup = useMemo(() => {
     if (threadIssueReportSequenceOptions.includes(threadIssueReportSequenceGroup)) {
       return threadIssueReportSequenceGroup;
@@ -417,6 +425,54 @@ export default function CaseDetail({
     setSequenceGroupAuditFormat("json");
     setSequenceGroupAuditFeedback("");
     setSequenceGroupAuditExportOpen(true);
+  }
+
+  function openIncidentDateRepairTool() {
+    setIncidentDateRepairSelectedIds([]);
+    setIncidentDateRepairFeedback("");
+    setIncidentDateRepairOpen(true);
+  }
+
+  function toggleIncidentDateRepairSelection(incidentId) {
+    setIncidentDateRepairSelectedIds((current) =>
+      current.includes(incidentId)
+        ? current.filter((id) => id !== incidentId)
+        : [...current, incidentId]
+    );
+    setIncidentDateRepairFeedback("");
+  }
+
+  function selectAllIncidentDateRepairs() {
+    setIncidentDateRepairSelectedIds(incidentDateMismatchReport.map((item) => item.id));
+    setIncidentDateRepairFeedback("");
+  }
+
+  function clearIncidentDateRepairSelection() {
+    setIncidentDateRepairSelectedIds([]);
+    setIncidentDateRepairFeedback("");
+  }
+
+  async function handleRepairSelectedIncidentDates() {
+    if (!selectedCase) return;
+    if (incidentDateRepairSelectedIds.length === 0) {
+      setIncidentDateRepairFeedback("Select at least one incident to repair.");
+      return;
+    }
+
+    const updatedCase = repairIncidentEventDates(selectedCase, incidentDateRepairSelectedIds);
+    if (updatedCase === selectedCase) {
+      setIncidentDateRepairFeedback("No selected incidents needed repair.");
+      return;
+    }
+
+    const saved = await onUpdateCase(updatedCase);
+    if (!saved) {
+      setIncidentDateRepairFeedback("Could not save incident date repairs.");
+      return;
+    }
+
+    setIncidentDateRepairSelectedIds([]);
+    setIncidentDateRepairFeedback(`Repaired ${incidentDateRepairSelectedIds.length} incident date mismatch${incidentDateRepairSelectedIds.length === 1 ? "" : "es"}.`);
   }
 
   function downloadTextFile(contents, filename, type) {
@@ -612,6 +668,11 @@ export default function CaseDetail({
 
   function handleWorkspaceOpenSequenceGroupAuditExport() {
     openSequenceGroupAuditExport();
+    closeWorkspaceActionMenu();
+  }
+
+  function handleWorkspaceOpenIncidentDateRepairTool() {
+    openIncidentDateRepairTool();
     closeWorkspaceActionMenu();
   }
 
@@ -2197,7 +2258,7 @@ ${ungroupedSequenceText}
       [section]: !current[section],
     }));
   };
-  const showFloatingWorkspaceMenu = Boolean(selectedCase && !isPinLocked && !actionSummaryEditOpen && !sequenceGroupManagerOpen && !sequenceGroupAuditExportOpen && !activeLedgerRecord);
+  const showFloatingWorkspaceMenu = Boolean(selectedCase && !isPinLocked && !actionSummaryEditOpen && !sequenceGroupManagerOpen && !sequenceGroupAuditExportOpen && !incidentDateRepairOpen && !activeLedgerRecord);
   const floatingAddActions = [
     { label: "Add Incident", onClick: () => handleWorkspaceAddRecord("incidents") },
     { label: "Add Evidence", onClick: () => handleWorkspaceAddRecord("evidence") },
@@ -2216,6 +2277,7 @@ ${ungroupedSequenceText}
   const floatingToolActions = [
     { label: "Manage sequence groups", onClick: handleWorkspaceOpenSequenceGroups },
     { label: "Sequence Group Audit Export", onClick: handleWorkspaceOpenSequenceGroupAuditExport },
+    { label: "Incident Date Repair Tool", onClick: handleWorkspaceOpenIncidentDateRepairTool },
   ];
 
   return (
@@ -4844,6 +4906,126 @@ ${ungroupedSequenceText}
               >
                 Export
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {incidentDateRepairOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 print:hidden">
+          <div className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b border-neutral-100 p-5">
+              <div>
+                <h3 className="text-lg font-semibold text-neutral-900">Incident Date Repair Tool</h3>
+                <p className="mt-1 text-xs text-neutral-500">
+                  Dry-run scan for historical incidents where date and eventDate differ. Repair only selected incidents.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIncidentDateRepairOpen(false)}
+                className="rounded-md border border-neutral-200 px-2 py-1 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5">
+              {incidentDateRepairFeedback && (
+                <div className="mb-4 rounded-md border border-lime-200 bg-lime-50 p-3 text-sm font-medium text-lime-800">
+                  {incidentDateRepairFeedback}
+                </div>
+              )}
+
+              <div className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+                <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Dry-run report</div>
+                <div className="mt-1 text-2xl font-semibold text-neutral-950">
+                  {incidentDateMismatchReport.length} affected incident{incidentDateMismatchReport.length === 1 ? "" : "s"}
+                </div>
+                <p className="mt-2 text-sm text-neutral-600">
+                  No changes are made until you select incident rows and click repair.
+                </p>
+              </div>
+
+              {incidentDateMismatchReport.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-500">
+                  No incident date mismatches found in this case.
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-neutral-200">
+                  <table className="min-w-full divide-y divide-neutral-200 text-sm">
+                    <thead className="bg-neutral-50 text-left text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                      <tr>
+                        <th className="px-3 py-2">Repair</th>
+                        <th className="px-3 py-2">Incident ID</th>
+                        <th className="px-3 py-2">Title</th>
+                        <th className="px-3 py-2">Date</th>
+                        <th className="px-3 py-2">Event date</th>
+                        <th className="px-3 py-2">Sequence group</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-100 bg-white">
+                      {incidentDateMismatchReport.map((item) => (
+                        <tr key={item.id}>
+                          <td className="px-3 py-2">
+                            <input
+                              type="checkbox"
+                              checked={incidentDateRepairSelectedIds.includes(item.id)}
+                              onChange={() => toggleIncidentDateRepairSelection(item.id)}
+                              className="h-4 w-4 rounded border-neutral-300 text-lime-600 focus:ring-lime-500"
+                            />
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs text-neutral-600">{item.id}</td>
+                          <td className="max-w-xs px-3 py-2 font-medium text-neutral-900">
+                            <span className="line-clamp-2">{item.title || "Untitled incident"}</span>
+                          </td>
+                          <td className="px-3 py-2 text-neutral-700">{item.date}</td>
+                          <td className="px-3 py-2 text-red-700">{item.eventDate}</td>
+                          <td className="px-3 py-2 text-neutral-600">{item.sequenceGroup || "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-neutral-100 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={selectAllIncidentDateRepairs}
+                  disabled={incidentDateMismatchReport.length === 0}
+                  className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm font-bold text-neutral-600 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  onClick={clearIncidentDateRepairSelection}
+                  disabled={incidentDateRepairSelectedIds.length === 0}
+                  className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm font-bold text-neutral-600 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Clear selection
+                </button>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIncidentDateRepairOpen(false)}
+                  className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm font-bold text-neutral-600 hover:bg-neutral-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRepairSelectedIncidentDates}
+                  disabled={incidentDateRepairSelectedIds.length === 0}
+                  className="rounded-md border border-lime-500 bg-lime-400/20 px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Repair selected ({incidentDateRepairSelectedIds.length})
+                </button>
+              </div>
             </div>
           </div>
         </div>
