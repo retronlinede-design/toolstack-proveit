@@ -1781,6 +1781,68 @@ test("upsertRecordInCase persists linkedIncidentRefs on incident edit", () => {
   assert.deepEqual(updated.evidence.find((item) => item.id === "ev-old").linkedIncidentIds, []);
 });
 
+test("upsertRecordInCase incident edit syncs eventDate when modal date changes a synced date", () => {
+  const editingRecord = {
+    id: "inc-1",
+    title: "Middle incident",
+    date: "2024-03-02",
+    eventDate: "2024-03-02",
+    description: "Middle",
+    notes: "",
+    linkedEvidenceIds: [],
+    createdAt: iso("2024-03-02T09:00:00Z"),
+  };
+  const caseItem = {
+    id: "case-1",
+    updatedAt: iso("2024-01-01T08:00:00Z"),
+    incidents: [
+      { id: "inc-early", title: "Early", date: "2024-03-01", eventDate: "2024-03-01", createdAt: iso("2024-03-01T09:00:00Z"), linkedEvidenceIds: [] },
+      editingRecord,
+      { id: "inc-late", title: "Late", date: "2024-03-03", eventDate: "2024-03-03", createdAt: iso("2024-03-03T09:00:00Z"), linkedEvidenceIds: [] },
+    ],
+    evidence: [],
+  };
+
+  const updated = upsertRecordInCase(caseItem, "incidents", {
+    ...editingRecord,
+    date: "2024-03-04",
+  }, editingRecord);
+
+  const edited = updated.incidents.find((item) => item.id === "inc-1");
+  assert.equal(edited.date, "2024-03-04");
+  assert.equal(edited.eventDate, "2024-03-04");
+  assert.match(edited.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.match(updated.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.deepEqual(updated.incidents.map((item) => item.id), ["inc-early", "inc-late", "inc-1"]);
+});
+
+test("upsertRecordInCase incident edit preserves intentionally separate eventDate", () => {
+  const editingRecord = {
+    id: "inc-1",
+    title: "Incident with separate display date",
+    date: "2024-03-10",
+    eventDate: "2024-03-01",
+    description: "Separate dates",
+    notes: "",
+    linkedEvidenceIds: [],
+    createdAt: iso("2024-03-01T09:00:00Z"),
+  };
+  const caseItem = {
+    id: "case-1",
+    updatedAt: iso("2024-01-01T08:00:00Z"),
+    incidents: [editingRecord],
+    evidence: [],
+  };
+
+  const updated = upsertRecordInCase(caseItem, "incidents", {
+    ...editingRecord,
+    date: "2024-03-12",
+  }, editingRecord);
+
+  assert.equal(updated.incidents[0].date, "2024-03-12");
+  assert.equal(updated.incidents[0].eventDate, "2024-03-01");
+});
+
 test("convertQuickCaptureToRecord creates a record, prepends non-timeline targets, and marks capture converted", () => {
   const evidence = [{ id: "ev-1", title: "Evidence" }];
   const existingTask = { id: "task-old", title: "Old task" };

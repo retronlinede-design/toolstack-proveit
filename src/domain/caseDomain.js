@@ -1246,32 +1246,47 @@ export function upsertRecordInCase(caseItem, recordType, recordInput, editingRec
       updatedAvailability.digital.hasDigital = updatedAttachments.length > 0;
     }
 
+    const normalizedRecordInput = { ...recordInput };
+    if (recordType === "incidents") {
+      const previousDate = typeof editingRecord?.date === "string" ? editingRecord.date : "";
+      const previousEventDate = typeof editingRecord?.eventDate === "string" ? editingRecord.eventDate : "";
+      const nextDate = typeof recordInput?.date === "string" ? recordInput.date : "";
+      const nextEventDate = typeof recordInput?.eventDate === "string" ? recordInput.eventDate : "";
+      const previousDatesWereSynced = !previousEventDate || previousEventDate === previousDate;
+      const dateChanged = nextDate && nextDate !== previousDate;
+      const eventDateUnchanged = !nextEventDate || nextEventDate === previousEventDate;
+
+      if (previousDatesWereSynced && dateChanged && eventDateUnchanged) {
+        normalizedRecordInput.eventDate = nextDate;
+      }
+    }
+
     const updatedRecord = normalizeRecord({
       ...editingRecord,
-      ...recordInput,
-      title: recordInput.title.trim(),
-      date: recordInput.date || new Date().toISOString().slice(0, 10),
-      description: recordInput.description.trim(),
-      notes: recordInput.notes.trim(),
-      sourceType: recordInput.sourceType,
-      capturedAt: recordInput.capturedAt,
+      ...normalizedRecordInput,
+      title: normalizedRecordInput.title.trim(),
+      date: normalizedRecordInput.date || new Date().toISOString().slice(0, 10),
+      description: normalizedRecordInput.description.trim(),
+      notes: normalizedRecordInput.notes.trim(),
+      sourceType: normalizedRecordInput.sourceType,
+      capturedAt: normalizedRecordInput.capturedAt,
       availability: updatedAvailability,
       attachments: updatedAttachments,
-      importance: recordInput.importance,
-      relevance: recordInput.relevance,
-      status: recordInput.status,
-      usedIn: recordInput.usedIn,
-      reviewNotes: recordInput.reviewNotes,
-      evidenceRole: recordInput.evidenceRole,
-      evidenceType: recordInput.evidenceType,
-      sequenceGroup: recordInput.sequenceGroup,
-      functionSummary: recordInput.functionSummary,
-      linkedIncidentIds: recordInput.linkedIncidentIds,
-      linkedEvidenceIds: recordInput.linkedEvidenceIds,
-      evidenceStatus: recordInput.evidenceStatus,
-      linkedIncidentRefs: recordInput.linkedIncidentRefs,
-      linkedRecordIds: recordInput.linkedRecordIds || editingRecord.linkedRecordIds || [],
-      isMilestone: !!recordInput.isMilestone,
+      importance: normalizedRecordInput.importance,
+      relevance: normalizedRecordInput.relevance,
+      status: normalizedRecordInput.status,
+      usedIn: normalizedRecordInput.usedIn,
+      reviewNotes: normalizedRecordInput.reviewNotes,
+      evidenceRole: normalizedRecordInput.evidenceRole,
+      evidenceType: normalizedRecordInput.evidenceType,
+      sequenceGroup: normalizedRecordInput.sequenceGroup,
+      functionSummary: normalizedRecordInput.functionSummary,
+      linkedIncidentIds: normalizedRecordInput.linkedIncidentIds,
+      linkedEvidenceIds: normalizedRecordInput.linkedEvidenceIds,
+      evidenceStatus: normalizedRecordInput.evidenceStatus,
+      linkedIncidentRefs: normalizedRecordInput.linkedIncidentRefs,
+      linkedRecordIds: normalizedRecordInput.linkedRecordIds || editingRecord.linkedRecordIds || [],
+      isMilestone: !!normalizedRecordInput.isMilestone,
       updatedAt: new Date().toISOString(),
       edited: true,
     }, recordType);
