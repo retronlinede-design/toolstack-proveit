@@ -112,6 +112,8 @@ export default function SequenceGroupManager({
   onClearRecord,
   onClose,
   onCopyReviewPackage,
+  onDownloadGroupIndexJson,
+  onDownloadGroupIndexMarkdown,
   onMergeGroup,
   onMoveRecordToExisting,
   onMoveRecordToNew,
@@ -380,6 +382,29 @@ export default function SequenceGroupManager({
 
           <div className="mb-5 rounded-xl border border-lime-200 bg-lime-50 p-4 text-sm leading-6 text-lime-950">
             A sequence group is a label applied to records. Renaming a group changes that label on all matching records. Removing a group label does not delete records.
+          </div>
+
+          <div className="mb-5 flex flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Sequence Groups Index Report</h4>
+              <p className="mt-1 text-xs text-neutral-500">Export a compact overview of all sequence groups before choosing a chain to audit.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={onDownloadGroupIndexJson}
+                className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
+              >
+                Download Group Index JSON
+              </button>
+              <button
+                type="button"
+                onClick={onDownloadGroupIndexMarkdown}
+                className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
+              >
+                Download Group Index Markdown
+              </button>
+            </div>
           </div>
 
           <div className="grid gap-5 lg:grid-cols-[18rem_1fr]">

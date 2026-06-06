@@ -25,6 +25,10 @@ import {
   exportSequenceGroupAuditMarkdown,
   printSequenceGroupAuditPdf,
 } from "../export/sequenceGroupAuditExport.js";
+import {
+  exportSequenceGroupsIndexJson,
+  exportSequenceGroupsIndexMarkdown,
+} from "../export/sequenceGroupsIndexExport.js";
 import { buildCaseBundleReport, buildDocumentPackReport, buildEvidencePackReport, buildExecutiveSummaryNarrativePolishPrompt, buildExecutiveSummaryReport, buildLedgerPackReport, buildThreadIssueReport } from "../report/reportBuilder.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import LinkedChip from "./LinkedChip";
@@ -598,6 +602,38 @@ export default function CaseDetail({
     const groupPart = (selectedSequenceGroupAuditGroup || "sequence-group").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "sequence-group";
     const datePart = new Date().toISOString().slice(0, 10);
     return `proveit-sequence-group-audit-${casePart}-${groupPart}-${datePart}.${extension}`;
+  }
+
+  function getSequenceGroupsIndexFilename(extension) {
+    const casePart = (selectedCase?.id || selectedCase?.name || "case").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "case";
+    const datePart = new Date().toISOString().slice(0, 10);
+    return `proveit-sequence-groups-index-${casePart}-${datePart}.${extension}`;
+  }
+
+  function handleDownloadSequenceGroupsIndexJson() {
+    if (!selectedCase) return;
+
+    try {
+      const payload = exportSequenceGroupsIndexJson(selectedCase);
+      downloadTextFile(JSON.stringify(payload, null, 2), getSequenceGroupsIndexFilename("json"), "application/json");
+      setSequenceGroupFeedback("Sequence Groups Index JSON downloaded.");
+    } catch (error) {
+      console.error("Failed to export sequence groups index JSON", error);
+      setSequenceGroupFeedback("Could not create the Sequence Groups Index JSON.");
+    }
+  }
+
+  function handleDownloadSequenceGroupsIndexMarkdown() {
+    if (!selectedCase) return;
+
+    try {
+      const markdown = exportSequenceGroupsIndexMarkdown(selectedCase);
+      downloadTextFile(markdown, getSequenceGroupsIndexFilename("md"), "text/markdown");
+      setSequenceGroupFeedback("Sequence Groups Index Markdown downloaded.");
+    } catch (error) {
+      console.error("Failed to export sequence groups index Markdown", error);
+      setSequenceGroupFeedback("Could not create the Sequence Groups Index Markdown.");
+    }
   }
 
   function handleRunSequenceGroupAuditExport() {
@@ -5448,6 +5484,8 @@ ${ungroupedSequenceText}
           onClearRecord={handleClearSequenceRecord}
           onClose={() => setSequenceGroupManagerOpen(false)}
           onCopyReviewPackage={handleCopySequenceGroupReviewPackage}
+          onDownloadGroupIndexJson={handleDownloadSequenceGroupsIndexJson}
+          onDownloadGroupIndexMarkdown={handleDownloadSequenceGroupsIndexMarkdown}
           onMergeGroup={handleMergeSequenceGroup}
           onMoveRecordToExisting={handleMoveSequenceRecordToExisting}
           onMoveRecordToNew={handleMoveSequenceRecordToNew}
