@@ -56,6 +56,7 @@ export default function RecordsTab({
   onAddRecord,
   onViewPayments,
   onOpenRecord,
+  onConvertRecord,
   onDeleteRecord,
   getUsedByIncidents,
   getBasedOnEvidence,
@@ -141,6 +142,12 @@ export default function RecordsTab({
                       className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
                     >
                       Open / Edit
+                    </button>
+                    <button
+                      onClick={() => onConvertRecord?.(record)}
+                      className="rounded-lg border border-blue-300 bg-white px-2 py-0.5 text-[10px] font-bold text-blue-700 shadow-sm hover:bg-blue-50 transition-colors"
+                    >
+                      Convert
                     </button>
                     <button
                       onClick={() => onDeleteRecord(record)}

@@ -35,6 +35,7 @@ export default function RecordCard({
   imageCache,
   onPreviewFile,
   openEditRecordModal,
+  onConvertRecord,
   deleteRecord,
   openLinkedRecord,
   showTypeBadge = false,
@@ -146,7 +147,12 @@ export default function RecordCard({
           Open
         </button>
 
-        <div />
+        <button
+          onClick={() => onConvertRecord?.(recordType, item)}
+          className="px-2 py-1 text-[10px] font-semibold rounded-md bg-white hover:bg-blue-50 text-blue-700 border border-neutral-200 hover:border-blue-200 whitespace-nowrap text-center transition-all active:scale-95"
+        >
+          Convert
+        </button>
         <div />
         <button
           onClick={() => deleteRecord(recordType, item.id)}

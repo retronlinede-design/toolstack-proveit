@@ -54,6 +54,7 @@ export default function DocumentsTab({
   imageCache,
   onAddDocument,
   onOpenDocument,
+  onConvertDocument,
   onDeleteDocument,
   onToggleDocumentExpanded,
   onPreviewFile,
@@ -127,6 +128,12 @@ export default function DocumentsTab({
                       className="rounded-lg border border-neutral-300 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors"
                     >
                       Edit
+                    </button>
+                    <button
+                      onClick={() => onConvertDocument?.(doc)}
+                      className="rounded-lg border border-blue-300 bg-white px-2 py-0.5 text-[10px] font-bold text-blue-700 shadow-sm hover:bg-blue-50 transition-colors"
+                    >
+                      Convert
                     </button>
                     <button
                       onClick={() => onDeleteDocument(doc)}

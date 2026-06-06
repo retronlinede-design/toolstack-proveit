@@ -52,8 +52,10 @@ export function sanitizeRecordForExport(record) {
  */
 export function sanitizeCaseForExport(caseItem) {
   if (!caseItem) return caseItem;
+  const caseExportFields = { ...caseItem };
+  delete caseExportFields.auditLog;
   return {
-    ...caseItem,
+    ...caseExportFields,
     evidence: Array.isArray(caseItem.evidence) ? caseItem.evidence.map(sanitizeRecordForExport) : [],
     incidents: Array.isArray(caseItem.incidents) ? caseItem.incidents.map(sanitizeRecordForExport) : [],
     tasks: Array.isArray(caseItem.tasks) ? caseItem.tasks.map(sanitizeRecordForExport) : [],

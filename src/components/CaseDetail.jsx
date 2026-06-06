@@ -6,7 +6,10 @@ import {
   getCaseSequenceGroups,
   getCaseSequenceGroupDetails,
   getIncidentsUsingRecord,
+  RECORD_TYPE_LABELS,
+  buildRecordTypeConversionPreview,
   clearRecordSequenceGroup,
+  convertRecordTypeInCase,
   mergeCaseSequenceGroups,
   moveRecordToSequenceGroup,
   removeCaseSequenceGroup,
@@ -243,6 +246,7 @@ export default function CaseDetail({
   const [incidentDateRepairOpen, setIncidentDateRepairOpen] = useState(false);
   const [incidentDateRepairSelectedIds, setIncidentDateRepairSelectedIds] = useState([]);
   const [incidentDateRepairFeedback, setIncidentDateRepairFeedback] = useState("");
+  const [recordConversion, setRecordConversion] = useState(null);
   const activeGeneratedReportLanguage = normalizeReportLanguage(selectedCase?.activeGeneratedReportLanguage);
   const sequenceGroups = useMemo(() => getCaseSequenceGroups(selectedCase), [selectedCase]);
   const sequenceGroupDetails = useMemo(() => getCaseSequenceGroupDetails(selectedCase), [selectedCase]);
@@ -1208,6 +1212,43 @@ ${strategyFocus.join("\n") || "—"}`;
   }, [selectedCase?.documents]);
 
   const parsedTrackingRecords = trackingDocuments.map(parseTrackingRecord);
+  const recordConversionOptions = ["incidents", "evidence", "documents", "strategy"];
+  const recordConversionPreview = useMemo(() => {
+    if (!recordConversion) return null;
+    return buildRecordTypeConversionPreview(
+      selectedCase,
+      recordConversion.sourceType,
+      recordConversion.recordId,
+      recordConversion.targetType
+    );
+  }, [recordConversion, selectedCase]);
+
+  function openRecordConversion(sourceType, record) {
+    if (!record?.id) return;
+    const targetType = recordConversionOptions.find((type) => type !== sourceType) || "";
+    setRecordConversion({
+      sourceType,
+      recordId: record.id,
+      targetType,
+    });
+  }
+
+  async function applyRecordConversion() {
+    if (!selectedCase || !recordConversionPreview) return;
+    const result = convertRecordTypeInCase(
+      selectedCase,
+      recordConversionPreview.fromType,
+      recordConversionPreview.recordId,
+      recordConversionPreview.toType
+    );
+    if (!result.record || result.case === selectedCase) return;
+
+    const saved = await onUpdateCase(result.case);
+    if (!saved) return;
+
+    setRecordConversion(null);
+    setActiveTab(result.preview.toType === "documents" ? "documents" : result.preview.toType);
+  }
 
   const getBasedOnEvidenceForTrackingRecord = (record) => {
     const evidenceIds = Array.isArray(record?.rawDocument?.basedOnEvidenceIds)
@@ -1238,6 +1279,7 @@ ${strategyFocus.join("\n") || "—"}`;
       onPreviewFile={onPreviewFile}
       onViewRecord={onViewRecord}
       openEditRecordModal={openEditRecordModal}
+      onConvertRecord={openRecordConversion}
       deleteRecord={deleteRecord}
       openLinkedRecord={openLinkedRecord}
       openRecordModal={openRecordModal}
@@ -4130,6 +4172,7 @@ ${ungroupedSequenceText}
                   imageCache={imageCache}
                   onAddDocument={() => openDocumentModal()}
                   onOpenDocument={(doc) => openDocumentModal(doc, doc.id)}
+                  onConvertDocument={(doc) => openRecordConversion("documents", doc)}
                   onDeleteDocument={(doc) => deleteDocumentEntry(doc.id)}
                   onToggleDocumentExpanded={toggleDocumentExpanded}
                   onPreviewFile={onPreviewFile}
@@ -4456,6 +4499,7 @@ ${ungroupedSequenceText}
                 }, null, "record")}
                 onViewPayments={setActiveLedgerRecord}
                 onOpenRecord={(record) => openDocumentModal(record.rawDocument, record.rawDocument.id, "record")}
+                onConvertRecord={(record) => openRecordConversion("documents", record.rawDocument)}
                 onDeleteRecord={(record) => deleteDocumentEntry(record.rawDocument.id)}
                 getUsedByIncidents={(recordId) => getIncidentsUsingRecord(selectedCase, recordId)}
                 getBasedOnEvidence={getBasedOnEvidenceForTrackingRecord}
@@ -5518,6 +5562,110 @@ ${ungroupedSequenceText}
           setSequenceRenameInputs={setSequenceRenameInputs}
           setSequenceTimelineSort={setSequenceTimelineSort}
         />
+      )}
+      {recordConversion && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 print:hidden">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b border-neutral-100 p-5">
+              <div>
+                <h3 className="text-lg font-semibold text-neutral-900">Convert Record Type</h3>
+                <p className="mt-1 text-xs text-neutral-500">
+                  Preview preserved fields and dropped type-specific fields before applying.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRecordConversion(null)}
+                className="rounded-md border border-neutral-200 px-2 py-1 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5">
+              <label className="block">
+                <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Convert to</span>
+                <select
+                  value={recordConversion.targetType}
+                  onChange={(event) => setRecordConversion((current) => ({ ...current, targetType: event.target.value }))}
+                  className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
+                >
+                  {recordConversionOptions.map((type) => (
+                    <option key={type} value={type} disabled={type === recordConversion.sourceType}>
+                      {RECORD_TYPE_LABELS[type]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {recordConversionPreview ? (
+                <div className="mt-5 space-y-4">
+                  <div className="rounded-xl border border-lime-200 bg-lime-50 p-4 text-sm text-lime-950">
+                    <div className="font-semibold">
+                      {recordConversionPreview.title || "Untitled record"}
+                    </div>
+                    <div className="mt-1">
+                      {recordConversionPreview.fromLabel} to {recordConversionPreview.toLabel}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Preserved where possible</h4>
+                      <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-neutral-700">
+                        {recordConversionPreview.preservedFields.map((field) => (
+                          <li key={field}>{field}</li>
+                        ))}
+                      </ul>
+                    </section>
+
+                    <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-amber-700">Dropped fields</h4>
+                      {recordConversionPreview.droppedFields.length === 0 ? (
+                        <p className="mt-3 text-sm text-amber-800">No type-specific fields are expected to be dropped.</p>
+                      ) : (
+                        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-amber-800">
+                          {recordConversionPreview.droppedFields.map((field) => (
+                            <li key={field}>{field}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </section>
+                  </div>
+
+                  <div className="rounded-xl border border-neutral-200 bg-white p-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Audit log entry</h4>
+                    <p className="mt-2 text-sm text-neutral-700">
+                      Record converted from {recordConversionPreview.fromLabel} to {recordConversionPreview.toLabel}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-5 rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-500">
+                  Select a different target type to preview this conversion.
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-neutral-100 p-5">
+              <button
+                type="button"
+                onClick={() => setRecordConversion(null)}
+                className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm font-bold text-neutral-600 hover:bg-neutral-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={applyRecordConversion}
+                disabled={!recordConversionPreview}
+                className="rounded-md border border-lime-500 bg-lime-400/20 px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Apply conversion
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       <ActionSummaryModal
         open={actionSummaryEditOpen}

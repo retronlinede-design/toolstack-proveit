@@ -463,6 +463,14 @@ export function applyRecordPatchToCase(caseItem, recordType, recordId, patch = {
 }
 
 const SEQUENCE_GROUP_RECORD_TYPES = ["incidents", "evidence", "documents", "strategy"];
+const CONVERTIBLE_RECORD_TYPES = ["incidents", "evidence", "documents", "strategy"];
+
+export const RECORD_TYPE_LABELS = {
+  incidents: "Incident",
+  evidence: "Evidence",
+  documents: "Document",
+  strategy: "Strategy",
+};
 
 function getSequenceGroupValue(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -856,6 +864,22 @@ export function removeCaseSequenceGroup(caseItem, groupName) {
   return updateCaseSequenceGroup(caseItem, groupName, "");
 }
 
+function normalizeAuditLog(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry) => ({
+      id: typeof entry.id === "string" ? entry.id : generateId(),
+      type: typeof entry.type === "string" ? entry.type : "case_event",
+      message: typeof entry.message === "string" ? entry.message : "",
+      recordId: typeof entry.recordId === "string" ? entry.recordId : "",
+      fromType: typeof entry.fromType === "string" ? entry.fromType : "",
+      toType: typeof entry.toType === "string" ? entry.toType : "",
+      title: typeof entry.title === "string" ? entry.title : "",
+      createdAt: typeof entry.createdAt === "string" ? entry.createdAt : new Date().toISOString(),
+    }));
+}
+
 export function normalizeCase(caseItem) {
   const evidence = Array.isArray(caseItem?.evidence) ? caseItem.evidence.map(r => normalizeRecord(r, "evidence")) : [];
   const incidents = Array.isArray(caseItem?.incidents) ? caseItem.incidents.map(r => normalizeRecord(r, "incidents")) : [];
@@ -889,6 +913,7 @@ export function normalizeCase(caseItem) {
     generatedReportText,
     generatedReportVersions: normalizeGeneratedReportVersions(caseItem?.generatedReportVersions, generatedReportText),
     activeGeneratedReportLanguage: normalizeActiveGeneratedReportLanguage(caseItem?.activeGeneratedReportLanguage),
+    auditLog: normalizeAuditLog(caseItem?.auditLog),
   };
 }
 
@@ -1390,6 +1415,203 @@ export function convertQuickCaptureToRecord(caseItem, capture, targetType) {
   return { case: updatedCase, record: newRecord, capture: updatedCapture };
 }
 
+function getConvertibleRecord(caseItem, recordType, recordId) {
+  if (!caseItem || !CONVERTIBLE_RECORD_TYPES.includes(recordType) || !recordId) return null;
+  const records = Array.isArray(caseItem[recordType]) ? caseItem[recordType] : [];
+  return records.find((record) => record?.id === recordId) || null;
+}
+
+function conversionDate(record = {}) {
+  return record.eventDate || record.date || record.documentDate || record.capturedAt || record.createdAt || new Date().toISOString().slice(0, 10);
+}
+
+function conversionDescription(record = {}, sourceType = "") {
+  if (sourceType === "documents") return record.summary || record.textContent || record.source || "";
+  if (sourceType === "evidence") return record.description || record.functionSummary || record.notes || record.reviewNotes || "";
+  return record.description || record.summary || record.notes || "";
+}
+
+function conversionNotes(record = {}, sourceType = "") {
+  if (sourceType === "documents") return record.notes || record.source || "";
+  if (sourceType === "evidence") return record.notes || record.reviewNotes || "";
+  return record.notes || "";
+}
+
+function buildBaseConvertedRecord(record, sourceType, targetType) {
+  const date = conversionDate(record);
+  return {
+    id: record.id || generateId(),
+    title: record.title || record.name || record.label || "",
+    date,
+    eventDate: record.eventDate || record.date || record.documentDate || date,
+    capturedAt: record.capturedAt || record.date || record.documentDate || date,
+    description: conversionDescription(record, sourceType),
+    notes: conversionNotes(record, sourceType),
+    tags: Array.isArray(record.tags) ? record.tags : [],
+    sequenceGroup: normalizeSequenceGroup(record.sequenceGroup),
+    linkedRecordIds: normalizeLinkedRecordIds(record.linkedRecordIds),
+    attachments: Array.isArray(record.attachments) ? record.attachments : [],
+    createdAt: record.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    edited: true,
+    isMilestone: !!record.isMilestone,
+    ...(targetType === "incidents" ? {
+      linkedEvidenceIds: normalizeLinkedRecordIds(record.linkedEvidenceIds),
+      evidenceStatus: normalizeIncidentEvidenceStatus(record.evidenceStatus, record.linkedEvidenceIds),
+      linkedIncidentRefs: normalizeIncidentLinkRefs(record.linkedIncidentRefs, record.id),
+    } : {}),
+    ...(targetType === "evidence" ? {
+      sourceType: record.sourceType || "other",
+      importance: record.importance || "unreviewed",
+      relevance: record.relevance || "medium",
+      status: ["verified", "needs_review", "incomplete"].includes(record.status) ? record.status : "needs_review",
+      usedIn: Array.isArray(record.usedIn) ? record.usedIn : [],
+      reviewNotes: record.reviewNotes || record.notes || "",
+      evidenceRole: normalizeEvidenceRole(record.evidenceRole),
+      evidenceType: normalizeEvidenceType(record.evidenceType, record.attachments || []),
+      functionSummary: record.functionSummary || record.summary || record.description || record.notes || "",
+      linkedIncidentIds: normalizeLinkedRecordIds(record.linkedIncidentIds),
+      availability: record.availability || {
+        physical: { hasOriginal: false, location: "", notes: "" },
+        digital: {
+          hasDigital: Array.isArray(record.attachments) && record.attachments.length > 0,
+          files: Array.isArray(record.attachments) ? record.attachments : [],
+        },
+      },
+    } : {}),
+  };
+}
+
+function convertRecordForTarget(record, sourceType, targetType) {
+  const base = buildBaseConvertedRecord(record, sourceType, targetType);
+
+  if (targetType === "documents") {
+    return normalizeDocumentEntry({
+      id: base.id,
+      title: base.title,
+      category: record.category || "other",
+      documentDate: record.documentDate || base.eventDate || base.date,
+      source: record.source || "",
+      summary: record.summary || base.description || base.notes,
+      textContent: record.textContent || [base.description, base.notes].filter(Boolean).join("\n\n"),
+      attachments: base.attachments,
+      linkedRecordIds: base.linkedRecordIds,
+      sequenceGroup: base.sequenceGroup,
+      edited: true,
+      createdAt: base.createdAt,
+      updatedAt: base.updatedAt,
+      ...(Array.isArray(record.basedOnEvidenceIds) ? { basedOnEvidenceIds: record.basedOnEvidenceIds } : {}),
+    });
+  }
+
+  return normalizeRecord(base, targetType);
+}
+
+const TYPE_FIELD_GROUPS = {
+  incidents: ["evidenceStatus", "linkedEvidenceIds", "linkedIncidentRefs"],
+  evidence: ["availability", "importance", "relevance", "usedIn", "reviewNotes", "evidenceRole", "evidenceType", "functionSummary", "linkedIncidentIds"],
+  documents: ["category", "source", "summary", "textContent", "basedOnEvidenceIds"],
+  strategy: [],
+};
+
+function getConversionDroppedFields(record, sourceType, targetType) {
+  const targetFields = new Set([
+    "id",
+    "title",
+    "description",
+    "notes",
+    "tags",
+    "sequenceGroup",
+    "linkedRecordIds",
+    "attachments",
+    "date",
+    "eventDate",
+    "documentDate",
+    "capturedAt",
+    "createdAt",
+    "updatedAt",
+    "edited",
+    ...(TYPE_FIELD_GROUPS[targetType] || []),
+  ]);
+
+  return (TYPE_FIELD_GROUPS[sourceType] || [])
+    .filter((field) => Object.prototype.hasOwnProperty.call(record, field) && !targetFields.has(field));
+}
+
+export function buildRecordTypeConversionPreview(caseItem, sourceType, recordId, targetType) {
+  const sourceRecord = getConvertibleRecord(caseItem, sourceType, recordId);
+  const normalizedTargetType = CONVERTIBLE_RECORD_TYPES.includes(targetType) ? targetType : "";
+  if (!sourceRecord || !normalizedTargetType || sourceType === normalizedTargetType) {
+    return null;
+  }
+
+  const convertedRecord = convertRecordForTarget(sourceRecord, sourceType, normalizedTargetType);
+  return {
+    recordId,
+    title: sourceRecord.title || sourceRecord.name || sourceRecord.label || "",
+    fromType: sourceType,
+    toType: normalizedTargetType,
+    fromLabel: RECORD_TYPE_LABELS[sourceType] || sourceType,
+    toLabel: RECORD_TYPE_LABELS[normalizedTargetType] || normalizedTargetType,
+    preservedFields: [
+      "id",
+      "title",
+      "description/summary",
+      "notes",
+      "tags",
+      "sequenceGroup",
+      "linkedRecordIds",
+      "attachments",
+      "dates",
+      "createdAt",
+      "updatedAt",
+    ].filter((field) => {
+      if (field === "tags") return Array.isArray(sourceRecord.tags) && sourceRecord.tags.length > 0;
+      if (field === "attachments") return Array.isArray(sourceRecord.attachments) && sourceRecord.attachments.length > 0;
+      if (field === "linkedRecordIds") return Array.isArray(sourceRecord.linkedRecordIds) && sourceRecord.linkedRecordIds.length > 0;
+      return true;
+    }),
+    droppedFields: getConversionDroppedFields(sourceRecord, sourceType, normalizedTargetType),
+    convertedRecord,
+  };
+}
+
+export function convertRecordTypeInCase(caseItem, sourceType, recordId, targetType) {
+  const preview = buildRecordTypeConversionPreview(caseItem, sourceType, recordId, targetType);
+  if (!preview) return { case: caseItem, record: null, preview: null };
+
+  const updatedAt = new Date().toISOString();
+  const sourceRecords = Array.isArray(caseItem[sourceType]) ? caseItem[sourceType] : [];
+  const targetRecords = Array.isArray(caseItem[targetType]) ? caseItem[targetType] : [];
+  const nextTargetRecords = [preview.convertedRecord, ...targetRecords.filter((record) => record.id !== recordId)];
+  const message = `Record converted from ${preview.fromLabel} to ${preview.toLabel}`;
+  const auditEntry = {
+    id: generateId(),
+    type: "record_conversion",
+    message,
+    recordId,
+    fromType: sourceType,
+    toType: targetType,
+    title: preview.title,
+    createdAt: updatedAt,
+  };
+
+  const updatedCase = {
+    ...caseItem,
+    [sourceType]: sourceRecords.filter((record) => record.id !== recordId),
+    [targetType]: isTimelineCapable(targetType) ? sortTimelineItems(nextTargetRecords) : nextTargetRecords,
+    auditLog: [...normalizeAuditLog(caseItem.auditLog), auditEntry],
+    updatedAt,
+  };
+
+  return {
+    case: updatedCase,
+    record: preview.convertedRecord,
+    preview,
+    auditEntry,
+  };
+}
+
 export function mergeRecords(existingRecords = [], incomingRecords = [], recordType) {
   const recordMap = new Map(existingRecords.map(r => [r.id, r]));
   for (const incomingRecord of incomingRecords) {
@@ -1484,5 +1706,9 @@ export function mergeCase(existingCase, incomingCase) {
     activeGeneratedReportLanguage: hasIncomingActiveGeneratedReportLanguage
       ? normalizeActiveGeneratedReportLanguage(incomingCase?.activeGeneratedReportLanguage)
       : normalizeActiveGeneratedReportLanguage(existingCase?.activeGeneratedReportLanguage),
+    auditLog: [
+      ...normalizeAuditLog(existingCase?.auditLog),
+      ...normalizeAuditLog(incomingCase?.auditLog),
+    ],
   };
 }

@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   applyRecordPatchToCase,
+  buildRecordTypeConversionPreview,
+  convertRecordTypeInCase,
   convertQuickCaptureToRecord,
   deleteDocumentEntryFromCase,
   deleteLedgerEntryFromCase,
@@ -2017,6 +2019,115 @@ test("convertQuickCaptureToRecord preserves current edge behavior for missing at
   assert.deepEqual(result.case.incidents[0].linkedEvidenceIds, []);
   assert.equal(result.capture.status, "converted");
   assert.equal(result.capture.convertedTo, "evidence");
+});
+
+test("buildRecordTypeConversionPreview reports preserved and dropped fields", () => {
+  const caseItem = {
+    id: "case-1",
+    evidence: [
+      {
+        id: "ev-1",
+        title: "Photo",
+        date: "2024-01-02",
+        description: "Photo description",
+        notes: "Photo notes",
+        tags: ["mould"],
+        sequenceGroup: "Mould chain",
+        linkedRecordIds: ["doc-1"],
+        linkedIncidentIds: ["inc-1"],
+        attachments: [{ id: "att-1" }],
+        evidenceRole: "ANCHOR_EVIDENCE",
+        evidenceType: "documented",
+        functionSummary: "Photo proves the visible mould.",
+        availability: { physical: { hasOriginal: true }, digital: { hasDigital: true, files: [{ id: "att-1" }] } },
+      },
+    ],
+  };
+
+  const preview = buildRecordTypeConversionPreview(caseItem, "evidence", "ev-1", "strategy");
+
+  assert.equal(preview.fromLabel, "Evidence");
+  assert.equal(preview.toLabel, "Strategy");
+  assert.ok(preview.preservedFields.includes("id"));
+  assert.ok(preview.preservedFields.includes("sequenceGroup"));
+  assert.ok(preview.droppedFields.includes("availability"));
+  assert.ok(preview.droppedFields.includes("linkedIncidentIds"));
+});
+
+test("convertRecordTypeInCase converts evidence to incident and preserves common fields", () => {
+  const attachment = { id: "att-1", name: "photo.png" };
+  const caseItem = {
+    id: "case-1",
+    updatedAt: iso("2024-01-01T08:00:00Z"),
+    evidence: [
+      {
+        id: "ev-1",
+        title: "Photo",
+        date: "2024-01-02",
+        eventDate: "2024-01-02",
+        description: "Photo description",
+        notes: "Photo notes",
+        tags: ["mould"],
+        sequenceGroup: "Mould chain",
+        linkedRecordIds: ["doc-1"],
+        attachments: [attachment],
+        createdAt: iso("2024-01-02T09:00:00Z"),
+      },
+    ],
+    incidents: [
+      { id: "inc-late", title: "Later", date: "2024-02-01", eventDate: "2024-02-01", createdAt: iso("2024-02-01T09:00:00Z") },
+    ],
+  };
+
+  const result = convertRecordTypeInCase(caseItem, "evidence", "ev-1", "incidents");
+  const converted = result.case.incidents.find((record) => record.id === "ev-1");
+
+  assert.equal(result.case.evidence.length, 0);
+  assert.equal(converted.id, "ev-1");
+  assert.equal(converted.title, "Photo");
+  assert.equal(converted.description, "Photo description");
+  assert.equal(converted.notes, "Photo notes");
+  assert.deepEqual(converted.tags, ["mould"]);
+  assert.equal(converted.sequenceGroup, "Mould chain");
+  assert.deepEqual(converted.linkedRecordIds, ["doc-1"]);
+  assert.deepEqual(converted.attachments, [attachment]);
+  assert.deepEqual(result.case.incidents.map((record) => record.id), ["ev-1", "inc-late"]);
+});
+
+test("convertRecordTypeInCase converts document to evidence and appends audit log entry", () => {
+  const attachment = { id: "att-doc", name: "letter.pdf" };
+  const caseItem = {
+    id: "case-1",
+    documents: [
+      {
+        id: "doc-1",
+        title: "Letter",
+        documentDate: "2024-03-04",
+        summary: "Letter summary",
+        textContent: "Full letter text",
+        attachments: [attachment],
+        linkedRecordIds: ["inc-1"],
+        sequenceGroup: "Notice chain",
+        createdAt: iso("2024-03-04T09:00:00Z"),
+      },
+    ],
+    evidence: [],
+    auditLog: [],
+  };
+
+  const result = convertRecordTypeInCase(caseItem, "documents", "doc-1", "evidence");
+  const converted = result.case.evidence[0];
+
+  assert.equal(result.case.documents.length, 0);
+  assert.equal(converted.id, "doc-1");
+  assert.equal(converted.title, "Letter");
+  assert.equal(converted.date, "2024-03-04");
+  assert.equal(converted.functionSummary, "Letter summary");
+  assert.deepEqual(converted.attachments, [attachment]);
+  assert.equal(converted.availability.digital.hasDigital, true);
+  assert.equal(result.case.auditLog.length, 1);
+  assert.equal(result.case.auditLog[0].message, "Record converted from Document to Evidence");
+  assert.equal(result.case.auditLog[0].recordId, "doc-1");
 });
 
 test("upsertLedgerEntryInCase create appends a normalized ledger entry and refreshes case timestamp", () => {
