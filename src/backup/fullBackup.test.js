@@ -208,6 +208,14 @@ test("full backup payload builders return the current top-level shape", async ()
     cases: [caseItem],
     quickCaptures: [capture],
     folders: [{ id: "folder-1", name: "Finance" }],
+    sequenceGroupMeta: {
+      "case-1": {
+        "Notice chain": {
+          description: "Notice and repair timeline",
+          updatedAt: "2024-01-01T00:00:00.000Z",
+        },
+      },
+    },
     selectedCaseId: "case-1",
     activeTab: "evidence",
   }, deps);
@@ -229,6 +237,14 @@ test("full backup payload builders return the current top-level shape", async ()
     folderCount: 1,
   });
   assert.deepEqual(allPayload.appData.folders, [{ id: "folder-1", name: "Finance" }]);
+  assert.deepEqual(allPayload.appData.sequenceGroupMeta, {
+    "case-1": {
+      "Notice chain": {
+        description: "Notice and repair timeline",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      },
+    },
+  });
   assert.equal(allPayload.data.selectedCaseId, "case-1");
   assert.equal(allPayload.data.activeTab, "evidence");
   assert.equal(allPayload.data.cases[0].evidence[0].attachments[0].backupDataUrl, "data:img-1");

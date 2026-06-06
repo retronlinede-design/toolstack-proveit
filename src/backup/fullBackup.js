@@ -205,6 +205,7 @@ export async function buildFullBackupAllPayload({
   cases = [],
   quickCaptures = [],
   folders = [],
+  sequenceGroupMeta = {},
   selectedCaseId = null,
   activeTab = "overview",
 } = {}, deps = {}) {
@@ -226,6 +227,7 @@ export async function buildFullBackupAllPayload({
     },
     appData: {
       folders: backupFolders,
+      sequenceGroupMeta,
     },
     data: {
       cases: backupCases,

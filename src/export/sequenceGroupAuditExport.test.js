@@ -206,6 +206,19 @@ test("buildSequenceGroupAuditReport flags weak records and unrelated sequence gr
   ));
 });
 
+test("buildSequenceGroupAuditReport includes selected group description", () => {
+  const report = buildSequenceGroupAuditReport(buildAuditCase(), "mould_safety_chain_001", {
+    sequenceGroupMeta: {
+      mould_safety_chain_001: {
+        description: "Mould safety incidents, proof, and follow-up strategy.",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      },
+    },
+  });
+
+  assert.equal(report.threadOverview.description, "Mould safety incidents, proof, and follow-up strategy.");
+});
+
 test("exportSequenceGroupAuditJson is valid complete JSON", () => {
   const payload = exportSequenceGroupAuditJson(buildAuditCase(), "mould_safety_chain_001");
   const parsed = JSON.parse(JSON.stringify(payload));
@@ -236,9 +249,17 @@ test("buildSequenceGroupAuditReport handles older missing fields safely", () => 
 });
 
 test("exportSequenceGroupAuditMarkdown includes required sections", () => {
-  const markdown = exportSequenceGroupAuditMarkdown(buildAuditCase(), "mould_safety_chain_001");
+  const markdown = exportSequenceGroupAuditMarkdown(buildAuditCase(), "mould_safety_chain_001", {
+    sequenceGroupMeta: {
+      mould_safety_chain_001: {
+        description: "Mould safety incidents, proof, and follow-up strategy.",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      },
+    },
+  });
 
   assert.match(markdown, /## Thread overview/);
+  assert.match(markdown, /Description: Mould safety incidents, proof, and follow-up strategy\./);
   assert.match(markdown, /## Chronology table/);
   assert.match(markdown, /## GPT audit prompt block/);
 });

@@ -106,7 +106,7 @@ function getRecommendedUse({ counts, diagnostics }) {
   return "low_priority";
 }
 
-function buildGroupIndexItem(caseData, group) {
+function buildGroupIndexItem(caseData, group, sequenceGroupMeta = {}) {
   const groupName = text(group.name);
   const records = getGroupedRecords(caseData, groupName);
   const relationshipMap = getCaseSequenceGroupRelationshipMap(caseData, groupName);
@@ -135,6 +135,7 @@ function buildGroupIndexItem(caseData, group) {
   return {
     name: groupName,
     slug: slugify(groupName),
+    description: text(sequenceGroupMeta[groupName]?.description),
     counts,
     diagnostics,
     dateRange: getDateRange(records),
@@ -170,9 +171,9 @@ function getUngroupedSummary(sequenceGroupDetails = {}) {
   };
 }
 
-export function buildSequenceGroupsIndexReport(caseData = {}) {
+export function buildSequenceGroupsIndexReport(caseData = {}, options = {}) {
   const sequenceGroupDetails = getCaseSequenceGroupDetails(caseData);
-  const sequenceGroups = sequenceGroupDetails.groups.map((group) => buildGroupIndexItem(caseData, group));
+  const sequenceGroups = sequenceGroupDetails.groups.map((group) => buildGroupIndexItem(caseData, group, options.sequenceGroupMeta || {}));
   const ungroupedSummary = getUngroupedSummary(sequenceGroupDetails);
   const totals = sequenceGroups.reduce((summary, group) => ({
     ...summary,
@@ -218,12 +219,12 @@ function mdList(items, formatter) {
   return items.map(formatter).join("\n");
 }
 
-export function exportSequenceGroupsIndexJson(caseData) {
-  return buildSequenceGroupsIndexReport(caseData);
+export function exportSequenceGroupsIndexJson(caseData, options = {}) {
+  return buildSequenceGroupsIndexReport(caseData, options);
 }
 
-export function exportSequenceGroupsIndexMarkdown(caseData) {
-  const report = buildSequenceGroupsIndexReport(caseData);
+export function exportSequenceGroupsIndexMarkdown(caseData, options = {}) {
+  const report = buildSequenceGroupsIndexReport(caseData, options);
   const lines = [
     "# Sequence Groups Index Report",
     "",
@@ -249,6 +250,7 @@ export function exportSequenceGroupsIndexMarkdown(caseData) {
     mdList(report.sequenceGroups, (group) => [
       `### ${mdEscape(group.name)}`,
       "",
+      `- Description: ${mdEscape(group.description) || "-"}`,
       `- Counts: ${group.counts.total} total; ${group.counts.incidents} incidents; ${group.counts.evidence} evidence; ${group.counts.documents} docs; ${group.counts.strategy} strategy`,
       `- Date range: ${group.dateRange.firstDate || "-"} to ${group.dateRange.lastDate || "-"}`,
       `- Warnings/diagnostics: noIncidents=${group.diagnostics.noIncidents}; noEvidence=${group.diagnostics.noEvidence}; weakOrUnlinked=${group.diagnostics.weakOrUnlinkedCount}; needsEvidence=${group.diagnostics.needsEvidenceCount}; milestoneWithoutEvidence=${group.diagnostics.milestoneWithoutEvidenceCount}; externalLinkedRecords=${group.diagnostics.externalLinkedRecordCount}`,

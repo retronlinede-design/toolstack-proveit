@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Tags } from "lucide-react";
 import {
   getCaseSequenceGroupRelationshipMap,
@@ -13,6 +14,11 @@ import {
   safeSequenceText,
   sequenceRecordMatchesSearch,
 } from "./sequenceGroupUiHelpers.js";
+import {
+  clearSequenceGroupDescription,
+  getSequenceGroupDescription,
+  saveSequenceGroupDescription,
+} from "../../sequenceGroupMeta.js";
 
 function SequenceGroupChip({ value }) {
   const sequenceGroup = typeof value === "string" ? value.trim() : "";
@@ -146,6 +152,17 @@ export default function SequenceGroupManager({
   setSequenceRenameInputs,
   setSequenceTimelineSort,
 }) {
+  const [sequenceDescriptionDraft, setSequenceDescriptionDraft] = useState("");
+  const activeDescriptionGroupName = selectedGroupName || sequenceGroupDetails?.groups?.[0]?.name || "";
+
+  useEffect(() => {
+    if (!selectedCase?.id || !activeDescriptionGroupName) {
+      setSequenceDescriptionDraft("");
+      return;
+    }
+    setSequenceDescriptionDraft(getSequenceGroupDescription(selectedCase.id, activeDescriptionGroupName));
+  }, [selectedCase?.id, activeDescriptionGroupName]);
+
   if (!selectedCase) return null;
 
   const normalizedSearch = safeSequenceText(search).trim().toLowerCase();
@@ -178,6 +195,18 @@ export default function SequenceGroupManager({
     ["Documents", selectedGroup.counts.documents],
     ["Weak / Unlinked Records", selectedGroupRelationshipMap.weakNodes.length],
   ] : [];
+  const saveSelectedGroupDescription = () => {
+    if (!activeGroupName) return;
+    saveSequenceGroupDescription(selectedCase.id, activeGroupName, sequenceDescriptionDraft);
+    setSequenceGroupFeedback(`Saved description for "${activeGroupName}".`);
+  };
+
+  const clearSelectedGroupDescription = () => {
+    if (!activeGroupName) return;
+    clearSequenceGroupDescription(selectedCase.id, activeGroupName);
+    setSequenceDescriptionDraft("");
+    setSequenceGroupFeedback(`Cleared description for "${activeGroupName}".`);
+  };
 
   const renderRecordActions = (record, includeRemove = true) => {
     const key = getSequenceRecordKey(record);
@@ -538,6 +567,41 @@ export default function SequenceGroupManager({
                         </div>
                       ))}
                     </div>
+
+                    <section className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                      <label className="block">
+                        <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Sequence description</span>
+                        <textarea
+                          value={sequenceDescriptionDraft}
+                          onChange={(event) => {
+                            setSequenceDescriptionDraft(event.target.value);
+                            setSequenceGroupFeedback("");
+                          }}
+                          rows={3}
+                          className="mt-2 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm leading-6 text-neutral-800 outline-none focus:border-lime-500"
+                          placeholder="Briefly summarize what this thread is about."
+                        />
+                      </label>
+                      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-xs text-neutral-500">Use this to summarize what this thread is about.</p>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={saveSelectedGroupDescription}
+                            className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={clearSelectedGroupDescription}
+                            className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+                    </section>
 
                     <section className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

@@ -71,6 +71,12 @@ import {
   parseTrackingRecord,
 } from "./caseDetail/trackingRecordHelpers";
 import { shouldShowFloatingWorkspaceMenu } from "./caseDetail/workspaceMenuVisibility.js";
+import {
+  getSequenceGroupMetaForCase,
+  mergeSequenceGroupMeta,
+  readSequenceGroupMetaStore,
+  renameSequenceGroupMeta,
+} from "../sequenceGroupMeta.js";
 
 const ENABLE_SUPABASE_REMOTE = false;
 
@@ -618,7 +624,9 @@ export default function CaseDetail({
     if (!selectedCase) return;
 
     try {
-      const payload = exportSequenceGroupsIndexJson(selectedCase);
+      const payload = exportSequenceGroupsIndexJson(selectedCase, {
+        sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
+      });
       downloadTextFile(JSON.stringify(payload, null, 2), getSequenceGroupsIndexFilename("json"), "application/json");
       setSequenceGroupFeedback("Sequence Groups Index JSON downloaded.");
     } catch (error) {
@@ -631,7 +639,9 @@ export default function CaseDetail({
     if (!selectedCase) return;
 
     try {
-      const markdown = exportSequenceGroupsIndexMarkdown(selectedCase);
+      const markdown = exportSequenceGroupsIndexMarkdown(selectedCase, {
+        sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
+      });
       downloadTextFile(markdown, getSequenceGroupsIndexFilename("md"), "text/markdown");
       setSequenceGroupFeedback("Sequence Groups Index Markdown downloaded.");
     } catch (error) {
@@ -649,13 +659,19 @@ export default function CaseDetail({
 
     try {
       if (sequenceGroupAuditFormat === "json") {
-        const payload = exportSequenceGroupAuditJson(selectedCase, selectedSequenceGroupAuditGroup);
+        const payload = exportSequenceGroupAuditJson(selectedCase, selectedSequenceGroupAuditGroup, {
+          sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
+        });
         downloadTextFile(JSON.stringify(payload, null, 2), getAuditExportFilename("json"), "application/json");
       } else if (sequenceGroupAuditFormat === "markdown") {
-        const markdown = exportSequenceGroupAuditMarkdown(selectedCase, selectedSequenceGroupAuditGroup);
+        const markdown = exportSequenceGroupAuditMarkdown(selectedCase, selectedSequenceGroupAuditGroup, {
+          sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
+        });
         downloadTextFile(markdown, getAuditExportFilename("md"), "text/markdown");
       } else if (sequenceGroupAuditFormat === "pdf") {
-        const opened = printSequenceGroupAuditPdf(selectedCase, selectedSequenceGroupAuditGroup);
+        const opened = printSequenceGroupAuditPdf(selectedCase, selectedSequenceGroupAuditGroup, {
+          sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
+        });
         if (!opened) {
           setSequenceGroupAuditFeedback("Could not open the print view. Check popup settings and try JSON or Markdown.");
           return;
@@ -686,6 +702,7 @@ export default function CaseDetail({
     }
 
     const updatedCase = renameCaseSequenceGroup(selectedCase, groupName, nextName);
+    renameSequenceGroupMeta(selectedCase.id, groupName, nextName);
     onUpdateCase(updatedCase);
     setSequenceRenameInputs((prev) => ({ ...prev, [groupName]: "" }));
     setSelectedSequenceGroupName(nextName);
@@ -707,6 +724,7 @@ export default function CaseDetail({
     const confirmed = window.confirm(`Merge "${fromGroup}" into "${targetGroup}"? Records in "${fromGroup}" will be moved to "${targetGroup}".`);
     if (!confirmed) return;
 
+    mergeSequenceGroupMeta(selectedCase.id, fromGroup, targetGroup);
     onUpdateCase(mergeCaseSequenceGroups(selectedCase, fromGroup, targetGroup));
     setSelectedSequenceGroupName(targetGroup);
     setSequenceGroupFeedback(`Merged "${fromGroup}" into "${targetGroup}".`);

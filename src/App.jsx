@@ -56,6 +56,10 @@ import {
   verifyAppPin,
   writeAppLockConfig,
 } from "./appLock";
+import {
+  mergeSequenceGroupMetaStoreToStorage,
+  readSequenceGroupMetaStore,
+} from "./sequenceGroupMeta.js";
 import proveItLogo from "./assets/proveit-logo.png";
 
 const lastUsedGroupByType = {};
@@ -1040,6 +1044,7 @@ export default function ProveItApp() {
         cases: allCases,
         quickCaptures,
         folders: foldersForBackup,
+        sequenceGroupMeta: readSequenceGroupMetaStore(),
         selectedCaseId,
         activeTab,
       }, { getImageById });
@@ -2261,6 +2266,7 @@ export default function ProveItApp() {
     let incomingQuickCaptures = hasIncomingQuickCaptures ? imported.quickCaptures : [];
     const { hasFolderData: hasIncomingFolderData, folders: incomingFolders } =
       getImportedFolderSource(parsed, imported);
+    const incomingSequenceGroupMeta = parsed?.appData?.sequenceGroupMeta || imported?.appData?.sequenceGroupMeta;
 
     if (isFullBackup) {
       incomingCases = await Promise.all(incomingCases.map((caseItem) =>
@@ -2335,6 +2341,13 @@ export default function ProveItApp() {
       setActiveTab(imported.activeTab || "overview");
 
       if (exportType === "FULL_BACKUP_ALL") {
+        if (incomingSequenceGroupMeta) {
+          try {
+            mergeSequenceGroupMetaStoreToStorage(incomingSequenceGroupMeta);
+          } catch {
+            // Import should still complete if optional sequence group metadata cannot be written.
+          }
+        }
         const counts = getFullBackupPayloadCounts(parsed);
         const backupTimestamp = new Date().toISOString();
         const backupMeta = {

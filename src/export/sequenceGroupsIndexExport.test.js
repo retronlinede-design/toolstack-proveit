@@ -104,6 +104,20 @@ test("buildSequenceGroupsIndexReport includes counts", () => {
   assert.equal(mould.counts.strategy, 1);
 });
 
+test("buildSequenceGroupsIndexReport includes sequence group descriptions", () => {
+  const report = buildSequenceGroupsIndexReport(buildIndexCase(), {
+    sequenceGroupMeta: {
+      "Mould chain": {
+        description: "Mould condition, notice, and evidence thread.",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      },
+    },
+  });
+  const mould = report.sequenceGroups.find((group) => group.name === "Mould chain");
+
+  assert.equal(mould.description, "Mould condition, notice, and evidence thread.");
+});
+
 test("buildSequenceGroupsIndexReport includes ungrouped summary", () => {
   const report = buildSequenceGroupsIndexReport(buildIndexCase());
 
@@ -125,10 +139,18 @@ test("exportSequenceGroupsIndexJson is valid compact JSON", () => {
 });
 
 test("exportSequenceGroupsIndexMarkdown includes group names", () => {
-  const markdown = exportSequenceGroupsIndexMarkdown(buildIndexCase());
+  const markdown = exportSequenceGroupsIndexMarkdown(buildIndexCase(), {
+    sequenceGroupMeta: {
+      "Mould chain": {
+        description: "Mould condition, notice, and evidence thread.",
+        updatedAt: "2024-01-01T00:00:00.000Z",
+      },
+    },
+  });
 
   assert.match(markdown, /# Sequence Groups Index Report/);
   assert.match(markdown, /### Mould chain/);
+  assert.match(markdown, /Description: Mould condition, notice, and evidence thread\./);
   assert.match(markdown, /### Rent chain/);
   assert.match(markdown, /## Ungrouped Records/);
 });

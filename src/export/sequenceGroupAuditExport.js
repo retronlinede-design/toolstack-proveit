@@ -300,10 +300,11 @@ function buildLinkMap(caseData, incidents, evidence, documents, externalLinkedRe
   return edgeRows;
 }
 
-export function buildSequenceGroupAuditReport(caseData, sequenceGroup) {
+export function buildSequenceGroupAuditReport(caseData, sequenceGroup, options = {}) {
   if (!caseData) throw new Error("caseData is required for SEQUENCE_GROUP_FULL_RECORD_AUDIT_REPORT");
   const groupName = cleanSequenceGroup(sequenceGroup);
   if (!groupName) throw new Error("sequenceGroup is required for SEQUENCE_GROUP_FULL_RECORD_AUDIT_REPORT");
+  const groupDescription = text(options.sequenceGroupMeta?.[groupName]?.description);
 
   const incidents = Array.isArray(caseData.incidents) ? caseData.incidents : [];
   const evidenceRecords = Array.isArray(caseData.evidence) ? caseData.evidence : [];
@@ -369,6 +370,7 @@ export function buildSequenceGroupAuditReport(caseData, sequenceGroup) {
     },
     sequenceGroup: groupName,
     threadOverview: {
+      description: groupDescription,
       incidentCount: mappedIncidents.length,
       evidenceCount: mappedEvidence.length,
       documentCount: mappedDocuments.length,
@@ -399,12 +401,12 @@ function mdList(items, formatter) {
   return items.map(formatter).join("\n");
 }
 
-export function exportSequenceGroupAuditJson(caseData, sequenceGroup) {
-  return buildSequenceGroupAuditReport(caseData, sequenceGroup);
+export function exportSequenceGroupAuditJson(caseData, sequenceGroup, options = {}) {
+  return buildSequenceGroupAuditReport(caseData, sequenceGroup, options);
 }
 
-export function exportSequenceGroupAuditMarkdown(caseData, sequenceGroup) {
-  const report = buildSequenceGroupAuditReport(caseData, sequenceGroup);
+export function exportSequenceGroupAuditMarkdown(caseData, sequenceGroup, options = {}) {
+  const report = buildSequenceGroupAuditReport(caseData, sequenceGroup, options);
   const lines = [
     "# Sequence Group Full Record Audit Report",
     "",
@@ -415,6 +417,7 @@ export function exportSequenceGroupAuditMarkdown(caseData, sequenceGroup) {
     "",
     "## Thread overview",
     "",
+    `- Description: ${mdEscape(report.threadOverview.description) || "-"}`,
     `- Incidents: ${report.threadOverview.incidentCount}`,
     `- Evidence: ${report.threadOverview.evidenceCount}`,
     `- Documents: ${report.threadOverview.documentCount}`,
@@ -464,8 +467,8 @@ export function exportSequenceGroupAuditMarkdown(caseData, sequenceGroup) {
   return lines.join("\n");
 }
 
-export function printSequenceGroupAuditPdf(caseData, sequenceGroup) {
-  const markdown = exportSequenceGroupAuditMarkdown(caseData, sequenceGroup);
+export function printSequenceGroupAuditPdf(caseData, sequenceGroup, options = {}) {
+  const markdown = exportSequenceGroupAuditMarkdown(caseData, sequenceGroup, options);
   const printWindow = window.open("", "_blank", "noopener,noreferrer");
   if (!printWindow) return false;
   printWindow.document.write(`<pre style="white-space: pre-wrap; font-family: Arial, sans-serif; line-height: 1.45;">${markdown.replace(/[&<>]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[char])}</pre>`);
