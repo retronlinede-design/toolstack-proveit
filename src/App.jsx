@@ -661,6 +661,7 @@ export default function ProveItApp() {
   const [recordFocusField, setRecordFocusField] = useState(null);
   const [recordFocusHint, setRecordFocusHint] = useState("");
   const [recordOpenedFromIssue, setRecordOpenedFromIssue] = useState(false);
+  const [recordOpenedFromSequenceManager, setRecordOpenedFromSequenceManager] = useState(null);
   const [recordIssueFeedback, setRecordIssueFeedback] = useState("");
   const [parentRecordForNewChild, setParentRecordForNewChild] = useState(null);
   const [showGptDeltaModal, setShowGptDeltaModal] = useState(false);
@@ -684,6 +685,7 @@ export default function ProveItApp() {
   const [documentSequenceGroupMode, setDocumentSequenceGroupMode] = useState("");
   const [documentPromptCopied, setDocumentPromptCopied] = useState(false);
   const [recordPromptCopied, setRecordPromptCopied] = useState(false);
+  const [documentOpenedFromSequenceManager, setDocumentOpenedFromSequenceManager] = useState(null);
   const [documentModalMode, setDocumentModalMode] = useState("document");
   const [appNotice, setAppNotice] = useState(null);
   const [storageDiagnosticsOpen, setStorageDiagnosticsOpen] = useState(false);
@@ -1484,7 +1486,7 @@ export default function ProveItApp() {
     }
   }
 
-  const openDocumentModal = (preset = {}, documentId = null, mode = "document") => {
+  const openDocumentModal = (preset = {}, documentId = null, mode = "document", options = {}) => {
     const nextForm = { ...EMPTY_DOCUMENT_FORM, ...preset };
     if (mode === "record") {
       if (!documentId) {
@@ -1508,6 +1510,7 @@ export default function ProveItApp() {
     setDocumentForm(nextForm);
     setEditingDocumentId(documentId);
     setDocumentModalMode(mode);
+    setDocumentOpenedFromSequenceManager(options.fromSequenceManager || null);
     setDocumentModalOpen(true);
   };
 
@@ -1518,6 +1521,7 @@ export default function ProveItApp() {
     setDocumentSequenceGroupMode("");
     setDocumentPromptCopied(false);
     setRecordPromptCopied(false);
+    setDocumentOpenedFromSequenceManager(null);
     setDocumentModalMode("document");
   };
 
@@ -1572,6 +1576,15 @@ export default function ProveItApp() {
     try {
       await saveCase(updatedCase);
       setCases((prev) => prev.map((c) => (c.id === currentCase.id ? updatedCase : c)));
+      if (documentOpenedFromSequenceManager?.onSaved) {
+        const savedDocument = updatedCase.documents?.find((doc) => doc.id === (editingDocumentId || documentForm.id));
+        documentOpenedFromSequenceManager.onSaved({
+          recordType: "documents",
+          recordId: editingDocumentId || documentForm.id,
+          previousSequenceGroup: documentOpenedFromSequenceManager.activeGroupName || "",
+          nextSequenceGroup: savedDocument?.sequenceGroup || "",
+        });
+      }
     } catch (error) {
       console.error("Failed to save document entry", error);
       if (newImageIds.length > 0) {
@@ -2643,6 +2656,7 @@ export default function ProveItApp() {
     setRecordFocusField(options.focusField || null);
     setRecordFocusHint(options.focusHint || "");
     setRecordOpenedFromIssue(!!options.fromIssue);
+    setRecordOpenedFromSequenceManager(options.fromSequenceManager || null);
     setRecordType(type);
     setEditingRecord(currentRecord);
   };
@@ -2653,6 +2667,7 @@ export default function ProveItApp() {
     setRecordFocusField(null);
     setRecordFocusHint("");
     setRecordOpenedFromIssue(false);
+    setRecordOpenedFromSequenceManager(null);
     setRecordForm(EMPTY_RECORD_FORM);
     setParentRecordForNewChild(null);
   };
@@ -2785,6 +2800,7 @@ const handleRecordFiles = async (event) => {
     
     let updatedCase;
     const shouldShowIssueFeedback = recordOpenedFromIssue;
+    const sequenceManagerContext = recordOpenedFromSequenceManager;
     const normalizedPayload = {
       ...payload,
       isMilestone: !!payload.isMilestone,
@@ -2810,6 +2826,15 @@ const handleRecordFiles = async (event) => {
       if (shouldShowIssueFeedback) {
         setRecordIssueFeedback("Issue fix saved");
         setTimeout(() => setRecordIssueFeedback(""), 1800);
+      }
+      if (sequenceManagerContext?.onSaved) {
+        const savedRecord = updatedCase?.[recordType]?.find((record) => record.id === payloadForUpsert.id);
+        sequenceManagerContext.onSaved({
+          recordType,
+          recordId: payloadForUpsert.id,
+          previousSequenceGroup: sequenceManagerContext.activeGroupName || "",
+          nextSequenceGroup: savedRecord?.sequenceGroup || "",
+        });
       }
     } catch (error) {
       console.error("Failed to save updated case", error);
@@ -4253,6 +4278,14 @@ const handleRecordFiles = async (event) => {
             openRecordModal={openRecordModal}
             renderCaseList={renderCaseList}
             openEditRecordModal={openEditRecordModal}
+            openSequenceManagerRecordEdit={(recordType, record, options = {}) => {
+              if (recordType === "documents") {
+                const fullDocument = selectedCase?.documents?.find((doc) => doc.id === record.id) || record;
+                openDocumentModal(fullDocument, fullDocument.id || record.id, "document", { fromSequenceManager: options });
+                return;
+              }
+              openEditRecordModal(recordType, record, { ...options, fromSequenceManager: options });
+            }}
             openEditCaseModal={openEditCaseModal}
             onUpdateCase={handleUpdateCase}
             deleteRecord={deleteRecord}

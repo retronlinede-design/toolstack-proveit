@@ -124,6 +124,7 @@ export default function SequenceGroupManager({
   onMoveRecordToExisting,
   onMoveRecordToNew,
   onOpenAuditExport,
+  onOpenRecordEdit,
   onRelationshipNodeSelect,
   onRemoveGroup,
   onRenameGroup,
@@ -291,6 +292,13 @@ export default function SequenceGroupManager({
             <p className="mt-2 text-sm italic text-neutral-400">No summary recorded.</p>
           )}
         </div>
+        <button
+          type="button"
+          onClick={() => onOpenRecordEdit?.(record)}
+          className="shrink-0 rounded-md border border-lime-500 bg-white px-2 py-1.5 text-xs font-bold text-neutral-800 hover:bg-lime-400/30"
+        >
+          Open / Edit
+        </button>
       </div>
       {renderRecordActions(record, includeRemove)}
     </div>

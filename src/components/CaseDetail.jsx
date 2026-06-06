@@ -145,6 +145,7 @@ export default function CaseDetail({
   attachmentDiagnosticCases = [],
   setSelectedCaseId,
   openRecordModal,
+  openSequenceManagerRecordEdit,
   renderCaseList,
   openEditRecordModal,
   openEditCaseModal,
@@ -828,6 +829,35 @@ export default function CaseDetail({
   function handleWorkspaceOpenSequenceGroups() {
     openSequenceGroupManager();
     closeWorkspaceActionMenu();
+  }
+
+  function handleOpenSequenceRecordEdit(record) {
+    if (!record || !openSequenceManagerRecordEdit) return;
+    const key = `${record.recordType}:${record.id}`;
+    setHighlightedSequenceRecordKey(key);
+    openSequenceManagerRecordEdit(record.recordType, record, {
+      activeGroupName: selectedSequenceGroupName,
+      onSaved: ({ recordId, recordType, previousSequenceGroup, nextSequenceGroup }) => {
+        const savedKey = `${recordType}:${recordId}`;
+        setHighlightedSequenceRecordKey(savedKey);
+        window.setTimeout(() => {
+          const element = document.getElementById(`sequence-record-${recordType}-${recordId}`);
+          if (element?.scrollIntoView) {
+            element.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }, 80);
+
+        const previousGroup = safeText(previousSequenceGroup).trim();
+        const nextGroup = safeText(nextSequenceGroup).trim();
+        if (previousGroup && nextGroup && previousGroup !== nextGroup) {
+          setSequenceGroupFeedback("Record moved to another group.");
+        } else if (previousGroup && !nextGroup) {
+          setSequenceGroupFeedback("Record removed from this sequence group.");
+        } else {
+          setSequenceGroupFeedback("Record saved. Returning to the same sequence group.");
+        }
+      },
+    });
   }
 
   function handleWorkspaceOpenSequenceGroupAuditExport() {
@@ -5551,6 +5581,7 @@ ${ungroupedSequenceText}
           onMergeGroup={handleMergeSequenceGroup}
           onMoveRecordToExisting={handleMoveSequenceRecordToExisting}
           onMoveRecordToNew={handleMoveSequenceRecordToNew}
+          onOpenRecordEdit={handleOpenSequenceRecordEdit}
           onOpenAuditExport={openSequenceGroupAuditExportFromManager}
           onRelationshipNodeSelect={handleSelectSequenceRelationshipNode}
           onRemoveGroup={handleRemoveSequenceGroup}
