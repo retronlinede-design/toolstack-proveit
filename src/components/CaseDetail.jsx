@@ -517,11 +517,20 @@ export default function CaseDetail({
     setSequenceGroupManagerOpen(true);
   }
 
-  function openSequenceGroupAuditExport() {
-    setSequenceGroupAuditGroup(sequenceGroups[0]?.name || "");
+  function openSequenceGroupAuditExport(preferredGroup = "") {
+    const requestedGroup = safeText(preferredGroup).trim();
+    const nextGroup = sequenceGroups.some((group) => group.name === requestedGroup)
+      ? requestedGroup
+      : sequenceGroups[0]?.name || "";
+    setSequenceGroupAuditGroup(nextGroup);
     setSequenceGroupAuditFormat("json");
     setSequenceGroupAuditFeedback("");
     setSequenceGroupAuditExportOpen(true);
+  }
+
+  function openSequenceGroupAuditExportFromManager(groupName) {
+    setSequenceGroupManagerOpen(false);
+    openSequenceGroupAuditExport(groupName);
   }
 
   function openIncidentDateRepairTool() {
@@ -5442,6 +5451,7 @@ ${ungroupedSequenceText}
           onMergeGroup={handleMergeSequenceGroup}
           onMoveRecordToExisting={handleMoveSequenceRecordToExisting}
           onMoveRecordToNew={handleMoveSequenceRecordToNew}
+          onOpenAuditExport={openSequenceGroupAuditExportFromManager}
           onRelationshipNodeSelect={handleSelectSequenceRelationshipNode}
           onRemoveGroup={handleRemoveSequenceGroup}
           onRenameGroup={handleRenameSequenceGroup}

@@ -115,6 +115,7 @@ export default function SequenceGroupManager({
   onMergeGroup,
   onMoveRecordToExisting,
   onMoveRecordToNew,
+  onOpenAuditExport,
   onRelationshipNodeSelect,
   onRemoveGroup,
   onRenameGroup,
@@ -168,52 +169,64 @@ export default function SequenceGroupManager({
   );
   const ungroupedCount = Object.values(sequenceGroupDetails.ungroupedRecords)
     .reduce((sum, records) => sum + records.length, 0);
+  const selectedGroupSummaryCards = selectedGroup ? [
+    ["Incidents", selectedGroup.counts.incidents],
+    ["Assigned Evidence", selectedGroup.counts.evidence],
+    ["Linked Evidence", selectedGroup.counts.evidence],
+    ["Documents", selectedGroup.counts.documents],
+    ["Weak / Unlinked Records", selectedGroupRelationshipMap.weakNodes.length],
+  ] : [];
 
   const renderRecordActions = (record, includeRemove = true) => {
     const key = getSequenceRecordKey(record);
     const existingOptions = groupOptions.filter((name) => name !== record.sequenceGroup);
     return (
-      <div className="mt-3 flex flex-col gap-2 border-t border-neutral-100 pt-3 lg:flex-row lg:items-center">
-        <select
-          value={sequenceMoveInputs[key] || ""}
-          onChange={(event) => setSequenceMoveInputs((prev) => ({ ...prev, [key]: event.target.value }))}
-          className="min-w-0 rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-xs font-medium text-neutral-700 outline-none focus:border-lime-500"
-        >
-          <option value="">Move to existing group</option>
-          {existingOptions.map((name) => (
-            <option key={name} value={name}>{name}</option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={() => onMoveRecordToExisting(record)}
-          className="rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-xs font-bold text-neutral-700 hover:bg-neutral-50"
-        >
+      <details className="mt-3 border-t border-neutral-100 pt-3">
+        <summary className="cursor-pointer text-xs font-bold uppercase tracking-wider text-neutral-500 hover:text-neutral-800">
           Move
-        </button>
-        <input
-          value={sequenceNewGroupInputs[key] || ""}
-          onChange={(event) => setSequenceNewGroupInputs((prev) => ({ ...prev, [key]: event.target.value }))}
-          placeholder="New group"
-          className="min-w-0 rounded-md border border-neutral-300 px-2 py-1.5 text-xs outline-none focus:border-lime-500"
-        />
-        <button
-          type="button"
-          onClick={() => onMoveRecordToNew(record)}
-          className="rounded-md border border-lime-500 bg-white px-2 py-1.5 text-xs font-bold text-neutral-800 hover:bg-lime-400/30"
-        >
-          Assign New
-        </button>
-        {includeRemove && (
+        </summary>
+        <div className="mt-3 flex flex-col gap-2 lg:flex-row lg:items-center">
+          <select
+            value={sequenceMoveInputs[key] || ""}
+            onChange={(event) => setSequenceMoveInputs((prev) => ({ ...prev, [key]: event.target.value }))}
+            className="min-w-0 rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-xs font-medium text-neutral-700 outline-none focus:border-lime-500"
+          >
+            <option value="">Move to existing group</option>
+            {existingOptions.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
           <button
             type="button"
-            onClick={() => onClearRecord(record)}
-            className="rounded-md border border-red-200 bg-white px-2 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50"
+            onClick={() => onMoveRecordToExisting(record)}
+            className="rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-xs font-bold text-neutral-700 hover:bg-neutral-50"
           >
-            Remove
+            Move to group
           </button>
-        )}
-      </div>
+          <input
+            value={sequenceNewGroupInputs[key] || ""}
+            onChange={(event) => setSequenceNewGroupInputs((prev) => ({ ...prev, [key]: event.target.value }))}
+            placeholder="New group"
+            className="min-w-0 rounded-md border border-neutral-300 px-2 py-1.5 text-xs outline-none focus:border-lime-500"
+          />
+          <button
+            type="button"
+            onClick={() => onMoveRecordToNew(record)}
+            className="rounded-md border border-lime-500 bg-white px-2 py-1.5 text-xs font-bold text-neutral-800 hover:bg-lime-400/30"
+          >
+            Move to new group
+          </button>
+          {includeRemove && (
+            <button
+              type="button"
+              onClick={() => onClearRecord(record)}
+              className="rounded-md border border-red-200 bg-white px-2 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50"
+            >
+              Remove
+            </button>
+          )}
+        </div>
+      </details>
     );
   };
 
@@ -365,52 +378,9 @@ export default function SequenceGroupManager({
             </div>
           )}
 
-          <section className="mb-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-600">AI Group Cleanup</h4>
-                <p className="mt-1 max-w-3xl text-xs leading-5 text-neutral-500">
-                  Copy a compact review package for GPT, then paste sequence-group-delta-1.0 suggestions here. This can only move, rename, merge, or clear sequence groups.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onCopyReviewPackage}
-                className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
-              >
-                Copy AI group review package
-              </button>
-            </div>
-
-            <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto_auto]">
-              <textarea
-                value={sequenceGroupDeltaDraft}
-                onChange={(event) => {
-                  setSequenceGroupDeltaDraft(event.target.value);
-                  setSequenceGroupDeltaResult(null);
-                }}
-                placeholder='Paste sequence-group-delta-1.0 JSON here'
-                className="min-h-28 w-full rounded-lg border border-neutral-300 bg-white p-3 font-mono text-xs outline-none focus:border-lime-500"
-              />
-              <button
-                type="button"
-                onClick={onValidateDelta}
-                className="h-fit rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
-              >
-                Validate
-              </button>
-              <button
-                type="button"
-                onClick={onApplyDelta}
-                disabled={!sequenceGroupDeltaDraft.trim()}
-                className="h-fit rounded-md border border-lime-500 bg-lime-400/20 px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Apply AI group suggestions
-              </button>
-            </div>
-
-            <SequenceGroupDeltaPreview result={sequenceGroupDeltaResult} />
-          </section>
+          <div className="mb-5 rounded-xl border border-lime-200 bg-lime-50 p-4 text-sm leading-6 text-lime-950">
+            A sequence group is a label applied to records. Renaming a group changes that label on all matching records. Removing a group label does not delete records.
+          </div>
 
           <div className="grid gap-5 lg:grid-cols-[18rem_1fr]">
             <aside className="space-y-3">
@@ -451,11 +421,11 @@ export default function SequenceGroupManager({
                             )}
                           </div>
                         </div>
-                        <div className="mt-2 grid grid-cols-4 gap-1 text-center text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                          <span>I {group.counts.incidents}</span>
-                          <span>E {group.counts.evidence}</span>
-                          <span>D {group.counts.documents}</span>
-                          <span>S {group.counts.strategy}</span>
+                        <div className="mt-2 grid grid-cols-2 gap-1 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                          <span>Incidents {group.counts.incidents}</span>
+                          <span>Evidence {group.counts.evidence}</span>
+                          <span>Docs {group.counts.documents}</span>
+                          <span>Strategy {group.counts.strategy}</span>
                         </div>
                       </button>
                     ))}
@@ -484,7 +454,14 @@ export default function SequenceGroupManager({
                         </div>
                       </div>
 
-                      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_auto]">
+                      <div className="grid gap-2 lg:grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)_auto_auto]">
+                        <button
+                          type="button"
+                          onClick={() => onOpenAuditExport?.(selectedGroup.name)}
+                          className="rounded-md border border-lime-500 bg-lime-400/20 px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
+                        >
+                          Export audit report
+                        </button>
                         <input
                           value={sequenceRenameInputs[selectedGroup.name] || ""}
                           onChange={(event) => {
@@ -523,9 +500,18 @@ export default function SequenceGroupManager({
                           onClick={() => onRemoveGroup(selectedGroup)}
                           className="rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-50"
                         >
-                          Clear Group
+                          Remove group label from all records
                         </button>
                       </div>
+                    </div>
+
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                      {selectedGroupSummaryCards.map(([label, count]) => (
+                        <div key={label} className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{label}</div>
+                          <div className="mt-1 text-2xl font-semibold text-neutral-950">{count}</div>
+                        </div>
+                      ))}
                     </div>
 
                     <section className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
@@ -592,7 +578,7 @@ export default function SequenceGroupManager({
                     <section className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
                       <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                         <div>
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Relationship Map</h4>
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Links and Evidence</h4>
                           <p className="mt-1 text-xs text-neutral-500">
                             Proof chains and record links inside this sequence group.
                           </p>
@@ -654,7 +640,7 @@ export default function SequenceGroupManager({
                           </section>
 
                           <section className="rounded-lg border border-neutral-200 bg-white p-3">
-                            <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Relationship Chips</div>
+                            <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Linked Records</div>
                             <div className="mt-2 space-y-2">
                               {relationshipVisibleEdges.length === 0 ? (
                                 <p className="text-sm text-neutral-500">No visible links for this filter.</p>
@@ -699,7 +685,9 @@ export default function SequenceGroupManager({
                             </div>
                             <div className="space-y-2">
                               {records.length === 0 ? (
-                                <p className="rounded-lg border border-dashed border-neutral-200 bg-white p-3 text-sm text-neutral-500">No matching records.</p>
+                                <p className="rounded-lg border border-dashed border-neutral-200 bg-white p-3 text-sm text-neutral-500">
+                                  {(selectedGroup.records[recordType] || []).length === 0 ? "No records in this group." : "No matching records for this search."}
+                                </p>
                               ) : records.map((record) => renderRecordCard(record, true))}
                             </div>
                           </section>
@@ -709,7 +697,7 @@ export default function SequenceGroupManager({
                   </>
                 ) : (
                   <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-500">
-                    Select or create a sequence group by assigning an ungrouped record.
+                    Select a group to review its records and links, or create a group by moving an ungrouped record.
                   </div>
                 )}
               </section>
@@ -722,6 +710,11 @@ export default function SequenceGroupManager({
                   </div>
                 </div>
                 <div className="grid gap-4 xl:grid-cols-2">
+                  {ungroupedCount === 0 && (
+                    <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-500 xl:col-span-2">
+                      No ungrouped records. Every supported record already has a sequence group label.
+                    </div>
+                  )}
                   {Object.entries(SEQUENCE_GROUP_TYPE_LABELS).map(([recordType, label]) => {
                     const records = (sequenceGroupDetails.ungroupedRecords[recordType] || []).filter((record) => sequenceRecordMatchesSearch(record, normalizedSearch));
                     return (
@@ -732,7 +725,9 @@ export default function SequenceGroupManager({
                         </div>
                         <div className="space-y-2">
                           {records.length === 0 ? (
-                            <p className="rounded-lg border border-dashed border-neutral-200 bg-white p-3 text-sm text-neutral-500">No ungrouped records.</p>
+                            <p className="rounded-lg border border-dashed border-neutral-200 bg-white p-3 text-sm text-neutral-500">
+                              {(sequenceGroupDetails.ungroupedRecords[recordType] || []).length === 0 ? "No ungrouped records." : "No matching ungrouped records for this search."}
+                            </p>
                           ) : records.map((record) => renderRecordCard(record, false))}
                         </div>
                       </section>
@@ -740,6 +735,57 @@ export default function SequenceGroupManager({
                   })}
                 </div>
               </section>
+
+              <details className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                <summary className="cursor-pointer text-sm font-bold uppercase tracking-wider text-neutral-600 hover:text-neutral-900">
+                  Advanced / AI Cleanup
+                </summary>
+                <div className="mt-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="max-w-3xl text-xs leading-5 text-neutral-500">
+                        Copy a compact review package for GPT, then paste sequence-group-delta-1.0 suggestions here. This can only move, rename, merge, or clear sequence groups.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onCopyReviewPackage}
+                      className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
+                    >
+                      Copy AI group review package
+                    </button>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto_auto]">
+                    <textarea
+                      value={sequenceGroupDeltaDraft}
+                      onChange={(event) => {
+                        setSequenceGroupDeltaDraft(event.target.value);
+                        setSequenceGroupDeltaResult(null);
+                      }}
+                      placeholder='Paste sequence-group-delta-1.0 JSON here'
+                      className="min-h-28 w-full rounded-lg border border-neutral-300 bg-white p-3 font-mono text-xs outline-none focus:border-lime-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={onValidateDelta}
+                      className="h-fit rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
+                    >
+                      Validate
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onApplyDelta}
+                      disabled={!sequenceGroupDeltaDraft.trim()}
+                      className="h-fit rounded-md border border-lime-500 bg-lime-400/20 px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Apply AI group suggestions
+                    </button>
+                  </div>
+
+                  <SequenceGroupDeltaPreview result={sequenceGroupDeltaResult} />
+                </div>
+              </details>
             </div>
           </div>
         </div>
