@@ -831,31 +831,64 @@ export default function CaseDetail({
     closeWorkspaceActionMenu();
   }
 
+  function restoreSequenceGroupManagerAfterEdit(context, { feedback, highlightedKey } = {}) {
+    if (!context) return;
+    setSelectedSequenceGroupName(context.selectedGroupName);
+    setSequenceGroupSearch(context.search);
+    setSequenceRelationshipFilter(context.relationshipFilter);
+    setSequenceTimelineSort(context.timelineSort);
+    setHighlightedSequenceRecordKey(highlightedKey || context.highlightedRecordKey || "");
+    setSequenceGroupFeedback(feedback || "");
+    setSequenceGroupManagerOpen(true);
+
+    window.setTimeout(() => {
+      const scrollContainer = document.getElementById("sequence-group-manager-scroll");
+      if (scrollContainer) {
+        scrollContainer.scrollTop = context.scrollTop || 0;
+      }
+      if (highlightedKey) {
+        const [recordType, recordId] = highlightedKey.split(":");
+        const element = document.getElementById(`sequence-record-${recordType}-${recordId}`);
+        if (element?.scrollIntoView) {
+          element.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }
+    }, 80);
+  }
+
   function handleOpenSequenceRecordEdit(record) {
     if (!record || !openSequenceManagerRecordEdit) return;
     const key = `${record.recordType}:${record.id}`;
+    const scrollContainer = document.getElementById("sequence-group-manager-scroll");
+    const managerContext = {
+      selectedGroupName: selectedSequenceGroupName,
+      search: sequenceGroupSearch,
+      relationshipFilter: sequenceRelationshipFilter,
+      timelineSort: sequenceTimelineSort,
+      highlightedRecordKey: key,
+      scrollTop: scrollContainer?.scrollTop || 0,
+    };
     setHighlightedSequenceRecordKey(key);
+    setSequenceGroupManagerOpen(false);
     openSequenceManagerRecordEdit(record.recordType, record, {
       activeGroupName: selectedSequenceGroupName,
       onSaved: ({ recordId, recordType, previousSequenceGroup, nextSequenceGroup }) => {
         const savedKey = `${recordType}:${recordId}`;
-        setHighlightedSequenceRecordKey(savedKey);
-        window.setTimeout(() => {
-          const element = document.getElementById(`sequence-record-${recordType}-${recordId}`);
-          if (element?.scrollIntoView) {
-            element.scrollIntoView({ behavior: "smooth", block: "center" });
-          }
-        }, 80);
-
         const previousGroup = safeText(previousSequenceGroup).trim();
         const nextGroup = safeText(nextSequenceGroup).trim();
+        let feedback = "Record saved. Returned to sequence group.";
         if (previousGroup && nextGroup && previousGroup !== nextGroup) {
-          setSequenceGroupFeedback("Record moved to another group.");
+          feedback = "Record moved to another sequence group.";
         } else if (previousGroup && !nextGroup) {
-          setSequenceGroupFeedback("Record removed from this sequence group.");
-        } else {
-          setSequenceGroupFeedback("Record saved. Returning to the same sequence group.");
+          feedback = "Record removed from this sequence group.";
         }
+        restoreSequenceGroupManagerAfterEdit(managerContext, { feedback, highlightedKey: savedKey });
+      },
+      onCancel: () => {
+        restoreSequenceGroupManagerAfterEdit(managerContext, {
+          feedback: "Returned to sequence group.",
+          highlightedKey: key,
+        });
       },
     });
   }

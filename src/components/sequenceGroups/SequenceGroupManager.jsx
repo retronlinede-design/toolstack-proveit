@@ -410,7 +410,7 @@ export default function SequenceGroupManager({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5">
+        <div id="sequence-group-manager-scroll" className="flex-1 overflow-y-auto p-5">
           {sequenceGroupFeedback && (
             <div className="mb-4 rounded-md border border-lime-200 bg-lime-50 p-3 text-sm font-medium text-lime-800">
               {sequenceGroupFeedback}
