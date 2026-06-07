@@ -191,4 +191,33 @@
     orphans: 3;
     widows: 3;
   }
+
+  .management-report-header,
+  .management-report-summary,
+  .management-chain-section,
+  .proof-card,
+  .reference-document {
+    box-shadow: none !important;
+  }
+
+  .management-chain-section {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .management-report-grid {
+    display: block !important;
+  }
+
+  .management-report-grid > * + * {
+    margin-top: 5mm;
+  }
+
+  .proof-card {
+    border-color: #a3a3a3 !important;
+  }
+
+  .reference-document {
+    color: #525252 !important;
+  }
 }

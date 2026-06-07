@@ -1433,10 +1433,347 @@ function buildSupportingAppendixSummary(caseItem = {}) {
   };
 }
 
+function getSequenceGroupName(value) {
+  return compactText(value);
+}
+
+function getManagementSequenceGroups(caseItem = {}) {
+  return uniqueValues(
+    collectTypedRecords(caseItem)
+      .filter(({ recordType }) => ["incident", "evidence", "document", "strategy", "ledger"].includes(recordType))
+      .map(({ record }) => getSequenceGroupName(record.sequenceGroup))
+  ).sort((a, b) => a.localeCompare(b));
+}
+
+function hasLinkToAny(record = {}, targetIds = new Set()) {
+  return getRecordLinkIds(record).some((id) => targetIds.has(id));
+}
+
+function isEvidenceExplicitlyLinkedToIncidents(evidence = {}, incidentIds = new Set()) {
+  const linkedIncidentIds = new Set([
+    ...(Array.isArray(evidence.linkedIncidentIds) ? evidence.linkedIncidentIds : []),
+    ...getRecordLinkIds(evidence).filter((id) => incidentIds.has(id)),
+  ]);
+  return [...linkedIncidentIds].some((id) => incidentIds.has(id));
+}
+
+function getManagementChainEvidence(caseItem = {}, groupName = "", incidents = []) {
+  const incidentIds = new Set(incidents.map((incident) => incident.id).filter(Boolean));
+  const incidentLinkedEvidenceIds = new Set(
+    incidents.flatMap((incident) => [
+      ...(Array.isArray(incident.linkedEvidenceIds) ? incident.linkedEvidenceIds : []),
+      ...(Array.isArray(incident.linkedRecordIds) ? incident.linkedRecordIds : [])
+        .filter((id) => resolveRecordById(caseItem, id)?.recordType === "evidence"),
+    ])
+  );
+  const evidence = (caseItem.evidence || []).filter((item) => {
+    if (!item?.id) return false;
+    return (
+      getSequenceGroupName(item.sequenceGroup) === groupName ||
+      incidentLinkedEvidenceIds.has(item.id) ||
+      isEvidenceExplicitlyLinkedToIncidents(item, incidentIds)
+    );
+  });
+
+  return [...new Map(evidence.map((item) => [item.id, item])).values()]
+    .sort((a, b) => String(getRecordDate(a)).localeCompare(String(getRecordDate(b))) || getRecordTitle(a, "evidence").localeCompare(getRecordTitle(b, "evidence")));
+}
+
+function getManagementChainDocuments(caseItem = {}, groupName = "", incidents = [], evidence = []) {
+  const chainIds = new Set([
+    ...incidents.map((record) => record.id).filter(Boolean),
+    ...evidence.map((record) => record.id).filter(Boolean),
+  ]);
+  const documentIdsFromChainRecords = new Set();
+  [...incidents, ...evidence].forEach((record) => {
+    getRecordLinkIds(record).forEach((id) => {
+      if (resolveRecordById(caseItem, id)?.recordType === "document") documentIdsFromChainRecords.add(id);
+    });
+  });
+
+  const documents = (caseItem.documents || []).filter((doc) => {
+    if (!doc?.id) return false;
+    return (
+      getSequenceGroupName(doc.sequenceGroup) === groupName ||
+      documentIdsFromChainRecords.has(doc.id) ||
+      hasLinkToAny(doc, chainIds)
+    );
+  });
+
+  return [...new Map(documents.map((item) => [item.id, item])).values()]
+    .sort((a, b) => String(getRecordDate(a)).localeCompare(String(getRecordDate(b))) || getRecordTitle(a, "document").localeCompare(getRecordTitle(b, "document")));
+}
+
+function getManagementChainStrategy(caseItem = {}, groupName = "", chainIds = new Set()) {
+  return (caseItem.strategy || [])
+    .filter((item) => item?.id && (getSequenceGroupName(item.sequenceGroup) === groupName || hasLinkToAny(item, chainIds)))
+    .sort((a, b) => String(getRecordDate(a)).localeCompare(String(getRecordDate(b))) || getRecordTitle(a, "strategy").localeCompare(getRecordTitle(b, "strategy")));
+}
+
+function mapManagementChainFact(incident = {}) {
+  return {
+    id: incident.id || "",
+    incidentId: incident.id || "",
+    date: getRecordDate(incident),
+    title: getRecordTitle(incident, "incident"),
+    summary: getSummary(incident, "incident"),
+    status: incident.status || "",
+    evidenceStatus: incident.evidenceStatus || "",
+    isMilestone: !!incident.isMilestone,
+  };
+}
+
+function mapManagementChainProof(evidence = {}, groupName = "") {
+  const establishes = safeText(evidence.functionSummary);
+  return {
+    evidenceId: evidence.id || "",
+    id: evidence.id || "",
+    title: getRecordTitle(evidence, "evidence"),
+    date: getRecordDate(evidence),
+    status: evidence.status || "",
+    evidenceRole: evidence.evidenceRole || "",
+    linkedIncidentIds: Array.isArray(evidence.linkedIncidentIds) ? evidence.linkedIncidentIds : [],
+    linkedRecordIds: Array.isArray(evidence.linkedRecordIds) ? evidence.linkedRecordIds : [],
+    establishes,
+    missingFunctionSummary: !compactText(establishes),
+    sequenceGroup: getSequenceGroupName(evidence.sequenceGroup),
+    note: getSequenceGroupName(evidence.sequenceGroup) && getSequenceGroupName(evidence.sequenceGroup) !== groupName
+      ? `Explicitly linked evidence from sequence group "${getSequenceGroupName(evidence.sequenceGroup)}".`
+      : "",
+  };
+}
+
+function mapManagementReferenceDocument(document = {}, groupName = "") {
+  return {
+    id: document.id || "",
+    title: getRecordTitle(document, "document"),
+    date: getRecordDate(document),
+    source: document.source || document.category || "",
+    summary: shortText(document.summary || document.source || "", 180),
+    sequenceGroup: getSequenceGroupName(document.sequenceGroup),
+    linkedRecordIds: Array.isArray(document.linkedRecordIds) ? document.linkedRecordIds : [],
+    basedOnEvidenceIds: Array.isArray(document.basedOnEvidenceIds) ? document.basedOnEvidenceIds : [],
+    note: getSequenceGroupName(document.sequenceGroup) && getSequenceGroupName(document.sequenceGroup) !== groupName
+      ? `Reference material from sequence group "${getSequenceGroupName(document.sequenceGroup)}"; not treated as proof by default.`
+      : "Reference material only; not treated as proof by default.",
+  };
+}
+
+function buildManagementChainGaps(groupName, incidents = [], proof = [], referenceDocuments = [], relationshipMap = {}) {
+  const gaps = [];
+  incidents.forEach((incident) => {
+    if (incident.evidenceStatus === "needs_evidence") {
+      gaps.push({
+        code: "incident_needs_evidence",
+        severity: "high",
+        message: `${getRecordTitle(incident, "incident")} needs supporting evidence before this chain is escalation-ready.`,
+        recordId: incident.id || "",
+        recordType: "incident",
+      });
+    }
+    if (!getRecordDate(incident)) {
+      gaps.push({
+        code: "incident_missing_date",
+        severity: "medium",
+        message: `${getRecordTitle(incident, "incident")} needs a date for reliable chronology.`,
+        recordId: incident.id || "",
+        recordType: "incident",
+      });
+    }
+  });
+
+  proof.filter((item) => item.missingFunctionSummary).forEach((item) => {
+    gaps.push({
+      code: "missing_function_summary",
+      severity: "high",
+      message: `${item.title} needs a functionSummary explaining what it establishes.`,
+      recordId: item.id,
+      recordType: "evidence",
+    });
+  });
+
+  (relationshipMap.weakNodes || []).slice(0, 6).forEach((node) => {
+    gaps.push({
+      code: "weak_or_unlinked_record",
+      severity: node.recordType === "incidents" || node.recordType === "evidence" ? "medium" : "low",
+      message: `${node.title || node.id} has weak or missing links in ${groupName}.`,
+      recordId: node.id,
+      recordType: node.recordType || "record",
+    });
+  });
+
+  if (incidents.length === 0 && referenceDocuments.length > 0) {
+    gaps.push({
+      code: "documents_without_incident_anchor",
+      severity: "medium",
+      message: "This chain has reference documents but no incident anchor.",
+      recordId: "",
+      recordType: "sequenceGroup",
+    });
+  }
+
+  const seen = new Set();
+  return gaps.filter((gap) => {
+    const key = `${gap.code}:${gap.recordType}:${gap.recordId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function buildManagementChainRisks(incidents = [], proof = [], gaps = []) {
+  const hasHighGap = gaps.some((gap) => gap.severity === "high");
+  const hasMissingProof = proof.some((item) => item.missingFunctionSummary) || incidents.some((incident) => incident.evidenceStatus === "needs_evidence");
+  const hasChronologyGap = gaps.some((gap) => gap.code.includes("date"));
+  return [
+    {
+      type: "Operational",
+      level: hasChronologyGap ? "Medium" : hasHighGap ? "Medium" : "Low",
+      reason: hasChronologyGap ? "One or more facts need clearer dates." : "No major operational chronology issue is flagged for this chain.",
+    },
+    {
+      type: "Legal / Compliance",
+      level: hasMissingProof ? "High" : "Medium",
+      reason: hasMissingProof ? "One or more facts need clearer evidence purpose or proof links." : "Linked evidence has stated proof purpose.",
+    },
+    {
+      type: "Escalation",
+      level: hasHighGap ? "High" : "Medium",
+      reason: hasHighGap ? "Resolve high-severity gaps before relying on this chain." : "Review chain before escalation.",
+    },
+  ];
+}
+
+function buildManagementChainActions(groupName, strategyRecords = [], actionSummary = {}, gaps = []) {
+  const mentionedActions = [
+    ...(Array.isArray(actionSummary.nextActions) ? actionSummary.nextActions : []),
+    ...(Array.isArray(actionSummary.criticalDeadlines) ? actionSummary.criticalDeadlines : []),
+  ]
+    .filter((item) => itemMentionsSequenceGroup(item, groupName))
+    .map((text, index) => ({
+      id: `action-summary-${index}`,
+      text: actionVerbText(text),
+      source: "actionSummary",
+      priority: index === 0 ? "high" : "normal",
+    }));
+  const strategyActions = strategyRecords
+    .slice(0, 3)
+    .map((item) => ({
+      id: item.id || "",
+      text: actionVerbText(getSummary(item, "strategy") || getRecordTitle(item, "strategy")),
+      source: "strategy",
+      priority: item.status === "open" ? "high" : "normal",
+    }));
+  const gapActions = gaps
+    .filter((gap) => gap.code === "missing_function_summary" || gap.code === "incident_needs_evidence")
+    .slice(0, 2)
+    .map((gap, index) => ({
+      id: `gap-action-${gap.recordId || index}`,
+      text: gap.code === "missing_function_summary"
+        ? `Add a function summary for ${gap.message.replace(/ needs a functionSummary.*$/, "")}.`
+        : gap.message,
+      source: "diagnostic",
+      priority: "high",
+    }));
+
+  return [...mentionedActions, ...strategyActions, ...gapActions].slice(0, 5);
+}
+
+function buildManagementSequenceChains(caseItem = {}, diagnostics = {}) {
+  return getManagementSequenceGroups(caseItem).map((groupName) => {
+    const incidents = (caseItem.incidents || [])
+      .filter((incident) => incident?.id && getSequenceGroupName(incident.sequenceGroup) === groupName)
+      .sort((a, b) => String(getRecordDate(a)).localeCompare(String(getRecordDate(b))) || getRecordTitle(a, "incident").localeCompare(getRecordTitle(b, "incident")));
+    const evidence = getManagementChainEvidence(caseItem, groupName, incidents);
+    const documents = getManagementChainDocuments(caseItem, groupName, incidents, evidence);
+    const chainIds = new Set([
+      ...incidents.map((record) => record.id),
+      ...evidence.map((record) => record.id),
+      ...documents.map((record) => record.id),
+    ].filter(Boolean));
+    const strategyRecords = getManagementChainStrategy(caseItem, groupName, chainIds);
+    const relationshipMap = analyzeSequenceGroup(caseItem, groupName);
+    const facts = incidents.map(mapManagementChainFact);
+    const proof = evidence.map((item) => mapManagementChainProof(item, groupName));
+    const referenceDocuments = documents.map((item) => mapManagementReferenceDocument(item, groupName));
+    const gaps = buildManagementChainGaps(groupName, incidents, proof, referenceDocuments, relationshipMap);
+    const risks = buildManagementChainRisks(incidents, proof, gaps);
+    const actions = buildManagementChainActions(groupName, strategyRecords, caseItem.actionSummary || {}, gaps);
+    const hasHighGap = gaps.some((gap) => gap.severity === "high");
+    const status = incidents.length === 0
+      ? "reference_only"
+      : hasHighGap
+        ? "needs_proof"
+        : gaps.length > 0
+          ? "needs_review"
+          : "ready";
+
+    return {
+      id: groupName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "sequence-chain",
+      name: groupName,
+      status,
+      counts: {
+        incidents: incidents.length,
+        evidence: evidence.length,
+        records: strategyRecords.length,
+        documents: documents.length,
+        strategy: strategyRecords.length,
+        managementAwareness: [...incidents, ...evidence, ...documents, ...strategyRecords].filter((record) => !!record?.managementAwareness).length,
+      },
+      briefing: {
+        issueSummary: facts[0]?.summary || facts[0]?.title || `${groupName} has no incident summary recorded.`,
+        managementImportance: hasHighGap
+          ? "This chain needs proof clarification before it is relied on for management escalation."
+          : "This chain is organized for management review.",
+        decisionNeeded: actions[0]?.text || "Review this sequence chain and confirm the next action.",
+      },
+      facts,
+      proof,
+      referenceDocuments,
+      gaps,
+      risks,
+      actions,
+    };
+  });
+}
+
+function buildManagementUngroupedSummary(caseItem = {}) {
+  const ungrouped = collectTypedRecords(caseItem)
+    .filter(({ recordType }) => ["incident", "evidence", "document", "strategy", "ledger"].includes(recordType))
+    .filter(({ record }) => !getSequenceGroupName(record.sequenceGroup));
+  const counts = {
+    total: ungrouped.length,
+    incidents: ungrouped.filter(({ recordType }) => recordType === "incident").length,
+    evidence: ungrouped.filter(({ recordType }) => recordType === "evidence").length,
+    documents: ungrouped.filter(({ recordType }) => recordType === "document").length,
+    strategy: ungrouped.filter(({ recordType }) => recordType === "strategy").length,
+    ledger: ungrouped.filter(({ recordType }) => recordType === "ledger").length,
+  };
+
+  return {
+    counts,
+    sampleRecords: ungrouped
+      .sort((a, b) => String(getRecordDate(a.record)).localeCompare(String(getRecordDate(b.record))) || getRecordTitle(a.record, a.recordType).localeCompare(getRecordTitle(b.record, b.recordType)))
+      .slice(0, 5)
+      .map(({ record, recordType }) => ({
+        id: record.id || "",
+        recordType,
+        title: getRecordTitle(record, recordType),
+        date: getRecordDate(record),
+        status: record.status || record.proofStatus || "",
+      })),
+    managementNote: counts.total > 0
+      ? "These records are not assigned to a sequence chain and may be missing from chain-based management review."
+      : "No ungrouped records found.",
+  };
+}
+
 export function buildExecutiveSummaryReport(caseItem = {}, options = {}) {
   const generatedAt = options.generatedAt || new Date().toISOString();
   const diagnostics = analyzeCaseDiagnostics(caseItem || {});
   const sequenceGroupOverview = getExecutiveSequenceGroupOverview(diagnostics);
+  const sequenceChains = buildManagementSequenceChains(caseItem, diagnostics);
+  const ungroupedSummary = buildManagementUngroupedSummary(caseItem);
   const milestones = diagnostics.milestoneCoverage?.records || [];
   const currentPosition = getExecutiveCurrentPosition(caseItem, diagnostics);
   const risksAndConcerns = getExecutiveRisksAndConcerns(diagnostics);
@@ -1468,6 +1805,7 @@ export function buildExecutiveSummaryReport(caseItem = {}, options = {}) {
     reportType: EXECUTIVE_SUMMARY_REPORT,
     title: "Management Report",
     audience: "management",
+    version: "management-report-v1",
     estimatedLengthPages: "1-3",
     sourceCaseId: caseItem?.id || "",
     generatedAt,
@@ -1487,6 +1825,14 @@ export function buildExecutiveSummaryReport(caseItem = {}, options = {}) {
       atAGlance,
     },
     managementQuestion: buildManagementQuestion(caseItem, diagnostics),
+    chainSummary: {
+      sequenceChainCount: sequenceChains.length,
+      chainsWithProofGaps: sequenceChains.filter((chain) => chain.gaps.some((gap) => gap.severity === "high")).length,
+      chainsReadyForReview: sequenceChains.filter((chain) => chain.status === "ready").length,
+      ungroupedRecordCount: ungroupedSummary.counts.total,
+    },
+    sequenceChains,
+    ungroupedSummary,
     keyFindings: buildMinimalManagementFindings(caseItem, diagnostics),
     riskSnapshot: buildRiskSnapshot(diagnostics),
     riskAssessment: buildManagementRiskAssessment(diagnostics),
@@ -1514,6 +1860,57 @@ export function buildExecutiveSummaryReport(caseItem = {}, options = {}) {
 }
 
 export function buildExecutiveSummaryNarrativePolishPrompt(report = {}) {
+  const sequenceChains = Array.isArray(report.sequenceChains) ? report.sequenceChains : [];
+  if (sequenceChains.length > 0) {
+    const promptPackage = {
+      reportType: report.reportType || EXECUTIVE_SUMMARY_REPORT,
+      version: "management-report-v1-polish",
+      title: report.title || "Management Report",
+      allowedToPolish: {
+        executiveBrief: {
+          summary: report.executiveSummary?.summary || "",
+          managementQuestion: report.managementQuestion || "",
+        },
+        sequenceChains: sequenceChains.map((chain) => ({
+          id: chain.id || "",
+          name: chain.name || "",
+          status: chain.status || "",
+          briefing: {
+            issueSummary: chain.briefing?.issueSummary || "",
+            managementImportance: chain.briefing?.managementImportance || "",
+            decisionNeeded: chain.briefing?.decisionNeeded || "",
+          },
+        })),
+      },
+    };
+
+    return `You are polishing a ProveIt Management Report v1 for managers and lawyers.
+
+Rules:
+- AI may polish wording only.
+- Use only the allowedToPolish fields in the report data.
+- Do not add facts, dates, evidence, risks, actions, legal conclusions, or source links.
+- Do not alter counts, statuses, facts, proof, gaps, risks, actions, reference documents, or source links.
+- Do not treat reference documents as proof.
+- Preserve uncertainty and missing proof-purpose gaps.
+- Keep wording concise, professional, calm, and suitable for a manager or lawyer briefing.
+- Do not introduce new claims or stronger conclusions than the source text supports.
+
+Return only markdown with these exact headings and chain format:
+
+## Executive Brief
+
+## Chain Briefs
+
+### <chain-id>
+Issue summary: ...
+Management importance: ...
+Decision needed: ...
+
+Report data:
+${JSON.stringify(promptPackage, null, 2)}`;
+  }
+
   const promptPackage = {
     reportType: report.reportType || EXECUTIVE_SUMMARY_REPORT,
     title: report.title || "Management Report",

@@ -318,6 +318,83 @@ test("buildExecutiveSummaryReport includes diagnostics, evidence, and sequence g
   assert.equal(typeof report.diagnosticsSummary.chronologyGapCount, "number");
 });
 
+test("buildExecutiveSummaryReport builds sequenceChains from sequenceGroup labels", () => {
+  const report = buildExecutiveSummaryReport(buildCase(), {
+    generatedAt: "2024-02-02T00:00:00.000Z",
+  });
+
+  assert.deepEqual(report.sequenceChains.map((chain) => chain.name), ["Leak thread", "Noise thread", "Other thread"]);
+  const leakChain = report.sequenceChains.find((chain) => chain.name === "Leak thread");
+  assert.equal(leakChain.id, "leak-thread");
+  assert.equal(leakChain.counts.incidents, 1);
+  assert.equal(leakChain.counts.evidence, 1);
+  assert.equal(leakChain.facts[0].incidentId, "inc-1");
+  assert.ok(leakChain.actions.some((action) => action.source === "actionSummary"));
+  assert.ok(leakChain.briefing.decisionNeeded);
+  assert.equal(report.ungroupedSummary.counts.ledger, 3);
+});
+
+test("buildExecutiveSummaryReport sequenceChain proof uses only functionSummary", () => {
+  const caseItem = buildCase();
+  caseItem.evidence[1] = {
+    ...caseItem.evidence[1],
+    description: "This description should not become proof purpose.",
+    notes: "These notes should not become proof purpose.",
+    linkedIncidentIds: ["inc-2"],
+  };
+
+  const report = buildExecutiveSummaryReport(caseItem, {
+    generatedAt: "2024-02-02T00:00:00.000Z",
+  });
+
+  const noiseChain = report.sequenceChains.find((chain) => chain.name === "Noise thread");
+  const proof = noiseChain.proof.find((item) => item.id === "ev-2");
+  assert.equal(proof.establishes, "");
+  assert.equal(proof.missingFunctionSummary, true);
+  assert.ok(noiseChain.gaps.some((gap) => gap.code === "missing_function_summary" && gap.recordId === "ev-2"));
+});
+
+test("buildExecutiveSummaryReport treats documents as referenceDocuments, not proof", () => {
+  const report = buildExecutiveSummaryReport(buildCase(), {
+    generatedAt: "2024-02-02T00:00:00.000Z",
+  });
+
+  const leakChain = report.sequenceChains.find((chain) => chain.name === "Leak thread");
+  assert.ok(leakChain.referenceDocuments.some((document) => document.id === "doc-1"));
+  assert.equal(leakChain.proof.some((item) => item.id === "doc-1"), false);
+  assert.match(leakChain.referenceDocuments.find((document) => document.id === "doc-1").note, /not treated as proof/i);
+});
+
+test("buildExecutiveSummaryReport includes explicitly linked evidence from another sequenceGroup", () => {
+  const caseItem = buildCase();
+  caseItem.evidence[0].sequenceGroup = "Evidence holding";
+
+  const report = buildExecutiveSummaryReport(caseItem, {
+    generatedAt: "2024-02-02T00:00:00.000Z",
+  });
+
+  const leakChain = report.sequenceChains.find((chain) => chain.name === "Leak thread");
+  const proof = leakChain.proof.find((item) => item.id === "ev-1");
+  assert.equal(proof.establishes, "Shows water damage after the leak.");
+  assert.match(proof.note, /Evidence holding/);
+});
+
+test("buildExecutiveSummaryReport keeps compatibility fields with sequenceChains", () => {
+  const report = buildExecutiveSummaryReport(buildCase(), {
+    generatedAt: "2024-02-02T00:00:00.000Z",
+  });
+
+  assert.equal(report.version, "management-report-v1");
+  assert.ok(Array.isArray(report.sequenceChains));
+  assert.equal(report.reportType, EXECUTIVE_SUMMARY_REPORT);
+  assert.equal(report.title, "Management Report");
+  assert.ok(report.executiveSummary.summary);
+  assert.ok(Array.isArray(report.keyFindings));
+  assert.ok(Array.isArray(report.riskSnapshot));
+  assert.ok(Array.isArray(report.recommendedActions));
+  assert.ok(report.supportingAppendixSummary.fullDetailNote);
+});
+
 test("buildExecutiveSummaryReport handles empty case safely", () => {
   const report = buildExecutiveSummaryReport({ id: "empty-case" }, {
     generatedAt: "2024-02-02T00:00:00.000Z",
@@ -329,25 +406,58 @@ test("buildExecutiveSummaryReport handles empty case safely", () => {
   assert.deepEqual(report.keyTimeline, []);
   assert.deepEqual(report.strongestEvidence, []);
   assert.deepEqual(report.sequenceGroupOverview, []);
+  assert.deepEqual(report.sequenceChains, []);
+  assert.equal(report.ungroupedSummary.counts.total, 0);
   assert.equal(report.currentPosition.operationalSummary, "No current operational summary recorded.");
 });
 
-test("buildExecutiveSummaryNarrativePolishPrompt includes report data and excludes binary payloads", () => {
+function parsePromptReportData(prompt) {
+  const marker = "Report data:\n";
+  const index = prompt.indexOf(marker);
+  assert.notEqual(index, -1);
+  return JSON.parse(prompt.slice(index + marker.length));
+}
+
+test("buildExecutiveSummaryNarrativePolishPrompt builds v1 sequence-chain safe prompt", () => {
   const report = buildExecutiveSummaryReport(buildCase(), {
+    generatedAt: "2024-02-02T00:00:00.000Z",
+  });
+  const prompt = buildExecutiveSummaryNarrativePolishPrompt(report);
+  const data = parsePromptReportData(prompt);
+
+  assert.match(prompt, /## Executive Brief/);
+  assert.match(prompt, /## Chain Briefs/);
+  assert.match(prompt, /AI may polish wording only/);
+  assert.match(prompt, /Do not alter counts, statuses, facts, proof, gaps, risks, actions, reference documents, or source links/);
+  assert.match(prompt, /Do not treat reference documents as proof/);
+  assert.match(prompt, /Preserve uncertainty and missing proof-purpose gaps/);
+  assert.equal(data.version, "management-report-v1-polish");
+  assert.ok(Array.isArray(data.allowedToPolish.sequenceChains));
+  assert.equal(data.allowedToPolish.sequenceChains[0].name, "Leak thread");
+  assert.equal(data.allowedToPolish.sequenceChains[0].briefing.issueSummary, "Water leaked through ceiling.");
+  assert.equal(Object.prototype.hasOwnProperty.call(data, "appendix"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(data, "keyTimeline"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(data, "strongestEvidence"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(data, "risksAndConcerns"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(data.allowedToPolish.sequenceChains[0], "facts"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(data.allowedToPolish.sequenceChains[0], "proof"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(data.allowedToPolish.sequenceChains[0], "gaps"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(data.allowedToPolish.sequenceChains[0], "risks"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(data.allowedToPolish.sequenceChains[0], "actions"), false);
+  assert.doesNotMatch(prompt, /data:image/);
+  assert.doesNotMatch(prompt, /base64/);
+});
+
+test("buildExecutiveSummaryNarrativePolishPrompt keeps old fallback prompt for reports without sequenceChains", () => {
+  const report = buildExecutiveSummaryReport({ id: "empty-case" }, {
     generatedAt: "2024-02-02T00:00:00.000Z",
   });
   const prompt = buildExecutiveSummaryNarrativePolishPrompt(report);
 
   assert.match(prompt, /## Executive Summary/);
   assert.match(prompt, /## Management Question/);
-  assert.match(prompt, /## Key Findings/);
-  assert.match(prompt, /## Risk Snapshot/);
-  assert.match(prompt, /## Supporting Appendix Summary/);
+  assert.match(prompt, /## Recommended Actions/);
   assert.match(prompt, /Use only the provided report data/);
-  assert.match(prompt, /Ceiling photo/);
-  assert.match(prompt, /Leak reported/);
-  assert.doesNotMatch(prompt, /data:image/);
-  assert.doesNotMatch(prompt, /base64/);
 });
 
 test("buildEvidencePackReport builds a whole-case evidence pack", () => {

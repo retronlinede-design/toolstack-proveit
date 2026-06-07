@@ -52,6 +52,69 @@ export function parseExecutivePolishSections(text = "") {
   );
 }
 
+export function parseManagementReportV1Polish(text = "") {
+  const result = {
+    executiveBrief: "",
+    chainBriefs: {},
+  };
+  let currentSection = "";
+  let currentChainId = "";
+  let executiveLines = [];
+
+  const flushExecutive = () => {
+    if (executiveLines.length === 0) return;
+    result.executiveBrief = cleanPolishedMarkdownInline(executiveLines.join(" "));
+    executiveLines = [];
+  };
+
+  safeText(text).split("\n").forEach((rawLine) => {
+    const line = rawLine.trim();
+    const headingMatch = line.match(/^#{1,6}\s+(.+)$/);
+    if (headingMatch) {
+      const heading = cleanPolishedMarkdownInline(headingMatch[1]).replace(/:$/, "").trim();
+      if (/^Executive Brief$/i.test(heading)) {
+        flushExecutive();
+        currentSection = "executiveBrief";
+        currentChainId = "";
+        return;
+      }
+      if (/^Chain Briefs$/i.test(heading)) {
+        flushExecutive();
+        currentSection = "chainBriefs";
+        currentChainId = "";
+        return;
+      }
+      if (currentSection === "chainBriefs") {
+        currentChainId = heading;
+        result.chainBriefs[currentChainId] = result.chainBriefs[currentChainId] || {};
+        return;
+      }
+    }
+
+    if (!line) return;
+
+    if (currentSection === "executiveBrief") {
+      executiveLines.push(line);
+      return;
+    }
+
+    if (currentSection === "chainBriefs" && currentChainId) {
+      const { label, text: value } = splitPolishedLabelLine(line);
+      const normalizedLabel = label.toLowerCase();
+      if (normalizedLabel === "issue summary") {
+        result.chainBriefs[currentChainId].issueSummary = value;
+      } else if (normalizedLabel === "management importance") {
+        result.chainBriefs[currentChainId].managementImportance = value;
+      } else if (normalizedLabel === "decision needed") {
+        result.chainBriefs[currentChainId].decisionNeeded = value;
+      }
+    }
+  });
+
+  flushExecutive();
+  return result;
+}
+
 export function normalizePolishedContentLine(line = "") {
   return safeText(line)
     .replace(/^\*\*([^*]+?):\*\*\s*/, "$1: ")

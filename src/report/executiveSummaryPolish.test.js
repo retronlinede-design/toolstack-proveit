@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   buildPolishedContentBlocks,
   parseExecutivePolishSections,
+  parseManagementReportV1Polish,
   parsePolishedTimelineLine,
   splitPolishedLabelLine,
 } from "./executiveSummaryPolish.js";
@@ -24,6 +25,55 @@ Risk Snapshot:
   assert.equal(sections["Key Findings"], "- Proof available: Photo and inspection email support the issue.");
   assert.equal(sections["Risk Snapshot"], "- Missing proof: certificate not attached");
   assert.equal(sections["Recommended Actions"], undefined);
+});
+
+test("parseManagementReportV1Polish extracts executive brief and chain briefs by chain ID", () => {
+  const parsed = parseManagementReportV1Polish(`
+## Executive Brief
+This is clearer executive wording.
+
+## Chain Briefs
+
+### leak-thread
+Issue summary: Polished leak issue.
+Management importance: Polished management importance.
+Decision needed: Confirm next step.
+
+### noise-thread
+Issue summary: Polished noise issue.
+Management importance: Review for escalation.
+Decision needed: Assign owner.
+`);
+
+  assert.equal(parsed.executiveBrief, "This is clearer executive wording.");
+  assert.deepEqual(parsed.chainBriefs["leak-thread"], {
+    issueSummary: "Polished leak issue.",
+    managementImportance: "Polished management importance.",
+    decisionNeeded: "Confirm next step.",
+  });
+  assert.equal(parsed.chainBriefs["noise-thread"].decisionNeeded, "Assign owner.");
+});
+
+test("parseManagementReportV1Polish ignores unsupported proof gap risk and action edits", () => {
+  const parsed = parseManagementReportV1Polish(`
+## Executive Brief
+Brief.
+
+## Chain Briefs
+
+### leak-thread
+Issue summary: Keep this.
+Proof: Invented proof should be ignored.
+Gap: Delete all gaps.
+Risk: Make risk low.
+Action: Close the case.
+Decision needed: Review safely.
+`);
+
+  assert.deepEqual(parsed.chainBriefs["leak-thread"], {
+    issueSummary: "Keep this.",
+    decisionNeeded: "Review safely.",
+  });
 });
 
 test("buildPolishedContentBlocks parses prose as paragraphs", () => {
