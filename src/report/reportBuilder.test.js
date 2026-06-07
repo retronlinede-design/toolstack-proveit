@@ -334,6 +334,30 @@ test("buildExecutiveSummaryReport builds sequenceChains from sequenceGroup label
   assert.equal(report.ungroupedSummary.counts.ledger, 3);
 });
 
+test("buildExecutiveSummaryReport includes ledger-only sequence groups as chain records", () => {
+  const report = buildExecutiveSummaryReport({
+    id: "ledger-case",
+    ledger: [
+      {
+        id: "led-only-1",
+        label: "Payroll discrepancy",
+        period: "2024-03",
+        proofStatus: "pending",
+        sequenceGroup: "Payroll thread",
+      },
+    ],
+  }, {
+    generatedAt: "2024-02-02T00:00:00.000Z",
+  });
+
+  assert.equal(report.sequenceChains.length, 1);
+  assert.equal(report.sequenceChains[0].name, "Payroll thread");
+  assert.equal(report.sequenceChains[0].status, "reference_only");
+  assert.equal(report.sequenceChains[0].counts.ledger, 1);
+  assert.equal(report.sequenceChains[0].counts.records, 1);
+  assert.deepEqual(report.sequenceChains[0].records.map((record) => record.recordType), ["ledger"]);
+});
+
 test("buildExecutiveSummaryReport sequenceChain proof uses only functionSummary", () => {
   const caseItem = buildCase();
   caseItem.evidence[1] = {

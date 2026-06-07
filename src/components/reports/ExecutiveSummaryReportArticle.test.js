@@ -6,8 +6,8 @@ const source = readFileSync("src/components/reports/ExecutiveSummaryReportArticl
 
 test("ExecutiveSummaryReportArticle prefers sequenceChains when present", () => {
   assert.match(source, /const sequenceChains = Array\.isArray\(report\.sequenceChains\)/);
-  assert.match(source, /const hasSequenceChains = sequenceChains\.length > 0/);
-  assert.match(source, /if \(hasSequenceChains\)/);
+  assert.match(source, /const hasSequenceChainReport = Object\.prototype\.hasOwnProperty\.call\(report, "sequenceChains"\)/);
+  assert.match(source, /if \(hasSequenceChainReport\)/);
   assert.match(source, /Sequence Chain Briefings/);
 });
 
@@ -20,6 +20,7 @@ test("ExecutiveSummaryReportArticle renders chain facts, proof, gaps, risks, act
   assert.match(source, /Gaps/);
   assert.match(source, /Risks/);
   assert.match(source, /Actions/);
+  assert.match(source, /Supporting records/);
   assert.match(source, /Reference documents/);
 });
 
@@ -40,11 +41,17 @@ test("ExecutiveSummaryReportArticle applies v1 polish only to executive and chai
 
 test("ExecutiveSummaryReportArticle keeps deterministic proof gaps risks actions and references", () => {
   assert.match(source, /const proof = Array\.isArray\(chain\.proof\)/);
+  assert.match(source, /const records = Array\.isArray\(chain\.records\)/);
   assert.match(source, /const gaps = Array\.isArray\(chain\.gaps\)/);
   assert.match(source, /const risks = Array\.isArray\(chain\.risks\)/);
   assert.match(source, /const actions = Array\.isArray\(chain\.actions\)/);
   assert.match(source, /const referenceDocuments = Array\.isArray\(chain\.referenceDocuments\)/);
   assert.match(source, /Sequence chain facts, proof, gaps, risks, actions, references, counts, and statuses remain deterministic/);
+});
+
+test("ExecutiveSummaryReportArticle shows a v1 empty state when no sequence chains exist", () => {
+  assert.match(source, /No sequence chains are available for this management report/);
+  assert.match(source, /Add sequenceGroup labels to incidents, evidence, documents, ledger entries, or strategy records/);
 });
 
 test("ExecutiveSummaryReportArticle labels documents as reference material", () => {

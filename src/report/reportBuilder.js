@@ -1510,6 +1510,25 @@ function getManagementChainStrategy(caseItem = {}, groupName = "", chainIds = ne
     .sort((a, b) => String(getRecordDate(a)).localeCompare(String(getRecordDate(b))) || getRecordTitle(a, "strategy").localeCompare(getRecordTitle(b, "strategy")));
 }
 
+function getManagementChainLedger(caseItem = {}, groupName = "", chainIds = new Set()) {
+  return (caseItem.ledger || [])
+    .filter((item) => item?.id && (getSequenceGroupName(item.sequenceGroup) === groupName || hasLinkToAny(item, chainIds)))
+    .sort((a, b) => String(getRecordDate(a)).localeCompare(String(getRecordDate(b))) || getRecordTitle(a, "ledger").localeCompare(getRecordTitle(b, "ledger")));
+}
+
+function mapManagementSupportingRecord(record = {}, recordType = "record") {
+  return {
+    id: record.id || "",
+    recordType,
+    title: getRecordTitle(record, recordType),
+    date: getRecordDate(record),
+    status: record.status || record.proofStatus || "",
+    summary: getSummary(record, recordType),
+    sequenceGroup: getSequenceGroupName(record.sequenceGroup),
+    linkedRecordIds: Array.isArray(record.linkedRecordIds) ? record.linkedRecordIds : [],
+  };
+}
+
 function mapManagementChainFact(incident = {}) {
   return {
     id: incident.id || "",
@@ -1692,10 +1711,18 @@ function buildManagementSequenceChains(caseItem = {}, diagnostics = {}) {
       ...documents.map((record) => record.id),
     ].filter(Boolean));
     const strategyRecords = getManagementChainStrategy(caseItem, groupName, chainIds);
+    const ledgerRecords = getManagementChainLedger(caseItem, groupName, chainIds);
+    ledgerRecords.forEach((record) => {
+      if (record?.id) chainIds.add(record.id);
+    });
     const relationshipMap = analyzeSequenceGroup(caseItem, groupName);
     const facts = incidents.map(mapManagementChainFact);
     const proof = evidence.map((item) => mapManagementChainProof(item, groupName));
     const referenceDocuments = documents.map((item) => mapManagementReferenceDocument(item, groupName));
+    const records = [
+      ...ledgerRecords.map((item) => mapManagementSupportingRecord(item, "ledger")),
+      ...strategyRecords.map((item) => mapManagementSupportingRecord(item, "strategy")),
+    ];
     const gaps = buildManagementChainGaps(groupName, incidents, proof, referenceDocuments, relationshipMap);
     const risks = buildManagementChainRisks(incidents, proof, gaps);
     const actions = buildManagementChainActions(groupName, strategyRecords, caseItem.actionSummary || {}, gaps);
@@ -1715,10 +1742,11 @@ function buildManagementSequenceChains(caseItem = {}, diagnostics = {}) {
       counts: {
         incidents: incidents.length,
         evidence: evidence.length,
-        records: strategyRecords.length,
+        records: records.length,
         documents: documents.length,
+        ledger: ledgerRecords.length,
         strategy: strategyRecords.length,
-        managementAwareness: [...incidents, ...evidence, ...documents, ...strategyRecords].filter((record) => !!record?.managementAwareness).length,
+        managementAwareness: [...incidents, ...evidence, ...documents, ...strategyRecords, ...ledgerRecords].filter((record) => !!record?.managementAwareness).length,
       },
       briefing: {
         issueSummary: facts[0]?.summary || facts[0]?.title || `${groupName} has no incident summary recorded.`,
@@ -1729,6 +1757,7 @@ function buildManagementSequenceChains(caseItem = {}, diagnostics = {}) {
       },
       facts,
       proof,
+      records,
       referenceDocuments,
       gaps,
       risks,

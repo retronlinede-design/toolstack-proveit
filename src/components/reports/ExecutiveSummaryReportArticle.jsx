@@ -105,8 +105,8 @@ function ChainCountRow({ counts = {} }) {
   const items = [
     ["Facts", counts.incidents ?? 0],
     ["Proof", counts.evidence ?? 0],
+    ["Records", counts.records ?? 0],
     ["Docs", counts.documents ?? 0],
-    ["Actions", counts.strategy ?? counts.records ?? 0],
     ["Management", counts.managementAwareness ?? 0],
   ];
 
@@ -124,6 +124,7 @@ function ChainCountRow({ counts = {} }) {
 function SequenceChainSection({ chain = {}, polishedBrief = {} }) {
   const facts = Array.isArray(chain.facts) ? chain.facts : [];
   const proof = Array.isArray(chain.proof) ? chain.proof : [];
+  const records = Array.isArray(chain.records) ? chain.records : [];
   const gaps = Array.isArray(chain.gaps) ? chain.gaps : [];
   const risks = Array.isArray(chain.risks) ? chain.risks : [];
   const actions = Array.isArray(chain.actions) ? chain.actions : [];
@@ -260,6 +261,27 @@ function SequenceChainSection({ chain = {}, polishedBrief = {} }) {
       </div>
 
       <section className="mt-7 border-t border-neutral-200 pt-5">
+        <h4 className="text-sm font-semibold text-neutral-800">Supporting records</h4>
+        {records.length === 0 ? (
+          <p className="mt-3 text-sm text-neutral-500">No ledger or strategy records recorded for this chain.</p>
+        ) : (
+          <ul className="mt-3 grid gap-2 sm:grid-cols-2 print:block">
+            {records.map((record) => (
+              <li key={`${record.recordType}-${record.id}`} className="break-inside-avoid border border-neutral-200 bg-white p-3 text-sm leading-6 text-neutral-700 print:mb-2 print:break-inside-avoid">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold text-neutral-900">{record.title || "Untitled record"}</span>
+                  <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500 print:rounded-none">
+                    {record.recordType || "record"}
+                  </span>
+                </div>
+                {record.summary ? <p className="mt-1 text-xs text-neutral-600">{record.summary}</p> : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="mt-7 border-t border-neutral-200 pt-5">
         <h4 className="text-sm font-semibold text-neutral-800">Reference documents</h4>
         {referenceDocuments.length === 0 ? (
           <p className="mt-3 text-sm text-neutral-500">No reference documents recorded for this chain.</p>
@@ -394,8 +416,8 @@ export default function ExecutiveSummaryReportArticle({
   const appendixSummary = report.supportingAppendixSummary || {};
   const chronologyPreview = (report.appendix?.chronology || []).slice(0, 5);
   const sequenceChains = Array.isArray(report.sequenceChains) ? report.sequenceChains : [];
-  const hasSequenceChains = sequenceChains.length > 0;
-  const v1Polish = hasSequenceChains && hasPolishedNarrative
+  const hasSequenceChainReport = Object.prototype.hasOwnProperty.call(report, "sequenceChains");
+  const v1Polish = hasSequenceChainReport && hasPolishedNarrative
     ? parseManagementReportV1Polish(polishedMarkdown)
     : { executiveBrief: "", chainBriefs: {} };
 
@@ -403,7 +425,7 @@ export default function ExecutiveSummaryReportArticle({
     <p className="mt-3 text-sm text-neutral-500">{text}</p>
   );
 
-  if (hasSequenceChains) {
+  if (hasSequenceChainReport) {
     return (
       <article className={className}>
         <ManagementReportHeader coverPage={coverPage} report={report} />
@@ -445,13 +467,19 @@ export default function ExecutiveSummaryReportArticle({
               Each chain separates facts, proof, gaps, risks, actions, and reference documents.
             </p>
           </div>
-          {sequenceChains.map((chain) => (
-            <SequenceChainSection
-              key={chain.id || chain.name}
-              chain={chain}
-              polishedBrief={v1Polish.chainBriefs?.[chain.id] || {}}
-            />
-          ))}
+          {sequenceChains.length === 0 ? (
+            <div className="mt-5 border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm leading-6 text-neutral-700">
+              No sequence chains are available for this management report. Add sequenceGroup labels to incidents, evidence, documents, ledger entries, or strategy records to organize the report by chain.
+            </div>
+          ) : (
+            sequenceChains.map((chain) => (
+              <SequenceChainSection
+                key={chain.id || chain.name}
+                chain={chain}
+                polishedBrief={v1Polish.chainBriefs?.[chain.id] || {}}
+              />
+            ))
+          )}
         </section>
 
         {(report.ungroupedSummary?.counts?.total ?? 0) > 0 && (
