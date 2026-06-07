@@ -242,6 +242,16 @@ function getImportedFolderSource(parsed, imported) {
   };
 }
 
+function hexToRgba(hexValue, alpha = 1) {
+  const value = safeText(hexValue).trim();
+  if (!/^#[0-9a-f]{6}$/i.test(value)) return "";
+
+  const red = Number.parseInt(value.slice(1, 3), 16);
+  const green = Number.parseInt(value.slice(3, 5), 16);
+  const blue = Number.parseInt(value.slice(5, 7), 16);
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
+
 function mergeImportedCaseFolders(localFolders, importedFolders, importedCases) {
   const folderMap = new Map();
 
@@ -1965,6 +1975,19 @@ export default function ProveItApp() {
     : activeFolderId === "unfiled"
     ? "Inbox"
     : caseFolders.find((folder) => folder.id === activeFolderId)?.name || "Folder";
+  const activeCustomFolder = activeFolderId && activeFolderId !== "unfiled"
+    ? caseFolders.find((folder) => folder.id === activeFolderId) || null
+    : null;
+  const activeCustomFolderColor = /^#[0-9a-f]{6}$/i.test(activeCustomFolder?.color || "")
+    ? activeCustomFolder.color
+    : "";
+  const selectedFolderHeaderStyle = activeCustomFolderColor
+    ? {
+        backgroundColor: hexToRgba(activeCustomFolderColor, 0.3),
+        borderLeftColor: activeCustomFolderColor,
+        borderLeftWidth: "4px",
+      }
+    : undefined;
 
   const createFolder = () => {
     const name = folderNameInput.trim();
@@ -3157,7 +3180,10 @@ const handleRecordFiles = async (event) => {
           </div>
         ) : (
           <>
-            <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <div
+              className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm"
+              style={selectedFolderHeaderStyle}
+            >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Selected folder</div>
