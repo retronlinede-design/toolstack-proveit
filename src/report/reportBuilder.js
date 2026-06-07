@@ -1183,44 +1183,209 @@ function getExecutiveSequenceGroupOverview(diagnostics = {}) {
   });
 }
 
+function buildManagementKeyFindings(caseItem = {}, diagnostics = {}) {
+  const findings = [];
+  const unsupportedIncidents = diagnostics.evidenceCoverage?.incidentsNeedingEvidence || [];
+  const strongestEvidence = getExecutiveEvidence(caseItem, 3);
+  const weakGroups = (diagnostics.sequenceGroups?.groups || []).filter((group) =>
+    (group.counts?.incident || 0) === 0 || ((group.counts?.incident || 0) > 0 && (group.counts?.evidence || 0) === 0)
+  );
+
+  if (caseItem.actionSummary?.currentFocus) {
+    findings.push({
+      id: "current-focus",
+      finding: shortText(caseItem.actionSummary.currentFocus, 160),
+      evidence: "Current case action summary",
+      managementMeaning: "This is the immediate operational focus.",
+    });
+  }
+
+  strongestEvidence.forEach((item) => {
+    findings.push({
+      id: `evidence-${item.id}`,
+      finding: shortText(item.whyItMatters || item.title, 160),
+      evidence: item.title,
+      managementMeaning: item.supports?.length > 0 ? `Supports: ${item.supports.slice(0, 2).join(", ")}.` : "Relevant evidence is available but should be checked before sharing.",
+    });
+  });
+
+  if (unsupportedIncidents.length > 0) {
+    findings.push({
+      id: "unsupported-incidents",
+      finding: `${unsupportedIncidents.length} incident(s) still need stronger evidence links.`,
+      evidence: "Evidence coverage diagnostics",
+      managementMeaning: "The issue may be harder to explain confidently until proof is linked.",
+    });
+  }
+
+  if (weakGroups.length > 0) {
+    findings.push({
+      id: "thin-threads",
+      finding: `${weakGroups.length} issue thread(s) look thin or incomplete.`,
+      evidence: "Sequence group diagnostics",
+      managementMeaning: "Some threads may need consolidation, proof, or clearer ownership before escalation.",
+    });
+  }
+
+  return findings.slice(0, 6);
+}
+
+function buildManagementRiskAssessment(diagnostics = {}) {
+  const risks = getExecutiveRisksAndConcerns(diagnostics);
+  return risks.slice(0, 6).map((risk, index) => ({
+    id: risk.id || `risk-${index}`,
+    risk: risk.title || "Case file risk",
+    level: index === 0 ? "High" : index < 3 ? "Medium" : "Monitor",
+    reason: risk.message || "",
+    managementResponse: risk.source === "evidence"
+      ? "Confirm evidence ownership and close proof gaps."
+      : risk.source === "chronology"
+        ? "Confirm dates and ordering before relying on the timeline."
+        : "Assign a reviewer to resolve the issue or accept the residual risk.",
+  }));
+}
+
+function collectManagementAwarenessItems(caseItem = {}, limit = 8) {
+  return collectTypedRecords(caseItem)
+    .filter(({ recordType }) => ["incident", "evidence", "document", "strategy"].includes(recordType))
+    .filter(({ record }) => !!record?.managementAwareness || !!record?.isMilestone)
+    .sort((a, b) => String(getRecordDate(b.record)).localeCompare(String(getRecordDate(a.record))) || getRecordTitle(a.record, a.recordType).localeCompare(getRecordTitle(b.record, b.recordType)))
+    .slice(0, limit)
+    .map(({ record, recordType }) => ({
+      id: record.id,
+      recordType,
+      date: getRecordDate(record),
+      title: getRecordTitle(record, recordType),
+      reason: record.managementAwareness ? "Marked for management awareness." : "Milestone record.",
+      summary: getSummary(record, recordType),
+      sequenceGroup: record.sequenceGroup || "",
+    }));
+}
+
+function buildManagementOutstandingIssues(caseItem = {}, diagnostics = {}) {
+  const issues = [
+    ...(diagnostics.evidenceCoverage?.incidentsNeedingEvidence || []).slice(0, 5).map((item) => ({
+      id: `proof-${item.id}`,
+      issue: item.title,
+      owner: "Evidence reviewer",
+      status: "Needs proof",
+      nextStep: "Link supporting evidence or document why none is available.",
+    })),
+    ...(diagnostics.chronology?.missingDateRecords || []).slice(0, 4).map((item) => ({
+      id: `date-${item.type}-${item.id}`,
+      issue: item.title,
+      owner: "Case owner",
+      status: "Needs date",
+      nextStep: "Add date or clarify order in the notes.",
+    })),
+    ...(diagnostics.integrity?.brokenLinks || []).slice(0, 4).map((item) => ({
+      id: `link-${item.sourceId}-${item.targetId}`,
+      issue: `${item.sourceTitle || item.sourceId} has a broken link`,
+      owner: "Case owner",
+      status: "Needs repair",
+      nextStep: "Remove or relink the missing target record.",
+    })),
+  ];
+
+  if (issues.length === 0 && (caseItem.actionSummary?.nextActions || []).length === 0) {
+    issues.push({
+      id: "missing-next-actions",
+      issue: "No explicit next actions are recorded.",
+      owner: "Case owner",
+      status: "Needs action plan",
+      nextStep: "Add management-ready next actions.",
+    });
+  }
+
+  return issues.slice(0, 10);
+}
+
+function buildManagementAppendix(caseItem = {}, diagnostics = {}, options = {}) {
+  return {
+    chronology: getExecutiveTimeline(caseItem, diagnostics, options.timelineLimit || 5).map((item) => ({
+      id: item.id,
+      date: item.date,
+      type: item.recordType,
+      title: item.title,
+      note: item.summary,
+    })),
+    evidenceSummary: getExecutiveEvidence(caseItem, options.evidenceLimit || 4).map((item) => ({
+      id: item.id,
+      title: item.title,
+      status: item.status,
+      role: item.evidenceRole,
+      supports: item.supports || [],
+      note: item.whyItMatters,
+    })),
+  };
+}
+
 export function buildExecutiveSummaryReport(caseItem = {}, options = {}) {
   const generatedAt = options.generatedAt || new Date().toISOString();
   const diagnostics = analyzeCaseDiagnostics(caseItem || {});
   const sequenceGroupOverview = getExecutiveSequenceGroupOverview(diagnostics);
   const milestones = diagnostics.milestoneCoverage?.records || [];
+  const currentPosition = getExecutiveCurrentPosition(caseItem, diagnostics);
+  const risksAndConcerns = getExecutiveRisksAndConcerns(diagnostics);
+  const recommendedNextSteps = getExecutiveRecommendedNextSteps(caseItem, diagnostics);
+  const atAGlance = {
+    incidentCount: (caseItem.incidents || []).length,
+    evidenceCount: (caseItem.evidence || []).length,
+    documentCount: (caseItem.documents || []).length,
+    weakUnlinkedRecordCount: (diagnostics.integrity?.weaklyLinkedRecords || []).length + (diagnostics.integrity?.orphanRecords || []).length,
+    sequenceGroupCount: sequenceGroupOverview.length,
+    milestoneCount: milestones.length,
+    openIssueCount: (diagnostics.openIssues?.openTaskCount || 0)
+      + (diagnostics.openIssues?.openStrategyCount || 0)
+      + (diagnostics.openIssues?.unsupportedIncidentCount || 0)
+      + (diagnostics.openIssues?.unusedEvidenceCount || 0),
+  };
+  const keyTimeline = getExecutiveTimeline(caseItem, diagnostics, options.timelineLimit || 5);
+  const strongestEvidence = getExecutiveEvidence(caseItem, options.evidenceLimit || 4);
+  const caseOverview = {
+    name: caseItem?.name || "",
+    category: caseItem?.category || "",
+    status: caseItem?.status || "",
+    createdAt: caseItem?.createdAt || "",
+    updatedAt: caseItem?.updatedAt || "",
+    description: shortText(caseItem?.description || caseItem?.notes || "", 420),
+  };
 
   return {
     reportType: EXECUTIVE_SUMMARY_REPORT,
-    title: "Executive Summary",
-    audience: "general",
+    title: "Management Report",
+    audience: "management",
+    estimatedLengthPages: "2-8",
     sourceCaseId: caseItem?.id || "",
     generatedAt,
-    caseOverview: {
-      name: caseItem?.name || "",
-      category: caseItem?.category || "",
-      status: caseItem?.status || "",
-      createdAt: caseItem?.createdAt || "",
-      updatedAt: caseItem?.updatedAt || "",
-      description: shortText(caseItem?.description || caseItem?.notes || "", 420),
+    coverPage: {
+      title: "Management Report",
+      caseName: caseOverview.name,
+      category: caseOverview.category,
+      status: caseOverview.status,
+      generatedAt,
+      purpose: "Manager-ready summary of findings, risks, awareness items, outstanding issues, and recommended actions.",
     },
-    currentPosition: getExecutiveCurrentPosition(caseItem, diagnostics),
-    atAGlance: {
-      incidentCount: (caseItem.incidents || []).length,
-      evidenceCount: (caseItem.evidence || []).length,
-      documentCount: (caseItem.documents || []).length,
-      weakUnlinkedRecordCount: (diagnostics.integrity?.weaklyLinkedRecords || []).length + (diagnostics.integrity?.orphanRecords || []).length,
-      sequenceGroupCount: sequenceGroupOverview.length,
-      milestoneCount: milestones.length,
-      openIssueCount: (diagnostics.openIssues?.openTaskCount || 0)
-        + (diagnostics.openIssues?.openStrategyCount || 0)
-        + (diagnostics.openIssues?.unsupportedIncidentCount || 0)
-        + (diagnostics.openIssues?.unusedEvidenceCount || 0),
+    caseOverview,
+    executiveSummary: {
+      summary: currentPosition.operationalSummary,
+      whyItMatters: currentPosition.whyItMatters,
+      immediateConcern: risksAndConcerns[0]?.message || currentPosition.immediateConcerns?.[0] || "No urgent concern has been identified from the current case file.",
+      atAGlance,
     },
-    keyTimeline: getExecutiveTimeline(caseItem, diagnostics, options.timelineLimit || 10),
-    strongestEvidence: getExecutiveEvidence(caseItem, options.evidenceLimit || 6),
+    keyFindings: buildManagementKeyFindings(caseItem, diagnostics),
+    riskAssessment: buildManagementRiskAssessment(diagnostics),
+    managementAwarenessItems: collectManagementAwarenessItems(caseItem),
+    outstandingIssues: buildManagementOutstandingIssues(caseItem, diagnostics),
+    recommendedActions: recommendedNextSteps.slice(0, 7),
+    appendix: buildManagementAppendix(caseItem, diagnostics, options),
+    currentPosition,
+    atAGlance,
+    keyTimeline,
+    strongestEvidence,
     missingEvidence: diagnostics.evidenceCoverage?.incidentsNeedingEvidence || [],
-    risksAndConcerns: getExecutiveRisksAndConcerns(diagnostics),
-    recommendedNextSteps: getExecutiveRecommendedNextSteps(caseItem, diagnostics),
+    risksAndConcerns,
+    recommendedNextSteps,
     sequenceGroupOverview,
     diagnosticsSummary: {
       unsupportedIncidentCount: diagnostics.evidenceCoverage?.incidentsNeedingEvidence?.length || 0,
@@ -1235,7 +1400,15 @@ export function buildExecutiveSummaryReport(caseItem = {}, options = {}) {
 export function buildExecutiveSummaryNarrativePolishPrompt(report = {}) {
   const promptPackage = {
     reportType: report.reportType || EXECUTIVE_SUMMARY_REPORT,
-    title: report.title || "Executive Summary",
+    title: report.title || "Management Report",
+    coverPage: report.coverPage || {},
+    executiveSummary: report.executiveSummary || {},
+    keyFindings: report.keyFindings || [],
+    riskAssessment: report.riskAssessment || [],
+    managementAwarenessItems: report.managementAwarenessItems || [],
+    outstandingIssues: report.outstandingIssues || [],
+    recommendedActions: report.recommendedActions || report.recommendedNextSteps || [],
+    appendix: report.appendix || {},
     caseOverview: report.caseOverview || {},
     currentPosition: report.currentPosition || {},
     keyTimeline: (report.keyTimeline || []).map((item) => ({
@@ -1262,25 +1435,28 @@ export function buildExecutiveSummaryNarrativePolishPrompt(report = {}) {
     })),
   };
 
-  return `You are polishing a ProveIt Executive Summary for human readability.
+  return `You are polishing a ProveIt Management Report for managers.
 
 Rules:
 - Use only the provided report data.
 - Do not invent facts, dates, evidence, events, legal claims, or conclusions.
 - Keep the same section structure and preserve uncertainty.
 - Preserve dates, evidence meaning, and next-action intent.
-- Rewrite for professional, calm, concise operational clarity.
+- Rewrite for professional, calm, concise management readability.
+- Prioritize findings, risks, and actions over raw chronology.
 - Remove robotic wording and diagnostics jargon.
 - Do not add legal conclusions or advice.
-- Keep the output short.
+- Keep the output short enough for a manager to understand in under 3 minutes.
 
 Return only markdown with these exact headings:
 
-## Current Position
-## Key Timeline
-## Strongest Evidence
-## Risks and Concerns
-## Recommended Next Steps
+## Executive Summary
+## Key Findings
+## Risk Assessment
+## Management Awareness Items
+## Outstanding Issues
+## Recommended Actions
+## Appendix
 
 Report data:
 ${JSON.stringify(promptPackage, null, 2)}`;

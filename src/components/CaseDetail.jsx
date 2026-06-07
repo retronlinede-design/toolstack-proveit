@@ -3466,7 +3466,7 @@ ${ungroupedSequenceText}
                     <div>
                       <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Preview</h4>
                       <p className="mt-1 text-sm text-neutral-600">
-                        {reportCentreType === "management" && "Uses the existing Executive Summary builder for Phase 1."}
+                        {reportCentreType === "management" && "Manager-ready report focused on findings, risks, awareness items, outstanding issues, and actions."}
                         {reportCentreType === "investigation" && (reportCentreScopeType === "sequenceGroup"
                           ? "Uses the existing Thread / Issue Report builder for the selected sequence group."
                           : "Uses the existing Case Bundle builder for whole-case investigation scope.")}
@@ -3587,7 +3587,7 @@ ${ungroupedSequenceText}
                             setExecutiveSummaryPolishDraft(event.target.value);
                             setExecutiveSummaryPolishFeedback(event.target.value.trim() ? "Showing polished narrative preview. Review before sharing." : "");
                           }}
-                          placeholder={"Paste polished markdown here. Expected headings:\n## Current Position\n## Key Timeline\n## Strongest Evidence\n## Risks and Concerns\n## Recommended Next Steps"}
+                          placeholder={"Paste polished markdown here. Expected headings:\n## Executive Summary\n## Key Findings\n## Risk Assessment\n## Management Awareness Items\n## Outstanding Issues\n## Recommended Actions\n## Appendix"}
                           className="mt-4 min-h-36 w-full rounded-lg border border-neutral-300 bg-white p-3 font-mono text-xs outline-none focus:border-lime-500"
                         />
                       </div>

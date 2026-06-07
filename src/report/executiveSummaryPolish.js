@@ -3,11 +3,13 @@ function safeText(value) {
 }
 
 export const EXECUTIVE_POLISH_SECTION_TITLES = [
-  "Current Position",
-  "Key Timeline",
-  "Strongest Evidence",
-  "Risks and Concerns",
-  "Recommended Next Steps",
+  "Executive Summary",
+  "Key Findings",
+  "Risk Assessment",
+  "Management Awareness Items",
+  "Outstanding Issues",
+  "Recommended Actions",
+  "Appendix",
 ];
 
 export function cleanPolishedMarkdownInline(text = "") {

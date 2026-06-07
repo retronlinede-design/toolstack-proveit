@@ -252,7 +252,10 @@ test("buildExecutiveSummaryReport builds high-level case summary sections", () =
   });
 
   assert.equal(report.reportType, EXECUTIVE_SUMMARY_REPORT);
-  assert.equal(report.title, "Executive Summary");
+  assert.equal(report.title, "Management Report");
+  assert.equal(report.audience, "management");
+  assert.equal(report.estimatedLengthPages, "2-8");
+  assert.equal(report.coverPage.title, "Management Report");
   assert.equal(report.sourceCaseId, "case-1");
   assert.deepEqual(report.caseOverview, {
     name: "Demo Case",
@@ -263,6 +266,7 @@ test("buildExecutiveSummaryReport builds high-level case summary sections", () =
     description: "A concise case description.",
   });
   assert.equal(report.currentPosition.operationalSummary, "Get the leak repair confirmed.");
+  assert.equal(report.executiveSummary.summary, "Get the leak repair confirmed.");
   assert.equal(report.atAGlance.incidentCount, 2);
   assert.equal(report.atAGlance.evidenceCount, 2);
   assert.equal(report.atAGlance.documentCount, 2);
@@ -295,6 +299,13 @@ test("buildExecutiveSummaryReport includes diagnostics, evidence, and sequence g
   });
 
   assert.equal(report.strongestEvidence[0].id, "ev-1");
+  assert.ok(report.keyFindings.length > 0);
+  assert.ok(report.riskAssessment.some((item) => item.id === "missing-proof"));
+  assert.ok(report.outstandingIssues.some((item) => item.status === "Needs proof"));
+  assert.ok(report.recommendedActions.some((item) => item.source === "actionSummary"));
+  assert.ok(Array.isArray(report.managementAwarenessItems));
+  assert.ok(report.appendix.chronology.length <= 5);
+  assert.ok(report.appendix.evidenceSummary.length <= 4);
   assert.ok(report.missingEvidence.some((item) => item.id === "inc-2"));
   assert.ok(report.risksAndConcerns.some((item) => item.id === "missing-proof"));
   assert.ok(report.recommendedNextSteps.some((item) => item.source === "actionSummary"));
@@ -323,9 +334,10 @@ test("buildExecutiveSummaryNarrativePolishPrompt includes report data and exclud
   });
   const prompt = buildExecutiveSummaryNarrativePolishPrompt(report);
 
-  assert.match(prompt, /## Current Position/);
-  assert.match(prompt, /## Key Timeline/);
-  assert.match(prompt, /## Strongest Evidence/);
+  assert.match(prompt, /## Executive Summary/);
+  assert.match(prompt, /## Key Findings/);
+  assert.match(prompt, /## Risk Assessment/);
+  assert.match(prompt, /## Management Awareness Items/);
   assert.match(prompt, /Use only the provided report data/);
   assert.match(prompt, /Ceiling photo/);
   assert.match(prompt, /Leak reported/);

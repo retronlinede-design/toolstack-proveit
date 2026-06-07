@@ -10,24 +10,24 @@ import {
 
 test("parseExecutivePolishSections handles flexible headings and empty fallback sections", () => {
   const sections = parseExecutivePolishSections(`
-# Current Position
+# Executive Summary
 The position is active.
 
-**Key Timeline**
-2026-05-10: Appointment booked
+**Key Findings**
+- Proof available: Photo and inspection email support the issue.
 
-Risks and Concerns:
+Risk Assessment:
 - Missing proof: certificate not attached
 `);
 
-  assert.equal(sections["Current Position"], "The position is active.");
-  assert.equal(sections["Key Timeline"], "2026-05-10: Appointment booked");
-  assert.equal(sections["Risks and Concerns"], "- Missing proof: certificate not attached");
-  assert.equal(sections["Recommended Next Steps"], undefined);
+  assert.equal(sections["Executive Summary"], "The position is active.");
+  assert.equal(sections["Key Findings"], "- Proof available: Photo and inspection email support the issue.");
+  assert.equal(sections["Risk Assessment"], "- Missing proof: certificate not attached");
+  assert.equal(sections["Recommended Actions"], undefined);
 });
 
 test("buildPolishedContentBlocks parses prose as paragraphs", () => {
-  const blocks = buildPolishedContentBlocks("This is a concise operational paragraph.", "Current Position");
+  const blocks = buildPolishedContentBlocks("This is a concise operational paragraph.", "Executive Summary");
 
   assert.deepEqual(blocks, [
     { type: "paragraph", text: "This is a concise operational paragraph." },
@@ -35,7 +35,7 @@ test("buildPolishedContentBlocks parses prose as paragraphs", () => {
 });
 
 test("buildPolishedContentBlocks parses bullet risks as concern cards", () => {
-  const blocks = buildPolishedContentBlocks("- Missing proof: No receipt is attached.\n- Weak timeline - Date is unclear.", "Risks and Concerns");
+  const blocks = buildPolishedContentBlocks("- Missing proof: No receipt is attached.\n- Weak timeline - Date is unclear.", "Risk Assessment");
 
   assert.equal(blocks.length, 1);
   assert.equal(blocks[0].type, "list");
@@ -46,7 +46,7 @@ test("buildPolishedContentBlocks parses bullet risks as concern cards", () => {
 });
 
 test("buildPolishedContentBlocks parses numbered actions as ordered items", () => {
-  const blocks = buildPolishedContentBlocks("1. Call the provider\n2. Upload the receipt", "Recommended Next Steps");
+  const blocks = buildPolishedContentBlocks("1. Call the provider\n2. Upload the receipt", "Recommended Actions");
 
   assert.equal(blocks.length, 1);
   assert.equal(blocks[0].ordered, true);
