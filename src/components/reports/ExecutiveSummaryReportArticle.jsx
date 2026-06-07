@@ -54,11 +54,19 @@ function PolishedCardItem({ item, className = "" }) {
 }
 
 function ManagementReportHeader({ coverPage = {}, report = {} }) {
+  const isV1Report = Object.prototype.hasOwnProperty.call(report, "sequenceChains");
   return (
     <header className="management-report-header border-b border-neutral-300 pb-8 print:pb-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">Management Report</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">Management Report</div>
+            {isV1Report && (
+              <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-600 print:hidden">
+                Management Report v1
+              </span>
+            )}
+          </div>
           <h1 className="mt-2 text-3xl font-bold leading-tight text-neutral-950 print:text-[22pt]">{coverPage.caseName || report.caseOverview?.name || "Not specified"}</h1>
           <div className="mt-4 grid gap-1 text-sm text-neutral-600 print:text-[10pt]">
             <div><span className="font-semibold text-neutral-950">Scope:</span> Whole case</div>

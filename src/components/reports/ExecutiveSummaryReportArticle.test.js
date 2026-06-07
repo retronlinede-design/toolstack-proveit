@@ -7,6 +7,8 @@ const source = readFileSync("src/components/reports/ExecutiveSummaryReportArticl
 test("ExecutiveSummaryReportArticle prefers sequenceChains when present", () => {
   assert.match(source, /const sequenceChains = Array\.isArray\(report\.sequenceChains\)/);
   assert.match(source, /const hasSequenceChainReport = Object\.prototype\.hasOwnProperty\.call\(report, "sequenceChains"\)/);
+  assert.match(source, /const isV1Report = Object\.prototype\.hasOwnProperty\.call\(report, "sequenceChains"\)/);
+  assert.match(source, /Management Report v1/);
   assert.match(source, /if \(hasSequenceChainReport\)/);
   assert.match(source, /Sequence Chain Briefings/);
 });
