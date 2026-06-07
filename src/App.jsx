@@ -252,6 +252,14 @@ function hexToRgba(hexValue, alpha = 1) {
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
+function getFolderTintBackground(folderColor, alpha = 0.25) {
+  return hexToRgba(folderColor, alpha);
+}
+
+function getFolderAccentBorder(folderColor) {
+  return /^#[0-9a-f]{6}$/i.test(safeText(folderColor).trim()) ? safeText(folderColor).trim() : "";
+}
+
 function mergeImportedCaseFolders(localFolders, importedFolders, importedCases) {
   const folderMap = new Map();
 
@@ -1983,9 +1991,34 @@ export default function ProveItApp() {
     : "";
   const selectedFolderHeaderStyle = activeCustomFolderColor
     ? {
-        backgroundColor: hexToRgba(activeCustomFolderColor, 0.3),
-        borderLeftColor: activeCustomFolderColor,
+        backgroundColor: getFolderTintBackground(activeCustomFolderColor, 0.3),
+        borderLeftColor: getFolderAccentBorder(activeCustomFolderColor),
         borderLeftWidth: "4px",
+      }
+    : undefined;
+  const selectedFolderListAccentStyle = activeCustomFolderColor
+    ? {
+        borderTopColor: getFolderAccentBorder(activeCustomFolderColor),
+        borderTopWidth: "3px",
+      }
+    : undefined;
+  const selectedFolderBadgeStyle = activeCustomFolderColor
+    ? {
+        backgroundColor: getFolderTintBackground(activeCustomFolderColor, 0.22),
+        borderColor: getFolderAccentBorder(activeCustomFolderColor),
+      }
+    : undefined;
+  const selectedFolderControlStyle = activeCustomFolderColor
+    ? {
+        borderColor: getFolderTintBackground(activeCustomFolderColor, 0.45),
+        boxShadow: `inset 0 -2px 0 ${getFolderAccentBorder(activeCustomFolderColor)}`,
+      }
+    : undefined;
+  const selectedFolderCaseHighlightStyle = activeCustomFolderColor
+    ? {
+        backgroundColor: getFolderTintBackground(activeCustomFolderColor, 0.16),
+        borderColor: getFolderAccentBorder(activeCustomFolderColor),
+        boxShadow: `0 0 0 1px ${getFolderTintBackground(activeCustomFolderColor, 0.28)}`,
       }
     : undefined;
 
@@ -3182,18 +3215,30 @@ const handleRecordFiles = async (event) => {
           <>
             <div
               className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm"
-              style={selectedFolderHeaderStyle}
+              style={{ ...(selectedFolderHeaderStyle || {}), ...(selectedFolderListAccentStyle || {}) }}
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Selected folder</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Selected folder</div>
+                  {activeCustomFolderColor ? (
+                    <span
+                      className="inline-flex h-2.5 w-2.5 rounded-full border"
+                      style={selectedFolderBadgeStyle}
+                      aria-hidden="true"
+                    />
+                  ) : null}
+                </div>
                 <h2 className="mt-1 text-2xl font-semibold text-neutral-900">{activeFolderName}</h2>
                 <p className="mt-1 text-sm text-neutral-500">
                   {getFolderCaseCount(activeFolderId)} case{getFolderCaseCount(activeFolderId) === 1 ? "" : "s"} | Last activity: {formatFolderLastActivity(activeFolderId)}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <label className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-semibold text-neutral-600">
+                <label
+                  className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-semibold text-neutral-600"
+                  style={selectedFolderControlStyle}
+                >
                   Sort
                   <select
                     value={caseSort}
@@ -3205,7 +3250,10 @@ const handleRecordFiles = async (event) => {
                     <option value="title">Title</option>
                   </select>
                 </label>
-                <div className="text-sm font-semibold text-neutral-500">
+                <div
+                  className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-sm font-semibold text-neutral-500"
+                  style={selectedFolderBadgeStyle}
+                >
                   Showing {caseListItems.length}
                 </div>
               </div>
@@ -3219,6 +3267,7 @@ const handleRecordFiles = async (event) => {
         ) : (
           caseListItems.map((c) => {
             const isMostRecent = c.id === mostRecentlyUpdatedCaseId;
+            const isFocusedCaseCard = isMostRecent || c.id === selectedCaseId;
             const caseIsLocked = isCasePinLocked(c);
             const focusText = caseIsLocked
               ? "Unlock to view this case."
@@ -3232,16 +3281,24 @@ const handleRecordFiles = async (event) => {
                 key={c.id}
                 onClick={() => openCase(c.id)}
                 className={`flex flex-col gap-4 rounded-2xl border bg-white p-5 shadow-sm cursor-pointer transition-colors hover:border-neutral-300 lg:flex-row lg:items-start lg:justify-between ${
-                  isMostRecent
+                  isMostRecent && !activeCustomFolderColor
                     ? "border-lime-300 bg-lime-50/30 shadow-[0_0_0_1px_rgba(163,230,53,0.35)]"
                     : "border-neutral-200"
                 }`}
+                style={activeCustomFolderColor && isFocusedCaseCard ? selectedFolderCaseHighlightStyle : undefined}
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-start gap-2">
                     <div className="min-w-0 break-words text-lg font-bold leading-snug text-neutral-900">{caseIsLocked ? "Locked Case" : c.name}</div>
                     {!caseIsLocked && isMostRecent && (
-                      <span className="rounded-full border border-lime-300 bg-lime-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-lime-700">
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                          activeCustomFolderColor
+                            ? "text-neutral-800"
+                            : "border-lime-300 bg-lime-100 text-lime-700"
+                        }`}
+                        style={activeCustomFolderColor ? selectedFolderBadgeStyle : undefined}
+                      >
                         Most Recent
                       </span>
                     )}
