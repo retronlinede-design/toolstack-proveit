@@ -4,12 +4,12 @@ function safeText(value) {
 
 export const EXECUTIVE_POLISH_SECTION_TITLES = [
   "Executive Summary",
+  "Management Question",
   "Key Findings",
-  "Risk Assessment",
-  "Management Awareness Items",
-  "Outstanding Issues",
+  "Risk Snapshot",
   "Recommended Actions",
-  "Appendix",
+  "Supporting Appendix Summary",
+  "Short Chronology Preview",
 ];
 
 export function cleanPolishedMarkdownInline(text = "") {

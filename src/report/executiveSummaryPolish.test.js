@@ -16,13 +16,13 @@ The position is active.
 **Key Findings**
 - Proof available: Photo and inspection email support the issue.
 
-Risk Assessment:
+Risk Snapshot:
 - Missing proof: certificate not attached
 `);
 
   assert.equal(sections["Executive Summary"], "The position is active.");
   assert.equal(sections["Key Findings"], "- Proof available: Photo and inspection email support the issue.");
-  assert.equal(sections["Risk Assessment"], "- Missing proof: certificate not attached");
+  assert.equal(sections["Risk Snapshot"], "- Missing proof: certificate not attached");
   assert.equal(sections["Recommended Actions"], undefined);
 });
 
@@ -35,7 +35,7 @@ test("buildPolishedContentBlocks parses prose as paragraphs", () => {
 });
 
 test("buildPolishedContentBlocks parses bullet risks as concern cards", () => {
-  const blocks = buildPolishedContentBlocks("- Missing proof: No receipt is attached.\n- Weak timeline - Date is unclear.", "Risk Assessment");
+  const blocks = buildPolishedContentBlocks("- Missing proof: No receipt is attached.\n- Weak timeline - Date is unclear.", "Risk Snapshot");
 
   assert.equal(blocks.length, 1);
   assert.equal(blocks[0].type, "list");

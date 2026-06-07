@@ -1320,6 +1320,119 @@ function buildManagementAppendix(caseItem = {}, diagnostics = {}, options = {}) 
   };
 }
 
+function wordLimit(value, maxWords = 120) {
+  const words = compactText(value).split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) return words.join(" ");
+  return `${words.slice(0, maxWords).join(" ")}...`;
+}
+
+function buildManagementQuestion(caseItem = {}, diagnostics = {}) {
+  const actionSummary = caseItem.actionSummary || {};
+  if (compactText(actionSummary.currentFocus)) {
+    return wordLimit(actionSummary.currentFocus, 28);
+  }
+  if ((diagnostics.evidenceCoverage?.incidentsNeedingEvidence || []).length > 0) {
+    return "Decide whether the issue is ready for escalation or needs stronger evidence first.";
+  }
+  if ((diagnostics.openIssues?.openTaskCount || 0) > 0 || (diagnostics.openIssues?.openStrategyCount || 0) > 0) {
+    return "Review ownership, priority, and next management action.";
+  }
+  return "Not specified";
+}
+
+function buildManagementSummary(caseItem = {}, currentPosition = {}, risks = []) {
+  const source = currentPosition.operationalSummary
+    || caseItem?.description
+    || caseItem?.notes
+    || "Not specified";
+  const concern = risks[0]?.message ? `Main concern: ${risks[0].message}` : "";
+  return wordLimit([source, concern].filter(Boolean).join(" "), 120);
+}
+
+function buildMinimalManagementFindings(caseItem = {}, diagnostics = {}) {
+  const findings = [];
+  const actionSummary = caseItem.actionSummary || {};
+  const unsupportedCount = diagnostics.evidenceCoverage?.incidentsNeedingEvidence?.length || 0;
+  const evidenceCount = (caseItem.evidence || []).length;
+  const openIssueCount = (diagnostics.openIssues?.openTaskCount || 0)
+    + (diagnostics.openIssues?.openStrategyCount || 0)
+    + (diagnostics.openIssues?.unsupportedIncidentCount || 0);
+  const chronologyGapCount = diagnostics.chronology?.missingDateRecords?.length || 0;
+
+  if (compactText(actionSummary.currentFocus)) findings.push(wordLimit(actionSummary.currentFocus, 22));
+  if (unsupportedCount > 0) findings.push(`${unsupportedCount} incident(s) need stronger supporting evidence before confident escalation.`);
+  if (evidenceCount > 0) findings.push(`${evidenceCount} evidence item(s) are recorded for management review context.`);
+  if (openIssueCount > 0) findings.push(`${openIssueCount} open issue(s) need ownership or a next action.`);
+  if (chronologyGapCount > 0) findings.push(`${chronologyGapCount} record(s) need clearer dates before relying on the timeline.`);
+  if (findings.length === 0) findings.push("No major management finding is specified yet.");
+
+  return findings.slice(0, 5).map((finding, index) => ({
+    id: `finding-${index + 1}`,
+    text: wordLimit(finding, 24),
+  }));
+}
+
+function riskLevel(condition, fallback = "Low") {
+  if (condition === null || condition === undefined) return "Unknown";
+  return condition ? "High" : fallback;
+}
+
+function buildRiskSnapshot(diagnostics = {}) {
+  const unsupportedCount = diagnostics.evidenceCoverage?.incidentsNeedingEvidence?.length || 0;
+  const brokenLinkCount = diagnostics.integrity?.brokenLinks?.length || 0;
+  const chronologyGapCount = diagnostics.chronology?.missingDateRecords?.length || 0;
+  const weakGroupCount = (diagnostics.sequenceGroups?.groups || []).filter((group) =>
+    (group.counts?.incident || 0) === 0 || ((group.counts?.incident || 0) > 0 && (group.counts?.evidence || 0) === 0)
+  ).length;
+
+  return [
+    { label: "Operational Risk", value: riskLevel(chronologyGapCount > 0 || weakGroupCount > 0, "Medium") },
+    { label: "Legal / Compliance Risk", value: riskLevel(unsupportedCount > 0 || brokenLinkCount > 0, "Medium") },
+    { label: "Health & Safety Risk", value: "Unknown" },
+    { label: "Escalation Risk", value: riskLevel(unsupportedCount > 0 || weakGroupCount > 0, "Medium") },
+  ];
+}
+
+function actionVerbText(value = "", fallback = "Review the case and confirm the next management decision.") {
+  const text = wordLimit(value || fallback, 20);
+  return /^(review|confirm|assign|decide|escalate|request|document|update|close|prepare|link|check)\b/i.test(text)
+    ? text
+    : `Review ${text.charAt(0).toLowerCase()}${text.slice(1)}`;
+}
+
+function buildMinimalRecommendedActions(actions = []) {
+  const sourceActions = actions.length > 0 ? actions : [{ id: "default-action", text: "Review the case and confirm the next management decision." }];
+  return sourceActions.slice(0, 5).map((item, index) => ({
+    id: item.id || `action-${index + 1}`,
+    text: actionVerbText(item.text),
+    source: item.source || "management",
+    priority: item.priority || (index === 0 ? "high" : "normal"),
+  }));
+}
+
+function getManagementDateRange(caseItem = {}) {
+  const dates = collectTypedRecords(caseItem)
+    .filter(({ recordType }) => ["incident", "evidence", "document"].includes(recordType))
+    .map(({ record }) => getRecordDate(record))
+    .filter(Boolean)
+    .sort();
+  return {
+    firstDate: dates[0] || "",
+    lastDate: dates[dates.length - 1] || "",
+  };
+}
+
+function buildSupportingAppendixSummary(caseItem = {}) {
+  const dateRange = getManagementDateRange(caseItem);
+  return {
+    incidentCount: (caseItem.incidents || []).length,
+    evidenceCount: (caseItem.evidence || []).length,
+    documentCount: (caseItem.documents || []).length,
+    dateRange,
+    fullDetailNote: "Use Investigation Report for full record detail.",
+  };
+}
+
 export function buildExecutiveSummaryReport(caseItem = {}, options = {}) {
   const generatedAt = options.generatedAt || new Date().toISOString();
   const diagnostics = analyzeCaseDiagnostics(caseItem || {});
@@ -1355,7 +1468,7 @@ export function buildExecutiveSummaryReport(caseItem = {}, options = {}) {
     reportType: EXECUTIVE_SUMMARY_REPORT,
     title: "Management Report",
     audience: "management",
-    estimatedLengthPages: "2-8",
+    estimatedLengthPages: "1-3",
     sourceCaseId: caseItem?.id || "",
     generatedAt,
     coverPage: {
@@ -1364,20 +1477,23 @@ export function buildExecutiveSummaryReport(caseItem = {}, options = {}) {
       category: caseOverview.category,
       status: caseOverview.status,
       generatedAt,
-      purpose: "Manager-ready summary of findings, risks, awareness items, outstanding issues, and recommended actions.",
+      purpose: "Short management briefing for decision, risk, and next action review.",
     },
     caseOverview,
     executiveSummary: {
-      summary: currentPosition.operationalSummary,
+      summary: buildManagementSummary(caseItem, currentPosition, risksAndConcerns),
       whyItMatters: currentPosition.whyItMatters,
       immediateConcern: risksAndConcerns[0]?.message || currentPosition.immediateConcerns?.[0] || "No urgent concern has been identified from the current case file.",
       atAGlance,
     },
-    keyFindings: buildManagementKeyFindings(caseItem, diagnostics),
+    managementQuestion: buildManagementQuestion(caseItem, diagnostics),
+    keyFindings: buildMinimalManagementFindings(caseItem, diagnostics),
+    riskSnapshot: buildRiskSnapshot(diagnostics),
     riskAssessment: buildManagementRiskAssessment(diagnostics),
     managementAwarenessItems: collectManagementAwarenessItems(caseItem),
     outstandingIssues: buildManagementOutstandingIssues(caseItem, diagnostics),
-    recommendedActions: recommendedNextSteps.slice(0, 7),
+    recommendedActions: buildMinimalRecommendedActions(recommendedNextSteps),
+    supportingAppendixSummary: buildSupportingAppendixSummary(caseItem),
     appendix: buildManagementAppendix(caseItem, diagnostics, options),
     currentPosition,
     atAGlance,
@@ -1405,9 +1521,10 @@ export function buildExecutiveSummaryNarrativePolishPrompt(report = {}) {
     executiveSummary: report.executiveSummary || {},
     keyFindings: report.keyFindings || [],
     riskAssessment: report.riskAssessment || [],
-    managementAwarenessItems: report.managementAwarenessItems || [],
-    outstandingIssues: report.outstandingIssues || [],
+    riskSnapshot: report.riskSnapshot || [],
+    managementQuestion: report.managementQuestion || "",
     recommendedActions: report.recommendedActions || report.recommendedNextSteps || [],
+    supportingAppendixSummary: report.supportingAppendixSummary || {},
     appendix: report.appendix || {},
     caseOverview: report.caseOverview || {},
     currentPosition: report.currentPosition || {},
@@ -1451,12 +1568,12 @@ Rules:
 Return only markdown with these exact headings:
 
 ## Executive Summary
+## Management Question
 ## Key Findings
-## Risk Assessment
-## Management Awareness Items
-## Outstanding Issues
+## Risk Snapshot
 ## Recommended Actions
-## Appendix
+## Supporting Appendix Summary
+## Short Chronology Preview
 
 Report data:
 ${JSON.stringify(promptPackage, null, 2)}`;

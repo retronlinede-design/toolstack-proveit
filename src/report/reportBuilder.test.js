@@ -254,7 +254,7 @@ test("buildExecutiveSummaryReport builds high-level case summary sections", () =
   assert.equal(report.reportType, EXECUTIVE_SUMMARY_REPORT);
   assert.equal(report.title, "Management Report");
   assert.equal(report.audience, "management");
-  assert.equal(report.estimatedLengthPages, "2-8");
+  assert.equal(report.estimatedLengthPages, "1-3");
   assert.equal(report.coverPage.title, "Management Report");
   assert.equal(report.sourceCaseId, "case-1");
   assert.deepEqual(report.caseOverview, {
@@ -266,7 +266,9 @@ test("buildExecutiveSummaryReport builds high-level case summary sections", () =
     description: "A concise case description.",
   });
   assert.equal(report.currentPosition.operationalSummary, "Get the leak repair confirmed.");
-  assert.equal(report.executiveSummary.summary, "Get the leak repair confirmed.");
+  assert.match(report.executiveSummary.summary, /^Get the leak repair confirmed\./);
+  assert.ok(report.executiveSummary.summary.split(/\s+/).length <= 120);
+  assert.equal(report.managementQuestion, "Get the leak repair confirmed.");
   assert.equal(report.atAGlance.incidentCount, 2);
   assert.equal(report.atAGlance.evidenceCount, 2);
   assert.equal(report.atAGlance.documentCount, 2);
@@ -299,10 +301,12 @@ test("buildExecutiveSummaryReport includes diagnostics, evidence, and sequence g
   });
 
   assert.equal(report.strongestEvidence[0].id, "ev-1");
-  assert.ok(report.keyFindings.length > 0);
-  assert.ok(report.riskAssessment.some((item) => item.id === "missing-proof"));
+  assert.ok(report.keyFindings.length > 0 && report.keyFindings.length <= 5);
+  assert.ok(report.riskSnapshot.find((item) => item.label === "Legal / Compliance Risk"));
   assert.ok(report.outstandingIssues.some((item) => item.status === "Needs proof"));
   assert.ok(report.recommendedActions.some((item) => item.source === "actionSummary"));
+  assert.ok(report.recommendedActions.length <= 5);
+  assert.equal(report.supportingAppendixSummary.fullDetailNote, "Use Investigation Report for full record detail.");
   assert.ok(Array.isArray(report.managementAwarenessItems));
   assert.ok(report.appendix.chronology.length <= 5);
   assert.ok(report.appendix.evidenceSummary.length <= 4);
@@ -335,9 +339,10 @@ test("buildExecutiveSummaryNarrativePolishPrompt includes report data and exclud
   const prompt = buildExecutiveSummaryNarrativePolishPrompt(report);
 
   assert.match(prompt, /## Executive Summary/);
+  assert.match(prompt, /## Management Question/);
   assert.match(prompt, /## Key Findings/);
-  assert.match(prompt, /## Risk Assessment/);
-  assert.match(prompt, /## Management Awareness Items/);
+  assert.match(prompt, /## Risk Snapshot/);
+  assert.match(prompt, /## Supporting Appendix Summary/);
   assert.match(prompt, /Use only the provided report data/);
   assert.match(prompt, /Ceiling photo/);
   assert.match(prompt, /Leak reported/);

@@ -3587,7 +3587,7 @@ ${ungroupedSequenceText}
                             setExecutiveSummaryPolishDraft(event.target.value);
                             setExecutiveSummaryPolishFeedback(event.target.value.trim() ? "Showing polished narrative preview. Review before sharing." : "");
                           }}
-                          placeholder={"Paste polished markdown here. Expected headings:\n## Executive Summary\n## Key Findings\n## Risk Assessment\n## Management Awareness Items\n## Outstanding Issues\n## Recommended Actions\n## Appendix"}
+                          placeholder={"Paste polished markdown here. Expected headings:\n## Executive Summary\n## Management Question\n## Key Findings\n## Risk Snapshot\n## Recommended Actions\n## Supporting Appendix Summary\n## Short Chronology Preview"}
                           className="mt-4 min-h-36 w-full rounded-lg border border-neutral-300 bg-white p-3 font-mono text-xs outline-none focus:border-lime-500"
                         />
                       </div>
