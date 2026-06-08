@@ -39,4 +39,12 @@ test("keeps existing modal hide conditions for floating workspace menu", () => {
     }),
     false
   );
+  assert.equal(
+    shouldShowFloatingWorkspaceMenu({
+      selectedCase,
+      isCaseCurrentlyLocked: false,
+      aiToolsOpen: true,
+    }),
+    false
+  );
 });

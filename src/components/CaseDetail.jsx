@@ -32,6 +32,14 @@ import {
   exportSequenceGroupsIndexJson,
   exportSequenceGroupsIndexMarkdown,
 } from "../export/sequenceGroupsIndexExport.js";
+import {
+  buildChainCompletionMarkdownPrompt,
+  buildChainCompletionPack,
+  buildMissingFunctionSummaryMarkdownPrompt,
+  buildMissingFunctionSummaryPack,
+  buildUngroupedIncidentsAuditMarkdownPrompt,
+  buildUngroupedIncidentsAuditPack,
+} from "../export/gptAuditPacks.js";
 import { buildCaseBundleReport, buildDocumentPackReport, buildEvidencePackReport, buildExecutiveSummaryNarrativePolishPrompt, buildExecutiveSummaryReport, buildLedgerPackReport, buildThreadIssueReport } from "../report/reportBuilder.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import LinkedChip from "./LinkedChip";
@@ -176,6 +184,10 @@ export default function CaseDetail({
   const [expandedGroups, setExpandedGroups] = useState({});
   const [ideas, setIdeas] = useState([]);
   const [workspaceActionMenuOpen, setWorkspaceActionMenuOpen] = useState(false);
+  const [aiToolsOpen, setAiToolsOpen] = useState(false);
+  const [activeAiTool, setActiveAiTool] = useState("missing-function-summaries");
+  const [aiToolsSequenceGroup, setAiToolsSequenceGroup] = useState("");
+  const [aiToolsFeedback, setAiToolsFeedback] = useState("");
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [timelineView, setTimelineView] = useState("all");
   const [timelineMilestonesOnly, setTimelineMilestonesOnly] = useState(false);
@@ -923,6 +935,61 @@ export default function CaseDetail({
     textarea.select();
     document.execCommand("copy");
     document.body.removeChild(textarea);
+  }
+
+  function openAiTool(toolId) {
+    const nextGroup = selectedSequenceGroupName || sequenceGroups[0]?.name || "";
+    setActiveAiTool(toolId);
+    setAiToolsSequenceGroup(nextGroup);
+    setAiToolsFeedback("");
+    setAiToolsOpen(true);
+    closeWorkspaceActionMenu();
+  }
+
+  function buildAiToolJson(toolId, groupName = aiToolsSequenceGroup) {
+    if (!selectedCase) return null;
+    if (toolId === "missing-function-summaries") return buildMissingFunctionSummaryPack(selectedCase);
+    if (toolId === "ungrouped-incidents-audit") return buildUngroupedIncidentsAuditPack(selectedCase);
+    if (toolId === "chain-completion-pack") return buildChainCompletionPack(selectedCase, groupName || sequenceGroups[0]?.name || "");
+    return null;
+  }
+
+  function buildAiToolMarkdown(toolId, groupName = aiToolsSequenceGroup) {
+    if (!selectedCase) return "";
+    if (toolId === "missing-function-summaries") return buildMissingFunctionSummaryMarkdownPrompt(selectedCase);
+    if (toolId === "ungrouped-incidents-audit") return buildUngroupedIncidentsAuditMarkdownPrompt(selectedCase);
+    if (toolId === "chain-completion-pack") return buildChainCompletionMarkdownPrompt(selectedCase, groupName || sequenceGroups[0]?.name || "");
+    return "";
+  }
+
+  async function handleCopyAiToolJson(toolId = activeAiTool, groupName = aiToolsSequenceGroup) {
+    if (!selectedCase) return;
+    try {
+      const payload = buildAiToolJson(toolId, groupName);
+      if (!payload) return;
+      await copySequenceGroupText(JSON.stringify(payload, null, 2));
+      setAiToolsFeedback("AI pack JSON copied.");
+      setSequenceGroupFeedback("AI pack JSON copied.");
+    } catch (error) {
+      console.error("Failed to copy AI pack JSON", error);
+      setAiToolsFeedback(error.message || "Could not copy AI pack JSON.");
+      setSequenceGroupFeedback("Could not copy AI pack JSON.");
+    }
+  }
+
+  async function handleCopyAiToolMarkdown(toolId = activeAiTool, groupName = aiToolsSequenceGroup) {
+    if (!selectedCase) return;
+    try {
+      const markdown = buildAiToolMarkdown(toolId, groupName);
+      if (!markdown) return;
+      await copySequenceGroupText(markdown);
+      setAiToolsFeedback("AI markdown prompt copied.");
+      setSequenceGroupFeedback("AI markdown prompt copied.");
+    } catch (error) {
+      console.error("Failed to copy AI markdown prompt", error);
+      setAiToolsFeedback(error.message || "Could not copy AI markdown prompt.");
+      setSequenceGroupFeedback("Could not copy AI markdown prompt.");
+    }
   }
 
   async function handleCopySequenceGroupReviewPackage() {
@@ -2653,6 +2720,7 @@ ${ungroupedSequenceText}
     actionSummaryEditOpen,
     sequenceGroupManagerOpen,
     sequenceGroupAuditExportOpen,
+    aiToolsOpen,
     incidentDateRepairOpen,
     activeLedgerRecord,
   });
@@ -2673,9 +2741,30 @@ ${ungroupedSequenceText}
   ];
   const floatingToolActions = [
     { label: "Manage sequence groups", onClick: handleWorkspaceOpenSequenceGroups },
+    { label: "Missing Function Summaries", onClick: () => openAiTool("missing-function-summaries") },
+    { label: "Ungrouped Incidents Audit", onClick: () => openAiTool("ungrouped-incidents-audit") },
+    { label: "Chain Completion Pack", onClick: () => openAiTool("chain-completion-pack") },
     { label: "Sequence Group Audit Export", onClick: handleWorkspaceOpenSequenceGroupAuditExport },
     { label: "Incident Date Repair Tool", onClick: handleWorkspaceOpenIncidentDateRepairTool },
   ];
+  const aiToolOptions = [
+    {
+      id: "missing-function-summaries",
+      title: "Missing Function Summaries",
+      description: "Evidence records with missing or vague functionSummary fields.",
+    },
+    {
+      id: "ungrouped-incidents-audit",
+      title: "Ungrouped Incidents Audit",
+      description: "Incidents without a sequenceGroup, with linked context and existing group names.",
+    },
+    {
+      id: "chain-completion-pack",
+      title: "Chain Completion Pack",
+      description: "One selected sequence group with scoped records, linked context, and diagnostics.",
+    },
+  ];
+  const activeAiToolOption = aiToolOptions.find((tool) => tool.id === activeAiTool) || aiToolOptions[0];
 
   return (
     <div className="space-y-6">
@@ -5351,6 +5440,117 @@ ${ungroupedSequenceText}
         </button>
       )}
 
+      {aiToolsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 print:hidden">
+          <div className="w-full max-w-4xl rounded-2xl bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b border-neutral-100 p-5">
+              <div>
+                <h3 className="text-lg font-semibold text-neutral-900">AI Tools</h3>
+                <p className="mt-1 text-xs text-neutral-500">
+                  Copy focused, non-importable GPT work packs. These tools do not generate deltas or modify case data.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAiToolsOpen(false)}
+                className="rounded-md border border-neutral-200 px-2 py-1 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="grid gap-0 md:grid-cols-[17rem_1fr]">
+              <aside className="border-b border-neutral-100 p-4 md:border-b-0 md:border-r">
+                <div className="space-y-2">
+                  {aiToolOptions.map((tool) => (
+                    <button
+                      key={tool.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveAiTool(tool.id);
+                        setAiToolsFeedback("");
+                      }}
+                      className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                        activeAiTool === tool.id
+                          ? "border-lime-400 bg-lime-50 text-neutral-950"
+                          : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"
+                      }`}
+                    >
+                      <div className="text-sm font-bold">{tool.title}</div>
+                      <p className="mt-1 text-xs leading-5 text-neutral-500">{tool.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </aside>
+
+              <section className="space-y-4 p-5">
+                {aiToolsFeedback && (
+                  <div className="rounded-md border border-lime-200 bg-lime-50 p-3 text-sm font-medium text-lime-800">
+                    {aiToolsFeedback}
+                  </div>
+                )}
+
+                <div>
+                  <h4 className="text-base font-semibold text-neutral-950">{activeAiToolOption.title}</h4>
+                  <p className="mt-1 text-sm leading-6 text-neutral-600">{activeAiToolOption.description}</p>
+                </div>
+
+                {activeAiTool === "chain-completion-pack" && (
+                  <label className="block">
+                    <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Sequence group</span>
+                    <select
+                      value={aiToolsSequenceGroup}
+                      onChange={(event) => {
+                        setAiToolsSequenceGroup(event.target.value);
+                        setAiToolsFeedback("");
+                      }}
+                      className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
+                    >
+                      {sequenceGroups.length === 0 ? (
+                        <option value="">No sequence groups available</option>
+                      ) : sequenceGroups.map((group) => (
+                        <option key={group.name} value={group.name}>
+                          {group.name} ({group.totalCount} records)
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+
+                <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-600">
+                  <div className="font-semibold text-neutral-900">Pack rules</div>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    <li>Non-importable JSON with no attachment payloads or binaries.</li>
+                    <li>Record IDs are preserved so GPT recommendations map back to ProveIt.</li>
+                    <li>Document excerpts are bounded and labeled as untrusted source material.</li>
+                    <li>Prompts explicitly say: Do not invent facts. Do not generate deltas.</li>
+                  </ul>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={activeAiTool === "chain-completion-pack" && !aiToolsSequenceGroup}
+                    onClick={() => handleCopyAiToolJson()}
+                    className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:hover:bg-white"
+                  >
+                    Copy JSON
+                  </button>
+                  <button
+                    type="button"
+                    disabled={activeAiTool === "chain-completion-pack" && !aiToolsSequenceGroup}
+                    onClick={() => handleCopyAiToolMarkdown()}
+                    className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:text-neutral-400"
+                  >
+                    Copy Markdown Prompt
+                  </button>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      )}
+
       <FloatingWorkspaceMenu
         visible={showFloatingWorkspaceMenu}
         open={workspaceActionMenuOpen}
@@ -5608,6 +5808,8 @@ ${ungroupedSequenceText}
           onApplyDelta={handleApplySequenceGroupDelta}
           onClearRecord={handleClearSequenceRecord}
           onClose={() => setSequenceGroupManagerOpen(false)}
+          onCopyChainCompletionPackJson={(groupName) => handleCopyAiToolJson("chain-completion-pack", groupName)}
+          onCopyChainCompletionPackMarkdown={(groupName) => handleCopyAiToolMarkdown("chain-completion-pack", groupName)}
           onCopyReviewPackage={handleCopySequenceGroupReviewPackage}
           onDownloadGroupIndexJson={handleDownloadSequenceGroupsIndexJson}
           onDownloadGroupIndexMarkdown={handleDownloadSequenceGroupsIndexMarkdown}

@@ -117,6 +117,8 @@ export default function SequenceGroupManager({
   onApplyDelta,
   onClearRecord,
   onClose,
+  onCopyChainCompletionPackJson,
+  onCopyChainCompletionPackMarkdown,
   onCopyReviewPackage,
   onDownloadGroupIndexJson,
   onDownloadGroupIndexMarkdown,
@@ -459,10 +461,17 @@ export default function SequenceGroupManager({
                 ) : (
                   <div className="space-y-2">
                     {sequenceGroupDetails.groups.map((group) => (
-                      <button
+                      <div
                         key={group.name}
-                        type="button"
+                        role="button"
+                        tabIndex={0}
                         onClick={() => setSelectedGroupName(group.name)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setSelectedGroupName(group.name);
+                          }
+                        }}
                         className={`w-full rounded-lg border p-3 text-left transition-colors ${
                           group.name === activeGroupName
                             ? "border-lime-400 bg-white shadow-sm"
@@ -489,7 +498,39 @@ export default function SequenceGroupManager({
                           <span>Docs {group.counts.documents}</span>
                           <span>Strategy {group.counts.strategy}</span>
                         </div>
-                      </button>
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onOpenAuditExport?.(group.name);
+                            }}
+                            className="rounded-md border border-neutral-300 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 hover:bg-neutral-50"
+                          >
+                            Audit Chain
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onCopyChainCompletionPackMarkdown?.(group.name);
+                            }}
+                            className="rounded-md border border-neutral-300 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 hover:bg-neutral-50"
+                          >
+                            Chain Completion Pack
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onCopyChainCompletionPackJson?.(group.name);
+                            }}
+                            className="rounded-md border border-neutral-300 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 hover:bg-neutral-50"
+                          >
+                            Export Chain Pack
+                          </button>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -516,13 +557,27 @@ export default function SequenceGroupManager({
                         </div>
                       </div>
 
-                      <div className="grid gap-2 lg:grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)_auto_auto]">
+                      <div className="grid gap-2 lg:grid-cols-[auto_auto_auto_minmax(0,1fr)_auto_minmax(0,1fr)_auto_auto]">
                         <button
                           type="button"
                           onClick={() => onOpenAuditExport?.(selectedGroup.name)}
                           className="rounded-md border border-lime-500 bg-lime-400/20 px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
                         >
-                          Export audit report
+                          Audit Chain
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onCopyChainCompletionPackMarkdown?.(selectedGroup.name)}
+                          className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
+                        >
+                          Chain Completion Pack
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onCopyChainCompletionPackJson?.(selectedGroup.name)}
+                          className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
+                        >
+                          Export Chain Pack
                         </button>
                         <input
                           value={sequenceRenameInputs[selectedGroup.name] || ""}
