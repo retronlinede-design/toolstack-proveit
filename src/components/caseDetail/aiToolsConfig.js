@@ -30,6 +30,11 @@ export const AI_TOOL_OPTIONS = [
     description: "Complete bounded safe records for one sequence chain, including diagnostics and external linked records.",
   },
   {
+    id: "management-report-builder-pack",
+    title: "Management Report Builder Pack",
+    description: "Whole-case or sequence-group handoff package for a specialist Report Builder GPT.",
+  },
+  {
     id: "case-slice-pack",
     title: "Case Slice Pack",
     description: "A custom selected set of record IDs with directly linked context.",

@@ -39,6 +39,8 @@ import {
   buildChainCompletionPack,
   buildFullChainGptMarkdownPrompt,
   buildFullChainGptPack,
+  buildManagementReportBuilderMarkdownPrompt,
+  buildManagementReportBuilderPack,
   buildMissingFunctionSummaryMarkdownPrompt,
   buildMissingFunctionSummaryPack,
   buildUngroupedEvidenceAuditMarkdownPrompt,
@@ -142,6 +144,8 @@ function renderSequenceGroupChip(value) {
 function safeText(value) {
   return typeof value === "string" ? value : "";
 }
+
+const MANAGEMENT_REPORT_BUILDER_WHOLE_CASE = "__whole_case__";
 
 function normalizeReportLanguage(value) {
   return REPORT_DISPLAY_LANGUAGES.includes(value) ? value : DEFAULT_REPORT_DISPLAY_LANGUAGE;
@@ -980,7 +984,7 @@ export default function CaseDetail({
   function openAiTool(toolId) {
     const nextGroup = selectedSequenceGroupName || sequenceGroups[0]?.name || "";
     setActiveAiTool(toolId);
-    setAiToolsSequenceGroup(nextGroup);
+    setAiToolsSequenceGroup(toolId === "management-report-builder-pack" ? MANAGEMENT_REPORT_BUILDER_WHOLE_CASE : nextGroup);
     setAiToolsFeedback("");
     setAiToolsOpen(true);
     closeWorkspaceActionMenu();
@@ -996,6 +1000,10 @@ export default function CaseDetail({
     if (toolId === "full-chain-gpt-pack") return buildFullChainGptPack(selectedCase, groupName || sequenceGroups[0]?.name || "", {
       sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
     });
+    if (toolId === "management-report-builder-pack") {
+      const selectedGroup = groupName === MANAGEMENT_REPORT_BUILDER_WHOLE_CASE ? "" : groupName;
+      return buildManagementReportBuilderPack(selectedCase, selectedGroup);
+    }
     if (toolId === "weak-links-audit") return buildWeakLinksAuditPack(selectedCase);
     return null;
   }
@@ -1010,6 +1018,10 @@ export default function CaseDetail({
     if (toolId === "full-chain-gpt-pack") return buildFullChainGptMarkdownPrompt(selectedCase, groupName || sequenceGroups[0]?.name || "", {
       sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
     });
+    if (toolId === "management-report-builder-pack") {
+      const selectedGroup = groupName === MANAGEMENT_REPORT_BUILDER_WHOLE_CASE ? "" : groupName;
+      return buildManagementReportBuilderMarkdownPrompt(selectedCase, selectedGroup);
+    }
     if (toolId === "weak-links-audit") return buildWeakLinksAuditMarkdownPrompt(selectedCase);
     return "";
   }
@@ -2799,6 +2811,8 @@ ${ungroupedSequenceText}
   });
   const aiToolOptions = AI_TOOL_OPTIONS;
   const activeAiToolOption = aiToolOptions.find((tool) => tool.id === activeAiTool) || aiToolOptions[0];
+  const activeAiToolNeedsSequenceGroup = activeAiTool === "chain-completion-pack" || activeAiTool === "full-chain-gpt-pack";
+  const activeAiToolUsesReportBuilderScope = activeAiTool === "management-report-builder-pack";
 
   return (
     <div className="space-y-6">
@@ -5502,6 +5516,11 @@ ${ungroupedSequenceText}
                       type="button"
                       onClick={() => {
                         setActiveAiTool(tool.id);
+                        if (tool.id === "management-report-builder-pack") {
+                          setAiToolsSequenceGroup(MANAGEMENT_REPORT_BUILDER_WHOLE_CASE);
+                        } else if ((tool.id === "chain-completion-pack" || tool.id === "full-chain-gpt-pack") && !aiToolsSequenceGroup) {
+                          setAiToolsSequenceGroup(selectedSequenceGroupName || sequenceGroups[0]?.name || "");
+                        }
                         setAiToolsFeedback("");
                       }}
                       className={`w-full rounded-lg border p-3 text-left transition-colors ${
@@ -5529,9 +5548,11 @@ ${ungroupedSequenceText}
                   <p className="mt-1 text-sm leading-6 text-neutral-600">{activeAiToolOption.description}</p>
                 </div>
 
-                {(activeAiTool === "chain-completion-pack" || activeAiTool === "full-chain-gpt-pack") && (
+                {(activeAiToolNeedsSequenceGroup || activeAiToolUsesReportBuilderScope) && (
                   <label className="block">
-                    <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Sequence group</span>
+                    <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">
+                      {activeAiToolUsesReportBuilderScope ? "Scope" : "Sequence group"}
+                    </span>
                     <select
                       value={aiToolsSequenceGroup}
                       onChange={(event) => {
@@ -5540,7 +5561,10 @@ ${ungroupedSequenceText}
                       }}
                       className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
                     >
-                      {sequenceGroups.length === 0 ? (
+                      {activeAiToolUsesReportBuilderScope && (
+                        <option value={MANAGEMENT_REPORT_BUILDER_WHOLE_CASE}>Whole Case</option>
+                      )}
+                      {sequenceGroups.length === 0 && !activeAiToolUsesReportBuilderScope ? (
                         <option value="">No sequence groups available</option>
                       ) : sequenceGroups.map((group) => (
                         <option key={group.name} value={group.name}>
@@ -5583,7 +5607,7 @@ ${ungroupedSequenceText}
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    disabled={(activeAiTool === "chain-completion-pack" || activeAiTool === "full-chain-gpt-pack") && !aiToolsSequenceGroup}
+                    disabled={activeAiToolNeedsSequenceGroup && !aiToolsSequenceGroup}
                     onClick={() => handleCopyAiToolJson()}
                     className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:hover:bg-white"
                   >
@@ -5591,7 +5615,7 @@ ${ungroupedSequenceText}
                   </button>
                   <button
                     type="button"
-                    disabled={(activeAiTool === "chain-completion-pack" || activeAiTool === "full-chain-gpt-pack") && !aiToolsSequenceGroup}
+                    disabled={activeAiToolNeedsSequenceGroup && !aiToolsSequenceGroup}
                     onClick={() => handleCopyAiToolMarkdown()}
                     className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:text-neutral-400"
                   >

@@ -13,6 +13,7 @@ test("AI Tools modal selector still lists all GPT work packs", () => {
       "Weak Links Audit",
       "Chain Completion Pack",
       "Full Chain GPT Pack",
+      "Management Report Builder Pack",
       "Case Slice Pack",
     ]
   );

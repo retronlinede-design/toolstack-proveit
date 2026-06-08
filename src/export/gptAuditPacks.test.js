@@ -8,6 +8,8 @@ import {
   buildChainCompletionPack,
   buildFullChainGptMarkdownPrompt,
   buildFullChainGptPack,
+  buildManagementReportBuilderMarkdownPrompt,
+  buildManagementReportBuilderPack,
   buildMissingFunctionSummaryMarkdownPrompt,
   buildMissingFunctionSummaryPack,
   buildUngroupedEvidenceAuditMarkdownPrompt,
@@ -318,6 +320,42 @@ test("full chain GPT pack includes complete safe chain records, external links, 
   assert.equal(pack.data.diagnostics.duplicateCandidates.some((item) => item.recordIds.includes("doc-1") && item.recordIds.includes("doc-chain-duplicate")), true);
 });
 
+test("management report builder pack includes sequence chains, source IDs, and safe report handoff records", () => {
+  const pack = buildManagementReportBuilderPack(buildCase(), "", {
+    limits: { documentTextChars: 50 },
+  });
+
+  assertSafePack(pack);
+  assert.equal(pack.packType, "MANAGEMENT_REPORT_BUILDER_PACK");
+  assert.equal(pack.data.scope.type, "wholeCase");
+  assert.equal(pack.data.sequenceChains.some((chain) => chain.name === "Repair Chain"), true);
+  assert.equal(pack.data.sourceIds.includes("inc-chain"), true);
+  assert.equal(pack.data.sourceIds.includes("ev-chain"), true);
+  assert.equal(pack.data.sourceIds.includes("doc-1"), true);
+  assert.equal(pack.data.sourceIds.includes("ledger-chain"), true);
+
+  const chain = pack.data.sequenceChains.find((item) => item.name === "Repair Chain");
+  const evidence = chain.sourceRecords.evidence.find((record) => record.id === "ev-chain");
+  const document = chain.sourceRecords.documents.find((record) => record.id === "doc-1");
+
+  assert.equal(evidence.establishes, "proof");
+  assert.equal(evidence.establishesSource, "evidence.functionSummary");
+  assert.equal(evidence.attachmentInfo.count, 1);
+  assert.equal(document.referenceOnly, true);
+  assert.equal(document.textContent.label, "UNTRUSTED_SOURCE_MATERIAL");
+  assert.ok(document.textContent.excerpt.length <= 53);
+  assert.match(pack.data.sourceRules.documents, /reference-only/);
+});
+
+test("management report builder pack can scope to a single sequence group", () => {
+  const pack = buildManagementReportBuilderPack(buildCase(), "Repair Chain");
+
+  assertSafePack(pack);
+  assert.equal(pack.data.scope.type, "singleSequenceGroup");
+  assert.equal(pack.data.scope.sequenceGroup, "Repair Chain");
+  assert.deepEqual(pack.data.sequenceChains.map((chain) => chain.name), ["Repair Chain"]);
+});
+
 test("markdown prompts include required safety instructions", () => {
   const caseData = buildCase();
   const prompts = [
@@ -327,6 +365,7 @@ test("markdown prompts include required safety instructions", () => {
     buildUngroupedIncidentsAuditMarkdownPrompt(caseData),
     buildChainCompletionMarkdownPrompt(caseData, "Repair Chain"),
     buildFullChainGptMarkdownPrompt(caseData, "Repair Chain"),
+    buildManagementReportBuilderMarkdownPrompt(caseData),
     buildWeakLinksAuditMarkdownPrompt(caseData),
   ];
 
@@ -336,4 +375,17 @@ test("markdown prompts include required safety instructions", () => {
     assert.match(prompt, /record IDs/);
     assert.match(prompt, /untrusted source material/);
   }
+});
+
+test("management report builder markdown prompt includes specialist report and visual layout instructions", () => {
+  const prompt = buildManagementReportBuilderMarkdownPrompt(buildCase(), "Repair Chain");
+
+  assert.match(prompt, /Report Builder GPT/);
+  assert.match(prompt, /You are a specialist Report Builder GPT/);
+  assert.match(prompt, /Visual Report Layout Plan/);
+  assert.match(prompt, /Suggested Image Prompt for final report image/);
+  assert.match(prompt, /image-style report layout/);
+  assert.match(prompt, /Do not invent facts/);
+  assert.match(prompt, /Do not generate ProveIt delta JSON/);
+  assert.match(prompt, /Unsupported or weak claims list/);
 });
