@@ -44,6 +44,96 @@ function getRiskClass(value = "") {
   return "text-neutral-700";
 }
 
+function getRiskToneClass(value = "") {
+  if (value === "High") return "border-red-200 bg-red-50 text-red-800";
+  if (value === "Medium") return "border-orange-200 bg-orange-50 text-orange-800";
+  if (value === "Low") return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  return "border-blue-200 bg-blue-50 text-blue-800";
+}
+
+function getDashboardRiskLevel(report = {}, sequenceChains = []) {
+  const riskValues = Array.isArray(report.riskSnapshot) ? report.riskSnapshot.map((item) => item.value) : [];
+  if (riskValues.includes("High")) return "High";
+  if (sequenceChains.some((chain) => (chain.gaps || []).some((gap) => gap.severity === "high"))) return "High";
+  if (riskValues.includes("Medium")) return "Medium";
+  if (sequenceChains.some((chain) => (chain.gaps || []).length > 0 || chain.status === "needs_proof")) return "Medium";
+  if (sequenceChains.length > 0) return "Low";
+  return "Pending review";
+}
+
+function countCriticalIssues(sequenceChains = []) {
+  return sequenceChains.reduce((sum, chain) => {
+    const highGaps = (chain.gaps || []).filter((gap) => gap.severity === "high").length;
+    const highRisks = (chain.risks || []).filter((risk) => risk.level === "High").length;
+    return sum + highGaps + highRisks;
+  }, 0);
+}
+
+function getDashboardMetrics(report = {}, sequenceChains = []) {
+  const appendixSummary = report.supportingAppendixSummary || {};
+  const recommendedActions = report.recommendedActions || report.recommendedNextSteps || [];
+  const proofGaps = report.chainSummary?.chainsWithProofGaps ?? sequenceChains.filter((chain) => (chain.gaps || []).length > 0).length;
+  return [
+    ["Total Incidents", appendixSummary.incidentCount ?? sequenceChains.reduce((sum, chain) => sum + (chain.counts?.incidents || 0), 0), "blue"],
+    ["Total Evidence Items", appendixSummary.evidenceCount ?? sequenceChains.reduce((sum, chain) => sum + (chain.counts?.evidence || 0), 0), "green"],
+    ["Active Concerns", proofGaps, "orange"],
+    ["Critical Issues", countCriticalIssues(sequenceChains), "red"],
+    ["Open Actions", recommendedActions.length || sequenceChains.reduce((sum, chain) => sum + (chain.actions || []).length, 0), "purple"],
+    ["Risk Level", getDashboardRiskLevel(report, sequenceChains), "red"],
+  ];
+}
+
+function getMetricToneClass(tone) {
+  if (tone === "green") return "border-emerald-200 bg-emerald-50 text-emerald-900";
+  if (tone === "orange") return "border-orange-200 bg-orange-50 text-orange-900";
+  if (tone === "red") return "border-red-200 bg-red-50 text-red-900";
+  if (tone === "purple") return "border-violet-200 bg-violet-50 text-violet-900";
+  return "border-sky-200 bg-sky-50 text-sky-900";
+}
+
+function buildManagementAttentionItems(report = {}, sequenceChains = []) {
+  const actions = (report.recommendedActions || report.recommendedNextSteps || [])
+    .slice(0, 3)
+    .map((item, index) => ({
+      id: item.id || `action-${index}`,
+      label: "Action",
+      text: item.text || "TODO: Map action text when available.",
+      tone: "purple",
+    }));
+  const gapItems = sequenceChains
+    .flatMap((chain) => (chain.gaps || []).map((gap) => ({
+      id: `${chain.id || chain.name}-${gap.code || gap.message}`,
+      label: chain.name || "Sequence chain",
+      text: gap.message || "TODO: Map proof gap detail when available.",
+      tone: gap.severity === "high" ? "red" : "orange",
+    })))
+    .slice(0, 4);
+  const items = [...gapItems, ...actions].slice(0, 5);
+  return items.length > 0 ? items : [{
+    id: "placeholder-attention",
+    label: "TODO",
+    text: "TODO: Add AI-generated management attention items after review data is mapped.",
+    tone: "orange",
+  }];
+}
+
+function DashboardChartPlaceholder({ title, tone = "blue" }) {
+  const barClass = tone === "green" ? "bg-emerald-500" : tone === "orange" ? "bg-orange-500" : "bg-sky-500";
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm print:shadow-none">
+      <div className="text-xs font-bold uppercase tracking-wider text-slate-500">{title}</div>
+      <div className="mt-4 flex h-28 items-end gap-2 border-b border-l border-slate-200 px-2">
+        {[38, 68, 46, 82, 58].map((height, index) => (
+          <div key={`${title}-${height}-${index}`} className="flex flex-1 items-end">
+            <div className={`w-full rounded-t ${barClass}`} style={{ height: `${height}%` }} />
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-xs leading-5 text-slate-500">TODO: Chart placeholder. No chart library is used in this template phase.</p>
+    </div>
+  );
+}
+
 function PolishedCardItem({ item, className = "" }) {
   return (
     <div className={`break-inside-avoid rounded-lg border border-neutral-200 bg-white p-3 print:break-inside-avoid ${className}`}>
@@ -83,6 +173,172 @@ function ManagementReportHeader({ coverPage = {}, report = {} }) {
         </button>
       </div>
     </header>
+  );
+}
+
+function ManagementReportDashboardTemplate({
+  report = {},
+  coverPage = {},
+  executiveSummary = {},
+  sequenceChains = [],
+  polishedExecutiveBrief = "",
+}) {
+  const appendixSummary = report.supportingAppendixSummary || {};
+  const dateRange = appendixSummary.dateRange || {};
+  const generatedDate = formatReportDate(report.generatedAt);
+  const riskLevel = getDashboardRiskLevel(report, sequenceChains);
+  const metrics = getDashboardMetrics(report, sequenceChains);
+  const resolvedCount = sequenceChains.filter((chain) => chain.status === "ready").length;
+  const criticalCount = countCriticalIssues(sequenceChains);
+  const ongoingCount = Math.max(sequenceChains.length - resolvedCount, 0);
+  const attentionItems = buildManagementAttentionItems(report, sequenceChains);
+  const topIssues = sequenceChains.slice(0, 5);
+
+  return (
+    <section className="management-dashboard overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm print:rounded-none print:border-0 print:shadow-none">
+      <div className="bg-slate-950 px-6 py-7 text-white print:bg-white print:text-slate-950">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="text-sm font-bold uppercase tracking-[0.22em] text-sky-200 print:text-slate-500">ProveIt</div>
+            <h1 className="mt-3 text-4xl font-black uppercase leading-none tracking-normal print:text-[26pt]">MANAGEMENT REPORT</h1>
+            <p className="mt-3 text-xl font-semibold text-sky-100 print:text-slate-800">{coverPage.caseName || report.caseOverview?.name || "Not specified"}</p>
+            <span className={`mt-4 inline-flex rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wider ${getRiskToneClass(riskLevel)}`}>
+              {riskLevel} risk
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="w-fit rounded-lg border border-sky-300 bg-white px-3 py-2 text-sm font-semibold text-slate-950 shadow-sm transition-colors hover:bg-sky-50 print:hidden"
+          >
+            Print / Save PDF
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-5 bg-slate-50 p-6 print:bg-white lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="space-y-5">
+          <div className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700 sm:grid-cols-3">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Date range</div>
+              <div className="mt-1 font-semibold text-slate-950">{dateRange.firstDate || "TODO"} to {dateRange.lastDate || "TODO"}</div>
+            </div>
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Prepared by</div>
+              <div className="mt-1 font-semibold text-slate-950">ProveIt Management Report</div>
+            </div>
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Report date</div>
+              <div className="mt-1 font-semibold text-slate-950">{generatedDate}</div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-sky-200 bg-sky-50 p-5">
+            <div className="text-xs font-bold uppercase tracking-wider text-sky-800">Executive Summary Statement</div>
+            {safeText(polishedExecutiveBrief).trim() ? (
+              <div className="mt-3 text-sm leading-7 text-slate-800">
+                <ExecutivePolishedSection text={polishedExecutiveBrief} sectionTitle="Executive Summary" />
+              </div>
+            ) : (
+              <p className="mt-3 text-sm leading-7 text-slate-800">
+                {executiveSummary.summary || "TODO: AI-generated executive summary placeholder. Use deterministic case data until approved AI polish is available."}
+              </p>
+            )}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {metrics.map(([label, value, tone]) => (
+              <div key={label} className={`rounded-xl border p-4 shadow-sm print:shadow-none ${getMetricToneClass(tone)}`}>
+                <div className="text-xs font-bold uppercase tracking-wider opacity-75">{label}</div>
+                <div className="mt-2 text-2xl font-black">{value}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            {[
+              ["Resolved", resolvedCount, "Ready chains or low-risk progress items.", "border-emerald-200 bg-emerald-50 text-emerald-900"],
+              ["Ongoing", ongoingCount, "Chains still requiring review or proof cleanup.", "border-orange-200 bg-orange-50 text-orange-900"],
+              ["Critical", criticalCount, "High gaps or high-risk flags requiring management attention.", "border-red-200 bg-red-50 text-red-900"],
+            ].map(([label, value, text, className]) => (
+              <div key={label} className={`rounded-xl border p-4 ${className}`}>
+                <div className="text-xs font-bold uppercase tracking-wider">{label}</div>
+                <div className="mt-2 text-2xl font-black">{value}</div>
+                <p className="mt-2 text-xs leading-5">{text}</p>
+              </div>
+            ))}
+          </div>
+
+          <section className="rounded-xl border border-slate-200 bg-white p-5">
+            <h2 className="text-sm font-black uppercase tracking-wider text-slate-700">Management Attention Required</h2>
+            <ul className="mt-4 space-y-3">
+              {attentionItems.map((item) => (
+                <li key={item.id} className={`rounded-lg border p-3 text-sm leading-6 ${getMetricToneClass(item.tone)}`}>
+                  <span className="font-bold">{item.label}: </span>{item.text}
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-3">
+            <DashboardChartPlaceholder title="Incidents Over Time" />
+            <DashboardChartPlaceholder title="Evidence by Type" tone="green" />
+            <DashboardChartPlaceholder title="Risk Level Distribution" tone="orange" />
+          </section>
+
+          <section className="rounded-xl border border-slate-200 bg-white p-5">
+            <h2 className="text-sm font-black uppercase tracking-wider text-slate-700">Top Issues Overview</h2>
+            {topIssues.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-500">No sequence chains are available yet. TODO: Add sequenceGroup labels to build top issues.</p>
+            ) : (
+              <div className="mt-4 grid gap-3">
+                {topIssues.map((chain) => (
+                  <div key={chain.id || chain.name} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-semibold text-slate-950">{chain.name || "Untitled chain"}</div>
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${getChainStatusClass(chain.status)}`}>
+                        {formatChainStatus(chain.status)}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">
+                      {chain.briefing?.issueSummary || "TODO: AI-generated short issue summary placeholder."}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-950">
+              <h2 className="text-sm font-black uppercase tracking-wider">Positive Outcomes & Progress</h2>
+              <p className="mt-3 text-sm leading-6">TODO: Placeholder for resolved issues, progress, completed actions, and improving trends.</p>
+            </section>
+            <section className="rounded-xl border border-slate-200 bg-white p-5 text-slate-800">
+              <h2 className="text-sm font-black uppercase tracking-wider text-slate-700">Report Purpose & Value</h2>
+              <p className="mt-3 text-sm leading-6">
+                This dashboard gives management a concise briefing layer before the deterministic chain briefings. Documents are treated as reference material, records are the strongest measurable evidence, and proof statements must come from evidence function summaries.
+              </p>
+            </section>
+          </div>
+        </div>
+
+        <aside className="space-y-4">
+          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm print:shadow-none">
+            <h2 className="text-sm font-black uppercase tracking-wider text-slate-700">Report Overview</h2>
+            <dl className="mt-4 space-y-3 text-sm">
+              <div><dt className="text-xs font-bold uppercase tracking-wider text-slate-500">Scope</dt><dd className="mt-1 font-semibold text-slate-950">Whole case</dd></div>
+              <div><dt className="text-xs font-bold uppercase tracking-wider text-slate-500">Chains</dt><dd className="mt-1 font-semibold text-slate-950">{sequenceChains.length}</dd></div>
+              <div><dt className="text-xs font-bold uppercase tracking-wider text-slate-500">Status</dt><dd className="mt-1 font-semibold text-slate-950">{coverPage.status || report.caseOverview?.status || "Not specified"}</dd></div>
+            </dl>
+          </section>
+          <section className="rounded-xl border border-red-200 bg-red-50 p-5 text-red-950">
+            <h2 className="text-sm font-black uppercase tracking-wider">Confidential</h2>
+            <p className="mt-3 text-sm leading-6">Management use only. Do not treat placeholders or untrusted document excerpts as verified fact.</p>
+          </section>
+        </aside>
+      </div>
+    </section>
   );
 }
 
@@ -436,7 +692,13 @@ export default function ExecutiveSummaryReportArticle({
   if (hasSequenceChainReport) {
     return (
       <article className={className}>
-        <ManagementReportHeader coverPage={coverPage} report={report} />
+        <ManagementReportDashboardTemplate
+          report={report}
+          coverPage={coverPage}
+          executiveSummary={executiveSummary}
+          sequenceChains={sequenceChains}
+          polishedExecutiveBrief={v1Polish.executiveBrief}
+        />
 
         {hasPolishedNarrative && (
           <div className="border-b border-neutral-200 py-4 print:hidden">
@@ -470,9 +732,9 @@ export default function ExecutiveSummaryReportArticle({
 
         <section className="py-7 print:py-5">
           <div className="border-b border-neutral-200 pb-3">
-            <h2 className="text-lg font-semibold text-neutral-950 print:text-[14pt]">Sequence Chain Briefings</h2>
+            <h2 className="text-lg font-semibold text-neutral-950 print:text-[14pt]">Detailed Chain Briefings</h2>
             <p className="mt-1 text-sm text-neutral-600">
-              Each chain separates facts, proof, gaps, risks, actions, and reference documents.
+              Sequence Chain Briefings: each chain separates facts, proof, gaps, risks, actions, and reference documents.
             </p>
           </div>
           {sequenceChains.length === 0 ? (

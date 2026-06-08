@@ -13,6 +13,35 @@ test("ExecutiveSummaryReportArticle prefers sequenceChains when present", () => 
   assert.match(source, /Sequence Chain Briefings/);
 });
 
+test("ExecutiveSummaryReportArticle renders dashboard management report template", () => {
+  assert.match(source, /ManagementReportDashboardTemplate/);
+  assert.match(source, /ProveIt/);
+  assert.match(source, /MANAGEMENT REPORT/);
+  assert.match(source, /Report Overview/);
+  assert.match(source, /Confidential/);
+  assert.match(source, /Executive Summary Statement/);
+  assert.match(source, /Management Attention Required/);
+  assert.match(source, /Top Issues Overview/);
+  assert.match(source, /Positive Outcomes & Progress/);
+  assert.match(source, /Report Purpose & Value/);
+});
+
+test("ExecutiveSummaryReportArticle renders management KPI cards and visual placeholders", () => {
+  for (const label of [
+    "Total Incidents",
+    "Total Evidence Items",
+    "Active Concerns",
+    "Critical Issues",
+    "Open Actions",
+    "Risk Level",
+    "Incidents Over Time",
+    "Evidence by Type",
+    "Risk Level Distribution",
+  ]) {
+    assert.match(source, new RegExp(label));
+  }
+});
+
 test("ExecutiveSummaryReportArticle renders chain facts, proof, gaps, risks, actions, and references", () => {
   assert.match(source, /Issue summary/);
   assert.match(source, /Management importance/);
@@ -49,16 +78,20 @@ test("ExecutiveSummaryReportArticle keeps deterministic proof gaps risks actions
   assert.match(source, /const actions = Array\.isArray\(chain\.actions\)/);
   assert.match(source, /const referenceDocuments = Array\.isArray\(chain\.referenceDocuments\)/);
   assert.match(source, /Sequence chain facts, proof, gaps, risks, actions, references, counts, and statuses remain deterministic/);
+  assert.match(source, /Detailed Chain Briefings/);
 });
 
 test("ExecutiveSummaryReportArticle shows a v1 empty state when no sequence chains exist", () => {
   assert.match(source, /No sequence chains are available for this management report/);
   assert.match(source, /Add sequenceGroup labels to incidents, evidence, documents, ledger entries, or strategy records/);
+  assert.match(source, /No sequence chains are available yet/);
 });
 
 test("ExecutiveSummaryReportArticle labels documents as reference material", () => {
   assert.match(source, /Reference material/);
   assert.match(source, /not treated as proof by default/);
+  assert.match(source, /Documents are treated as reference material/);
+  assert.match(source, /proof statements must come from evidence function summaries/);
 });
 
 test("ExecutiveSummaryReportArticle keeps old report fallback layout", () => {
