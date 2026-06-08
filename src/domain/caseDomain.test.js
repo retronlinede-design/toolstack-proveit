@@ -1784,6 +1784,42 @@ test("upsertRecordInCase persists linkedIncidentRefs on incident edit", () => {
   assert.deepEqual(updated.evidence.find((item) => item.id === "ev-old").linkedIncidentIds, []);
 });
 
+test("upsertRecordInCase incident edit persists evidence unlink without deleting evidence", () => {
+  const editingRecord = {
+    id: "inc-1",
+    title: "Incident",
+    date: "2024-03-01",
+    description: "Incident description",
+    notes: "",
+    linkedEvidenceIds: ["ev-1"],
+    createdAt: iso("2024-03-01T09:00:00Z"),
+  };
+  const caseItem = {
+    id: "case-1",
+    incidents: [editingRecord],
+    evidence: [
+      { id: "ev-1", title: "Linked Evidence", date: "2024-03-02", linkedIncidentIds: ["inc-1"] },
+      { id: "ev-2", title: "Unrelated Evidence", date: "2024-03-03", linkedIncidentIds: [] },
+    ],
+  };
+
+  const updated = upsertRecordInCase(caseItem, "incidents", {
+    ...editingRecord,
+    title: "Incident",
+    description: "Incident description",
+    notes: "",
+    attachments: [],
+    availability: { digital: { files: [], hasDigital: false } },
+    linkedEvidenceIds: [],
+    evidenceStatus: "needs_evidence",
+  }, editingRecord);
+
+  assert.deepEqual(updated.incidents.find((item) => item.id === "inc-1").linkedEvidenceIds, []);
+  assert.deepEqual(updated.evidence.find((item) => item.id === "ev-1").linkedIncidentIds, []);
+  assert.equal(updated.evidence.find((item) => item.id === "ev-1").title, "Linked Evidence");
+  assert.equal(updated.evidence.length, 2);
+});
+
 test("upsertRecordInCase incident edit syncs eventDate when modal date changes a synced date", () => {
   const editingRecord = {
     id: "inc-1",

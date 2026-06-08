@@ -261,7 +261,6 @@ export default function RecordModal({
   openEditRecordModal,
   openDocumentModal,
   onCreateEvidenceFromIncident,
-  onUnlinkEvidenceFromIncident,
 }) {
   const [isLinking, setIsLinking] = useState(false);
   const [tempSelection, setTempSelection] = useState([]);
@@ -435,6 +434,17 @@ export default function RecordModal({
       linkedIncidentIds: linkedEvidenceIncidentIds.includes(incidentId)
         ? linkedEvidenceIncidentIds.filter((id) => id !== incidentId)
         : [...linkedEvidenceIncidentIds, incidentId],
+    });
+  };
+
+  const unlinkEvidenceFromIncidentForm = (evidenceId) => {
+    const nextLinkedEvidenceIds = (recordForm.linkedEvidenceIds || []).filter((id) => String(id) !== String(evidenceId));
+    setRecordForm({
+      ...recordForm,
+      linkedEvidenceIds: nextLinkedEvidenceIds,
+      evidenceStatus: recordType === "incidents" && nextLinkedEvidenceIds.length === 0
+        ? "needs_evidence"
+        : recordForm.evidenceStatus,
     });
   };
 
@@ -1411,7 +1421,7 @@ export default function RecordModal({
                                     </button>
                                   )}
                                   <button
-                                    onClick={() => onUnlinkEvidenceFromIncident(recordForm.id, evidenceItem.id)}
+                                    onClick={() => unlinkEvidenceFromIncidentForm(evidenceItem.id)}
                                     className="rounded-lg border border-red-300 bg-white px-2 py-1 text-[10px] font-bold text-red-700 shadow-sm hover:bg-red-50 transition-colors"
                                   >
                                     Unlink
