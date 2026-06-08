@@ -33,12 +33,18 @@ import {
   exportSequenceGroupsIndexMarkdown,
 } from "../export/sequenceGroupsIndexExport.js";
 import {
+  buildCaseSliceMarkdownPrompt,
+  buildCaseSlicePack,
   buildChainCompletionMarkdownPrompt,
   buildChainCompletionPack,
   buildMissingFunctionSummaryMarkdownPrompt,
   buildMissingFunctionSummaryPack,
+  buildUngroupedEvidenceAuditMarkdownPrompt,
+  buildUngroupedEvidenceAuditPack,
   buildUngroupedIncidentsAuditMarkdownPrompt,
   buildUngroupedIncidentsAuditPack,
+  buildWeakLinksAuditMarkdownPrompt,
+  buildWeakLinksAuditPack,
 } from "../export/gptAuditPacks.js";
 import { buildCaseBundleReport, buildDocumentPackReport, buildEvidencePackReport, buildExecutiveSummaryNarrativePolishPrompt, buildExecutiveSummaryReport, buildLedgerPackReport, buildThreadIssueReport } from "../report/reportBuilder.js";
 import { getLinkChipClasses } from "./linkChipStyles";
@@ -188,6 +194,7 @@ export default function CaseDetail({
   const [activeAiTool, setActiveAiTool] = useState("missing-function-summaries");
   const [aiToolsSequenceGroup, setAiToolsSequenceGroup] = useState("");
   const [aiToolsFeedback, setAiToolsFeedback] = useState("");
+  const [caseSliceRecordIdsText, setCaseSliceRecordIdsText] = useState("");
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [timelineView, setTimelineView] = useState("all");
   const [timelineMilestonesOnly, setTimelineMilestonesOnly] = useState(false);
@@ -937,6 +944,35 @@ export default function CaseDetail({
     document.body.removeChild(textarea);
   }
 
+  function parseCaseSliceRecordIds(text = "") {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return { incidents: [], evidence: [], documents: [], strategy: [], ledger: [] };
+    }
+    try {
+      const parsed = JSON.parse(trimmed);
+      return {
+        incidents: Array.isArray(parsed.incidents) ? parsed.incidents : [],
+        evidence: Array.isArray(parsed.evidence) ? parsed.evidence : [],
+        documents: Array.isArray(parsed.documents) ? parsed.documents : [],
+        strategy: Array.isArray(parsed.strategy) ? parsed.strategy : [],
+        ledger: Array.isArray(parsed.ledger) ? parsed.ledger : [],
+      };
+    } catch {
+      const selectedIds = { incidents: [], evidence: [], documents: [], strategy: [], ledger: [] };
+      trimmed.split(/\r?\n/).forEach((line) => {
+        const [rawType, rawIds = ""] = line.split(":");
+        const type = rawType?.trim();
+        if (!Object.prototype.hasOwnProperty.call(selectedIds, type)) return;
+        selectedIds[type] = rawIds
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+      });
+      return selectedIds;
+    }
+  }
+
   function openAiTool(toolId) {
     const nextGroup = selectedSequenceGroupName || sequenceGroups[0]?.name || "";
     setActiveAiTool(toolId);
@@ -948,17 +984,23 @@ export default function CaseDetail({
 
   function buildAiToolJson(toolId, groupName = aiToolsSequenceGroup) {
     if (!selectedCase) return null;
+    if (toolId === "case-slice-pack") return buildCaseSlicePack(selectedCase, parseCaseSliceRecordIds(caseSliceRecordIdsText));
     if (toolId === "missing-function-summaries") return buildMissingFunctionSummaryPack(selectedCase);
+    if (toolId === "ungrouped-evidence-audit") return buildUngroupedEvidenceAuditPack(selectedCase);
     if (toolId === "ungrouped-incidents-audit") return buildUngroupedIncidentsAuditPack(selectedCase);
     if (toolId === "chain-completion-pack") return buildChainCompletionPack(selectedCase, groupName || sequenceGroups[0]?.name || "");
+    if (toolId === "weak-links-audit") return buildWeakLinksAuditPack(selectedCase);
     return null;
   }
 
   function buildAiToolMarkdown(toolId, groupName = aiToolsSequenceGroup) {
     if (!selectedCase) return "";
+    if (toolId === "case-slice-pack") return buildCaseSliceMarkdownPrompt(selectedCase, parseCaseSliceRecordIds(caseSliceRecordIdsText));
     if (toolId === "missing-function-summaries") return buildMissingFunctionSummaryMarkdownPrompt(selectedCase);
+    if (toolId === "ungrouped-evidence-audit") return buildUngroupedEvidenceAuditMarkdownPrompt(selectedCase);
     if (toolId === "ungrouped-incidents-audit") return buildUngroupedIncidentsAuditMarkdownPrompt(selectedCase);
     if (toolId === "chain-completion-pack") return buildChainCompletionMarkdownPrompt(selectedCase, groupName || sequenceGroups[0]?.name || "");
+    if (toolId === "weak-links-audit") return buildWeakLinksAuditMarkdownPrompt(selectedCase);
     return "";
   }
 
@@ -2743,6 +2785,9 @@ ${ungroupedSequenceText}
     { label: "Manage sequence groups", onClick: handleWorkspaceOpenSequenceGroups },
     { label: "Missing Function Summaries", onClick: () => openAiTool("missing-function-summaries") },
     { label: "Ungrouped Incidents Audit", onClick: () => openAiTool("ungrouped-incidents-audit") },
+    { label: "Ungrouped Evidence Audit", onClick: () => openAiTool("ungrouped-evidence-audit") },
+    { label: "Weak Links Audit", onClick: () => openAiTool("weak-links-audit") },
+    { label: "Case Slice Pack", onClick: () => openAiTool("case-slice-pack") },
     { label: "Chain Completion Pack", onClick: () => openAiTool("chain-completion-pack") },
     { label: "Sequence Group Audit Export", onClick: handleWorkspaceOpenSequenceGroupAuditExport },
     { label: "Incident Date Repair Tool", onClick: handleWorkspaceOpenIncidentDateRepairTool },
@@ -2757,6 +2802,21 @@ ${ungroupedSequenceText}
       id: "ungrouped-incidents-audit",
       title: "Ungrouped Incidents Audit",
       description: "Incidents without a sequenceGroup, with linked context and existing group names.",
+    },
+    {
+      id: "ungrouped-evidence-audit",
+      title: "Ungrouped Evidence Audit",
+      description: "Evidence without a sequenceGroup, with resolved incident and record context.",
+    },
+    {
+      id: "weak-links-audit",
+      title: "Weak Links Audit",
+      description: "Broken, missing, orphaned, and weak link diagnostics with record summaries.",
+    },
+    {
+      id: "case-slice-pack",
+      title: "Case Slice Pack",
+      description: "A custom selected set of record IDs with directly linked context.",
     },
     {
       id: "chain-completion-pack",
@@ -5514,6 +5574,25 @@ ${ungroupedSequenceText}
                         </option>
                       ))}
                     </select>
+                  </label>
+                )}
+
+                {activeAiTool === "case-slice-pack" && (
+                  <label className="block">
+                    <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Selected record IDs</span>
+                    <textarea
+                      value={caseSliceRecordIdsText}
+                      onChange={(event) => {
+                        setCaseSliceRecordIdsText(event.target.value);
+                        setAiToolsFeedback("");
+                      }}
+                      rows={8}
+                      placeholder={'{"incidents":["inc-1"],"evidence":["ev-1"],"documents":["doc-1"],"strategy":[],"ledger":[]}\n\nor\nincidents: inc-1, inc-2\nevidence: ev-1'}
+                      className="mt-1 w-full resize-y rounded-lg border border-neutral-300 bg-white px-3 py-2 font-mono text-xs leading-5 text-neutral-800 outline-none focus:border-lime-500"
+                    />
+                    <p className="mt-2 text-xs leading-5 text-neutral-500">
+                      Use JSON arrays or one line per type: incidents, evidence, documents, strategy, ledger.
+                    </p>
                   </label>
                 )}
 
