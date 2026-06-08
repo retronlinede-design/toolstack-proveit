@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Tags } from "lucide-react";
 import { getLinkChipClasses } from "../linkChipStyles";
 import LinkedChip from "../LinkedChip";
@@ -8,6 +9,12 @@ import {
   getRecordTableHeaders,
   getRecordTypeLabel,
 } from "./trackingRecordHelpers";
+import {
+  buildAllTrackingRecordsGptExport,
+  buildTrackingRecordGptExport,
+} from "./recordsGptExport";
+
+const TRACKING_RECORD_PREVIEW_ROW_COUNT = 5;
 
 function renderCompactLinkRow(label, items, renderChip) {
   if (!items || items.length === 0) return null;
@@ -51,6 +58,7 @@ function renderSequenceGroupChip(value) {
 }
 
 export default function RecordsTab({
+  caseItem,
   trackingRecords,
   generatedLedgerEntries,
   onAddRecord,
@@ -62,6 +70,52 @@ export default function RecordsTab({
   getBasedOnEvidence,
   onOpenLinkedRecord,
 }) {
+  const [expandedRecordIds, setExpandedRecordIds] = useState({});
+  const [gptCopyFeedback, setGptCopyFeedback] = useState("");
+
+  function toggleRecordExpansion(recordId) {
+    setExpandedRecordIds((prev) => ({
+      ...prev,
+      [recordId]: !prev[recordId],
+    }));
+  }
+
+  async function copyText(text) {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "absolute";
+    textarea.style.left = "-9999px";
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textarea);
+  }
+
+  async function handleCopyRecordGptData(record, context) {
+    const payload = buildTrackingRecordGptExport(caseItem, record, context);
+    await copyText(JSON.stringify(payload, null, 2));
+    setGptCopyFeedback(`Copied GPT data for "${record.title}".`);
+  }
+
+  async function handleCopyAllRecordsGptData() {
+    const contextByRecordId = Object.fromEntries(trackingRecords.map((record) => [
+      record.id,
+      {
+        usedByIncidents: getUsedByIncidents(record.id),
+        basedOnEvidence: getBasedOnEvidence(record),
+      },
+    ]));
+    const payload = buildAllTrackingRecordsGptExport(caseItem, trackingRecords, contextByRecordId);
+    await copyText(JSON.stringify(payload, null, 2));
+    setGptCopyFeedback(`Copied ${trackingRecords.length} tracking record${trackingRecords.length === 1 ? "" : "s"} for GPT.`);
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -71,13 +125,28 @@ export default function RecordsTab({
             Table-based tracking records live here. Source documents stay in Documents.
           </p>
         </div>
-        <button
-          onClick={onAddRecord}
-          className="rounded-lg border border-blue-400 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md hover:bg-blue-50 transition-all active:scale-95"
-        >
-          Add Record
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={handleCopyAllRecordsGptData}
+            disabled={trackingRecords.length === 0}
+            className="rounded-lg border border-blue-300 bg-white px-3 py-1 text-sm font-bold text-blue-800 shadow-sm transition-all hover:bg-blue-50 active:scale-95 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:hover:bg-white"
+          >
+            Copy All Records for GPT
+          </button>
+          <button
+            onClick={onAddRecord}
+            className="rounded-lg border border-blue-400 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md hover:bg-blue-50 transition-all active:scale-95"
+          >
+            Add Record
+          </button>
+        </div>
       </div>
+
+      {gptCopyFeedback && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800">
+          {gptCopyFeedback}
+        </div>
+      )}
 
       <section className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -101,9 +170,15 @@ export default function RecordsTab({
             {trackingRecords.map((record) => {
               const tableRows = record.table || [];
               const tableHeaders = getRecordTableHeaders(tableRows);
-              const previewRows = tableRows.slice(0, 5);
+              const isExpanded = Boolean(expandedRecordIds[record.id]);
+              const hasHiddenRows = tableRows.length > TRACKING_RECORD_PREVIEW_ROW_COUNT;
+              const visibleRows = hasHiddenRows && !isExpanded
+                ? tableRows.slice(0, TRACKING_RECORD_PREVIEW_ROW_COUNT)
+                : tableRows;
+              const hiddenRowCount = Math.max(0, tableRows.length - TRACKING_RECORD_PREVIEW_ROW_COUNT);
               const usedByIncidents = getUsedByIncidents(record.id);
               const basedOnEvidence = getBasedOnEvidence(record);
+              const gptContext = { usedByIncidents, basedOnEvidence };
 
               return (
               <div key={record.id} className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
@@ -131,6 +206,13 @@ export default function RecordsTab({
                   </div>
 
                   <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleCopyRecordGptData(record, gptContext)}
+                      className="rounded-lg border border-blue-300 bg-white px-2 py-0.5 text-[10px] font-bold text-blue-800 shadow-sm hover:bg-blue-50 transition-colors"
+                    >
+                      Copy GPT Data
+                    </button>
                     <button
                       onClick={() => onViewPayments(record)}
                       className="rounded-lg border border-blue-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-blue-50 transition-colors"
@@ -196,7 +278,7 @@ export default function RecordsTab({
                   </div>
                 )}
 
-                {previewRows.length > 0 ? (
+                {visibleRows.length > 0 ? (
                   <div className="mt-4 overflow-x-auto rounded-xl border border-neutral-200">
                     <table className="min-w-full border-collapse text-left text-xs">
                       <thead className="bg-neutral-50 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
@@ -209,7 +291,7 @@ export default function RecordsTab({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-neutral-100 bg-white">
-                        {previewRows.map((row, index) => (
+                        {visibleRows.map((row, index) => (
                           <tr key={`${record.id}-row-${index}`} className="align-top">
                             {tableHeaders.map((header) => {
                               const value = row[header] || "";
@@ -222,7 +304,7 @@ export default function RecordsTab({
                                       {value}
                                     </span>
                                   ) : (
-                                    <span className={isDifference ? `font-semibold ${getDifferenceClasses(value)}` : ""}>
+                                    <span className={`break-words ${isDifference ? `font-semibold ${getDifferenceClasses(value)}` : ""}`}>
                                       {value || "â€”"}
                                     </span>
                                   )}
@@ -233,9 +315,21 @@ export default function RecordsTab({
                         ))}
                       </tbody>
                     </table>
-                    {tableRows.length > previewRows.length && (
-                      <div className="border-t border-neutral-100 bg-neutral-50 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
-                        {tableRows.length - previewRows.length} more row{tableRows.length - previewRows.length === 1 ? "" : "s"}
+                    {hasHiddenRows && (
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-neutral-100 bg-neutral-50 px-3 py-2">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+                          {isExpanded
+                            ? `Showing all ${tableRows.length} rows`
+                            : `${hiddenRowCount} more row${hiddenRowCount === 1 ? "" : "s"}`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleRecordExpansion(record.id)}
+                          className="rounded-md border border-blue-200 bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-700 hover:bg-blue-50"
+                          aria-expanded={isExpanded}
+                        >
+                          {isExpanded ? "Show less" : "Show more"}
+                        </button>
                       </div>
                     )}
                   </div>

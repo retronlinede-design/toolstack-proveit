@@ -4769,6 +4769,7 @@ ${ungroupedSequenceText}
 
             {activeTab === "records" && (
               <RecordsTab
+                caseItem={selectedCase}
                 trackingRecords={parsedTrackingRecords}
                 generatedLedgerEntries={derivedTrackingLedger}
                 onAddRecord={() => openDocumentModal({
