@@ -41,6 +41,7 @@ import {
   buildFullChainGptPack,
   buildManagementReportBuilderMarkdownPrompt,
   buildManagementReportBuilderPack,
+  buildManagementReportBuilderSpecialistPrompt,
   buildMissingFunctionSummaryMarkdownPrompt,
   buildMissingFunctionSummaryPack,
   buildUngroupedEvidenceAuditMarkdownPrompt,
@@ -1085,6 +1086,15 @@ export default function CaseDetail({
     return "";
   }
 
+  function buildAiToolSpecialistPrompt(toolId, groupName = aiToolsSequenceGroup) {
+    if (!selectedCase) return "";
+    if (toolId === "management-report-builder-pack") {
+      const selectedGroup = groupName === MANAGEMENT_REPORT_BUILDER_WHOLE_CASE ? "" : groupName;
+      return buildManagementReportBuilderSpecialistPrompt(selectedCase, selectedGroup);
+    }
+    return "";
+  }
+
   async function handleCopyAiToolJson(toolId = activeAiTool, groupName = aiToolsSequenceGroup) {
     if (!selectedCase) return;
     try {
@@ -1112,6 +1122,21 @@ export default function CaseDetail({
       console.error("Failed to copy AI markdown prompt", error);
       setAiToolsFeedback(error.message || "Could not copy AI markdown prompt.");
       setSequenceGroupFeedback("Could not copy AI markdown prompt.");
+    }
+  }
+
+  async function handleCopyAiToolSpecialistPrompt(toolId = activeAiTool, groupName = aiToolsSequenceGroup) {
+    if (!selectedCase) return;
+    try {
+      const prompt = buildAiToolSpecialistPrompt(toolId, groupName);
+      if (!prompt) return;
+      await copySequenceGroupText(prompt);
+      setAiToolsFeedback("AI specialist prompt copied.");
+      setSequenceGroupFeedback("AI specialist prompt copied.");
+    } catch (error) {
+      console.error("Failed to copy AI specialist prompt", error);
+      setAiToolsFeedback(error.message || "Could not copy AI specialist prompt.");
+      setSequenceGroupFeedback("Could not copy AI specialist prompt.");
     }
   }
 
@@ -5688,8 +5713,17 @@ ${ungroupedSequenceText}
                 onClick={() => handleCopyAiToolMarkdown()}
                 className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:text-neutral-400"
               >
-                Copy Markdown Prompt
+                Copy Plain Text / Markdown Prompt
               </button>
+              {activeAiToolUsesReportBuilderScope && (
+                <button
+                  type="button"
+                  onClick={() => handleCopyAiToolSpecialistPrompt()}
+                  className="rounded-md border border-sky-300 bg-white px-3 py-2 text-sm font-bold text-sky-800 hover:bg-sky-50"
+                >
+                  Copy Specialist Prompt
+                </button>
+              )}
             </div>
           </div>
         </div>

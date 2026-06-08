@@ -24,3 +24,12 @@ test("AI Tools modal supports Escape close and focus containment", () => {
   assert.match(source, /lastElement\.focus\(\)/);
   assert.match(source, /previouslyFocusedElement\.focus/);
 });
+
+test("AI Tools modal exposes specialist prompt only for management report builder pack", () => {
+  assert.match(source, /buildManagementReportBuilderSpecialistPrompt/);
+  assert.match(source, /function buildAiToolSpecialistPrompt/);
+  assert.match(source, /function handleCopyAiToolSpecialistPrompt/);
+  assert.match(source, /activeAiToolUsesReportBuilderScope && \(/);
+  assert.match(source, /Copy Specialist Prompt/);
+  assert.match(source, /Copy Plain Text \/ Markdown Prompt/);
+});

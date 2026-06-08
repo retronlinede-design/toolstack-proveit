@@ -10,6 +10,7 @@ import {
   buildFullChainGptPack,
   buildManagementReportBuilderMarkdownPrompt,
   buildManagementReportBuilderPack,
+  buildManagementReportBuilderSpecialistPrompt,
   buildMissingFunctionSummaryMarkdownPrompt,
   buildMissingFunctionSummaryPack,
   buildUngroupedEvidenceAuditMarkdownPrompt,
@@ -388,4 +389,37 @@ test("management report builder markdown prompt includes specialist report and v
   assert.match(prompt, /Do not invent facts/);
   assert.match(prompt, /Do not generate ProveIt delta JSON/);
   assert.match(prompt, /Unsupported or weak claims list/);
+});
+
+test("management report builder specialist prompt embeds selected pack and requires handoff-only analysis", () => {
+  const prompt = buildManagementReportBuilderSpecialistPrompt(buildCase(), "Repair Chain", {
+    limits: { documentTextChars: 50 },
+  });
+
+  assert.match(prompt, /Work & Labour \/ Management Analysis Specialist/);
+  assert.match(prompt, /Your job is not to write the final report/);
+  assert.match(prompt, /produce a Management Analysis Handoff for a Report Builder GPT/);
+  assert.match(prompt, /The ProveIt pack is the factual source/);
+  assert.match(prompt, /Do not invent facts/);
+  assert.match(prompt, /Do not invent evidence/);
+  assert.match(prompt, /Do not change record IDs/);
+  assert.match(prompt, /Do not generate ProveIt deltas/);
+  assert.match(prompt, /# Management Analysis Handoff/);
+  assert.match(prompt, /## Executive Narrative/);
+  assert.match(prompt, /## Management Position/);
+  assert.match(prompt, /## Why This Matters/);
+  assert.match(prompt, /## Key Themes/);
+  assert.match(prompt, /## Management Attention Required/);
+  assert.match(prompt, /## Strongest Positions/);
+  assert.match(prompt, /## Weakest Positions/);
+  assert.match(prompt, /## Risk Assessment/);
+  assert.match(prompt, /## Case Health Assessment/);
+  assert.match(prompt, /## Open Questions/);
+  assert.match(prompt, /## Report Builder Guidance/);
+  assert.match(prompt, /## Specialist Notes/);
+  assert.match(prompt, /"packType": "MANAGEMENT_REPORT_BUILDER_PACK"/);
+  assert.match(prompt, /"scope": \{\n      "type": "singleSequenceGroup",\n      "sequenceGroup": "Repair Chain"/);
+  assert.match(prompt, /"id": "ev-chain"/);
+  assert.doesNotMatch(prompt, /data:image/);
+  assert.doesNotMatch(prompt, /backupDataUrl/);
 });
