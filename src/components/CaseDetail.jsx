@@ -74,6 +74,7 @@ import DocumentsTab from "./caseDetail/DocumentsTab";
 import FloatingWorkspaceMenu from "./caseDetail/FloatingWorkspaceMenu";
 import LedgerTab from "./caseDetail/LedgerTab";
 import RecordsTab from "./caseDetail/RecordsTab";
+import { AI_TOOL_OPTIONS } from "./caseDetail/aiToolsConfig.js";
 import { sortChronological } from "./caseDetail/ledgerViewHelpers";
 import { toTimelineItems } from "./caseDetail/timelineItemHelpers";
 import {
@@ -86,6 +87,7 @@ import {
   isTrackingRecord,
   parseTrackingRecord,
 } from "./caseDetail/trackingRecordHelpers";
+import { buildFloatingToolActions } from "./caseDetail/workspaceToolActions.js";
 import { shouldShowFloatingWorkspaceMenu } from "./caseDetail/workspaceMenuVisibility.js";
 import {
   getSequenceGroupMetaForCase,
@@ -2789,55 +2791,13 @@ ${ungroupedSequenceText}
     { id: "ledger", label: "Ledger" },
     { id: "generate-report", label: "Reports" },
   ];
-  const floatingToolActions = [
-    { label: "Manage sequence groups", onClick: handleWorkspaceOpenSequenceGroups },
-    { label: "Missing Function Summaries", onClick: () => openAiTool("missing-function-summaries") },
-    { label: "Ungrouped Incidents Audit", onClick: () => openAiTool("ungrouped-incidents-audit") },
-    { label: "Ungrouped Evidence Audit", onClick: () => openAiTool("ungrouped-evidence-audit") },
-    { label: "Weak Links Audit", onClick: () => openAiTool("weak-links-audit") },
-    { label: "Case Slice Pack", onClick: () => openAiTool("case-slice-pack") },
-    { label: "Chain Completion Pack", onClick: () => openAiTool("chain-completion-pack") },
-    { label: "Full Chain GPT Pack", onClick: () => openAiTool("full-chain-gpt-pack") },
-    { label: "Sequence Group Audit Export", onClick: handleWorkspaceOpenSequenceGroupAuditExport },
-    { label: "Incident Date Repair Tool", onClick: handleWorkspaceOpenIncidentDateRepairTool },
-  ];
-  const aiToolOptions = [
-    {
-      id: "missing-function-summaries",
-      title: "Missing Function Summaries",
-      description: "Evidence records with missing or vague functionSummary fields.",
-    },
-    {
-      id: "ungrouped-incidents-audit",
-      title: "Ungrouped Incidents Audit",
-      description: "Incidents without a sequenceGroup, with linked context and existing group names.",
-    },
-    {
-      id: "ungrouped-evidence-audit",
-      title: "Ungrouped Evidence Audit",
-      description: "Evidence without a sequenceGroup, with resolved incident and record context.",
-    },
-    {
-      id: "weak-links-audit",
-      title: "Weak Links Audit",
-      description: "Broken, missing, orphaned, and weak link diagnostics with record summaries.",
-    },
-    {
-      id: "case-slice-pack",
-      title: "Case Slice Pack",
-      description: "A custom selected set of record IDs with directly linked context.",
-    },
-    {
-      id: "chain-completion-pack",
-      title: "Chain Completion Pack",
-      description: "One selected sequence group with scoped records, linked context, and diagnostics.",
-    },
-    {
-      id: "full-chain-gpt-pack",
-      title: "Full Chain GPT Pack",
-      description: "Complete bounded safe records for one sequence chain, including diagnostics and external linked records.",
-    },
-  ];
+  const floatingToolActions = buildFloatingToolActions({
+    handleWorkspaceOpenSequenceGroups,
+    handleWorkspaceOpenSequenceGroupAuditExport,
+    handleWorkspaceOpenIncidentDateRepairTool,
+    openAiTools: () => openAiTool(activeAiTool || "missing-function-summaries"),
+  });
+  const aiToolOptions = AI_TOOL_OPTIONS;
   const activeAiToolOption = aiToolOptions.find((tool) => tool.id === activeAiTool) || aiToolOptions[0];
 
   return (
