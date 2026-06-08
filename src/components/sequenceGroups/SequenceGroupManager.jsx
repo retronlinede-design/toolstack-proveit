@@ -10,9 +10,12 @@ import {
   getRelationshipRelationLabel,
   getRelationshipWarningLabel,
   getSequenceRecordKey,
+  getSequenceGroupStatus,
+  getSequenceGroupStatusClasses,
   getTimelineTypeClasses,
   safeSequenceText,
   sequenceRecordMatchesSearch,
+  summarizeSequenceGroups,
 } from "./sequenceGroupUiHelpers.js";
 import {
   clearSequenceGroupDescription,
@@ -158,6 +161,7 @@ export default function SequenceGroupManager({
   setSequenceTimelineSort,
 }) {
   const [sequenceDescriptionDraft, setSequenceDescriptionDraft] = useState("");
+  const [selectedSection, setSelectedSection] = useState("overview");
   const activeDescriptionGroupName = selectedGroupName || sequenceGroupDetails?.groups?.[0]?.name || "";
 
   useEffect(() => {
@@ -180,6 +184,11 @@ export default function SequenceGroupManager({
     ? getCaseSequenceGroupRelationshipMap(selectedCase, activeGroupName)
     : { nodes: [], edges: [], weakNodes: [], isolatedNodes: [], proofChains: [] };
   const groupOptions = sequenceGroupDetails.groups.map((group) => group.name);
+  const groupWeakLinkCounts = new Map(sequenceGroupDetails.groups.map((group) => [
+    group.name,
+    getCaseSequenceGroupRelationshipMap(selectedCase, group.name).weakNodes.length,
+  ]));
+  const totalWeakLinks = [...groupWeakLinkCounts.values()].reduce((sum, count) => sum + count, 0);
   const relationshipNodeById = new Map(selectedGroupRelationshipMap.nodes.map((node) => [node.id, node]));
   const relationshipWeakNodeIds = new Set(selectedGroupRelationshipMap.weakNodes.map((node) => node.id));
   const relationshipVisibleNodes = selectedGroupRelationshipMap.nodes.filter((node) => {
@@ -193,6 +202,14 @@ export default function SequenceGroupManager({
   );
   const ungroupedCount = Object.values(sequenceGroupDetails.ungroupedRecords)
     .reduce((sum, records) => sum + records.length, 0);
+  const managerSummary = summarizeSequenceGroups(
+    sequenceGroupDetails.groups.map((group) => ({ ...group, weakLinkCount: groupWeakLinkCounts.get(group.name) || 0 })),
+    ungroupedCount,
+    totalWeakLinks
+  );
+  const selectedGroupStatus = selectedGroup
+    ? getSequenceGroupStatus(selectedGroup, selectedGroupRelationshipMap.weakNodes.length)
+    : "empty";
   const selectedGroupSummaryCards = selectedGroup ? [
     ["Incidents", selectedGroup.counts.incidents],
     ["Assigned Evidence", selectedGroup.counts.evidence],
@@ -400,9 +417,9 @@ export default function SequenceGroupManager({
       <div className="flex max-h-[92vh] w-full max-w-7xl flex-col rounded-2xl bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-neutral-100 p-5">
           <div>
-            <h3 className="text-lg font-semibold text-neutral-900">Sequence Group Manager</h3>
+            <h3 className="text-lg font-semibold text-neutral-900">Sequence Groups</h3>
             <p className="mt-1 text-xs text-neutral-500">
-              Review, rename, merge, move, and assign records across incidents, evidence, documents, and strategy.
+              Scan chains, review records, and keep exports or cleanup actions in their own sections.
             </p>
           </div>
           <button
@@ -421,34 +438,21 @@ export default function SequenceGroupManager({
             </div>
           )}
 
-          <div className="mb-5 rounded-xl border border-lime-200 bg-lime-50 p-4 text-sm leading-6 text-lime-950">
-            A sequence group is a label applied to records. Renaming a group changes that label on all matching records. Removing a group label does not delete records.
+          <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              ["Groups", managerSummary.totalGroups],
+              ["Need review", managerSummary.groupsNeedingReview],
+              ["Ungrouped", managerSummary.ungroupedRecords],
+              ["Weak links / gaps", managerSummary.weakLinks],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{label}</div>
+                <div className="mt-0.5 text-lg font-semibold text-neutral-950">{value}</div>
+              </div>
+            ))}
           </div>
 
-          <div className="mb-5 flex flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Sequence Groups Index Report</h4>
-              <p className="mt-1 text-xs text-neutral-500">Export a compact overview of all sequence groups before choosing a chain to audit.</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={onDownloadGroupIndexJson}
-                className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
-              >
-                Download Group Index JSON
-              </button>
-              <button
-                type="button"
-                onClick={onDownloadGroupIndexMarkdown}
-                className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
-              >
-                Download Group Index Markdown
-              </button>
-            </div>
-          </div>
-
-          <div className="grid gap-5 lg:grid-cols-[18rem_1fr]">
+          <div className="grid gap-5 lg:grid-cols-[23rem_1fr]">
             <aside className="space-y-3">
               <input
                 value={search}
@@ -462,98 +466,72 @@ export default function SequenceGroupManager({
                   <p className="text-sm text-neutral-500">No sequence groups are used in this case.</p>
                 ) : (
                   <div className="space-y-2">
-                    {sequenceGroupDetails.groups.map((group) => (
-                      <div
-                        key={group.name}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => setSelectedGroupName(group.name)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            setSelectedGroupName(group.name);
-                          }
-                        }}
-                        className={`w-full rounded-lg border p-3 text-left transition-colors ${
-                          group.name === activeGroupName
-                            ? "border-lime-400 bg-white shadow-sm"
-                            : "border-neutral-200 bg-white hover:border-neutral-300"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-semibold text-neutral-950">{group.name}</div>
-                            <div className="mt-1 text-xs text-neutral-500">{group.totalCount} record{group.totalCount === 1 ? "" : "s"}</div>
+                    {sequenceGroupDetails.groups.map((group) => {
+                      const weakLinkCount = groupWeakLinkCounts.get(group.name) || 0;
+                      const status = getSequenceGroupStatus(group, weakLinkCount);
+                      const description = getSequenceGroupDescription(selectedCase.id, group.name);
+                      return (
+                        <div
+                          key={group.name}
+                          className={`rounded-lg border bg-white p-3 transition-colors ${
+                            group.name === activeGroupName ? "border-lime-400 shadow-sm" : "border-neutral-200"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedGroupName(group.name);
+                                setSelectedSection("overview");
+                              }}
+                              className="min-w-0 flex-1 text-left"
+                            >
+                              <div className="truncate text-sm font-semibold text-neutral-950">{group.name}</div>
+                              {description ? (
+                                <p className="mt-1 line-clamp-2 text-xs leading-5 text-neutral-500">{description}</p>
+                              ) : (
+                                <p className="mt-1 text-xs italic text-neutral-400">No description.</p>
+                              )}
+                            </button>
+                            <span className={`shrink-0 rounded border px-2 py-0.5 text-[10px] font-bold uppercase ${getSequenceGroupStatusClasses(status)}`}>
+                              {status}
+                            </span>
                           </div>
-                          <div className="flex flex-col items-end gap-1">
-                            {group.warnings.noIncidents && (
-                              <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-700">No incidents</span>
-                            )}
-                            {group.warnings.incidentsWithoutEvidence && (
-                              <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-700">No evidence</span>
+                          <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                            <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5">I {group.counts.incidents}</span>
+                            <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5">E {group.counts.evidence}</span>
+                            <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5">Records {group.totalCount}</span>
+                            {weakLinkCount > 0 && (
+                              <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-700">Gaps {weakLinkCount}</span>
                             )}
                           </div>
+                          <div className="mt-3 flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedGroupName(group.name);
+                                setSelectedSection("overview");
+                              }}
+                              className="rounded-md border border-lime-500 bg-lime-400/20 px-3 py-1.5 text-xs font-bold text-neutral-900 hover:bg-lime-400/30"
+                            >
+                              Open
+                            </button>
+                            <details className="relative">
+                              <summary className="cursor-pointer rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-xs font-bold text-neutral-700 hover:bg-neutral-50">
+                                More
+                              </summary>
+                              <div className="absolute right-0 z-20 mt-2 w-52 rounded-lg border border-neutral-200 bg-white p-2 shadow-xl">
+                                <button type="button" onClick={() => onCopyFullChainGptPackMarkdown?.(group.name)} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Full Chain GPT Pack</button>
+                                <button type="button" onClick={() => onCopyChainCompletionPackMarkdown?.(group.name)} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Chain Completion Pack</button>
+                                <button type="button" onClick={() => onOpenAuditExport?.(group.name)} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Audit Chain</button>
+                                <button type="button" onClick={() => onCopyFullChainGptPackJson?.(group.name)} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Export Full Chain</button>
+                                <button type="button" onClick={() => onCopyChainCompletionPackJson?.(group.name)} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Export Chain Pack</button>
+                              </div>
+                            </details>
+                          </div>
                         </div>
-                        <div className="mt-2 grid grid-cols-2 gap-1 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                          <span>Incidents {group.counts.incidents}</span>
-                          <span>Evidence {group.counts.evidence}</span>
-                          <span>Docs {group.counts.documents}</span>
-                          <span>Strategy {group.counts.strategy}</span>
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onOpenAuditExport?.(group.name);
-                            }}
-                            className="rounded-md border border-neutral-300 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 hover:bg-neutral-50"
-                          >
-                            Audit Chain
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onCopyChainCompletionPackMarkdown?.(group.name);
-                            }}
-                            className="rounded-md border border-neutral-300 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 hover:bg-neutral-50"
-                          >
-                            Chain Completion Pack
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onCopyChainCompletionPackJson?.(group.name);
-                            }}
-                            className="rounded-md border border-neutral-300 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 hover:bg-neutral-50"
-                          >
-                            Export Chain Pack
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onCopyFullChainGptPackMarkdown?.(group.name);
-                            }}
-                            className="rounded-md border border-neutral-300 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 hover:bg-neutral-50"
-                          >
-                            Full Chain GPT Pack
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onCopyFullChainGptPackJson?.(group.name);
-                            }}
-                            className="rounded-md border border-neutral-300 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 hover:bg-neutral-50"
-                          >
-                            Export Full Chain
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -564,145 +542,80 @@ export default function SequenceGroupManager({
                 {selectedGroup ? (
                   <>
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                      <div>
+                      <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <SequenceGroupChip value={selectedGroup.name} />
-                          <span className="text-sm font-semibold text-neutral-900">{selectedGroup.totalCount} records</span>
-                          {selectedGroup.warnings.noIncidents && <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">No incidents</span>}
-                          {selectedGroup.warnings.incidentsWithoutEvidence && <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">Incidents but no evidence</span>}
+                          <span className={`rounded border px-2 py-0.5 text-[10px] font-bold uppercase ${getSequenceGroupStatusClasses(selectedGroupStatus)}`}>{selectedGroupStatus}</span>
                         </div>
-                        <div className="mt-2 flex flex-wrap gap-3 text-xs text-neutral-600">
-                          <span>Incidents: {selectedGroup.counts.incidents}</span>
-                          <span>Evidence: {selectedGroup.counts.evidence}</span>
-                          <span>Documents: {selectedGroup.counts.documents}</span>
-                          <span>Strategy: {selectedGroup.counts.strategy}</span>
+                        <div className="mt-2 flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                          <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5">Incidents {selectedGroup.counts.incidents}</span>
+                          <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5">Evidence {selectedGroup.counts.evidence}</span>
+                          <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5">Docs {selectedGroup.counts.documents}</span>
+                          <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5">Records {selectedGroup.totalCount}</span>
                         </div>
                       </div>
-
-                      <div className="grid gap-2 lg:grid-cols-[auto_auto_auto_auto_auto_minmax(0,1fr)_auto_minmax(0,1fr)_auto_auto]">
-                        <button
-                          type="button"
-                          onClick={() => onOpenAuditExport?.(selectedGroup.name)}
-                          className="rounded-md border border-lime-500 bg-lime-400/20 px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
-                        >
-                          Audit Chain
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onCopyChainCompletionPackMarkdown?.(selectedGroup.name)}
-                          className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
-                        >
-                          Chain Completion Pack
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onCopyChainCompletionPackJson?.(selectedGroup.name)}
-                          className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
-                        >
-                          Export Chain Pack
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onCopyFullChainGptPackMarkdown?.(selectedGroup.name)}
-                          className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
-                        >
-                          Full Chain GPT Pack
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onCopyFullChainGptPackJson?.(selectedGroup.name)}
-                          className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
-                        >
-                          Export Full Chain
-                        </button>
-                        <input
-                          value={sequenceRenameInputs[selectedGroup.name] || ""}
-                          onChange={(event) => {
-                            setSequenceRenameInputs((prev) => ({ ...prev, [selectedGroup.name]: event.target.value }));
-                            setSequenceGroupFeedback("");
-                          }}
-                          placeholder="Rename selected group"
-                          className="min-w-0 rounded-md border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-lime-500"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => onRenameGroup(selectedGroup.name)}
-                          className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
-                        >
-                          Rename
-                        </button>
-                        <select
-                          value={sequenceMoveInputs[`merge:${selectedGroup.name}`] || ""}
-                          onChange={(event) => setSequenceMoveInputs((prev) => ({ ...prev, [`merge:${selectedGroup.name}`]: event.target.value }))}
-                          className="min-w-0 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 outline-none focus:border-lime-500"
-                        >
-                          <option value="">Merge into...</option>
-                          {groupOptions.filter((name) => name !== selectedGroup.name).map((name) => (
-                            <option key={name} value={name}>{name}</option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          onClick={() => onMergeGroup(selectedGroup.name)}
-                          className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
-                        >
-                          Merge
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onRemoveGroup(selectedGroup)}
-                          className="rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-50"
-                        >
-                          Remove group label from all records
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onCopyFullChainGptPackMarkdown?.(selectedGroup.name)}
+                        className="w-fit rounded-md border border-lime-500 bg-lime-400/20 px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
+                      >
+                        Full Chain GPT Pack
+                      </button>
                     </div>
 
-                    <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                      {selectedGroupSummaryCards.map(([label, count]) => (
-                        <div key={label} className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{label}</div>
-                          <div className="mt-1 text-2xl font-semibold text-neutral-950">{count}</div>
-                        </div>
+                    <div className="mt-5 flex flex-wrap gap-2 border-b border-neutral-100 pb-3">
+                      {["overview", "records", "diagnostics", "ai tools", "exports", "edit"].map((section) => (
+                        <button
+                          key={section}
+                          type="button"
+                          onClick={() => setSelectedSection(section)}
+                          className={`rounded-md border px-3 py-1.5 text-xs font-bold capitalize ${
+                            selectedSection === section
+                              ? "border-lime-400 bg-lime-400/30 text-neutral-900"
+                              : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+                          }`}
+                        >
+                          {section}
+                        </button>
                       ))}
                     </div>
 
-                    <section className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-                      <label className="block">
-                        <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Sequence description</span>
-                        <textarea
-                          value={sequenceDescriptionDraft}
-                          onChange={(event) => {
-                            setSequenceDescriptionDraft(event.target.value);
-                            setSequenceGroupFeedback("");
-                          }}
-                          rows={3}
-                          className="mt-2 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm leading-6 text-neutral-800 outline-none focus:border-lime-500"
-                          placeholder="Briefly summarize what this thread is about."
-                        />
-                      </label>
-                      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <p className="text-xs text-neutral-500">Use this to summarize what this thread is about.</p>
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={saveSelectedGroupDescription}
-                            className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
-                          >
-                            Save
-                          </button>
-                          <button
-                            type="button"
-                            onClick={clearSelectedGroupDescription}
-                            className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
-                          >
-                            Clear
-                          </button>
-                        </div>
+                    {selectedSection === "overview" && (
+                      <div className="mt-5 space-y-4">
+                        <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Overview</h4>
+                          <p className="mt-2 text-sm leading-6 text-neutral-700">
+                            {sequenceDescriptionDraft.trim() || "No description has been saved for this sequence group."}
+                          </p>
+                          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                            {selectedGroupSummaryCards.map(([label, count]) => (
+                              <div key={label} className="rounded-lg border border-neutral-200 bg-white px-3 py-2">
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{label}</div>
+                                <div className="mt-0.5 text-lg font-semibold text-neutral-950">{count}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </section>
+                        <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Key Diagnostics</h4>
+                          {selectedGroupRelationshipMap.weakNodes.length === 0 && !selectedGroup.warnings.noIncidents && !selectedGroup.warnings.incidentsWithoutEvidence ? (
+                            <p className="mt-2 text-sm text-neutral-500">No major sequence-group diagnostics are flagged.</p>
+                          ) : (
+                            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-800">
+                              {selectedGroup.warnings.noIncidents && <li>No incidents are assigned to this group.</li>}
+                              {selectedGroup.warnings.incidentsWithoutEvidence && <li>One or more incidents have no linked evidence.</li>}
+                              {selectedGroupRelationshipMap.weakNodes.map((node) => (
+                                <li key={`${node.recordType}-${node.id}`}>{node.title}: {node.warningFlags.map(getRelationshipWarningLabel).join(", ")}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </section>
                       </div>
-                    </section>
+                    )}
 
-                    <section className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                    {selectedSection === "records" && (
+                      <div className="mt-5 space-y-4">
+                        <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Timeline</h4>
@@ -761,9 +674,32 @@ export default function SequenceGroupManager({
                           </div>
                         )}
                       </div>
-                    </section>
+                        </section>
 
-                    <section className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                        <div className="grid gap-4 xl:grid-cols-2">
+                          {Object.entries(SEQUENCE_GROUP_TYPE_LABELS).map(([recordType, label]) => {
+                            const records = (selectedGroup.records[recordType] || []).filter((record) => sequenceRecordMatchesSearch(record, normalizedSearch));
+                            return (
+                              <details key={recordType} open={records.length > 0} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                                <summary className="cursor-pointer text-xs font-bold uppercase tracking-wider text-neutral-500">
+                                  {label} ({records.length})
+                                </summary>
+                                <div className="mt-3 space-y-2">
+                                  {records.length === 0 ? (
+                                    <p className="rounded-lg border border-dashed border-neutral-200 bg-white p-3 text-sm text-neutral-500">
+                                      {(selectedGroup.records[recordType] || []).length === 0 ? "No records in this group." : "No matching records for this search."}
+                                    </p>
+                                  ) : records.map((record) => renderRecordCard(record, true))}
+                                </div>
+                              </details>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedSection === "diagnostics" && (
+                      <section className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
                       <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                         <div>
                           <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Links and Evidence</h4>
@@ -860,28 +796,106 @@ export default function SequenceGroupManager({
                           )}
                         </aside>
                       </div>
-                    </section>
+                      </section>
+                    )}
 
-                    <div className="mt-5 grid gap-4 xl:grid-cols-2">
-                      {Object.entries(SEQUENCE_GROUP_TYPE_LABELS).map(([recordType, label]) => {
-                        const records = (selectedGroup.records[recordType] || []).filter((record) => sequenceRecordMatchesSearch(record, normalizedSearch));
-                        return (
-                          <section key={recordType} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-                            <div className="mb-3 flex items-center justify-between gap-2">
-                              <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">{label}</h4>
-                              <span className="text-xs font-semibold text-neutral-500">{records.length}</span>
-                            </div>
-                            <div className="space-y-2">
-                              {records.length === 0 ? (
-                                <p className="rounded-lg border border-dashed border-neutral-200 bg-white p-3 text-sm text-neutral-500">
-                                  {(selectedGroup.records[recordType] || []).length === 0 ? "No records in this group." : "No matching records for this search."}
-                                </p>
-                              ) : records.map((record) => renderRecordCard(record, true))}
-                            </div>
-                          </section>
-                        );
-                      })}
-                    </div>
+                    {selectedSection === "ai tools" && (
+                      <section className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">AI Tools</h4>
+                        <div className="mt-4 grid gap-3 md:grid-cols-3">
+                          <button
+                            type="button"
+                            onClick={() => onCopyFullChainGptPackMarkdown?.(selectedGroup.name)}
+                            className="rounded-lg border border-lime-500 bg-white p-3 text-left text-sm font-bold text-neutral-900 hover:bg-lime-400/20"
+                          >
+                            Full Chain GPT Pack
+                            <span className="mt-1 block text-xs font-medium leading-5 text-neutral-500">Complete bounded chain review prompt.</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onCopyChainCompletionPackMarkdown?.(selectedGroup.name)}
+                            className="rounded-lg border border-neutral-300 bg-white p-3 text-left text-sm font-bold text-neutral-700 hover:bg-neutral-50"
+                          >
+                            Chain Completion Pack
+                            <span className="mt-1 block text-xs font-medium leading-5 text-neutral-500">Focused chain gaps and completion prompt.</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onOpenAuditExport?.(selectedGroup.name)}
+                            className="rounded-lg border border-neutral-300 bg-white p-3 text-left text-sm font-bold text-neutral-700 hover:bg-neutral-50"
+                          >
+                            Audit Chain
+                            <span className="mt-1 block text-xs font-medium leading-5 text-neutral-500">Open the existing audit export workflow.</span>
+                          </button>
+                        </div>
+                      </section>
+                    )}
+
+                    {selectedSection === "exports" && (
+                      <section className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Exports</h4>
+                        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                          <button type="button" onClick={() => onCopyFullChainGptPackJson?.(selectedGroup.name)} className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">Export Full Chain JSON</button>
+                          <button type="button" onClick={() => onCopyFullChainGptPackMarkdown?.(selectedGroup.name)} className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">Export Full Chain Markdown</button>
+                          <button type="button" onClick={() => onCopyChainCompletionPackJson?.(selectedGroup.name)} className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">Export Chain JSON</button>
+                          <button type="button" onClick={() => onCopyChainCompletionPackMarkdown?.(selectedGroup.name)} className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">Export Chain Markdown</button>
+                          <button type="button" onClick={onDownloadGroupIndexJson} className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">Group Index JSON</button>
+                          <button type="button" onClick={onDownloadGroupIndexMarkdown} className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">Group Index Markdown</button>
+                        </div>
+                      </section>
+                    )}
+
+                    {selectedSection === "edit" && (
+                      <div className="mt-5 space-y-4">
+                        <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                          <label className="block">
+                            <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Sequence description</span>
+                            <textarea
+                              value={sequenceDescriptionDraft}
+                              onChange={(event) => {
+                                setSequenceDescriptionDraft(event.target.value);
+                                setSequenceGroupFeedback("");
+                              }}
+                              rows={3}
+                              className="mt-2 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm leading-6 text-neutral-800 outline-none focus:border-lime-500"
+                              placeholder="Briefly summarize what this thread is about."
+                            />
+                          </label>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button type="button" onClick={saveSelectedGroupDescription} className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30">Save description</button>
+                            <button type="button" onClick={clearSelectedGroupDescription} className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">Clear description</button>
+                          </div>
+                        </section>
+
+                        <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Rename / Merge / Clear</h4>
+                          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_auto]">
+                            <input
+                              value={sequenceRenameInputs[selectedGroup.name] || ""}
+                              onChange={(event) => {
+                                setSequenceRenameInputs((prev) => ({ ...prev, [selectedGroup.name]: event.target.value }));
+                                setSequenceGroupFeedback("");
+                              }}
+                              placeholder="Rename selected group"
+                              className="min-w-0 rounded-md border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-lime-500"
+                            />
+                            <button type="button" onClick={() => onRenameGroup(selectedGroup.name)} className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30">Rename</button>
+                            <select
+                              value={sequenceMoveInputs[`merge:${selectedGroup.name}`] || ""}
+                              onChange={(event) => setSequenceMoveInputs((prev) => ({ ...prev, [`merge:${selectedGroup.name}`]: event.target.value }))}
+                              className="min-w-0 rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-700 outline-none focus:border-lime-500"
+                            >
+                              <option value="">Merge into...</option>
+                              {groupOptions.filter((name) => name !== selectedGroup.name).map((name) => (
+                                <option key={name} value={name}>{name}</option>
+                              ))}
+                            </select>
+                            <button type="button" onClick={() => onMergeGroup(selectedGroup.name)} className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">Merge</button>
+                            <button type="button" onClick={() => onRemoveGroup(selectedGroup)} className="rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-50">Clear group label</button>
+                          </div>
+                        </section>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-500">

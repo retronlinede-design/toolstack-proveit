@@ -4,7 +4,10 @@ import {
   getRelationshipRelationLabel,
   getRelationshipWarningLabel,
   getSequenceRecordKey,
+  getSequenceGroupStatus,
+  getSequenceGroupStatusClasses,
   getTimelineTypeClasses,
+  summarizeSequenceGroups,
   sequenceRecordMatchesSearch,
 } from "./sequenceGroupUiHelpers.js";
 
@@ -14,6 +17,7 @@ test("sequence group UI helpers keep record keys and type classes stable", () =>
   assert.equal(getTimelineTypeClasses("evidence"), "border-lime-200 bg-lime-50 text-lime-700");
   assert.equal(getTimelineTypeClasses("documents"), "border-sky-200 bg-sky-50 text-sky-700");
   assert.equal(getTimelineTypeClasses("strategy"), "border-violet-200 bg-violet-50 text-violet-700");
+  assert.equal(getTimelineTypeClasses("ledger"), "border-violet-200 bg-violet-50 text-violet-700");
 });
 
 test("sequence group UI helpers map relationship labels", () => {
@@ -28,4 +32,28 @@ test("sequenceRecordMatchesSearch filters common display fields", () => {
   assert.equal(sequenceRecordMatchesSearch(record, ""), true);
   assert.equal(sequenceRecordMatchesSearch(record, "bank"), true);
   assert.equal(sequenceRecordMatchesSearch(record, "closed"), false);
+});
+
+test("sequence group UI helpers classify compact group statuses", () => {
+  assert.equal(getSequenceGroupStatus({ totalCount: 0, warnings: {} }, 0), "empty");
+  assert.equal(getSequenceGroupStatus({ totalCount: 3, warnings: {} }, 2), "weak proof");
+  assert.equal(getSequenceGroupStatus({ totalCount: 3, warnings: { incidentsWithoutEvidence: true } }, 0), "needs review");
+  assert.equal(getSequenceGroupStatus({ totalCount: 3, warnings: {} }, 0), "ready");
+  assert.match(getSequenceGroupStatusClasses("ready"), /lime/);
+  assert.match(getSequenceGroupStatusClasses("weak proof"), /amber/);
+});
+
+test("summarizeSequenceGroups returns compact manager metrics", () => {
+  const summary = summarizeSequenceGroups([
+    { totalCount: 2, warnings: {}, weakLinkCount: 0 },
+    { totalCount: 1, warnings: { noIncidents: true }, weakLinkCount: 0 },
+    { totalCount: 5, warnings: {}, weakLinkCount: 3 },
+  ], 4, 3);
+
+  assert.deepEqual(summary, {
+    totalGroups: 3,
+    groupsNeedingReview: 2,
+    ungroupedRecords: 4,
+    weakLinks: 3,
+  });
 });
