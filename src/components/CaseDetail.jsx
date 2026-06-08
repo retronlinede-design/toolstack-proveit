@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { AlertCircle, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, ShieldCheck, Tags } from "lucide-react";
 import proveItHeaderLogo from "../assets/proveitheader.png";
 import { isTimelineCapable, getCaseHealthReport } from "../lib/caseHealth";
@@ -203,6 +203,7 @@ export default function CaseDetail({
   const [aiToolsSequenceGroup, setAiToolsSequenceGroup] = useState("");
   const [aiToolsFeedback, setAiToolsFeedback] = useState("");
   const [caseSliceRecordIdsText, setCaseSliceRecordIdsText] = useState("");
+  const aiToolsModalRef = useRef(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [timelineView, setTimelineView] = useState("all");
   const [timelineMilestonesOnly, setTimelineMilestonesOnly] = useState(false);
@@ -454,6 +455,64 @@ export default function CaseDetail({
       },
     };
   }, [selectedCase, reportCentreScope]);
+
+  useEffect(() => {
+    if (!aiToolsOpen) return undefined;
+
+    const previouslyFocusedElement = document.activeElement;
+    const focusableSelector = [
+      "button:not([disabled])",
+      "select:not([disabled])",
+      "textarea:not([disabled])",
+      "input:not([disabled])",
+      "a[href]",
+      "[tabindex]:not([tabindex='-1'])",
+    ].join(",");
+
+    function getFocusableElements() {
+      return Array.from(aiToolsModalRef.current?.querySelectorAll(focusableSelector) || [])
+        .filter((element) => element.offsetParent !== null || element === document.activeElement);
+    }
+
+    function handleAiToolsKeyDown(event) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setAiToolsOpen(false);
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+      const focusableElements = getFocusableElements();
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        aiToolsModalRef.current?.focus();
+        return;
+      }
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    }
+
+    const focusTimer = window.setTimeout(() => {
+      const focusableElements = getFocusableElements();
+      (focusableElements[0] || aiToolsModalRef.current)?.focus();
+    }, 0);
+
+    document.addEventListener("keydown", handleAiToolsKeyDown);
+
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", handleAiToolsKeyDown);
+      if (previouslyFocusedElement?.focus) previouslyFocusedElement.focus();
+    };
+  }, [aiToolsOpen]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -5489,11 +5548,18 @@ ${ungroupedSequenceText}
       )}
 
       {aiToolsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 print:hidden">
-          <div className="w-full max-w-4xl rounded-2xl bg-white shadow-xl">
-            <div className="flex items-start justify-between gap-4 border-b border-neutral-100 p-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/30 p-2 print:hidden sm:p-4">
+          <div
+            ref={aiToolsModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ai-tools-modal-title"
+            tabIndex={-1}
+            className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl outline-none"
+          >
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-neutral-100 bg-white p-4 sm:p-5">
               <div>
-                <h3 className="text-lg font-semibold text-neutral-900">AI Tools</h3>
+                <h3 id="ai-tools-modal-title" className="text-lg font-semibold text-neutral-900">AI Tools</h3>
                 <p className="mt-1 text-xs text-neutral-500">
                   Copy focused, non-importable GPT work packs. These tools do not generate deltas or modify case data.
                 </p>
@@ -5501,13 +5567,13 @@ ${ungroupedSequenceText}
               <button
                 type="button"
                 onClick={() => setAiToolsOpen(false)}
-                className="rounded-md border border-neutral-200 px-2 py-1 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
+                className="sticky top-0 shrink-0 rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
               >
                 Close
               </button>
             </div>
 
-            <div className="grid gap-0 md:grid-cols-[17rem_1fr]">
+            <div className="grid min-h-0 flex-1 overflow-y-auto overscroll-contain md:grid-cols-[17rem_1fr]">
               <aside className="border-b border-neutral-100 p-4 md:border-b-0 md:border-r">
                 <div className="space-y-2">
                   {aiToolOptions.map((tool) => (
@@ -5536,7 +5602,7 @@ ${ungroupedSequenceText}
                 </div>
               </aside>
 
-              <section className="space-y-4 p-5">
+              <section className="space-y-4 p-4 sm:p-5">
                 {aiToolsFeedback && (
                   <div className="rounded-md border border-lime-200 bg-lime-50 p-3 text-sm font-medium text-lime-800">
                     {aiToolsFeedback}
@@ -5604,25 +5670,26 @@ ${ungroupedSequenceText}
                   </ul>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    disabled={activeAiToolNeedsSequenceGroup && !aiToolsSequenceGroup}
-                    onClick={() => handleCopyAiToolJson()}
-                    className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:hover:bg-white"
-                  >
-                    Copy JSON
-                  </button>
-                  <button
-                    type="button"
-                    disabled={activeAiToolNeedsSequenceGroup && !aiToolsSequenceGroup}
-                    onClick={() => handleCopyAiToolMarkdown()}
-                    className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:text-neutral-400"
-                  >
-                    Copy Markdown Prompt
-                  </button>
-                </div>
               </section>
+            </div>
+
+            <div className="flex shrink-0 flex-wrap gap-2 border-t border-neutral-100 bg-white p-4 sm:px-5">
+              <button
+                type="button"
+                disabled={activeAiToolNeedsSequenceGroup && !aiToolsSequenceGroup}
+                onClick={() => handleCopyAiToolJson()}
+                className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:hover:bg-white"
+              >
+                Copy JSON
+              </button>
+              <button
+                type="button"
+                disabled={activeAiToolNeedsSequenceGroup && !aiToolsSequenceGroup}
+                onClick={() => handleCopyAiToolMarkdown()}
+                className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:text-neutral-400"
+              >
+                Copy Markdown Prompt
+              </button>
             </div>
           </div>
         </div>
