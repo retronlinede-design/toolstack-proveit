@@ -15,6 +15,14 @@ test("AI Tools modal is viewport constrained with visible header and footer acti
   assert.match(source, /flex shrink-0 flex-wrap gap-2 border-t/);
 });
 
+test("AI modal is presented as a sectioned AI Workspace", () => {
+  assert.match(source, /AI Workspace/);
+  assert.match(source, /AI command center/);
+  assert.match(source, /aiWorkspaceSections\.map/);
+  assert.match(source, /section\.toolIds\.map/);
+  assert.match(source, /SectionIcon/);
+});
+
 test("AI Tools modal supports Escape close and focus containment", () => {
   assert.match(source, /function handleAiToolsKeyDown/);
   assert.match(source, /event\.key === "Escape"/);

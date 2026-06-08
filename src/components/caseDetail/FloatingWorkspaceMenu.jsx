@@ -9,6 +9,7 @@ export default function FloatingWorkspaceMenu({
   toolActions,
   onClose,
   onNavigate,
+  onOpenAiWorkspace,
   onBackToTop,
   onToggleOpen,
 }) {
@@ -86,6 +87,15 @@ export default function FloatingWorkspaceMenu({
           </div>
         </>
       )}
+
+      <button
+        type="button"
+        onClick={onOpenAiWorkspace}
+        className="relative z-10 mb-2 ml-auto flex min-h-11 items-center gap-3 rounded-full border border-sky-300 bg-sky-950 px-4 py-2 text-sm font-bold text-white shadow-xl transition-all hover:bg-sky-900 active:scale-95"
+      >
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-300 text-xs font-black text-sky-950">AI</span>
+        <span>AI Workspace</span>
+      </button>
 
       <button
         type="button"

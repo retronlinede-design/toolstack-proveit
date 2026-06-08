@@ -40,3 +40,46 @@ export const AI_TOOL_OPTIONS = [
     description: "A custom selected set of record IDs with directly linked context.",
   },
 ];
+
+export const AI_WORKSPACE_SECTIONS = [
+  {
+    id: "report-building",
+    title: "Report Building",
+    icon: "FileText",
+    description: "Prepare management-facing report handoffs and final report-builder prompts.",
+    toolIds: ["management-report-builder-pack"],
+  },
+  {
+    id: "audits-reviews",
+    title: "Audits & Reviews",
+    icon: "Search",
+    description: "Find missing summaries, ungrouped records, weak links, and cleanup targets.",
+    toolIds: [
+      "missing-function-summaries",
+      "ungrouped-incidents-audit",
+      "ungrouped-evidence-audit",
+      "weak-links-audit",
+    ],
+  },
+  {
+    id: "gpt-exports",
+    title: "GPT Exports",
+    icon: "Download",
+    description: "Copy bounded, non-importable GPT work packs for selected case slices or chains.",
+    toolIds: ["case-slice-pack", "full-chain-gpt-pack"],
+  },
+  {
+    id: "sequence-group-ai",
+    title: "Sequence Group AI",
+    icon: "Network",
+    description: "Review and complete sequence chains using focused chain diagnostics.",
+    toolIds: ["chain-completion-pack", "full-chain-gpt-pack"],
+  },
+  {
+    id: "specialist-workflows",
+    title: "Specialist Workflows",
+    icon: "Briefcase",
+    description: "Route management report packs through specialist analysis before final drafting.",
+    toolIds: ["management-report-builder-pack"],
+  },
+];
