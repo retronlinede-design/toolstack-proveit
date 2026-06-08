@@ -6,6 +6,8 @@ import {
   buildCaseSlicePack,
   buildChainCompletionMarkdownPrompt,
   buildChainCompletionPack,
+  buildFullChainGptMarkdownPrompt,
+  buildFullChainGptPack,
   buildMissingFunctionSummaryMarkdownPrompt,
   buildMissingFunctionSummaryPack,
   buildUngroupedEvidenceAuditMarkdownPrompt,
@@ -46,6 +48,7 @@ function buildCase() {
         description: "Grouped incident description",
         notes: "",
         linkedEvidenceIds: ["ev-chain"],
+        linkedRecordIds: ["doc-external"],
         sequenceGroup: "Repair Chain",
       },
       {
@@ -94,6 +97,13 @@ function buildCase() {
         description: "Chain evidence description",
         functionSummary: "proof",
         linkedIncidentIds: ["inc-chain"],
+        attachments: [{
+          id: "att-chain",
+          filename: "repair-photo.jpg",
+          fileType: "image/jpeg",
+          capturedAt: "2026-01-02T10:00:00Z",
+          dataUrl: "data:image/jpeg;base64,chain",
+        }],
         sequenceGroup: "Repair Chain",
       },
       {
@@ -126,6 +136,22 @@ function buildCase() {
         linkedRecordIds: ["inc-ungrouped"],
         attachments: [{ id: "doc-att", dataUrl: "data:bad" }],
         sequenceGroup: "Repair Chain",
+      },
+      {
+        id: "doc-chain-duplicate",
+        title: "Source document",
+        documentDate: "2026-01-04",
+        summary: "Possible duplicate document",
+        textContent: "Duplicate document text",
+        linkedRecordIds: [],
+        sequenceGroup: "Repair Chain",
+      },
+      {
+        id: "doc-external",
+        title: "External linked document",
+        documentDate: "2026-01-07",
+        textContent: "External document text",
+        linkedRecordIds: [],
       },
       {
         id: "doc-orphan",
@@ -262,6 +288,36 @@ test("case slice pack includes selected records plus directly linked context", (
   assert.equal(doc.textContent.label, "UNTRUSTED_SOURCE_MATERIAL");
 });
 
+test("full chain GPT pack includes complete safe chain records, external links, and diagnostics", () => {
+  const pack = buildFullChainGptPack(buildCase(), "Repair Chain", {
+    limits: { documentTextChars: 50 },
+    sequenceGroupMeta: {
+      "Repair Chain": {
+        description: "Repairs and proof chain.",
+      },
+    },
+  });
+
+  assertSafePack(pack);
+  assert.equal(pack.packType, "FULL_CHAIN_GPT_PACK");
+  assert.equal(pack.data.sequenceGroup.name, "Repair Chain");
+  assert.equal(pack.data.sequenceGroup.description, "Repairs and proof chain.");
+  assert.deepEqual(pack.data.incidents.map((record) => record.id), ["inc-chain", "inc-no-evidence"]);
+  assert.equal(pack.data.evidence.some((record) => record.id === "ev-chain"), true);
+  assert.equal(pack.data.evidence[0].attachmentInfo.count, 1);
+  assert.equal(pack.data.evidence[0].attachmentInfo.items[0].filename, "repair-photo.jpg");
+  assert.equal(pack.data.evidence[0].attachmentInfo.warning, "Attachment exists but readable extracted text is not available in this pack.");
+  assert.equal(pack.data.documents.find((record) => record.id === "doc-1").textContent.label, "UNTRUSTED_SOURCE_MATERIAL");
+  assert.ok(pack.data.documents.find((record) => record.id === "doc-1").textContent.excerpt.length <= 53);
+  assert.equal(pack.data.externalLinkedRecords.some((record) => record.id === "doc-external"), true);
+  assert.equal(pack.data.externalLinkedRecords.some((record) => record.id === "inc-ungrouped"), true);
+  assert.equal(pack.data.externalLinkedRecords.some((record) => record.id === "ev-no-incident"), false);
+  assert.equal(pack.data.diagnostics.incidentsWithoutEvidence.some((record) => record.id === "inc-no-evidence"), true);
+  assert.equal(pack.data.diagnostics.evidenceMissingFunctionSummary.some((record) => record.id === "ev-chain"), true);
+  assert.equal(pack.data.diagnostics.documentsWithoutProofLinks.some((record) => record.id === "doc-chain-duplicate"), true);
+  assert.equal(pack.data.diagnostics.duplicateCandidates.some((item) => item.recordIds.includes("doc-1") && item.recordIds.includes("doc-chain-duplicate")), true);
+});
+
 test("markdown prompts include required safety instructions", () => {
   const caseData = buildCase();
   const prompts = [
@@ -270,6 +326,7 @@ test("markdown prompts include required safety instructions", () => {
     buildUngroupedEvidenceAuditMarkdownPrompt(caseData),
     buildUngroupedIncidentsAuditMarkdownPrompt(caseData),
     buildChainCompletionMarkdownPrompt(caseData, "Repair Chain"),
+    buildFullChainGptMarkdownPrompt(caseData, "Repair Chain"),
     buildWeakLinksAuditMarkdownPrompt(caseData),
   ];
 

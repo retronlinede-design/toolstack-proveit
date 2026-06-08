@@ -37,6 +37,8 @@ import {
   buildCaseSlicePack,
   buildChainCompletionMarkdownPrompt,
   buildChainCompletionPack,
+  buildFullChainGptMarkdownPrompt,
+  buildFullChainGptPack,
   buildMissingFunctionSummaryMarkdownPrompt,
   buildMissingFunctionSummaryPack,
   buildUngroupedEvidenceAuditMarkdownPrompt,
@@ -989,6 +991,9 @@ export default function CaseDetail({
     if (toolId === "ungrouped-evidence-audit") return buildUngroupedEvidenceAuditPack(selectedCase);
     if (toolId === "ungrouped-incidents-audit") return buildUngroupedIncidentsAuditPack(selectedCase);
     if (toolId === "chain-completion-pack") return buildChainCompletionPack(selectedCase, groupName || sequenceGroups[0]?.name || "");
+    if (toolId === "full-chain-gpt-pack") return buildFullChainGptPack(selectedCase, groupName || sequenceGroups[0]?.name || "", {
+      sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
+    });
     if (toolId === "weak-links-audit") return buildWeakLinksAuditPack(selectedCase);
     return null;
   }
@@ -1000,6 +1005,9 @@ export default function CaseDetail({
     if (toolId === "ungrouped-evidence-audit") return buildUngroupedEvidenceAuditMarkdownPrompt(selectedCase);
     if (toolId === "ungrouped-incidents-audit") return buildUngroupedIncidentsAuditMarkdownPrompt(selectedCase);
     if (toolId === "chain-completion-pack") return buildChainCompletionMarkdownPrompt(selectedCase, groupName || sequenceGroups[0]?.name || "");
+    if (toolId === "full-chain-gpt-pack") return buildFullChainGptMarkdownPrompt(selectedCase, groupName || sequenceGroups[0]?.name || "", {
+      sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
+    });
     if (toolId === "weak-links-audit") return buildWeakLinksAuditMarkdownPrompt(selectedCase);
     return "";
   }
@@ -2789,6 +2797,7 @@ ${ungroupedSequenceText}
     { label: "Weak Links Audit", onClick: () => openAiTool("weak-links-audit") },
     { label: "Case Slice Pack", onClick: () => openAiTool("case-slice-pack") },
     { label: "Chain Completion Pack", onClick: () => openAiTool("chain-completion-pack") },
+    { label: "Full Chain GPT Pack", onClick: () => openAiTool("full-chain-gpt-pack") },
     { label: "Sequence Group Audit Export", onClick: handleWorkspaceOpenSequenceGroupAuditExport },
     { label: "Incident Date Repair Tool", onClick: handleWorkspaceOpenIncidentDateRepairTool },
   ];
@@ -2822,6 +2831,11 @@ ${ungroupedSequenceText}
       id: "chain-completion-pack",
       title: "Chain Completion Pack",
       description: "One selected sequence group with scoped records, linked context, and diagnostics.",
+    },
+    {
+      id: "full-chain-gpt-pack",
+      title: "Full Chain GPT Pack",
+      description: "Complete bounded safe records for one sequence chain, including diagnostics and external linked records.",
     },
   ];
   const activeAiToolOption = aiToolOptions.find((tool) => tool.id === activeAiTool) || aiToolOptions[0];
@@ -5555,7 +5569,7 @@ ${ungroupedSequenceText}
                   <p className="mt-1 text-sm leading-6 text-neutral-600">{activeAiToolOption.description}</p>
                 </div>
 
-                {activeAiTool === "chain-completion-pack" && (
+                {(activeAiTool === "chain-completion-pack" || activeAiTool === "full-chain-gpt-pack") && (
                   <label className="block">
                     <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Sequence group</span>
                     <select
@@ -5609,7 +5623,7 @@ ${ungroupedSequenceText}
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    disabled={activeAiTool === "chain-completion-pack" && !aiToolsSequenceGroup}
+                    disabled={(activeAiTool === "chain-completion-pack" || activeAiTool === "full-chain-gpt-pack") && !aiToolsSequenceGroup}
                     onClick={() => handleCopyAiToolJson()}
                     className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:hover:bg-white"
                   >
@@ -5617,7 +5631,7 @@ ${ungroupedSequenceText}
                   </button>
                   <button
                     type="button"
-                    disabled={activeAiTool === "chain-completion-pack" && !aiToolsSequenceGroup}
+                    disabled={(activeAiTool === "chain-completion-pack" || activeAiTool === "full-chain-gpt-pack") && !aiToolsSequenceGroup}
                     onClick={() => handleCopyAiToolMarkdown()}
                     className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:text-neutral-400"
                   >
@@ -5889,6 +5903,8 @@ ${ungroupedSequenceText}
           onClose={() => setSequenceGroupManagerOpen(false)}
           onCopyChainCompletionPackJson={(groupName) => handleCopyAiToolJson("chain-completion-pack", groupName)}
           onCopyChainCompletionPackMarkdown={(groupName) => handleCopyAiToolMarkdown("chain-completion-pack", groupName)}
+          onCopyFullChainGptPackJson={(groupName) => handleCopyAiToolJson("full-chain-gpt-pack", groupName)}
+          onCopyFullChainGptPackMarkdown={(groupName) => handleCopyAiToolMarkdown("full-chain-gpt-pack", groupName)}
           onCopyReviewPackage={handleCopySequenceGroupReviewPackage}
           onDownloadGroupIndexJson={handleDownloadSequenceGroupsIndexJson}
           onDownloadGroupIndexMarkdown={handleDownloadSequenceGroupsIndexMarkdown}

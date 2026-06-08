@@ -119,6 +119,8 @@ export default function SequenceGroupManager({
   onClose,
   onCopyChainCompletionPackJson,
   onCopyChainCompletionPackMarkdown,
+  onCopyFullChainGptPackJson,
+  onCopyFullChainGptPackMarkdown,
   onCopyReviewPackage,
   onDownloadGroupIndexJson,
   onDownloadGroupIndexMarkdown,
@@ -529,6 +531,26 @@ export default function SequenceGroupManager({
                           >
                             Export Chain Pack
                           </button>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onCopyFullChainGptPackMarkdown?.(group.name);
+                            }}
+                            className="rounded-md border border-neutral-300 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 hover:bg-neutral-50"
+                          >
+                            Full Chain GPT Pack
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onCopyFullChainGptPackJson?.(group.name);
+                            }}
+                            className="rounded-md border border-neutral-300 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 hover:bg-neutral-50"
+                          >
+                            Export Full Chain
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -557,7 +579,7 @@ export default function SequenceGroupManager({
                         </div>
                       </div>
 
-                      <div className="grid gap-2 lg:grid-cols-[auto_auto_auto_minmax(0,1fr)_auto_minmax(0,1fr)_auto_auto]">
+                      <div className="grid gap-2 lg:grid-cols-[auto_auto_auto_auto_auto_minmax(0,1fr)_auto_minmax(0,1fr)_auto_auto]">
                         <button
                           type="button"
                           onClick={() => onOpenAuditExport?.(selectedGroup.name)}
@@ -578,6 +600,20 @@ export default function SequenceGroupManager({
                           className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
                         >
                           Export Chain Pack
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onCopyFullChainGptPackMarkdown?.(selectedGroup.name)}
+                          className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
+                        >
+                          Full Chain GPT Pack
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onCopyFullChainGptPackJson?.(selectedGroup.name)}
+                          className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
+                        >
+                          Export Full Chain
                         </button>
                         <input
                           value={sequenceRenameInputs[selectedGroup.name] || ""}
