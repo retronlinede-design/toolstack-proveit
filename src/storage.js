@@ -6,9 +6,112 @@
 
 import { STORE_NAMES } from "./dbConstants.js";
 
+export const CORE_CASE_ARRAY_FIELDS = ["incidents", "evidence", "documents", "ledger", "strategy"];
+export const EMERGENCY_BACKUP_PREFIX = "toolstack.proveit.v1.emergencyBackup.";
+
 async function getDb() {
   const { dbPromise } = await import("./db.js");
   return dbPromise;
+}
+
+export function getCaseCoreCounts(caseItem = {}) {
+  return CORE_CASE_ARRAY_FIELDS.reduce((counts, field) => {
+    counts[field] = Array.isArray(caseItem?.[field]) ? caseItem[field].length : 0;
+    return counts;
+  }, {});
+}
+
+export function hasSuspiciousCoreArrayShrink(existingCase, incomingCase) {
+  if (!existingCase || !incomingCase?.id) return false;
+  return CORE_CASE_ARRAY_FIELDS.some((field) => {
+    const existingCount = Array.isArray(existingCase?.[field]) ? existingCase[field].length : 0;
+    if (existingCount === 0) return false;
+    const incomingCount = Array.isArray(incomingCase?.[field]) ? incomingCase[field].length : 0;
+    return incomingCount === 0;
+  });
+}
+
+function getStackTrace() {
+  try {
+    return new Error().stack || "";
+  } catch {
+    return "";
+  }
+}
+
+function logDestructiveOperation(operation, details = {}) {
+  console.warn("[ProveIt persistence]", {
+    operation,
+    ...details,
+    stack: getStackTrace(),
+  });
+}
+
+export function writeEmergencyBackupSnapshot({
+  operation = "unknown",
+  cases = [],
+  beforeCounts = null,
+  afterCounts = null,
+  caseId = "",
+} = {}) {
+  const sourceCases = Array.isArray(cases) ? cases : [];
+  if (sourceCases.length === 0) return null;
+
+  const timestamp = new Date().toISOString();
+  const snapshot = {
+    type: "PROVEIT_EMERGENCY_BACKUP",
+    operation,
+    timestamp,
+    caseId,
+    caseCount: sourceCases.length,
+    beforeCounts,
+    afterCounts,
+    cases: sourceCases,
+  };
+
+  try {
+    const key = `${EMERGENCY_BACKUP_PREFIX}${timestamp}.${operation}`;
+    localStorage.setItem(key, JSON.stringify(snapshot));
+    return { key, snapshot };
+  } catch (error) {
+    console.warn("[ProveIt persistence] emergency backup failed", {
+      operation,
+      caseId,
+      error,
+      stack: getStackTrace(),
+    });
+    return null;
+  }
+}
+
+export async function createEmergencyBackupFromDb(operation, { caseId = "", beforeCounts = null, afterCounts = null } = {}) {
+  try {
+    const cases = await getAllCases();
+    return writeEmergencyBackupSnapshot({ operation, cases, caseId, beforeCounts, afterCounts });
+  } catch (error) {
+    console.warn("[ProveIt persistence] could not read cases for emergency backup", {
+      operation,
+      caseId,
+      error,
+      stack: getStackTrace(),
+    });
+    return null;
+  }
+}
+
+async function createEmergencyBackupFromOpenDb(db, operation, { caseId = "", beforeCounts = null, afterCounts = null } = {}) {
+  try {
+    const cases = await db.getAll(STORE_NAMES.cases);
+    return writeEmergencyBackupSnapshot({ operation, cases, caseId, beforeCounts, afterCounts });
+  } catch (error) {
+    console.warn("[ProveIt persistence] could not read cases for emergency backup", {
+      operation,
+      caseId,
+      error,
+      stack: getStackTrace(),
+    });
+    return null;
+  }
 }
 
 export async function getAllCases() {
@@ -16,9 +119,52 @@ export async function getAllCases() {
   return db.getAll(STORE_NAMES.cases);
 }
 
-export async function saveCase(caseItem) {
-  const db = await getDb();
+export async function saveCaseToDb(db, caseItem, options = {}) {
+  const operation = options.operation || "saveCase";
+  const existingCase = caseItem?.id ? await db.get(STORE_NAMES.cases, caseItem.id) : null;
+  const beforeCounts = getCaseCoreCounts(existingCase);
+  const afterCounts = getCaseCoreCounts(caseItem);
+  const suspiciousShrink = hasSuspiciousCoreArrayShrink(existingCase, caseItem);
+
+  logDestructiveOperation(operation, {
+    caseId: caseItem?.id || "",
+    beforeCounts,
+    afterCounts,
+    suspiciousShrink,
+    override: options.allowSuspiciousOverwrite === true,
+  });
+
+  if (suspiciousShrink && options.allowSuspiciousOverwrite !== true) {
+    await createEmergencyBackupFromOpenDb(db, `${operation}:blocked-suspicious-overwrite`, {
+      caseId: caseItem.id,
+      beforeCounts,
+      afterCounts,
+    });
+    const error = new Error("Blocked suspicious ProveIt case overwrite: incoming case would erase non-empty core data arrays.");
+    console.warn("[ProveIt persistence] blocked suspicious case overwrite", {
+      operation,
+      caseId: caseItem.id,
+      beforeCounts,
+      afterCounts,
+      stack: getStackTrace(),
+    });
+    throw error;
+  }
+
+  if (suspiciousShrink) {
+    await createEmergencyBackupFromOpenDb(db, `${operation}:allowed-suspicious-overwrite`, {
+      caseId: caseItem.id,
+      beforeCounts,
+      afterCounts,
+    });
+  }
+
   return db.put(STORE_NAMES.cases, caseItem);
+}
+
+export async function saveCase(caseItem, options = {}) {
+  const db = await getDb();
+  return saveCaseToDb(db, caseItem, options);
 }
 
 function collectAttachmentImageIds(attachments, imageIds) {
@@ -88,6 +234,8 @@ export async function deleteCaseFromDb(db, caseId) {
 }
 
 export async function deleteCase(caseId) {
+  await createEmergencyBackupFromDb("deleteCase:before", { caseId });
+  logDestructiveOperation("deleteCase", { caseId });
   const db = await getDb();
   return deleteCaseFromDb(db, caseId);
 }

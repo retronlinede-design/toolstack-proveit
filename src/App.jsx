@@ -1,5 +1,14 @@
 import { useMemo, useRef, useState, useEffect } from "react";
-import { getAllCases, saveCase, deleteCase, saveImage, getImageById, collectEmbeddedCaseImageIds, deleteImages } from "./storage";
+import {
+  createEmergencyBackupFromDb,
+  getAllCases,
+  saveCase,
+  deleteCase,
+  saveImage,
+  getImageById,
+  collectEmbeddedCaseImageIds,
+  deleteImages,
+} from "./storage";
 import AttachmentPreview from "./components/AttachmentPreview";
 import RecordModal from "./components/RecordModal";
 import CaseDetail from "./components/CaseDetail";
@@ -1355,7 +1364,8 @@ export default function ProveItApp() {
 
   const applyValidatedGptDelta = async () => {
     try {
-      await saveCase(gptDeltaValidatedCase);
+      await createEmergencyBackupFromDb("gptDelta:before-apply", { caseId: gptDeltaValidatedCase?.id || "" });
+      await saveCase(gptDeltaValidatedCase, { operation: "gptDelta:apply" });
       setCases((prev) => prev.map((c) => (c.id === gptDeltaValidatedCase.id ? gptDeltaValidatedCase : c)));
       resetGptDeltaModal();
     } catch (error) {
@@ -1477,7 +1487,10 @@ export default function ProveItApp() {
 
     const updatedCase = deleteDocumentEntryFromCase(targetCase, entryId);
     try {
-      await saveCase(updatedCase);
+      await saveCase(updatedCase, {
+        operation: "deleteDocumentEntry",
+        allowSuspiciousOverwrite: true,
+      });
       setCases(prev => prev.map(c => (c.id === updatedCase.id ? updatedCase : c)));
     } catch (error) {
       console.error("Failed to delete document entry", error);
@@ -1496,7 +1509,10 @@ export default function ProveItApp() {
 
     const updatedCase = deleteLedgerEntryFromCase(targetCase, entryId);
     try {
-      await saveCase(updatedCase);
+      await saveCase(updatedCase, {
+        operation: "deleteLedgerEntry",
+        allowSuspiciousOverwrite: true,
+      });
       setCases(prev => prev.map(c => (c.id === updatedCase.id ? updatedCase : c)));
     } catch (error) {
       console.error("Failed to delete ledger entry", error);
@@ -2308,8 +2324,15 @@ export default function ProveItApp() {
   };
 
   const restoreBackupPayload = async (parsed, { source = "file" } = {}) => {
+    await createEmergencyBackupFromDb(`restoreBackupPayload:before:${source}`);
     const imported = parsed?.data || parsed;
     const exportType = parsed?.exportType;
+    console.warn("[ProveIt persistence] restore/import attempt", {
+      source,
+      exportType,
+      incomingCaseCount: Array.isArray(imported?.cases) ? imported.cases.length : null,
+      stack: new Error().stack,
+    });
 
     if (exportType === "CASE_REASONING_EXPORT" || parsed?.importable === false) {
       throw new Error("This is a reasoning export and not an importable backup.");
@@ -2508,8 +2531,15 @@ export default function ProveItApp() {
   };
 
   const restoreRescueSnapshot = async () => {
+    await createEmergencyBackupFromDb("rescueRestore:before");
     const rescue = readRescueSnapshot();
     setRescueSnapshot(rescue);
+    console.warn("[ProveIt persistence] rescue restore attempt", {
+      available: rescue.available,
+      corrupt: rescue.corrupt,
+      caseCount: rescue.caseCount || 0,
+      stack: new Error().stack,
+    });
 
     if (rescue.corrupt || !rescue.available || !rescue.snapshot?.data) {
       showAppNotice("error", "Rescue Snapshot unavailable/corrupt");
@@ -2657,7 +2687,10 @@ export default function ProveItApp() {
       const updatedCase = deleteRecordFromCase(selectedCase, recordType, recordId);
 
       try {
-        await saveCase(updatedCase);
+        await saveCase(updatedCase, {
+          operation: "deleteRecord",
+          allowSuspiciousOverwrite: true,
+        });
         setCases((prev) => prev.map((c) => (c.id === selectedCase.id ? updatedCase : c)));
       } catch (error) {
         console.error("Failed to save updated case", error);

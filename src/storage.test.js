@@ -2,8 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  EMERGENCY_BACKUP_PREFIX,
   collectEmbeddedCaseImageIds,
   deleteCaseFromDb,
+  saveCaseToDb,
 } from "./storage.js";
 
 function makeFakeDb({ cases = [], evidence = [], images = [] } = {}) {
@@ -30,7 +32,31 @@ function makeFakeDb({ cases = [], evidence = [], images = [] } = {}) {
       deleted.push({ storeName, id });
       stores[storeName].delete(id);
     },
+    async put(storeName, item) {
+      stores[storeName].set(item.id, item);
+      return item.id;
+    },
   };
+}
+
+async function withPersistenceStubs(callback) {
+  const originalLocalStorage = globalThis.localStorage;
+  const originalWarn = console.warn;
+  const values = new Map();
+  const warnings = [];
+
+  globalThis.localStorage = {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, String(value)),
+  };
+  console.warn = (...args) => warnings.push(args);
+
+  try {
+    return await callback({ values, warnings });
+  } finally {
+    globalThis.localStorage = originalLocalStorage;
+    console.warn = originalWarn;
+  }
 }
 
 function attachment(imageId) {
@@ -188,4 +214,68 @@ test("deleteCaseFromDb ignores missing and empty embedded attachment structures"
 
   assert.equal(db.stores.cases.has("case-1"), false);
   assert.equal(db.stores.images.has("doc-img"), false);
+});
+
+test("saveCaseToDb blocks suspicious overwrite that would erase non-empty core arrays", async () => {
+  await withPersistenceStubs(async ({ values, warnings }) => {
+    const existingCase = {
+      id: "case-1",
+      incidents: [{ id: "inc-1" }],
+      evidence: [{ id: "ev-1" }],
+      documents: [{ id: "doc-1" }],
+      ledger: [{ id: "ledger-1" }],
+      strategy: [{ id: "str-1" }],
+    };
+    const db = makeFakeDb({ cases: [existingCase] });
+
+    await assert.rejects(
+      saveCaseToDb(db, {
+        ...existingCase,
+        incidents: [],
+        evidence: [],
+        documents: [],
+        ledger: [],
+        strategy: [],
+      }),
+      /Blocked suspicious ProveIt case overwrite/
+    );
+
+    assert.deepEqual(db.stores.cases.get("case-1"), existingCase);
+    assert.equal([...values.keys()].some((key) => key.startsWith(EMERGENCY_BACKUP_PREFIX)), true);
+    assert.equal(warnings.some((entry) => String(entry[0]).includes("blocked suspicious case overwrite")), true);
+  });
+});
+
+test("saveCaseToDb allows explicit suspicious overwrite override and creates emergency backup", async () => {
+  await withPersistenceStubs(async ({ values }) => {
+    const existingCase = {
+      id: "case-1",
+      incidents: [{ id: "inc-1" }],
+      evidence: [{ id: "ev-1" }],
+      documents: [{ id: "doc-1" }],
+      ledger: [{ id: "ledger-1" }],
+      strategy: [{ id: "str-1" }],
+    };
+    const incomingCase = {
+      ...existingCase,
+      incidents: [],
+      evidence: [],
+      documents: [],
+      ledger: [],
+      strategy: [],
+    };
+    const db = makeFakeDb({ cases: [existingCase] });
+
+    await saveCaseToDb(db, incomingCase, {
+      operation: "test:explicit-overwrite",
+      allowSuspiciousOverwrite: true,
+    });
+
+    assert.deepEqual(db.stores.cases.get("case-1"), incomingCase);
+    const backupKeys = [...values.keys()].filter((key) => key.startsWith(EMERGENCY_BACKUP_PREFIX));
+    assert.equal(backupKeys.length, 1);
+    const backup = JSON.parse(values.get(backupKeys[0]));
+    assert.equal(backup.operation, "test:explicit-overwrite:allowed-suspicious-overwrite");
+    assert.equal(backup.caseCount, 1);
+  });
 });
