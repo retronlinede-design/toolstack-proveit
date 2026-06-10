@@ -33,6 +33,10 @@ import {
   exportSequenceGroupsIndexMarkdown,
 } from "../export/sequenceGroupsIndexExport.js";
 import {
+  exportGptProtocolPackJson,
+  exportGptProtocolPackMarkdown,
+} from "../export/gptProtocolPack.js";
+import {
   buildCaseSliceMarkdownPrompt,
   buildCaseSlicePack,
   buildChainCompletionMarkdownPrompt,
@@ -714,6 +718,21 @@ export default function CaseDetail({
     const casePart = (selectedCase?.id || selectedCase?.name || "case").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "case";
     const datePart = new Date().toISOString().slice(0, 10);
     return `proveit-sequence-groups-index-${casePart}-${datePart}.${extension}`;
+  }
+
+  function getGptProtocolPackFilename(extension) {
+    const datePart = new Date().toISOString().slice(0, 10);
+    return `proveit-gpt-protocol-pack-${datePart}.${extension}`;
+  }
+
+  function handleDownloadGptProtocolPackJson() {
+    const payload = exportGptProtocolPackJson();
+    downloadTextFile(JSON.stringify(payload, null, 2), getGptProtocolPackFilename("json"), "application/json");
+  }
+
+  function handleDownloadGptProtocolPackMarkdown() {
+    const markdown = exportGptProtocolPackMarkdown();
+    downloadTextFile(markdown, getGptProtocolPackFilename("md"), "text/markdown");
   }
 
   function handleDownloadSequenceGroupsIndexJson() {
@@ -2978,6 +2997,21 @@ ${ungroupedSequenceText}
                     className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50"
                   >
                     Copy Link Map JSON
+                  </button>
+                  <div className="mt-2 border-t border-neutral-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    Data / AI Reference
+                  </div>
+                  <button
+                    onClick={() => { handleDownloadGptProtocolPackJson(); setShowExportMenu(false); }}
+                    className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50"
+                  >
+                    Download GPT Protocol Pack JSON
+                  </button>
+                  <button
+                    onClick={() => { handleDownloadGptProtocolPackMarkdown(); setShowExportMenu(false); }}
+                    className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50"
+                  >
+                    Download GPT Protocol Pack Markdown
                   </button>
                   <div className="mt-2 border-t border-neutral-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                     Audit
