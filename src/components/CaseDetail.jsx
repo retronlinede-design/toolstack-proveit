@@ -378,6 +378,14 @@ export default function CaseDetail({
     if (!selectedCase) return null;
     return buildEvidencePackReport(selectedCase, reportCentreScope);
   }, [selectedCase, reportCentreScope]);
+  const reportCentreDocumentPackReport = useMemo(() => {
+    if (!selectedCase) return null;
+    return buildDocumentPackReport(selectedCase, reportCentreScope);
+  }, [selectedCase, reportCentreScope]);
+  const reportCentreLedgerPackReport = useMemo(() => {
+    if (!selectedCase) return null;
+    return buildLedgerPackReport(selectedCase, reportCentreScope);
+  }, [selectedCase, reportCentreScope]);
   const reportCentreInvestigationReport = useMemo(() => {
     if (!selectedCase) return null;
     if (reportCentreScope.scopeType === "sequenceGroup") {
@@ -3628,6 +3636,9 @@ ${ungroupedSequenceText}
                           ["management", "Management Report", "Concise professional report for managers, HR, and executives."],
                           ["investigation", "Investigation Report", "Detailed factual report for legal, specialist, or internal review."],
                           ["evidence", "Evidence Pack", "Evidence matrix and supporting material."],
+                          ["document", "Document Pack", "Source document matrix, linked records, and attachment metadata."],
+                          ["ledger", "Ledger Pack", "Financial, payment, and measurable record review."],
+                          ["client", "Client Report", "GPT-assisted client-facing report drafting and rendering."],
                           ["action", "Action Plan", "Outstanding issues, next steps, risks, and recommendations."],
                         ].map(([value, label, description]) => (
                           <button
@@ -3694,6 +3705,9 @@ ${ungroupedSequenceText}
                           ? "Uses the existing Thread / Issue Report builder for the selected sequence group."
                           : "Uses the existing Case Bundle builder for whole-case investigation scope.")}
                         {reportCentreType === "evidence" && "Uses the existing Evidence Pack builder."}
+                        {reportCentreType === "document" && "Uses the existing Document Pack builder."}
+                        {reportCentreType === "ledger" && "Uses the existing Ledger Pack builder."}
+                        {reportCentreType === "client" && "Uses the existing GPT-generated Client Report workflow and renderer."}
                         {reportCentreType === "action" && "Uses a deterministic Phase 1 action-plan placeholder from action summary and diagnostics."}
                       </p>
                     </div>
@@ -3734,6 +3748,137 @@ ${ungroupedSequenceText}
                           className="mx-auto max-w-6xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
                         />
                       )}
+                      {reportCentreType === "document" && (
+                        <DocumentPackReportArticle
+                          report={reportCentreDocumentPackReport}
+                          className="mx-auto max-w-6xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
+                        />
+                      )}
+                      {reportCentreType === "ledger" && (
+                        <LedgerPackReportArticle
+                          report={reportCentreLedgerPackReport}
+                          className="mx-auto max-w-6xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
+                        />
+                      )}
+                      {reportCentreType === "client" && (
+                        <div className="mx-auto max-w-5xl space-y-5">
+                          <div className="flex flex-col items-start gap-2 print:hidden">
+                            <div className="flex flex-wrap justify-start gap-2">
+                              <button
+                                type="button"
+                                onClick={() => copyGeneratedReportPrompt("en")}
+                                className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] transition-colors hover:bg-lime-400/30"
+                              >
+                                Copy GPT Prompt (EN)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => copyGeneratedReportPrompt("de")}
+                                className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] transition-colors hover:bg-lime-400/30"
+                              >
+                                Copy GPT Prompt (DE)
+                              </button>
+                            </div>
+                            {reportPromptFeedback ? (
+                              <p className="text-xs font-medium text-neutral-500">{reportPromptFeedback}</p>
+                            ) : null}
+                          </div>
+                          <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden">
+                            <div className="flex flex-col gap-3 border-b border-neutral-100 pb-3 sm:flex-row sm:items-start sm:justify-between">
+                              <div>
+                                <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Paste GPT-Generated Report Output</h4>
+                                <p className="mt-1 text-sm text-neutral-600">
+                                  Paste the GPT-generated {activeGeneratedReportLanguage.toUpperCase()} report for the selected report version. Do not paste the prompt itself. The pasted text should begin with `# REPORT_TITLE` and the report title section.
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-neutral-500">Report version</span>
+                                <div className="inline-flex rounded-lg border border-neutral-200 bg-neutral-50 p-1">
+                                  {REPORT_DISPLAY_LANGUAGES.map((language) => (
+                                    <button
+                                      key={language}
+                                      type="button"
+                                      onClick={() => handleGeneratedReportLanguageChange(language)}
+                                      className={`rounded-md px-2.5 py-1 text-xs font-bold uppercase transition-colors ${
+                                        activeGeneratedReportLanguage === language
+                                          ? "bg-lime-500 text-white shadow-sm"
+                                          : "text-neutral-600 hover:bg-white"
+                                      }`}
+                                    >
+                                      {language}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                            <textarea
+                              value={generatedReportDraft}
+                              onChange={(event) => setGeneratedReportDraft(event.target.value)}
+                              rows={18}
+                              className="mt-4 w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 font-mono text-sm leading-6 text-neutral-800 outline-none transition-colors focus:border-lime-500 focus:bg-white"
+                              placeholder={`# REPORT_TITLE\nClient Report\n\n# YOUR_SITUATION\n...`}
+                            />
+                            {generatedReportLooksLikePrompt && (
+                              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+                                This looks like the GPT prompt, not the generated report output. Paste the report that GPT returned, starting with `# REPORT_TITLE`.
+                              </div>
+                            )}
+                            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                              <p className="text-xs text-neutral-500">
+                                The parser reads only the known ProveIt Report Format v1 sections and ignores everything else.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={handleRenderGeneratedReport}
+                                className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] transition-colors hover:bg-lime-400/30"
+                              >
+                                Save & Render {activeGeneratedReportLanguage.toUpperCase()} Report
+                              </button>
+                            </div>
+                          </section>
+
+                          <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+                            <div className="flex flex-col gap-3 border-b border-neutral-100 pb-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
+                              <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Rendered Report</h4>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-neutral-500">Report version</span>
+                                <div className="inline-flex rounded-lg border border-neutral-200 bg-neutral-50 p-1">
+                                  {REPORT_DISPLAY_LANGUAGES.map((language) => (
+                                    <button
+                                      key={language}
+                                      type="button"
+                                      onClick={() => handleGeneratedReportLanguageChange(language)}
+                                      className={`rounded-md px-2.5 py-1 text-xs font-bold uppercase transition-colors ${
+                                        activeGeneratedReportLanguage === language
+                                          ? "bg-lime-500 text-white shadow-sm"
+                                          : "text-neutral-600 hover:bg-white"
+                                      }`}
+                                    >
+                                      {language}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+
+                            {!generatedReportHasVisibleContent ? (
+                              <div className="mt-4 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
+                                No report content is rendered yet. Paste a ProveIt Report Format v1 response and use Render Report.
+                              </div>
+                            ) : (
+                              <GeneratedClientReportArticle
+                                className="mt-4 mx-auto max-w-4xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
+                                displayLanguage={reportDisplayLanguage}
+                                headerLogo={proveItHeaderLogo}
+                                parsedReport={parsedGeneratedReport}
+                                reportCoverSubtitle={reportCoverSubtitle}
+                                reportHeaderMeta={reportHeaderMeta}
+                                selectedCase={selectedCase}
+                              />
+                            )}
+                          </section>
+                        </div>
+                      )}
                       {reportCentreType === "action" && renderActionPlanReport(reportCentreActionPlan)}
                     </>
                   )}
@@ -3741,7 +3886,7 @@ ${ungroupedSequenceText}
 
                 <details className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden">
                   <summary className="cursor-pointer text-sm font-bold uppercase tracking-wider text-neutral-500">
-                    Legacy Reports
+                    Advanced Reports
                   </summary>
                   <div className="mt-5 space-y-5">
 
