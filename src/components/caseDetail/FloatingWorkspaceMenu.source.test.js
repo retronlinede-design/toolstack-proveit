@@ -6,7 +6,7 @@ const source = readFileSync("src/components/caseDetail/FloatingWorkspaceMenu.jsx
 
 test("floating workspace controls expose a dedicated AI Workspace button above Workspace", () => {
   assert.match(source, /onOpenAiWorkspace/);
-  assert.match(source, /AI Workspace/);
+  assert.match(source, /Open AI Workspace/);
   assert.match(source, /onClick=\{onOpenAiWorkspace\}/);
   assert.match(source, /mb-2 ml-auto/);
 });

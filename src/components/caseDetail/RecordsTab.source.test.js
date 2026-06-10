@@ -34,6 +34,6 @@ test("Records tab exposes GPT copy utilities for individual and all tracking rec
   assert.match(source, /buildAllTrackingRecordsGptExport/);
   assert.match(source, /function handleCopyRecordGptData/);
   assert.match(source, /function handleCopyAllRecordsGptData/);
-  assert.match(source, /Copy GPT Data/);
-  assert.match(source, /Copy All Records for GPT/);
+  assert.match(source, /Copy Record GPT JSON/);
+  assert.match(source, /Copy All Records GPT JSON/);
 });

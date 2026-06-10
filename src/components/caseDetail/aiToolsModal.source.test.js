@@ -39,5 +39,5 @@ test("AI Tools modal exposes specialist prompt only for management report builde
   assert.match(source, /function handleCopyAiToolSpecialistPrompt/);
   assert.match(source, /activeAiToolUsesReportBuilderScope && \(/);
   assert.match(source, /Copy Specialist Prompt/);
-  assert.match(source, /Copy Plain Text \/ Markdown Prompt/);
+  assert.match(source, /Copy Markdown Prompt/);
 });

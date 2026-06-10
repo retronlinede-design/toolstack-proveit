@@ -131,7 +131,7 @@ export default function RecordsTab({
             disabled={trackingRecords.length === 0}
             className="rounded-lg border border-blue-300 bg-white px-3 py-1 text-sm font-bold text-blue-800 shadow-sm transition-all hover:bg-blue-50 active:scale-95 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:hover:bg-white"
           >
-            Copy All Records for GPT
+            Copy All Records GPT JSON
           </button>
           <button
             onClick={onAddRecord}
@@ -211,7 +211,7 @@ export default function RecordsTab({
                       onClick={() => handleCopyRecordGptData(record, gptContext)}
                       className="rounded-lg border border-blue-300 bg-white px-2 py-0.5 text-[10px] font-bold text-blue-800 shadow-sm hover:bg-blue-50 transition-colors"
                     >
-                      Copy GPT Data
+                      Copy Record GPT JSON
                     </button>
                     <button
                       onClick={() => onViewPayments(record)}

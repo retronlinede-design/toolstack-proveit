@@ -774,10 +774,10 @@ export default function CaseDetail({
         }
       }
 
-      setSequenceGroupAuditFeedback("Sequence Group Audit Export created.");
+      setSequenceGroupAuditFeedback("Sequence Group Audit Pack created.");
     } catch (error) {
       console.error("Failed to export sequence group audit", error);
-      setSequenceGroupAuditFeedback("Could not create the Sequence Group Audit Export.");
+      setSequenceGroupAuditFeedback("Could not create the Sequence Group Audit Pack.");
     }
   }
 
@@ -2962,7 +2962,7 @@ ${ungroupedSequenceText}
                     onClick={() => { exportSelectedCase(); setShowExportMenu(false); }}
                     className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50"
                   >
-                    Full Case Backup (Importable)
+                    Download Full Case Backup
                   </button>
                   <div className="mt-2 border-t border-neutral-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                     GPT
@@ -2971,7 +2971,7 @@ ${ungroupedSequenceText}
                     onClick={() => { onExportSnapshot(selectedCase.id, "detailed"); setShowExportMenu(false); }}
                     className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50"
                   >
-                    GPT Reasoning Export (Non-importable AI Snapshot)
+                    Download Reasoning Snapshot JSON
                   </button>
                   <button
                     onClick={() => { onCopyLinkMapExport?.(selectedCase.id); setShowExportMenu(false); }}
@@ -2986,7 +2986,7 @@ ${ungroupedSequenceText}
                     onClick={() => { openSequenceGroupAuditExport(); setShowExportMenu(false); }}
                     className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50"
                   >
-                    Sequence Group Audit Export
+                    Open Sequence Group Audit
                   </button>
                   <div className="mt-2 border-t border-neutral-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                     Reasoning Snapshot Upload
@@ -3078,7 +3078,7 @@ ${ungroupedSequenceText}
                       onClick={openSequenceGroupManager}
                       className="w-fit rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30"
                     >
-                      Manage sequence groups
+                      Open Sequence Group Manager
                     </button>
                   </div>
                 </div>
@@ -3685,7 +3685,7 @@ ${ungroupedSequenceText}
                           onClick={openSequenceGroupAuditExport}
                           className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-bold text-neutral-700 transition-colors hover:bg-neutral-50"
                         >
-                          JSON Audit Export
+                          Open Sequence Group Audit
                         </button>
                       </div>
                       <p className="mt-3 text-xs leading-5 text-neutral-500">
@@ -4533,7 +4533,7 @@ ${ungroupedSequenceText}
                       <ChevronRight className="h-4 w-4 text-neutral-400" />
                     )}
                     <span className="text-sm font-bold uppercase tracking-wider text-neutral-500">
-                      Case Structure Report
+                      Case Structure Export
                     </span>
                   </button>
                   {caseStructureReportOpen && (
@@ -4544,14 +4544,14 @@ ${ungroupedSequenceText}
                           onClick={handleGenerateCaseStructureReport}
                           className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
                         >
-                          Generate Case Structure Report
+                          Generate Case Structure Export
                         </button>
                         <button
                           type="button"
                           onClick={handleCopyCaseStructureReport}
                           className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
                         >
-                          Copy Case Structure Report
+                          Copy Case Structure Export
                         </button>
                       </div>
                       {caseStructureReportFeedback ? (
@@ -5884,7 +5884,7 @@ ${ungroupedSequenceText}
                 onClick={() => handleCopyAiToolMarkdown()}
                 className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:text-neutral-400"
               >
-                Copy Plain Text / Markdown Prompt
+                Copy Markdown Prompt
               </button>
               {activeAiToolUsesReportBuilderScope && (
                 <button
@@ -5919,7 +5919,7 @@ ${ungroupedSequenceText}
           <div className="w-full max-w-xl rounded-2xl bg-white shadow-xl">
             <div className="flex items-start justify-between gap-4 border-b border-neutral-100 p-5">
               <div>
-                <h3 className="text-lg font-semibold text-neutral-900">Sequence Group Audit Export</h3>
+                <h3 className="text-lg font-semibold text-neutral-900">Sequence Group Audit Pack</h3>
                 <p className="mt-1 text-xs text-neutral-500">
                   Export one sequence group with linked evidence, document metadata, external linked incidents, diagnostics, and a GPT audit prompt.
                 </p>
@@ -6025,7 +6025,7 @@ ${ungroupedSequenceText}
                 disabled={sequenceGroups.length === 0}
                 className="rounded-md border border-lime-500 bg-lime-400/20 px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Export
+                {sequenceGroupAuditFormat === "pdf" ? "Print / Save PDF" : "Download"}
               </button>
             </div>
           </div>

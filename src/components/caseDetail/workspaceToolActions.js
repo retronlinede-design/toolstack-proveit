@@ -4,8 +4,8 @@ export function buildFloatingToolActions({
   handleWorkspaceOpenIncidentDateRepairTool,
 }) {
   return [
-    { label: "Manage sequence groups", onClick: handleWorkspaceOpenSequenceGroups },
-    { label: "Sequence Group Audit Export", onClick: handleWorkspaceOpenSequenceGroupAuditExport },
+    { label: "Open Sequence Group Manager", onClick: handleWorkspaceOpenSequenceGroups },
+    { label: "Open Sequence Group Audit", onClick: handleWorkspaceOpenSequenceGroupAuditExport },
     { label: "Incident Date Repair Tool", onClick: handleWorkspaceOpenIncidentDateRepairTool },
   ];
 }
