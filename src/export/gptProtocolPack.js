@@ -126,7 +126,7 @@ const PROTOCOL_SECTIONS = [
     summary: "Deltas are machine-readable update requests and should be generated only on explicit request.",
     bullets: [
       "Do not generate deltas unless explicitly asked.",
-      "A gpt-delta update must use the supported gpt-delta schema version and only supported fields.",
+      "A gpt-delta update must use app: proveit, contractVersion: gpt-delta-2.0, target.caseId, and an operations object.",
       "A sequence group delta must use the supported sequence group delta schema version and only supported group/record move operations.",
       "Deltas must preserve IDs and target existing records unless the supported contract explicitly allows creation.",
       "Never delete records.",
@@ -134,6 +134,105 @@ const PROTOCOL_SECTIONS = [
       "Never output unsupported schema fields.",
       "If a requested change cannot be represented safely, return a human-readable recommendation instead of a delta.",
       "Use deltas for narrow, reviewable updates such as a functionSummary improvement, sequenceGroup assignment, or link recommendation only when the active UI flow supports it.",
+    ],
+  },
+  {
+    id: "real-accepted-gpt-delta-2-contract",
+    title: "Real Accepted gpt-delta-2.0 Contract",
+    summary: "ProveIt accepts an object-shaped operations wrapper for gpt-delta-2.0, not an operations array.",
+    bullets: [
+      "Top-level app must be proveit.",
+      "Top-level contractVersion must be gpt-delta-2.0.",
+      "target.caseId is required and must match the active case.",
+      "operations must be an object.",
+      "operations.create and operations.patch are optional individually, but at least one supported create or patch operation must be present.",
+      "The accepted wrapper is { app, contractVersion, target: { caseId }, operations: { create: {}, patch: {} } }.",
+    ],
+  },
+  {
+    id: "supported-create-collections",
+    title: "Supported Create Collections",
+    summary: "gpt-delta-2.0 can create only the supported record collections.",
+    bullets: [
+      "Supported create collection: incidents.",
+      "Supported create collection: evidence.",
+      "Supported create collection: documents.",
+      "Supported create collection: ledger.",
+      "Not supported: strategy create.",
+      "Do not create unsupported collections or unsupported fields.",
+    ],
+  },
+  {
+    id: "supported-patch-collections",
+    title: "Supported Patch Collections",
+    summary: "gpt-delta-2.0 can patch existing records in the supported collections.",
+    bullets: [
+      "Supported patch collection: incidents.",
+      "Supported patch collection: evidence.",
+      "Supported patch collection: documents.",
+      "Supported patch collection: ledger.",
+      "Supported patch collection: strategy.",
+      "Patch ids must be existing baseline record ids.",
+      "Array fields are full replacements, not append instructions.",
+    ],
+  },
+  {
+    id: "create-incident-evidence-example",
+    title: "Create Incident + Evidence Example",
+    summary: "Use tempId values to link newly created records within the same delta.",
+    bullets: [
+      "Create examples use operations.create.incidents and operations.create.evidence arrays.",
+      "New records use tempId values for cross-linking.",
+      "linkedEvidenceIds may reference an evidence tempId declared in the same delta.",
+      "linkedIncidentIds may reference an incident tempId declared in the same delta.",
+      "ProveIt resolves tempIds to final IDs during import.",
+    ],
+  },
+  {
+    id: "patch-example",
+    title: "Patch Example",
+    summary: "Patch examples use operations.patch.<collection> arrays with { id, patch } items.",
+    bullets: [
+      "Patch items must include an existing id.",
+      "The patch object contains only supported fields for that collection.",
+      "To update an evidence functionSummary, patch operations.patch.evidence.",
+      "Do not use op: update, collection, or operations arrays.",
+    ],
+  },
+  {
+    id: "temporary-id-rules",
+    title: "Temporary ID Rules",
+    summary: "tempId is the only safe way for GPT-created records to refer to each other before ProveIt generates final IDs.",
+    bullets: [
+      "For specialist GPT output, tempId is required for new records.",
+      "Each tempId must be unique within the delta.",
+      "Links may reference tempIds declared in the same delta.",
+      "ProveIt resolves final IDs during import.",
+      "GPT must never invent final IDs.",
+      "Patch operations must use existing final record IDs, not tempIds.",
+    ],
+  },
+  {
+    id: "unsupported-contracts",
+    title: "Unsupported Contracts",
+    summary: "These wrappers are invalid for ProveIt gpt-delta-2.0 import.",
+    bullets: [
+      "{ \"operations\": [] } is invalid.",
+      "{ \"changes\": [] } is invalid.",
+      "{ \"delta\": { \"operations\": {} } } is invalid.",
+      "{ \"operations\": [{ \"op\": \"create\" }] } is invalid.",
+      "Do not use op:create, op:update, operations arrays, changes arrays, or nested delta.operations wrappers.",
+    ],
+  },
+  {
+    id: "strategy-limitation",
+    title: "Strategy Limitation",
+    summary: "Strategy records have different create and patch support in gpt-delta-2.0.",
+    bullets: [
+      "Strategy create is not supported in gpt-delta-2.0.",
+      "Strategy patch is supported in gpt-delta-2.0.",
+      "Use operations.patch.strategy for existing strategy records.",
+      "Do not output operations.create.strategy.",
     ],
   },
   {
@@ -216,22 +315,112 @@ const PROTOCOL_EXAMPLES = {
     confidence: "medium",
   },
   safeGptDeltaUpdateExample: {
-    note: "Only output this when the user explicitly asks for a supported gpt-delta update.",
+    note: "Only output this when the user explicitly asks for a supported gpt-delta-2.0 update.",
     delta: {
       app: "proveit",
-      schema: "gpt-delta-2.0",
+      contractVersion: "gpt-delta-2.0",
+      target: {
+        caseId: "case-1",
+      },
+      operations: {
+        patch: {
+          evidence: [
+            {
+              id: "ev-2026-014",
+              patch: {
+                functionSummary: "Shows the reported repair condition on the same date as incident inc-2026-001.",
+              },
+            },
+          ],
+        },
+      },
+    },
+  },
+  realAcceptedGptDelta2Contract: {
+    app: "proveit",
+    contractVersion: "gpt-delta-2.0",
+    target: {
+      caseId: "case-1",
+    },
+    operations: {
+      create: {},
+      patch: {},
+    },
+  },
+  createIncidentEvidenceExample: {
+    app: "proveit",
+    contractVersion: "gpt-delta-2.0",
+    target: {
+      caseId: "case-1",
+    },
+    operations: {
+      create: {
+        incidents: [
+          {
+            tempId: "tmp-inc-repair-delay",
+            title: "Repair delay reported",
+            date: "2026-05-15",
+            description: "User reported an unresolved repair delay.",
+            evidenceStatus: "needs_evidence",
+            sequenceGroup: "Repair Delay Chain",
+            linkedEvidenceIds: ["tmp-ev-repair-photo"],
+          },
+        ],
+        evidence: [
+          {
+            tempId: "tmp-ev-repair-photo",
+            title: "Repair condition photo",
+            date: "2026-05-15",
+            functionSummary: "Shows the reported repair condition on the same date as the repair delay incident.",
+            evidenceRole: "VISUAL_EVIDENCE",
+            linkedIncidentIds: ["tmp-inc-repair-delay"],
+          },
+        ],
+      },
+    },
+  },
+  patchExample: {
+    app: "proveit",
+    contractVersion: "gpt-delta-2.0",
+    target: {
+      caseId: "case-1",
+    },
+    operations: {
+      patch: {
+        evidence: [
+          {
+            id: "ev-1",
+            patch: {
+              functionSummary: "Shows the reported repair condition on the same date as incident inc-1.",
+            },
+          },
+        ],
+      },
+    },
+  },
+  unsupportedContractExamples: [
+    {
+      operations: [],
+    },
+    {
+      changes: [],
+    },
+    {
+      delta: {
+        operations: {},
+      },
+    },
+    {
       operations: [
         {
-          op: "update",
-          collection: "evidence",
-          id: "ev-2026-014",
-          patch: {
-            functionSummary: "Shows the reported repair condition on the same date as incident inc-2026-001.",
-          },
-          sourceIds: ["ev-2026-014", "inc-2026-001"],
+          op: "create",
         },
       ],
     },
+  ],
+  strategyLimitation: {
+    unsupported: "operations.create.strategy",
+    supported: "operations.patch.strategy",
   },
   safeSequenceGroupDeltaExample: {
     note: "Only output this when the user explicitly asks for a supported sequence group delta.",
@@ -333,6 +522,25 @@ export function exportGptProtocolPackMarkdown(options = {}) {
     "### Safe gpt-delta Update Example",
     "",
     renderJsonBlock(pack.examples.safeGptDeltaUpdateExample),
+    "",
+    "### Real Accepted gpt-delta-2.0 Contract",
+    "",
+    renderJsonBlock(pack.examples.realAcceptedGptDelta2Contract),
+    "",
+    "### Create Incident + Evidence Example",
+    "",
+    renderJsonBlock(pack.examples.createIncidentEvidenceExample),
+    "",
+    "### Patch Example",
+    "",
+    renderJsonBlock(pack.examples.patchExample),
+    "",
+    "### Unsupported Contract Examples",
+    "",
+    ...pack.examples.unsupportedContractExamples.flatMap((example) => [renderJsonBlock(example), ""]),
+    "### Strategy Limitation",
+    "",
+    renderJsonBlock(pack.examples.strategyLimitation),
     "",
     "### Safe Sequence Group Delta Example",
     "",
