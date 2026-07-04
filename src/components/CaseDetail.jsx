@@ -80,6 +80,7 @@ import ActiveLedgerRecordModal from "./caseDetail/ActiveLedgerRecordModal";
 import DocumentsTab from "./caseDetail/DocumentsTab";
 import FloatingWorkspaceMenu from "./caseDetail/FloatingWorkspaceMenu";
 import LedgerTab from "./caseDetail/LedgerTab";
+import PartiesTab from "./caseDetail/PartiesTab";
 import RecordsTab from "./caseDetail/RecordsTab";
 import { AI_TOOL_OPTIONS, AI_WORKSPACE_SECTIONS } from "./caseDetail/aiToolsConfig.js";
 import { sortChronological } from "./caseDetail/ledgerViewHelpers";
@@ -192,6 +193,8 @@ export default function CaseDetail({
   openLedgerModal,
   deleteLedgerEntry,
   duplicateLedgerEntry,
+  saveParty,
+  deleteParty,
   openDocumentModal,
   deleteDocumentEntry,
   reviewQueueSection,
@@ -3461,6 +3464,13 @@ ${ungroupedSequenceText}
             )}
             {activeTab === "incidents" && renderListBlock(selectedCase.incidents, "No incidents yet. Add your first incident to start the case timeline.", "incidents")}
             {activeTab === "strategy" && renderListBlock(selectedCase.strategy, "No strategy notes yet. Add strategy to track approach and planning.", "strategy")}
+            {activeTab === "parties" && (
+              <PartiesTab
+                parties={selectedCase.parties || []}
+                onSaveParty={saveParty}
+                onDeleteParty={deleteParty}
+              />
+            )}
             {activeTab === "narrative" && (
               <div className="space-y-5">
                 <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">

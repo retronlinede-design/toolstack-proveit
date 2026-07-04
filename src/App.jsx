@@ -34,6 +34,7 @@ import {
   convertQuickCaptureToRecord,
   deleteDocumentEntryFromCase,
   deleteLedgerEntryFromCase,
+  deletePartyFromCase,
   deleteRecordFromCase,
   generateId,
   mergeCase,
@@ -42,6 +43,7 @@ import {
   syncCaseLinks,
   upsertDocumentEntryInCase,
   upsertLedgerEntryInCase,
+  upsertPartyInCase,
   upsertRecordInCase,
 } from "./domain/caseDomain";
 import {
@@ -1555,6 +1557,47 @@ export default function ProveItApp() {
     }
   }
 
+  async function saveParty(partyInput, editingPartyId = null) {
+    if (!selectedCaseId || !partyInput) return false;
+
+    const targetCase = cases.find(c => c.id === selectedCaseId);
+    if (!targetCase) return false;
+
+    const updatedCase = upsertPartyInCase(targetCase, partyInput, editingPartyId);
+    try {
+      await saveCase(updatedCase, {
+        operation: editingPartyId ? "updateParty" : "createParty",
+      });
+      setCases(prev => prev.map(c => (c.id === updatedCase.id ? updatedCase : c)));
+      return true;
+    } catch (error) {
+      console.error("Failed to save party", error);
+      showAppNotice("error", error.message || "Could not save this party.");
+      return false;
+    }
+  }
+
+  async function deleteParty(partyId) {
+    if (!selectedCaseId || !partyId) return false;
+
+    const targetCase = cases.find(c => c.id === selectedCaseId);
+    if (!targetCase) return false;
+
+    const updatedCase = deletePartyFromCase(targetCase, partyId);
+    try {
+      await saveCase(updatedCase, {
+        operation: "deleteParty",
+        allowSuspiciousOverwrite: true,
+      });
+      setCases(prev => prev.map(c => (c.id === updatedCase.id ? updatedCase : c)));
+      return true;
+    } catch (error) {
+      console.error("Failed to delete party", error);
+      showAppNotice("error", error.message || "Could not delete this party.");
+      return false;
+    }
+  }
+
   const openDocumentModal = (preset = {}, documentId = null, mode = "document", options = {}) => {
     const nextForm = { ...EMPTY_DOCUMENT_FORM, ...preset };
     if (mode === "record") {
@@ -1811,6 +1854,7 @@ export default function ProveItApp() {
     { id: "evidence", label: "Evidence" },
     { id: "incidents", label: "Incidents" },
     { id: "strategy", label: "Strategy" },
+    { id: "parties", label: "Parties" },
     { id: "ledger", label: "Ledger" },
     { id: "documents", label: "Documents" },
     { id: "narrative", label: "Narrative" },
@@ -4507,6 +4551,8 @@ const handleRecordFiles = async (event) => {
             openLedgerModal={openLedgerModal}
             deleteLedgerEntry={deleteLedgerEntry}
             duplicateLedgerEntry={duplicateLedgerEntry}
+            saveParty={saveParty}
+            deleteParty={deleteParty}
             openDocumentModal={openDocumentModal}
             deleteDocumentEntry={deleteDocumentEntry}
             reviewQueueSection={SHOW_REVIEW_QUEUE ? (
