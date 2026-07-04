@@ -1,3 +1,7 @@
+import { normalizeCasePrivacyLock } from "../casePrivacyLock.js";
+
+export { normalizeCasePrivacyLock };
+
 /**
  * Safe UUID fallback for insecure contexts or older browsers.
  */
@@ -56,17 +60,6 @@ export const normalizeGeneratedReportVersions = (value, legacyGeneratedReportTex
 export const normalizeActiveGeneratedReportLanguage = (value) => {
   return value === "de" ? "de" : "en";
 };
-
-export function normalizeCasePrivacyLock(value) {
-  const pin = typeof value?.pin === "string" ? value.pin.trim() : "";
-  if (!/^\d{4,6}$/.test(pin)) return null;
-
-  return {
-    pin,
-    enabledAt: value?.enabledAt || "",
-    updatedAt: value?.updatedAt || value?.enabledAt || "",
-  };
-}
 
 /**
  * Validates and normalizes a date string to YYYY-MM-DD.

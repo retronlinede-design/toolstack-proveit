@@ -226,6 +226,10 @@ test("exportSequenceGroupAuditJson is valid complete JSON", () => {
   assert.equal(parsed.exportType, "SEQUENCE_GROUP_FULL_RECORD_AUDIT_REPORT");
   assert.equal(parsed.importable, false);
   assert.equal(parsed.includesBinaryData, false);
+  assert.equal(parsed.exportMetadata.label, "GPT Audit Pack");
+  assert.equal(parsed.exportMetadata.includesEvidenceFiles, false);
+  assert.equal(parsed.exportMetadata.includesPrivateNotes, true);
+  assert.equal(parsed.exportMetadata.includesPinData, false);
   assert.equal(parsed.evidence.length, 2);
   assert.equal(parsed.gptAuditPromptBlock.includes("Please audit this sequence group"), true);
 });
@@ -259,6 +263,9 @@ test("exportSequenceGroupAuditMarkdown includes required sections", () => {
   });
 
   assert.match(markdown, /## Thread overview/);
+  assert.match(markdown, /Includes evidence files: false/);
+  assert.match(markdown, /Includes private notes: true/);
+  assert.match(markdown, /Includes PIN data: false/);
   assert.match(markdown, /Description: Mould safety incidents, proof, and follow-up strategy\./);
   assert.match(markdown, /## Chronology table/);
   assert.match(markdown, /## GPT audit prompt block/);

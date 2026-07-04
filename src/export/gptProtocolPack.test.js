@@ -37,6 +37,10 @@ test("protocol JSON has the expected safe export envelope", () => {
   assert.equal(pack.exportType, PROVEIT_GPT_PROTOCOL_PACK);
   assert.equal(pack.importable, false);
   assert.equal(pack.includesBinaryData, false);
+  assert.equal(pack.exportMetadata.exportType, PROVEIT_GPT_PROTOCOL_PACK);
+  assert.equal(pack.exportMetadata.includesEvidenceFiles, false);
+  assert.equal(pack.exportMetadata.includesPrivateNotes, false);
+  assert.equal(pack.exportMetadata.includesPinData, false);
   assert.equal(pack.exportedAt, "2026-06-10T00:00:00.000Z");
 });
 
@@ -128,6 +132,9 @@ test("markdown export includes the same key sections and examples", () => {
   assert.match(markdown, /Export type: PROVEIT_GPT_PROTOCOL_PACK/);
   assert.match(markdown, /Importable: false/);
   assert.match(markdown, /Includes binary data: false/);
+  assert.match(markdown, /Includes evidence files: false/);
+  assert.match(markdown, /Includes private notes: false/);
+  assert.match(markdown, /Includes PIN data: false/);
   assert.match(markdown, /### Management Analysis Handoff/);
   assert.match(markdown, /### Report Builder Output/);
   assert.match(markdown, /### Missing Function Summary Suggestion/);

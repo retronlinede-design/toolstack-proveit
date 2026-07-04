@@ -150,7 +150,7 @@ export default function DocumentsTab({
                   </div>
                   <div className="rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-medium text-neutral-600">
                     <div>
-                      {attachmentCount} attachment{attachmentCount === 1 ? "" : "s"} Â· {linkedCount} linked record{linkedCount === 1 ? "" : "s"}
+                      {attachmentCount} attachment{attachmentCount === 1 ? "" : "s"} · {linkedCount} linked record{linkedCount === 1 ? "" : "s"}
                     </div>
                     <div className="hidden">
                       {attachmentCount > 0 && textStatus.charCount === 0 ? "Attachments need captured text for reasoning." : "Links and files support the document context."}

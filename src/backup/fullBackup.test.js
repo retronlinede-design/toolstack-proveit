@@ -13,6 +13,7 @@ import {
   restoreFullBackupQuickCapture,
   restoreFullBackupRecord,
 } from "./fullBackup.js";
+import { verifyCasePrivacyLock } from "../casePrivacyLock.js";
 
 test("buildFullBackupAttachment preserves metadata and includes binary payload when available", async () => {
   const calls = [];
@@ -56,6 +57,7 @@ test("buildFullBackupRecord case and quick capture preserve current structure", 
   };
   const caseItem = {
     id: "case-1",
+    privacyLock: { pin: "1234", enabledAt: "2024-01-01T00:00:00.000Z" },
     evidence: [record],
     incidents: [],
     tasks: [],
@@ -75,6 +77,9 @@ test("buildFullBackupRecord case and quick capture preserve current structure", 
   assert.equal(backedRecord.availability.digital.files[0].backupDataUrl, "data:img-2");
   assert.equal(backedCase.evidence[0].attachments[0].backupDataUrl, "data:img-1");
   assert.equal(backedCase.documents[0].attachments[0].backupDataUrl, "data:img-doc");
+  assert.equal(backedCase.privacyLock.pin, undefined);
+  assert.ok(backedCase.privacyLock.pinHash);
+  assert.equal(await verifyCasePrivacyLock("1234", backedCase.privacyLock), true);
   assert.equal(backedCapture.attachments[0].backupDataUrl, "data:img-cap");
   assert.deepEqual(backedCase.incidents, []);
   assert.deepEqual(backedCase.tasks, []);
@@ -230,6 +235,14 @@ test("full backup payload builders return the current top-level shape", async ()
   assert.equal(allPayload.exportType, "FULL_BACKUP_ALL");
   assert.equal(allPayload.importable, true);
   assert.equal(allPayload.includesBinaryData, true);
+  assert.deepEqual(allPayload.exportMetadata, {
+    exportType: "FULL_BACKUP_ALL",
+    label: "Full Backup",
+    createdAt: allPayload.exportMetadata.createdAt,
+    includesEvidenceFiles: true,
+    includesPrivateNotes: true,
+    includesPinData: false,
+  });
   assert.match(allPayload.exportedAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.deepEqual(allPayload.metadata, {
     caseCount: 1,
@@ -252,6 +265,10 @@ test("full backup payload builders return the current top-level shape", async ()
   assert.deepEqual(allPayload.data.folders, [{ id: "folder-1", name: "Finance" }]);
 
   assert.equal(casePayload.exportType, "FULL_BACKUP_CASE");
+  assert.equal(casePayload.exportMetadata.exportType, "FULL_BACKUP_CASE");
+  assert.equal(casePayload.exportMetadata.includesEvidenceFiles, true);
+  assert.equal(casePayload.exportMetadata.includesPrivateNotes, true);
+  assert.equal(casePayload.exportMetadata.includesPinData, false);
   assert.deepEqual(casePayload.data.quickCaptures, undefined);
   assert.equal(casePayload.data.selectedCaseId, "case-1");
   assert.equal(casePayload.data.activeTab, "overview");

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Tags } from "lucide-react";
 import {
   getCaseSequenceGroupRelationshipMap,
@@ -160,17 +160,15 @@ export default function SequenceGroupManager({
   setSequenceRenameInputs,
   setSequenceTimelineSort,
 }) {
-  const [sequenceDescriptionDraft, setSequenceDescriptionDraft] = useState("");
+  const [sequenceDescriptionDraftState, setSequenceDescriptionDraftState] = useState({ key: "", value: "" });
   const [selectedSection, setSelectedSection] = useState("overview");
   const activeDescriptionGroupName = selectedGroupName || sequenceGroupDetails?.groups?.[0]?.name || "";
-
-  useEffect(() => {
-    if (!selectedCase?.id || !activeDescriptionGroupName) {
-      setSequenceDescriptionDraft("");
-      return;
-    }
-    setSequenceDescriptionDraft(getSequenceGroupDescription(selectedCase.id, activeDescriptionGroupName));
-  }, [selectedCase?.id, activeDescriptionGroupName]);
+  const sequenceDescriptionKey = `${selectedCase?.id || ""}:${activeDescriptionGroupName}`;
+  const sequenceDescriptionDraft = sequenceDescriptionDraftState.key === sequenceDescriptionKey
+    ? sequenceDescriptionDraftState.value
+    : selectedCase?.id && activeDescriptionGroupName
+      ? getSequenceGroupDescription(selectedCase.id, activeDescriptionGroupName)
+      : "";
 
   if (!selectedCase) return null;
 
@@ -220,13 +218,14 @@ export default function SequenceGroupManager({
   const saveSelectedGroupDescription = () => {
     if (!activeGroupName) return;
     saveSequenceGroupDescription(selectedCase.id, activeGroupName, sequenceDescriptionDraft);
+    setSequenceDescriptionDraftState({ key: sequenceDescriptionKey, value: sequenceDescriptionDraft });
     setSequenceGroupFeedback(`Saved description for "${activeGroupName}".`);
   };
 
   const clearSelectedGroupDescription = () => {
     if (!activeGroupName) return;
     clearSequenceGroupDescription(selectedCase.id, activeGroupName);
-    setSequenceDescriptionDraft("");
+    setSequenceDescriptionDraftState({ key: sequenceDescriptionKey, value: "" });
     setSequenceGroupFeedback(`Cleared description for "${activeGroupName}".`);
   };
 
@@ -853,7 +852,7 @@ export default function SequenceGroupManager({
                             <textarea
                               value={sequenceDescriptionDraft}
                               onChange={(event) => {
-                                setSequenceDescriptionDraft(event.target.value);
+                                setSequenceDescriptionDraftState({ key: sequenceDescriptionKey, value: event.target.value });
                                 setSequenceGroupFeedback("");
                               }}
                               rows={3}

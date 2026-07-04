@@ -1,3 +1,5 @@
+import { buildExportPrivacyMetadata, EXPORT_PRIVACY_PROFILES } from "./exportPrivacy.js";
+
 export const PROVEIT_GPT_PROTOCOL_PACK = "PROVEIT_GPT_PROTOCOL_PACK";
 
 const PROTOCOL_SCHEMA_VERSION = "proveit-gpt-protocol-pack-1.0";
@@ -455,6 +457,12 @@ export function buildGptProtocolPack(options = {}) {
     exportType: PROVEIT_GPT_PROTOCOL_PACK,
     schemaVersion: PROTOCOL_SCHEMA_VERSION,
     exportedAt: options.exportedAt || new Date().toISOString(),
+    exportMetadata: buildExportPrivacyMetadata(EXPORT_PRIVACY_PROFILES.GPT_AUDIT_PACK, {
+      exportType: PROVEIT_GPT_PROTOCOL_PACK,
+      label: "GPT Audit Pack",
+      createdAt: options.exportedAt,
+      includesPrivateNotes: false,
+    }),
     importable: false,
     includesBinaryData: false,
     purpose: "Knowledge/reference pack for external specialist GPTs that need to understand ProveIt export, import, report, AI pack, and delta rules.",
@@ -484,6 +492,9 @@ export function exportGptProtocolPackMarkdown(options = {}) {
     `- Schema version: ${pack.schemaVersion}`,
     `- Importable: ${pack.importable}`,
     `- Includes binary data: ${pack.includesBinaryData}`,
+    `- Includes evidence files: ${pack.exportMetadata.includesEvidenceFiles}`,
+    `- Includes private notes: ${pack.exportMetadata.includesPrivateNotes}`,
+    `- Includes PIN data: ${pack.exportMetadata.includesPinData}`,
     `- Exported at: ${pack.exportedAt}`,
     "",
     "## Purpose",

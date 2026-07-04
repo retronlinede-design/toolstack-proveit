@@ -56,6 +56,11 @@ test("single tracking record GPT export includes full text and table rows withou
   assert.equal(payload.exportType, "GPT_RECORD_EXPORT");
   assert.equal(payload.importable, false);
   assert.equal(payload.includesBinaryData, false);
+  assert.equal(payload.exportMetadata.exportType, "GPT_RECORD_EXPORT");
+  assert.equal(payload.exportMetadata.label, "GPT Audit Pack");
+  assert.equal(payload.exportMetadata.includesEvidenceFiles, false);
+  assert.equal(payload.exportMetadata.includesPrivateNotes, true);
+  assert.equal(payload.exportMetadata.includesPinData, false);
   assert.equal(payload.case.id, "case-1");
   assert.equal(payload.case.name, "Case Name");
   assert.equal(payload.record.id, "record-1");
@@ -87,6 +92,8 @@ test("all tracking records GPT export includes all records in a safe envelope", 
   assert.equal(payload.exportType, "GPT_RECORDS_EXPORT");
   assert.equal(payload.importable, false);
   assert.equal(payload.includesBinaryData, false);
+  assert.equal(payload.exportMetadata.exportType, "GPT_RECORDS_EXPORT");
+  assert.equal(payload.exportMetadata.includesPinData, false);
   assert.deepEqual(payload.records.map((record) => record.id), ["record-1", "record-2"]);
   assert.match(JSON.stringify(payload.instructions), /Do not invent facts/);
   assert.match(JSON.stringify(payload.instructions), /Do not generate ProveIt deltas/);

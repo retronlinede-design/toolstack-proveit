@@ -6,7 +6,7 @@ export function parseMilestoneTimelineEntry(value) {
   const text = safeText(value).replace(/\s+/g, " ").trim();
   if (!text) return { date: "", title: "", note: "" };
 
-  const separators = [" â€“ ", " â€” ", " - "];
+  const separators = [" – ", " — ", " - "];
   for (const separator of separators) {
     const separatorIndex = text.indexOf(separator);
     if (separatorIndex > 0) {

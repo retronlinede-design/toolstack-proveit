@@ -1,5 +1,6 @@
 import { resolveRecordById } from "../domain/linkingResolvers.js";
 import { sanitizeCaseForExport } from "./caseExport.js";
+import { buildExportPrivacyMetadata, EXPORT_PRIVACY_PROFILES } from "./exportPrivacy.js";
 
 const SNIPPET_LIMIT = 300;
 const ANALYSIS_NODE_TYPES = new Set(["incident", "evidence", "strategy", "document", "tracking_record", "ledger"]);
@@ -340,6 +341,10 @@ export function buildCaseLinkMapExportPayload(caseItem) {
     exportType: "CASE_LINK_MAP_EXPORT",
     schemaVersion: "link-map-1.0",
     exportedAt: new Date().toISOString(),
+    exportMetadata: buildExportPrivacyMetadata(EXPORT_PRIVACY_PROFILES.SANITIZED_EXPORT, {
+      exportType: "CASE_LINK_MAP_EXPORT",
+      label: "Sanitized Export",
+    }),
     case: {
       id: c.id || "",
       name: c.name || "",

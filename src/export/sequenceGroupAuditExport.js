@@ -1,6 +1,7 @@
 import { getIncidentLinkGroups, sortTimelineItems } from "../domain/caseDomain.js";
 import { resolveRecordById } from "../domain/linkingResolvers.js";
 import { sanitizeAttachmentForExport } from "./caseExport.js";
+import { buildExportPrivacyMetadata, EXPORT_PRIVACY_PROFILES } from "./exportPrivacy.js";
 
 export const SEQUENCE_GROUP_AUDIT_PROMPT =
   "Please audit this sequence group for chronology accuracy, evidence strength, missing records, weak links, unsupported claims, escalation readiness, and safe ProveIt updates.";
@@ -23,12 +24,6 @@ function unique(values) {
 
 function getDate(record = {}) {
   return record.eventDate || record.date || record.documentDate || record.capturedAt || record.createdAt || "";
-}
-
-function getSummary(record = {}, recordType = "") {
-  if (recordType === "evidence") return text(record.functionSummary || record.description || record.notes || record.reviewNotes);
-  if (recordType === "document") return text(record.summary || record.textContent || record.source || record.notes);
-  return text(record.description || record.summary || record.notes);
 }
 
 function isVagueFunctionSummary(value) {
@@ -360,6 +355,10 @@ export function buildSequenceGroupAuditReport(caseData, sequenceGroup, options =
     exportType: "SEQUENCE_GROUP_FULL_RECORD_AUDIT_REPORT",
     schemaVersion: "sequence-group-audit-1.0",
     exportedAt: new Date().toISOString(),
+    exportMetadata: buildExportPrivacyMetadata(EXPORT_PRIVACY_PROFILES.GPT_AUDIT_PACK, {
+      exportType: "SEQUENCE_GROUP_FULL_RECORD_AUDIT_REPORT",
+      label: "GPT Audit Pack",
+    }),
     importable: false,
     includesBinaryData: false,
     case: {
@@ -414,6 +413,9 @@ export function exportSequenceGroupAuditMarkdown(caseData, sequenceGroup, option
     `Case ID: ${report.case.id}`,
     `Sequence Group: ${report.sequenceGroup}`,
     `Exported: ${report.exportedAt}`,
+    `Includes evidence files: ${report.exportMetadata.includesEvidenceFiles}`,
+    `Includes private notes: ${report.exportMetadata.includesPrivateNotes}`,
+    `Includes PIN data: ${report.exportMetadata.includesPinData}`,
     "",
     "## Thread overview",
     "",

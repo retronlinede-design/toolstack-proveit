@@ -134,6 +134,10 @@ test("exportSequenceGroupsIndexJson is valid compact JSON", () => {
   assert.equal(parsed.exportType, "SEQUENCE_GROUPS_INDEX_REPORT");
   assert.equal(parsed.schemaVersion, "1.0");
   assert.equal(parsed.importable, false);
+  assert.equal(parsed.exportMetadata.label, "GPT Audit Pack");
+  assert.equal(parsed.exportMetadata.includesEvidenceFiles, false);
+  assert.equal(parsed.exportMetadata.includesPrivateNotes, true);
+  assert.equal(parsed.exportMetadata.includesPinData, false);
   assert.equal(JSON.stringify(parsed).includes("data:image/png;base64"), false);
   assert.equal(parsed.gptPromptBlock.includes("recommend which chains should be audited first"), true);
 });
@@ -149,6 +153,9 @@ test("exportSequenceGroupsIndexMarkdown includes group names", () => {
   });
 
   assert.match(markdown, /# Sequence Groups Index Report/);
+  assert.match(markdown, /Includes evidence files: false/);
+  assert.match(markdown, /Includes private notes: true/);
+  assert.match(markdown, /Includes PIN data: false/);
   assert.match(markdown, /### Mould chain/);
   assert.match(markdown, /Description: Mould condition, notice, and evidence thread\./);
   assert.match(markdown, /### Rent chain/);

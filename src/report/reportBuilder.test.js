@@ -140,6 +140,14 @@ test("buildThreadIssueReport builds a structured report for a sequenceGroup", ()
   assert.equal(report.sequenceGroup, "Leak thread");
   assert.equal(report.sourceCaseId, "case-1");
   assert.equal(report.generatedAt, "2024-02-01T00:00:00.000Z");
+  assert.deepEqual(report.exportMetadata, {
+    exportType: THREAD_ISSUE_REPORT,
+    label: "Report Export",
+    createdAt: "2024-02-01T00:00:00.000Z",
+    includesEvidenceFiles: false,
+    includesPrivateNotes: true,
+    includesPinData: false,
+  });
   assert.deepEqual(report.caseOverview, {
     name: "Demo Case",
     category: "Housing",

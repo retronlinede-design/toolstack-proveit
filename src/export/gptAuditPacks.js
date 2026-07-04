@@ -1,6 +1,7 @@
 import { getCaseSequenceGroups } from "../domain/caseDomain.js";
 import { resolveRecordById } from "../domain/linkingResolvers.js";
 import { buildExecutiveSummaryReport } from "../report/reportBuilder.js";
+import { buildExportPrivacyMetadata, EXPORT_PRIVACY_PROFILES } from "./exportPrivacy.js";
 import { exportSequenceGroupAuditJson } from "./sequenceGroupAuditExport.js";
 
 const PACK_SCHEMA_VERSION = "gpt-audit-pack-1.0";
@@ -206,6 +207,10 @@ function buildEnvelope(caseData, packType, data, options = {}) {
     packType,
     schemaVersion: PACK_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
+    exportMetadata: buildExportPrivacyMetadata(EXPORT_PRIVACY_PROFILES.GPT_AUDIT_PACK, {
+      exportType: "GPT_AUDIT_PACK",
+      label: "GPT Audit Pack",
+    }),
     importable: false,
     includesBinaryData: false,
     case: {
@@ -233,6 +238,10 @@ function buildFullChainEnvelope(caseData, data) {
     packType: "FULL_CHAIN_GPT_PACK",
     schemaVersion: PACK_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
+    exportMetadata: buildExportPrivacyMetadata(EXPORT_PRIVACY_PROFILES.SPECIALIST_HANDOFF, {
+      exportType: "FULL_CHAIN_GPT_PACK",
+      label: "Specialist Handoff",
+    }),
     importable: false,
     includesBinaryData: false,
     case: {
@@ -602,6 +611,10 @@ function buildManagementReportBuilderEnvelope(caseData, data) {
     packType: "MANAGEMENT_REPORT_BUILDER_PACK",
     schemaVersion: PACK_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
+    exportMetadata: buildExportPrivacyMetadata(EXPORT_PRIVACY_PROFILES.SPECIALIST_HANDOFF, {
+      exportType: "MANAGEMENT_REPORT_BUILDER_PACK",
+      label: "Specialist Handoff",
+    }),
     importable: false,
     includesBinaryData: false,
     case: {

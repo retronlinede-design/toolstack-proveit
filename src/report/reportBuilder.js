@@ -1,5 +1,6 @@
 import { analyzeCaseDiagnostics, analyzeSequenceGroup } from "../diagnostics/caseDiagnostics.js";
 import { resolveRecordById } from "../domain/linkingResolvers.js";
+import { buildExportPrivacyMetadata, EXPORT_PRIVACY_PROFILES } from "../export/exportPrivacy.js";
 
 export const THREAD_ISSUE_REPORT = "THREAD_ISSUE_REPORT";
 export const EVIDENCE_PACK_REPORT = "EVIDENCE_PACK_REPORT";
@@ -20,6 +21,14 @@ function shortText(value, limit = 220) {
   const text = compactText(value);
   if (text.length <= limit) return text;
   return `${text.slice(0, limit - 3).trim()}...`;
+}
+
+function buildReportExportMetadata(reportType, generatedAt) {
+  return buildExportPrivacyMetadata(EXPORT_PRIVACY_PROFILES.REPORT_EXPORT, {
+    exportType: reportType,
+    label: "Report Export",
+    createdAt: generatedAt,
+  });
 }
 
 function uniqueValues(values = []) {
@@ -495,6 +504,7 @@ export function buildThreadIssueReport(caseItem = {}, sequenceGroupValue = "", o
     sequenceGroup,
     sourceCaseId: caseItem?.id || "",
     generatedAt,
+    exportMetadata: buildReportExportMetadata(THREAD_ISSUE_REPORT, generatedAt),
     includedRecordIds,
     scopeSummary: sequenceGroup
       ? `Records in sequenceGroup "${sequenceGroup}" plus directly linked records.`
@@ -633,6 +643,7 @@ export function buildEvidencePackReport(caseItem = {}, scope = {}, options = {})
     scopeLabel,
     sourceCaseId: caseItem?.id || "",
     generatedAt,
+    exportMetadata: buildReportExportMetadata(EVIDENCE_PACK_REPORT, generatedAt),
     includedEvidenceCount: evidenceRecords.length,
     includedEvidenceIds: evidenceRecords.map((item) => item.id),
     caseOverview: {
@@ -745,6 +756,7 @@ export function buildDocumentPackReport(caseItem = {}, scope = {}, options = {})
     scopeLabel,
     sourceCaseId: caseItem?.id || "",
     generatedAt,
+    exportMetadata: buildReportExportMetadata(DOCUMENT_PACK_REPORT, generatedAt),
     includedDocumentCount: documentRecords.length,
     includedDocumentIds: documentRecords.map((item) => item.id),
     caseOverview: {
@@ -848,6 +860,7 @@ export function buildLedgerPackReport(caseItem = {}, scope = {}, options = {}) {
     scopeLabel,
     sourceCaseId: caseItem?.id || "",
     generatedAt,
+    exportMetadata: buildReportExportMetadata(LEDGER_PACK_REPORT, generatedAt),
     includedLedgerCount: ledgerRecords.length,
     includedLedgerIds: ledgerRecords.map((item) => item.id),
     caseOverview: {
@@ -1181,53 +1194,6 @@ function getExecutiveSequenceGroupOverview(diagnostics = {}) {
       warnings,
     };
   });
-}
-
-function buildManagementKeyFindings(caseItem = {}, diagnostics = {}) {
-  const findings = [];
-  const unsupportedIncidents = diagnostics.evidenceCoverage?.incidentsNeedingEvidence || [];
-  const strongestEvidence = getExecutiveEvidence(caseItem, 3);
-  const weakGroups = (diagnostics.sequenceGroups?.groups || []).filter((group) =>
-    (group.counts?.incident || 0) === 0 || ((group.counts?.incident || 0) > 0 && (group.counts?.evidence || 0) === 0)
-  );
-
-  if (caseItem.actionSummary?.currentFocus) {
-    findings.push({
-      id: "current-focus",
-      finding: shortText(caseItem.actionSummary.currentFocus, 160),
-      evidence: "Current case action summary",
-      managementMeaning: "This is the immediate operational focus.",
-    });
-  }
-
-  strongestEvidence.forEach((item) => {
-    findings.push({
-      id: `evidence-${item.id}`,
-      finding: shortText(item.whyItMatters || item.title, 160),
-      evidence: item.title,
-      managementMeaning: item.supports?.length > 0 ? `Supports: ${item.supports.slice(0, 2).join(", ")}.` : "Relevant evidence is available but should be checked before sharing.",
-    });
-  });
-
-  if (unsupportedIncidents.length > 0) {
-    findings.push({
-      id: "unsupported-incidents",
-      finding: `${unsupportedIncidents.length} incident(s) still need stronger evidence links.`,
-      evidence: "Evidence coverage diagnostics",
-      managementMeaning: "The issue may be harder to explain confidently until proof is linked.",
-    });
-  }
-
-  if (weakGroups.length > 0) {
-    findings.push({
-      id: "thin-threads",
-      finding: `${weakGroups.length} issue thread(s) look thin or incomplete.`,
-      evidence: "Sequence group diagnostics",
-      managementMeaning: "Some threads may need consolidation, proof, or clearer ownership before escalation.",
-    });
-  }
-
-  return findings.slice(0, 6);
 }
 
 function buildManagementRiskAssessment(diagnostics = {}) {
@@ -1698,7 +1664,7 @@ function buildManagementChainActions(groupName, strategyRecords = [], actionSumm
   return [...mentionedActions, ...strategyActions, ...gapActions].slice(0, 5);
 }
 
-function buildManagementSequenceChains(caseItem = {}, diagnostics = {}) {
+function buildManagementSequenceChains(caseItem = {}) {
   return getManagementSequenceGroups(caseItem).map((groupName) => {
     const incidents = (caseItem.incidents || [])
       .filter((incident) => incident?.id && getSequenceGroupName(incident.sequenceGroup) === groupName)
@@ -1801,7 +1767,7 @@ export function buildExecutiveSummaryReport(caseItem = {}, options = {}) {
   const generatedAt = options.generatedAt || new Date().toISOString();
   const diagnostics = analyzeCaseDiagnostics(caseItem || {});
   const sequenceGroupOverview = getExecutiveSequenceGroupOverview(diagnostics);
-  const sequenceChains = buildManagementSequenceChains(caseItem, diagnostics);
+  const sequenceChains = buildManagementSequenceChains(caseItem);
   const ungroupedSummary = buildManagementUngroupedSummary(caseItem);
   const milestones = diagnostics.milestoneCoverage?.records || [];
   const currentPosition = getExecutiveCurrentPosition(caseItem, diagnostics);
@@ -1838,6 +1804,7 @@ export function buildExecutiveSummaryReport(caseItem = {}, options = {}) {
     estimatedLengthPages: "1-3",
     sourceCaseId: caseItem?.id || "",
     generatedAt,
+    exportMetadata: buildReportExportMetadata(EXECUTIVE_SUMMARY_REPORT, generatedAt),
     coverPage: {
       title: "Management Report",
       caseName: caseOverview.name,
@@ -2084,6 +2051,7 @@ export function buildCaseBundleReport(caseItem = {}, scope = {}, options = {}) {
     scopeLabel,
     sourceCaseId: caseItem?.id || "",
     generatedAt,
+    exportMetadata: buildReportExportMetadata(CASE_BUNDLE_REPORT, generatedAt),
     selectedSections,
     contentsSummary: buildBundleContentsSummary(selectedSections, sections),
     sections,

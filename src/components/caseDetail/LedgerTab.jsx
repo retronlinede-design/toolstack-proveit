@@ -141,7 +141,7 @@ export default function LedgerTab({
                     className="flex items-center gap-2 px-1 py-1 rounded-lg text-left hover:bg-neutral-50 transition-colors"
                   >
                     <span className="text-[10px] text-neutral-400 w-3">
-                      {isCollapsed ? "â–¶" : "â–¼"}
+                      {isCollapsed ? "▶" : "▼"}
                     </span>
                     <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">
                       {group.batchLabel === "Ungrouped" ? "Ungrouped Entries" : group.batchLabel}

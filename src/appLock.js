@@ -30,7 +30,7 @@ export function bytesToBase64(bytes) {
     for (const byte of bytes) binary += String.fromCharCode(byte);
     return btoa(binary);
   }
-  return Buffer.from(bytes).toString("base64");
+  return globalThis.Buffer.from(bytes).toString("base64");
 }
 
 export function base64ToBytes(value = "") {
@@ -38,7 +38,7 @@ export function base64ToBytes(value = "") {
     const binary = atob(value);
     return Uint8Array.from(binary, (char) => char.charCodeAt(0));
   }
-  return Uint8Array.from(Buffer.from(value, "base64"));
+  return Uint8Array.from(globalThis.Buffer.from(value, "base64"));
 }
 
 export function generateAppLockSalt(byteLength = 16) {

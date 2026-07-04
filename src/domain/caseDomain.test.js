@@ -2,6 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  CASE_PRIVACY_LOCK_VERSION,
+  createCasePrivacyLockConfig,
+} from "../casePrivacyLock.js";
+import {
   applyRecordPatchToCase,
   buildRecordTypeConversionPreview,
   convertRecordTypeInCase,
@@ -488,6 +492,22 @@ test("normalizeCase preserves valid privacyLock metadata", () => {
     enabledAt: "2024-02-01T10:00:00.000Z",
     updatedAt: "2024-02-02T10:00:00.000Z",
   });
+});
+
+test("normalizeCase preserves hashed privacyLock metadata without plaintext PIN", async () => {
+  const privacyLock = await createCasePrivacyLockConfig("456789", {
+    enabledAt: "2024-02-01T10:00:00.000Z",
+  });
+  const normalized = normalizeCase({
+    id: "case-1",
+    name: "Locked case",
+    privacyLock,
+  });
+
+  assert.equal(normalized.privacyLock.version, CASE_PRIVACY_LOCK_VERSION);
+  assert.equal(normalized.privacyLock.pin, undefined);
+  assert.equal(normalized.privacyLock.pinHash, privacyLock.pinHash);
+  assert.equal(normalized.privacyLock.enabledAt, "2024-02-01T10:00:00.000Z");
 });
 
 test("mergeCase preserves an existing privacyLock when the incoming case has none", () => {

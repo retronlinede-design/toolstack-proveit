@@ -1,6 +1,8 @@
 import { getCaseHealthReport } from "../lib/caseHealth.js";
 import { getIncidentLinkGroups, sortTimelineItems } from "../domain/caseDomain.js";
 import { getEvidenceDisplayMeta, getIncidentDisplayMeta, getRecordDisplayMeta } from "../domain/linkingResolvers.js";
+import { stripPlaintextCasePin } from "../casePrivacyLock.js";
+import { buildExportPrivacyMetadata, EXPORT_PRIVACY_PROFILES } from "./exportPrivacy.js";
 
 /**
  * Sanitizes an attachment object for export, removing binary data.
@@ -54,6 +56,7 @@ export function sanitizeCaseForExport(caseItem) {
   if (!caseItem) return caseItem;
   const caseExportFields = { ...caseItem };
   delete caseExportFields.auditLog;
+  caseExportFields.privacyLock = stripPlaintextCasePin(caseItem.privacyLock);
   return {
     ...caseExportFields,
     evidence: Array.isArray(caseItem.evidence) ? caseItem.evidence.map(sanitizeRecordForExport) : [],
@@ -713,6 +716,10 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
     contractVersion: "2.0",
     exportType: "CASE_REASONING_EXPORT",
     exportedAt: new Date().toISOString(),
+    exportMetadata: buildExportPrivacyMetadata(EXPORT_PRIVACY_PROFILES.SANITIZED_EXPORT, {
+      exportType: "CASE_REASONING_EXPORT",
+      label: "Sanitized Export",
+    }),
     importable: false,
     includesBinaryData: false,
     data: {
