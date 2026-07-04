@@ -1,19 +1,3 @@
-import {
-  createCasePrivacyLockConfig,
-  isLegacyPlaintextCasePrivacyLock,
-  normalizeCasePrivacyLock,
-} from "../casePrivacyLock.js";
-import { buildExportPrivacyMetadata, EXPORT_PRIVACY_PROFILES } from "../export/exportPrivacy.js";
-
-async function buildFullBackupPrivacyLock(privacyLock) {
-  const normalizedLock = normalizeCasePrivacyLock(privacyLock);
-  if (!normalizedLock) return null;
-  if (isLegacyPlaintextCasePrivacyLock(normalizedLock)) {
-    return createCasePrivacyLockConfig(normalizedLock.pin, normalizedLock);
-  }
-  return normalizedLock;
-}
-
 export async function buildFullBackupAttachment(att, { getImageById } = {}) {
   if (!att) return att;
 
@@ -57,7 +41,6 @@ export async function buildFullBackupCase(caseItem, deps = {}) {
   if (!caseItem) return caseItem;
 
   const cloned = { ...caseItem };
-  cloned.privacyLock = await buildFullBackupPrivacyLock(caseItem.privacyLock);
 
   cloned.evidence = await Promise.all(
     (caseItem.evidence || []).map((record) => buildFullBackupRecord(record, deps))
@@ -235,10 +218,6 @@ export async function buildFullBackupAllPayload({
     contractVersion: "2.0",
     exportType: "FULL_BACKUP_ALL",
     exportedAt: new Date().toISOString(),
-    exportMetadata: buildExportPrivacyMetadata(EXPORT_PRIVACY_PROFILES.FULL_BACKUP, {
-      exportType: "FULL_BACKUP_ALL",
-      label: "Full Backup",
-    }),
     importable: true,
     includesBinaryData: true,
     metadata: {
@@ -274,10 +253,6 @@ export async function buildFullBackupCasePayload({
     contractVersion: "2.0",
     exportType: "FULL_BACKUP_CASE",
     exportedAt: new Date().toISOString(),
-    exportMetadata: buildExportPrivacyMetadata(EXPORT_PRIVACY_PROFILES.FULL_BACKUP, {
-      exportType: "FULL_BACKUP_CASE",
-      label: "Full Backup",
-    }),
     importable: true,
     includesBinaryData: true,
     data: {

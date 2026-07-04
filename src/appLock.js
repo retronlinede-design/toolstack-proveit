@@ -30,7 +30,9 @@ export function bytesToBase64(bytes) {
     for (const byte of bytes) binary += String.fromCharCode(byte);
     return btoa(binary);
   }
-  return globalThis.Buffer.from(bytes).toString("base64");
+  const bufferConstructor = globalThis.Buffer;
+  if (bufferConstructor?.from) return bufferConstructor.from(bytes).toString("base64");
+  throw new Error("Base64 encoding is unavailable.");
 }
 
 export function base64ToBytes(value = "") {
@@ -38,7 +40,9 @@ export function base64ToBytes(value = "") {
     const binary = atob(value);
     return Uint8Array.from(binary, (char) => char.charCodeAt(0));
   }
-  return Uint8Array.from(globalThis.Buffer.from(value, "base64"));
+  const bufferConstructor = globalThis.Buffer;
+  if (bufferConstructor?.from) return Uint8Array.from(bufferConstructor.from(value, "base64"));
+  throw new Error("Base64 decoding is unavailable.");
 }
 
 export function generateAppLockSalt(byteLength = 16) {

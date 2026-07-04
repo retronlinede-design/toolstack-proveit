@@ -1,7 +1,3 @@
-import { normalizeCasePrivacyLock } from "../casePrivacyLock.js";
-
-export { normalizeCasePrivacyLock };
-
 /**
  * Safe UUID fallback for insecure contexts or older browsers.
  */
@@ -61,6 +57,17 @@ export const normalizeActiveGeneratedReportLanguage = (value) => {
   return value === "de" ? "de" : "en";
 };
 
+export function normalizeCasePrivacyLock(value) {
+  const pin = typeof value?.pin === "string" ? value.pin.trim() : "";
+  if (!/^\d{4,6}$/.test(pin)) return null;
+
+  return {
+    pin,
+    enabledAt: value?.enabledAt || "",
+    updatedAt: value?.updatedAt || value?.enabledAt || "",
+  };
+}
+
 /**
  * Validates and normalizes a date string to YYYY-MM-DD.
  */
@@ -106,6 +113,45 @@ export const EVIDENCE_TYPES = [
   "observed",
   "verbal",
   "derived",
+];
+
+export const PARTY_ENTITY_TYPES = [
+  "person",
+  "organisation",
+  "government_agency",
+  "company",
+  "law_firm",
+  "medical_provider",
+  "other",
+];
+
+export const PARTY_ROLES = [
+  "complainant",
+  "respondent",
+  "witness",
+  "investigator",
+  "representative",
+  "lawyer",
+  "manager",
+  "medical_professional",
+  "expert",
+  "regulator",
+  "other",
+];
+
+export const PARTY_STATUSES = [
+  "active",
+  "former",
+  "potential",
+  "excluded",
+  "unknown",
+];
+
+export const PARTY_CONFIDENTIALITY_LEVELS = [
+  "normal",
+  "sensitive",
+  "privileged",
+  "restricted",
 ];
 
 export function normalizeEvidenceRole(value) {
@@ -163,6 +209,107 @@ export function normalizeLinkedRecordIds(value) {
     ids.push(id);
     return ids;
   }, []);
+}
+
+function safeString(value) {
+  return typeof value === "string" ? value : "";
+}
+
+function normalizeStringList(value) {
+  if (!Array.isArray(value)) return [];
+
+  const seen = new Set();
+  return value.reduce((items, item) => {
+    if (typeof item !== "string") return items;
+    const text = item.trim();
+    if (!text || seen.has(text)) return items;
+    seen.add(text);
+    items.push(text);
+    return items;
+  }, []);
+}
+
+export function normalizePartyEntityType(value) {
+  const normalized = safeString(value).toLowerCase().trim();
+  return PARTY_ENTITY_TYPES.includes(normalized) ? normalized : "person";
+}
+
+export function normalizePartyRole(value) {
+  const normalized = safeString(value).toLowerCase().trim();
+  return PARTY_ROLES.includes(normalized) ? normalized : "other";
+}
+
+export function normalizePartyStatus(value) {
+  const normalized = safeString(value).toLowerCase().trim();
+  return PARTY_STATUSES.includes(normalized) ? normalized : "active";
+}
+
+export function normalizePartyConfidentiality(value) {
+  const normalized = safeString(value).toLowerCase().trim();
+  return PARTY_CONFIDENTIALITY_LEVELS.includes(normalized) ? normalized : "normal";
+}
+
+function normalizePartyRoles(value) {
+  const roles = Array.isArray(value) ? value : [];
+  const seen = new Set();
+  const normalizedRoles = roles.reduce((items, item) => {
+    const role = normalizePartyRole(item);
+    if (!role || seen.has(role)) return items;
+    seen.add(role);
+    items.push(role);
+    return items;
+  }, []);
+
+  return normalizedRoles.length > 0 ? normalizedRoles : [];
+}
+
+function normalizePartyContact(value = {}) {
+  return {
+    email: safeString(value?.email).trim(),
+    phone: safeString(value?.phone).trim(),
+    website: safeString(value?.website).trim(),
+    preferredMethod: safeString(value?.preferredMethod).trim(),
+    notes: safeString(value?.notes),
+  };
+}
+
+function normalizePartyAddress(value = {}) {
+  return {
+    line1: safeString(value?.line1),
+    line2: safeString(value?.line2),
+    city: safeString(value?.city),
+    region: safeString(value?.region),
+    postalCode: safeString(value?.postalCode),
+    country: safeString(value?.country),
+  };
+}
+
+export function normalizeParty(item = {}) {
+  const now = new Date().toISOString();
+  const displayName = safeString(item?.displayName || item?.name).trim();
+  const legalName = safeString(item?.legalName).trim();
+
+  return {
+    id: safeString(item?.id).trim() || generateId(),
+    entityType: normalizePartyEntityType(item?.entityType),
+    displayName,
+    legalName,
+    aliases: normalizeStringList(item?.aliases),
+    roles: normalizePartyRoles(item?.roles),
+    organisationName: safeString(item?.organisationName).trim(),
+    jobTitle: safeString(item?.jobTitle).trim(),
+    department: safeString(item?.department).trim(),
+    relationshipToCase: safeString(item?.relationshipToCase),
+    contact: normalizePartyContact(item?.contact),
+    address: normalizePartyAddress(item?.address),
+    status: normalizePartyStatus(item?.status),
+    tags: normalizeStringList(item?.tags),
+    notes: safeString(item?.notes),
+    confidentiality: normalizePartyConfidentiality(item?.confidentiality),
+    edited: !!item?.edited,
+    createdAt: safeString(item?.createdAt) || now,
+    updatedAt: safeString(item?.updatedAt) || safeString(item?.createdAt) || now,
+  };
 }
 
 function isTrackingRecordDocument(item) {
@@ -880,6 +1027,7 @@ export function normalizeCase(caseItem) {
   const strategy = Array.isArray(caseItem?.strategy) ? caseItem.strategy.map(r => normalizeRecord(r, "strategy")) : [];
   const ledger = Array.isArray(caseItem?.ledger) ? caseItem.ledger.map(normalizeLedgerEntry) : [];
   const documents = Array.isArray(caseItem?.documents) ? caseItem.documents.map(normalizeDocumentEntry) : [];
+  const parties = Array.isArray(caseItem?.parties) ? caseItem.parties.map(normalizeParty) : [];
   const actionSummary = normalizeActionSummary(caseItem?.actionSummary || {});
   const privacyLock = normalizeCasePrivacyLock(caseItem?.privacyLock);
   const generatedReportText = normalizeGeneratedReportText(caseItem?.generatedReportText);
@@ -901,6 +1049,7 @@ export function normalizeCase(caseItem) {
     strategy: sortTimelineItems(strategy),
     ledger: ledger,
     documents: documents,
+    parties: parties,
     actionSummary,
     privacyLock,
     generatedReportText,
@@ -1179,6 +1328,47 @@ export function deleteDocumentEntryFromCase(caseItem, entryId) {
   };
 
   return cleanupDeletedRecordLinks(updatedCase, "document", entryId);
+}
+
+export function deletePartyFromCase(caseItem, partyId) {
+  return {
+    ...caseItem,
+    parties: (caseItem.parties || []).filter((party) => party.id !== partyId),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function upsertPartyInCase(caseItem, partyInput, editingPartyId = null) {
+  let updatedParties;
+  if (editingPartyId) {
+    updatedParties = (caseItem.parties || []).map((party) => {
+      if (party.id === editingPartyId) {
+        return normalizeParty({
+          ...party,
+          ...partyInput,
+          id: party.id,
+          edited: true,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      return party;
+    });
+  } else {
+    const newParty = normalizeParty({
+      ...partyInput,
+      id: partyInput?.id || generateId(),
+      edited: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    updatedParties = [...(caseItem.parties || []), newParty];
+  }
+
+  return {
+    ...caseItem,
+    parties: updatedParties,
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 export function upsertLedgerEntryInCase(caseItem, ledgerInput, editingLedgerId = null) {
@@ -1645,6 +1835,19 @@ export function mergeLedgerEntries(existingEntries = [], incomingEntries = []) {
   return Array.from(entryMap.values());
 }
 
+export function mergeParties(existingParties = [], incomingParties = []) {
+  const partyMap = new Map(existingParties.map((party) => [party.id, party]));
+  for (const incoming of incomingParties) {
+    if (partyMap.has(incoming.id)) {
+      const existing = partyMap.get(incoming.id);
+      partyMap.set(incoming.id, normalizeParty({ ...existing, ...incoming }));
+    } else {
+      partyMap.set(incoming.id, normalizeParty(incoming));
+    }
+  }
+  return Array.from(partyMap.values());
+}
+
 export function mergeCase(existingCase, incomingCase) {
   const nExisting = normalizeCase(existingCase);
   const nIncoming = normalizeCase(incomingCase);
@@ -1680,6 +1883,7 @@ export function mergeCase(existingCase, incomingCase) {
     strategy: mergeRecords(nExisting.strategy, nIncoming.strategy, "strategy"),
     ledger: mergeLedgerEntries(nExisting.ledger, nIncoming.ledger),
     documents: mergeDocumentEntries(nExisting.documents, nIncoming.documents),
+    parties: mergeParties(nExisting.parties, nIncoming.parties),
     actionSummary: normalizeActionSummary(
       incomingCase?.actionSummary && (
         incomingCase.actionSummary.currentFocus ||

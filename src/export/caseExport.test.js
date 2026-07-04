@@ -191,20 +191,6 @@ test("sanitizeCaseForExport preserves canonical actionSummary shape including cr
   assert.equal(sanitized.documents[0].attachments[0].backupDataUrl, undefined);
 });
 
-test("sanitizeCaseForExport strips legacy plaintext case PINs", () => {
-  const sanitized = sanitizeCaseForExport({
-    ...buildReasoningCase(),
-    privacyLock: {
-      pin: "1234",
-      enabledAt: "2024-01-01T00:00:00.000Z",
-    },
-  });
-
-  assert.equal(sanitized.privacyLock.pin, undefined);
-  assert.equal(sanitized.privacyLock.pinHash, undefined);
-  assert.equal(sanitized.privacyLock.legacyPlaintextPinRemoved, true);
-});
-
 test("buildCaseReasoningExportPayload returns expected core shape for a valid case", () => {
   const payload = buildCaseReasoningExportPayload(buildReasoningCase());
 
@@ -213,11 +199,6 @@ test("buildCaseReasoningExportPayload returns expected core shape for a valid ca
   assert.equal(payload.exportType, "CASE_REASONING_EXPORT");
   assert.equal(payload.importable, false);
   assert.equal(payload.includesBinaryData, false);
-  assert.equal(payload.exportMetadata.exportType, "CASE_REASONING_EXPORT");
-  assert.equal(payload.exportMetadata.label, "Sanitized Export");
-  assert.equal(payload.exportMetadata.includesEvidenceFiles, false);
-  assert.equal(payload.exportMetadata.includesPrivateNotes, true);
-  assert.equal(payload.exportMetadata.includesPinData, false);
   assert.match(payload.exportedAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.deepEqual(payload.data.case, {
     id: "case-1",

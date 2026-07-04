@@ -3,7 +3,6 @@ import {
   getCaseSequenceGroupRelationshipMap,
 } from "../domain/caseDomain.js";
 import { resolveRecordById } from "../domain/linkingResolvers.js";
-import { buildExportPrivacyMetadata, EXPORT_PRIVACY_PROFILES } from "./exportPrivacy.js";
 
 export const SEQUENCE_GROUPS_INDEX_PROMPT =
   "Please review this sequence group index and recommend which chains should be audited first, which appear weak or unsupported, and which records may need regrouping.";
@@ -197,10 +196,6 @@ export function buildSequenceGroupsIndexReport(caseData = {}, options = {}) {
     exportType: "SEQUENCE_GROUPS_INDEX_REPORT",
     schemaVersion: "1.0",
     exportedAt: new Date().toISOString(),
-    exportMetadata: buildExportPrivacyMetadata(EXPORT_PRIVACY_PROFILES.GPT_AUDIT_PACK, {
-      exportType: "SEQUENCE_GROUPS_INDEX_REPORT",
-      label: "GPT Audit Pack",
-    }),
     importable: false,
     case: {
       id: caseData?.id || "",
@@ -239,9 +234,6 @@ export function exportSequenceGroupsIndexMarkdown(caseData, options = {}) {
     `- Title: ${mdEscape(report.case.title) || "-"}`,
     `- Reference: ${mdEscape(report.case.reference) || "-"}`,
     `- Status: ${mdEscape(report.case.status) || "-"}`,
-    `- Includes evidence files: ${report.exportMetadata.includesEvidenceFiles}`,
-    `- Includes private notes: ${report.exportMetadata.includesPrivateNotes}`,
-    `- Includes PIN data: ${report.exportMetadata.includesPinData}`,
     "",
     "## Totals",
     "",

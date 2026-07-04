@@ -163,12 +163,15 @@ export default function SequenceGroupManager({
   const [sequenceDescriptionDraftState, setSequenceDescriptionDraftState] = useState({ key: "", value: "" });
   const [selectedSection, setSelectedSection] = useState("overview");
   const activeDescriptionGroupName = selectedGroupName || sequenceGroupDetails?.groups?.[0]?.name || "";
-  const sequenceDescriptionKey = `${selectedCase?.id || ""}:${activeDescriptionGroupName}`;
-  const sequenceDescriptionDraft = sequenceDescriptionDraftState.key === sequenceDescriptionKey
+  const sequenceDescriptionDraftKey = selectedCase?.id && activeDescriptionGroupName
+    ? `${selectedCase.id}:${activeDescriptionGroupName}`
+    : "";
+  const savedSequenceDescription = selectedCase?.id && activeDescriptionGroupName
+    ? getSequenceGroupDescription(selectedCase.id, activeDescriptionGroupName)
+    : "";
+  const sequenceDescriptionDraft = sequenceDescriptionDraftState.key === sequenceDescriptionDraftKey
     ? sequenceDescriptionDraftState.value
-    : selectedCase?.id && activeDescriptionGroupName
-      ? getSequenceGroupDescription(selectedCase.id, activeDescriptionGroupName)
-      : "";
+    : savedSequenceDescription;
 
   if (!selectedCase) return null;
 
@@ -218,14 +221,13 @@ export default function SequenceGroupManager({
   const saveSelectedGroupDescription = () => {
     if (!activeGroupName) return;
     saveSequenceGroupDescription(selectedCase.id, activeGroupName, sequenceDescriptionDraft);
-    setSequenceDescriptionDraftState({ key: sequenceDescriptionKey, value: sequenceDescriptionDraft });
     setSequenceGroupFeedback(`Saved description for "${activeGroupName}".`);
   };
 
   const clearSelectedGroupDescription = () => {
     if (!activeGroupName) return;
     clearSequenceGroupDescription(selectedCase.id, activeGroupName);
-    setSequenceDescriptionDraftState({ key: sequenceDescriptionKey, value: "" });
+    setSequenceDescriptionDraftState({ key: sequenceDescriptionDraftKey, value: "" });
     setSequenceGroupFeedback(`Cleared description for "${activeGroupName}".`);
   };
 
@@ -852,7 +854,10 @@ export default function SequenceGroupManager({
                             <textarea
                               value={sequenceDescriptionDraft}
                               onChange={(event) => {
-                                setSequenceDescriptionDraftState({ key: sequenceDescriptionKey, value: event.target.value });
+                                setSequenceDescriptionDraftState({
+                                  key: sequenceDescriptionDraftKey,
+                                  value: event.target.value,
+                                });
                                 setSequenceGroupFeedback("");
                               }}
                               rows={3}

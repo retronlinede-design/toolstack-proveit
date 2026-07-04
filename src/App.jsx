@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useMemo, useRef, useState, useEffect } from "react";
+import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import {
   createEmergencyBackupFromDb,
   getAllCases,
@@ -10,8 +10,26 @@ import {
   deleteImages,
 } from "./storage";
 import AttachmentPreview from "./components/AttachmentPreview";
+import RecordModal from "./components/RecordModal";
+import CaseDetail from "./components/CaseDetail";
+import FilePreviewModal from "./components/FilePreviewModal";
+import GptDeltaModal from "./components/gpt/GptDeltaModal";
+import {
+  buildFullBackupAllPayload,
+  buildFullBackupCasePayload,
+  restoreFullBackupCase,
+  restoreFullBackupQuickCapture,
+} from "./backup/fullBackup";
 import { downloadJson } from "./browser/downloadJson";
-import { EXPORT_PRIVACY_PROFILES, getExportPrivacyWarning } from "./export/exportPrivacy.js";
+import {
+  buildCaseReasoningExportPayload,
+} from "./export/caseExport";
+import { buildCaseLinkMapExportPayload } from "./export/linkMapExport";
+import {
+  buildGptDeltaPreview,
+  ingestGptDelta,
+  prepareGptDeltaPayloadForSelectedCase,
+} from "./gpt/gptDelta";
 import {
   convertQuickCaptureToRecord,
   deleteDocumentEntryFromCase,
@@ -48,24 +66,10 @@ import {
   writeAppLockConfig,
 } from "./appLock";
 import {
-  createCasePrivacyLockConfig,
-  hashLegacyCasePrivacyLockForStorage,
-  isCasePrivacyLockEnabled,
-  isValidCasePin,
-  migrateCasePrivacyLockAfterVerify,
-  sanitizeCasePinInput,
-  verifyCasePrivacyLock,
-} from "./casePrivacyLock.js";
-import {
   mergeSequenceGroupMetaStoreToStorage,
   readSequenceGroupMetaStore,
 } from "./sequenceGroupMeta.js";
 import proveItLogo from "./assets/proveit-logo.png";
-
-const CaseDetail = lazy(() => import("./components/CaseDetail"));
-const FilePreviewModal = lazy(() => import("./components/FilePreviewModal"));
-const GptDeltaModal = lazy(() => import("./components/gpt/GptDeltaModal"));
-const RecordModal = lazy(() => import("./components/RecordModal"));
 
 const lastUsedGroupByType = {};
 const SHOW_REVIEW_QUEUE = false;
@@ -76,36 +80,10 @@ const CASE_FOLDERS_STORAGE_KEY = "toolstack.proveit.v1.folders";
 const APP_LOCK_SESSION_UNLOCK_KEY = "toolstack.proveit.v1.appLock.sessionUnlocked";
 const FULL_BACKUP_ALL_RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const RISKY_ACTION_BACKUP_MESSAGE = "Before applying changes, download a Full App Backup. ProveIt stores data locally in this browser, and browser storage can be lost.";
-const EXPORT_WARNING_OVERRIDES = {
-  FULL_BACKUP_ALL: {
-    exportType: "FULL_BACKUP_ALL",
-    label: "Full Backup",
-  },
-  FULL_BACKUP_CASE: {
-    exportType: "FULL_BACKUP_CASE",
-    label: "Full Backup",
-  },
-  CASE_REASONING_EXPORT: {
-    exportType: "CASE_REASONING_EXPORT",
-    label: "Sanitized Export",
-  },
-  CASE_LINK_MAP_EXPORT: {
-    exportType: "CASE_LINK_MAP_EXPORT",
-    label: "Sanitized Export",
-  },
-};
 const EMPTY_DB_WARNING_MESSAGE = "No cases found in this browser storage. If this is unexpected, stop and check Storage Diagnostics before importing or creating new data.";
 
 function safeText(value) {
   return typeof value === "string" ? value : "";
-}
-
-function LazyPanelFallback({ label = "Loading..." }) {
-  return (
-    <div className="rounded-2xl border border-neutral-200 bg-white p-6 text-sm font-semibold text-neutral-500 shadow-sm">
-      {label}
-    </div>
-  );
 }
 
 function parseBackupTimestamp(value) {
@@ -509,8 +487,16 @@ const EMPTY_APP_LOCK_FORM = {
   confirmDisable: false,
 };
 
+function sanitizePinInput(value = "") {
+  return String(value || "").replace(/\D/g, "").slice(0, 6);
+}
+
+function isValidCasePin(pin = "") {
+  return /^\d{4,6}$/.test(String(pin || ""));
+}
+
 function isCasePinLocked(caseItem) {
-  return isCasePrivacyLockEnabled(caseItem?.privacyLock);
+  return isValidCasePin(caseItem?.privacyLock?.pin);
 }
 
 function getRecordMetaType(recordType = "financial") {
@@ -818,11 +804,6 @@ export default function ProveItApp() {
     return snapshot;
   }, [quickCaptures, refreshRescueSnapshot]);
 
-  const confirmSensitiveExport = (profile, overrides) => {
-    if (typeof window === "undefined" || typeof window.confirm !== "function") return true;
-    return window.confirm(getExportPrivacyWarning(profile, overrides));
-  };
-
   const refreshAppLockState = () => {
     const nextState = readAppLockConfig();
     setAppLockState(nextState);
@@ -1120,12 +1101,7 @@ export default function ProveItApp() {
   }, [refreshRescueSnapshot]);
 
   const handleFullBackup = async () => {
-    if (!confirmSensitiveExport(EXPORT_PRIVACY_PROFILES.FULL_BACKUP, EXPORT_WARNING_OVERRIDES.FULL_BACKUP_ALL)) {
-      return false;
-    }
-
     try {
-      const { buildFullBackupAllPayload } = await import("./backup/fullBackup");
       const allCases = await getAllCases();
       const foldersForBackup = readCaseFolders();
       const payload = await buildFullBackupAllPayload({
@@ -1174,19 +1150,10 @@ export default function ProveItApp() {
     }
   };
 
-  const saveCaseForStorage = async (caseItem, options) => {
-    const caseForStorage = {
-      ...caseItem,
-      privacyLock: await hashLegacyCasePrivacyLockForStorage(caseItem.privacyLock),
-    };
-    await saveCase(caseForStorage, options);
-    return caseForStorage;
-  };
-
   const handleUpdateCase = async (updatedCase) => {
     try {
-      const caseForStorage = await saveCaseForStorage(updatedCase);
-      setCases((prev) => prev.map((c) => (c.id === caseForStorage.id ? caseForStorage : c)));
+      await saveCase(updatedCase);
+      setCases((prev) => prev.map((c) => (c.id === updatedCase.id ? updatedCase : c)));
       return true;
     } catch (error) {
       console.error("Failed to update case", error);
@@ -1221,19 +1188,9 @@ export default function ProveItApp() {
     setSelectedCaseId(null);
   };
 
-  const unlockCaseWithPin = async (caseItem, pin) => {
+  const unlockCaseWithPin = (caseItem, pin) => {
     if (!caseItem || !isCasePinLocked(caseItem)) return false;
-    const migrationResult = await migrateCasePrivacyLockAfterVerify(pin, caseItem.privacyLock);
-    if (!migrationResult.verified) return false;
-
-    if (migrationResult.migrated) {
-      const migratedCase = {
-        ...caseItem,
-        privacyLock: migrationResult.privacyLock,
-        updatedAt: new Date().toISOString(),
-      };
-      await handleUpdateCase(migratedCase);
-    }
+    if (String(caseItem.privacyLock.pin) !== String(pin)) return false;
 
     setUnlockedCaseIds((prev) => (prev.includes(caseItem.id) ? prev : [...prev, caseItem.id]));
     setLockPromptPin("");
@@ -1241,17 +1198,17 @@ export default function ProveItApp() {
     return true;
   };
 
-  const handleUnlockSelectedCase = async (event) => {
+  const handleUnlockSelectedCase = (event) => {
     event.preventDefault();
     if (!selectedCase || !selectedCaseLocked) return;
 
-    const candidatePin = sanitizeCasePinInput(lockPromptPin);
+    const candidatePin = sanitizePinInput(lockPromptPin);
     if (!candidatePin) {
       setLockPromptError("Enter the case PIN to continue.");
       return;
     }
 
-    if (!(await unlockCaseWithPin(selectedCase, candidatePin))) {
+    if (!unlockCaseWithPin(selectedCase, candidatePin)) {
       setLockPromptError("Wrong PIN. Check the digits and try again.");
     }
   };
@@ -1260,8 +1217,8 @@ export default function ProveItApp() {
     if (!pinManagerCase) return;
 
     if (pinManagerState.mode === "set") {
-      const newPin = sanitizeCasePinInput(pinForm.newPin);
-      const confirmPin = sanitizeCasePinInput(pinForm.confirmPin);
+      const newPin = sanitizePinInput(pinForm.newPin);
+      const confirmPin = sanitizePinInput(pinForm.confirmPin);
 
       if (!isValidCasePin(newPin)) {
         setPinModalError("PIN must be numeric and 4 to 6 digits.");
@@ -1275,7 +1232,11 @@ export default function ProveItApp() {
 
       const updatedCase = {
         ...pinManagerCase,
-        privacyLock: await createCasePrivacyLockConfig(newPin, pinManagerCase.privacyLock),
+        privacyLock: {
+          pin: newPin,
+          enabledAt: pinManagerCase.privacyLock?.enabledAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
         updatedAt: new Date().toISOString(),
       };
 
@@ -1290,11 +1251,11 @@ export default function ProveItApp() {
     }
 
     if (pinManagerState.mode === "change") {
-      const currentPin = sanitizeCasePinInput(pinForm.currentPin);
-      const newPin = sanitizeCasePinInput(pinForm.newPin);
-      const confirmPin = sanitizeCasePinInput(pinForm.confirmPin);
+      const currentPin = sanitizePinInput(pinForm.currentPin);
+      const newPin = sanitizePinInput(pinForm.newPin);
+      const confirmPin = sanitizePinInput(pinForm.confirmPin);
 
-      if (!(await verifyCasePrivacyLock(currentPin, pinManagerCase?.privacyLock))) {
+      if (currentPin !== pinManagerCase?.privacyLock?.pin) {
         setPinModalError("Current PIN is incorrect.");
         return;
       }
@@ -1311,7 +1272,11 @@ export default function ProveItApp() {
 
       const updatedCase = {
         ...pinManagerCase,
-        privacyLock: await createCasePrivacyLockConfig(newPin, pinManagerCase.privacyLock),
+        privacyLock: {
+          pin: newPin,
+          enabledAt: pinManagerCase.privacyLock?.enabledAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
         updatedAt: new Date().toISOString(),
       };
 
@@ -1326,9 +1291,9 @@ export default function ProveItApp() {
     }
 
     if (pinManagerState.mode === "remove") {
-      const currentPin = sanitizeCasePinInput(pinForm.currentPin);
+      const currentPin = sanitizePinInput(pinForm.currentPin);
 
-      if (!(await verifyCasePrivacyLock(currentPin, pinManagerCase?.privacyLock))) {
+      if (currentPin !== pinManagerCase?.privacyLock?.pin) {
         setPinModalError("Current PIN is incorrect.");
         return;
       }
@@ -1354,11 +1319,9 @@ export default function ProveItApp() {
     }
   };
 
-  const getPrivacyLockFingerprint = (caseItem) => JSON.stringify(caseItem?.privacyLock || null);
-
   const reconcileUnlockedCaseIds = (nextCases, previousCases = cases) => {
     const previousLockByCaseId = new Map(
-      (previousCases || []).map((caseItem) => [caseItem.id, getPrivacyLockFingerprint(caseItem)])
+      (previousCases || []).map((caseItem) => [caseItem.id, caseItem?.privacyLock?.pin || ""])
     );
 
     setUnlockedCaseIds((prev) =>
@@ -1366,11 +1329,11 @@ export default function ProveItApp() {
         const nextCase = (nextCases || []).find((caseItem) => caseItem.id === caseId);
         if (!nextCase) return false;
 
-        const previousLock = previousLockByCaseId.get(caseId) || "";
-        const nextLock = getPrivacyLockFingerprint(nextCase);
+        const previousPin = previousLockByCaseId.get(caseId) || "";
+        const nextPin = nextCase?.privacyLock?.pin || "";
 
-        if (!isCasePinLocked(nextCase)) return false;
-        if (previousLock !== nextLock) return false;
+        if (!nextPin) return false;
+        if (previousPin !== nextPin) return false;
         return true;
       })
     );
@@ -1404,7 +1367,7 @@ export default function ProveItApp() {
     setGptDeltaBackupPromptOpen(false);
   };
 
-  const handleValidateGptDelta = async () => {
+  const handleValidateGptDelta = () => {
     setGptDeltaError("");
     setGptDeltaPreview(null);
     setGptDeltaValidatedCase(null);
@@ -1423,11 +1386,6 @@ export default function ProveItApp() {
       return;
     }
 
-    const {
-      buildGptDeltaPreview,
-      ingestGptDelta,
-      prepareGptDeltaPayloadForSelectedCase,
-    } = await import("./gpt/gptDelta");
     const payloadForValidation = prepareGptDeltaPayloadForSelectedCase(payload, selectedCase.id);
     const result = ingestGptDelta(selectedCase, payloadForValidation);
     if (!result.ok) {
@@ -1442,8 +1400,8 @@ export default function ProveItApp() {
   const applyValidatedGptDelta = async () => {
     try {
       await createEmergencyBackupFromDb("gptDelta:before-apply", { caseId: gptDeltaValidatedCase?.id || "" });
-      const caseForStorage = await saveCaseForStorage(gptDeltaValidatedCase, { operation: "gptDelta:apply" });
-      setCases((prev) => prev.map((c) => (c.id === caseForStorage.id ? caseForStorage : c)));
+      await saveCase(gptDeltaValidatedCase, { operation: "gptDelta:apply" });
+      setCases((prev) => prev.map((c) => (c.id === gptDeltaValidatedCase.id ? gptDeltaValidatedCase : c)));
       resetGptDeltaModal();
     } catch (error) {
       console.error("Failed to apply GPT update", error);
@@ -1564,11 +1522,11 @@ export default function ProveItApp() {
 
     const updatedCase = deleteDocumentEntryFromCase(targetCase, entryId);
     try {
-      const caseForStorage = await saveCaseForStorage(updatedCase, {
+      await saveCase(updatedCase, {
         operation: "deleteDocumentEntry",
         allowSuspiciousOverwrite: true,
       });
-      setCases(prev => prev.map(c => (c.id === caseForStorage.id ? caseForStorage : c)));
+      setCases(prev => prev.map(c => (c.id === updatedCase.id ? updatedCase : c)));
     } catch (error) {
       console.error("Failed to delete document entry", error);
       showAppNotice("error", error.message || "Could not delete this document.");
@@ -1586,11 +1544,11 @@ export default function ProveItApp() {
 
     const updatedCase = deleteLedgerEntryFromCase(targetCase, entryId);
     try {
-      const caseForStorage = await saveCaseForStorage(updatedCase, {
+      await saveCase(updatedCase, {
         operation: "deleteLedgerEntry",
         allowSuspiciousOverwrite: true,
       });
-      setCases(prev => prev.map(c => (c.id === caseForStorage.id ? caseForStorage : c)));
+      setCases(prev => prev.map(c => (c.id === updatedCase.id ? updatedCase : c)));
     } catch (error) {
       console.error("Failed to delete ledger entry", error);
       showAppNotice("error", error.message || "Could not delete this ledger entry.");
@@ -1728,10 +1686,10 @@ export default function ProveItApp() {
     const newImageIds = getNewImageIdsForCaseUpdate(currentCase, updatedCase);
 
     try {
-      const caseForStorage = await saveCaseForStorage(updatedCase);
-      setCases((prev) => prev.map((c) => (c.id === currentCase.id ? caseForStorage : c)));
+      await saveCase(updatedCase);
+      setCases((prev) => prev.map((c) => (c.id === currentCase.id ? updatedCase : c)));
       if (documentOpenedFromSequenceManager?.onSaved) {
-        const savedDocument = caseForStorage.documents?.find((doc) => doc.id === (editingDocumentId || documentInput.id));
+        const savedDocument = updatedCase.documents?.find((doc) => doc.id === (editingDocumentId || documentInput.id));
         const sequenceManagerContext = documentOpenedFromSequenceManager;
         closeDocumentModal({ skipSequenceManagerRestore: true });
         sequenceManagerContext.onSaved({
@@ -1802,8 +1760,8 @@ export default function ProveItApp() {
     const updatedCase = upsertLedgerEntryInCase(currentCase, ledgerForm, editingLedgerId);
 
     try {
-      const caseForStorage = await saveCaseForStorage(updatedCase);
-      setCases((prev) => prev.map((c) => (c.id === currentCase.id ? caseForStorage : c)));
+      await saveCase(updatedCase);
+      setCases((prev) => prev.map((c) => (c.id === currentCase.id ? updatedCase : c)));
     } catch (error) {
       console.error("Failed to save ledger entry", error);
       showAppNotice("error", error.message || "Could not save this ledger entry.");
@@ -2202,12 +2160,10 @@ export default function ProveItApp() {
     );
 
     try {
-      const persistedCaseById = new Map();
       for (const caseItem of updatedCases.filter((item) => item.folderId === null && cases.find((c) => c.id === item.id)?.folderId === folderId)) {
-        const caseForStorage = await saveCaseForStorage(caseItem);
-        persistedCaseById.set(caseForStorage.id, caseForStorage);
+        await saveCase(caseItem);
       }
-      setCases(updatedCases.map((caseItem) => persistedCaseById.get(caseItem.id) || caseItem));
+      setCases(updatedCases);
       setCaseFolders((prev) => prev.filter((item) => item.id !== folderId));
       if (activeFolderId === folderId) setActiveFolderId(null);
     } catch (error) {
@@ -2387,10 +2343,8 @@ export default function ProveItApp() {
 
   const exportSelectedCaseBackup = async () => {
     if (!selectedCase) return;
-    if (!confirmSensitiveExport(EXPORT_PRIVACY_PROFILES.FULL_BACKUP, EXPORT_WARNING_OVERRIDES.FULL_BACKUP_CASE)) return;
 
     try {
-      const { buildFullBackupCasePayload } = await import("./backup/fullBackup");
       const payload = await buildFullBackupCasePayload({
         caseItem: selectedCase,
         selectedCaseId: selectedCase.id,
@@ -2405,12 +2359,10 @@ export default function ProveItApp() {
     }
   };
 
-  const exportCaseReasoningExport = async (caseId, mode = "compact") => {
+  const exportCaseReasoningExport = (caseId, mode = "compact") => {
     const c = cases.find((item) => item.id === caseId);
     if (!c) return;
-    if (!confirmSensitiveExport(EXPORT_PRIVACY_PROFILES.SANITIZED_EXPORT, EXPORT_WARNING_OVERRIDES.CASE_REASONING_EXPORT)) return;
 
-    const { buildCaseReasoningExportPayload } = await import("./export/caseExport");
     const payload = buildCaseReasoningExportPayload(c, mode);
 
     const safeName = c.name.toLowerCase().replace(/[^a-z0-9]/g, "-");
@@ -2437,8 +2389,6 @@ export default function ProveItApp() {
     }
 
     try {
-      if (!confirmSensitiveExport(EXPORT_PRIVACY_PROFILES.SANITIZED_EXPORT, EXPORT_WARNING_OVERRIDES.CASE_LINK_MAP_EXPORT)) return;
-      const { buildCaseLinkMapExportPayload } = await import("./export/linkMapExport");
       const payload = buildCaseLinkMapExportPayload(c);
       await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
       showAppNotice("success", "Link Map JSON copied.");
@@ -2492,10 +2442,6 @@ export default function ProveItApp() {
     const incomingSequenceGroupMeta = parsed?.appData?.sequenceGroupMeta || imported?.appData?.sequenceGroupMeta;
 
     if (isFullBackup) {
-      const {
-        restoreFullBackupCase,
-        restoreFullBackupQuickCapture,
-      } = await import("./backup/fullBackup");
       incomingCases = await Promise.all(incomingCases.map((caseItem) =>
         restoreFullBackupCase(caseItem, { saveImage, generateId, restoreStats })
       ));
@@ -2526,8 +2472,8 @@ export default function ProveItApp() {
 
     for (const caseItem of mergedCases) {
       try {
-        const caseForStorage = await saveCaseForStorage(caseItem);
-        importSuccesses.push(caseForStorage.name || caseForStorage.id || "Untitled case");
+        await saveCase(caseItem);
+        importSuccesses.push(caseItem.name || caseItem.id || "Untitled case");
       } catch (error) {
         console.error("Failed to save imported case", caseItem?.id, error);
         importFailures.push({
@@ -2678,7 +2624,7 @@ export default function ProveItApp() {
     try {
       const snapshotCases = rescue.snapshot.data.cases.map(normalizeCase);
       for (const caseItem of snapshotCases) {
-        await saveCaseForStorage(caseItem);
+        await saveCase(caseItem);
       }
 
       const snapshotFolders = Array.isArray(rescue.snapshot.data.folders)
@@ -2727,12 +2673,13 @@ export default function ProveItApp() {
       incidents: [],
       tasks: [],
       strategy: [],
+      parties: [],
     };
 
     try {
-      const caseForStorage = await saveCaseForStorage(newCase);
-      setCases((prev) => [caseForStorage, ...prev]);
-      setSelectedCaseId(caseForStorage.id);
+      await saveCase(newCase);
+      setCases((prev) => [newCase, ...prev]);
+      setSelectedCaseId(newCase.id);
       setActiveTab("overview");
       setShowCreate(false);
     } catch (error) {
@@ -2753,8 +2700,8 @@ export default function ProveItApp() {
       };
 
       try {
-        const caseForStorage = await saveCaseForStorage(updatedCase);
-        setCases((prev) => prev.map((c) => (c.id === caseForStorage.id ? caseForStorage : c)));
+        await saveCase(updatedCase);
+        setCases((prev) => prev.map((c) => (c.id === updatedCase.id ? updatedCase : c)));
         setShowCreate(false);
         setEditingCase(null);
         setForm({ name: "", category: "general", customCategory: "", notes: "", description: "" });
@@ -2777,12 +2724,13 @@ export default function ProveItApp() {
         incidents: [],
         tasks: [],
         strategy: [],
+        parties: [],
       };
 
       try {
-        const caseForStorage = await saveCaseForStorage(newCase);
-        setCases((prev) => [caseForStorage, ...prev]);
-        setSelectedCaseId(caseForStorage.id);
+        await saveCase(newCase);
+        setCases((prev) => [newCase, ...prev]);
+        setSelectedCaseId(newCase.id);
         setActiveTab("overview");
         setShowCreate(false);
         setForm({ name: "", category: "general", customCategory: "", notes: "", description: "" });
@@ -2816,11 +2764,11 @@ export default function ProveItApp() {
       const updatedCase = deleteRecordFromCase(selectedCase, recordType, recordId);
 
       try {
-        const caseForStorage = await saveCaseForStorage(updatedCase, {
+        await saveCase(updatedCase, {
           operation: "deleteRecord",
           allowSuspiciousOverwrite: true,
         });
-        setCases((prev) => prev.map((c) => (c.id === selectedCase.id ? caseForStorage : c)));
+        setCases((prev) => prev.map((c) => (c.id === selectedCase.id ? updatedCase : c)));
       } catch (error) {
         console.error("Failed to save updated case", error);
         showAppNotice("error", error.message || "Could not delete this record.");
@@ -3004,10 +2952,9 @@ const handleRecordFiles = async (event) => {
     updatedCase = syncCaseLinks(updatedCase, updatedIncident, "incidents");
 
     try {
-      const caseForStorage = await saveCaseForStorage(updatedCase);
-      const savedIncident = caseForStorage.incidents?.find((incident) => incident.id === updatedIncident.id) || updatedIncident;
-      setCases(prev => prev.map(c => c.id === selectedCase.id ? caseForStorage : c));
-      openEditRecordModal("incidents", savedIncident);
+      await saveCase(updatedCase);
+      setCases(prev => prev.map(c => c.id === selectedCase.id ? updatedCase : c));
+      openEditRecordModal("incidents", updatedIncident);
     } catch (error) {
       console.error("Failed to unlink evidence", error);
       showAppNotice("error", error.message || "Could not unlink this evidence item.");
@@ -3043,14 +2990,12 @@ const handleRecordFiles = async (event) => {
 
     updatedCase = upsertRecordInCase(selectedCase, recordType, payloadForUpsert, currentEditingRecord);
     const newImageIds = getNewImageIdsForCaseUpdate(selectedCase, updatedCase);
-    let savedCase = null;
 
     try {
-      const caseForStorage = await saveCaseForStorage(updatedCase);
-      savedCase = caseForStorage;
+      await saveCase(updatedCase);
       setCases((prev) =>
         prev.map((c) =>
-          c.id === selectedCase.id ? caseForStorage : c
+          c.id === selectedCase.id ? updatedCase : c
         )
       );
       if (shouldShowIssueFeedback) {
@@ -3058,7 +3003,7 @@ const handleRecordFiles = async (event) => {
         setTimeout(() => setRecordIssueFeedback(""), 1800);
       }
       if (sequenceManagerContext?.onSaved) {
-        const savedRecord = caseForStorage?.[recordType]?.find((record) => record.id === payloadForUpsert.id);
+        const savedRecord = updatedCase?.[recordType]?.find((record) => record.id === payloadForUpsert.id);
         closeRecordModal({ skipSequenceManagerRestore: true });
         sequenceManagerContext.onSaved({
           recordType,
@@ -3079,7 +3024,7 @@ const handleRecordFiles = async (event) => {
 
     // If we were creating evidence from an incident, prepare to return to the incident view
     const isEvidenceFromIncident = recordType === "evidence" && parentRecordForNewChild;
-    const parentToReopen = isEvidenceFromIncident ? savedCase?.incidents?.find(inc => inc.id === parentRecordForNewChild.id) : null;
+    const parentToReopen = isEvidenceFromIncident ? updatedCase.incidents.find(inc => inc.id === parentRecordForNewChild.id) : null;
 
     if (recordType === "evidence") setActiveTab("evidence");
     if (recordType === "incidents") setActiveTab("incidents");
@@ -3121,10 +3066,10 @@ const handleRecordFiles = async (event) => {
     updatedCapture = result.capture;
 
     try {
-      const caseForStorage = await saveCaseForStorage(updatedCase);
+      await saveCase(updatedCase);
       setCases((prev) =>
         prev.map((c) =>
-          c.id === capture.caseId ? caseForStorage : c
+          c.id === capture.caseId ? updatedCase : c
         )
       );
       setQuickCaptures((prev) =>
@@ -3774,7 +3719,7 @@ const handleRecordFiles = async (event) => {
               <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h3 className="text-sm font-bold text-neutral-900">Full Backup</h3>
+                    <h3 className="text-sm font-bold text-neutral-900">Backups</h3>
                     <p className="mt-1 text-xs leading-5 text-neutral-500">
                       Full app backups are importable and include all cases, quick captures, and stored attachment data.
                     </p>
@@ -3808,7 +3753,7 @@ const handleRecordFiles = async (event) => {
                       className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
                     >
                       <Download className="h-4 w-4" />
-                      Full Case Backup
+                      Selected Case Backup
                     </button>
                   ) : null}
                 </div>
@@ -3817,7 +3762,7 @@ const handleRecordFiles = async (event) => {
               <section className="rounded-xl border border-neutral-200 bg-white p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h3 className="text-sm font-bold text-neutral-900">Sanitized Export</h3>
+                    <h3 className="text-sm font-bold text-neutral-900">AI / Reasoning</h3>
                     <p className="mt-1 text-xs leading-5 text-neutral-500">
                       Reasoning exports are for AI review and are not backups. They are not importable and do not preserve attachment payloads.
                     </p>
@@ -3833,7 +3778,7 @@ const handleRecordFiles = async (event) => {
                   className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400 sm:w-auto"
                 >
                   <FileJson className="h-4 w-4" />
-                  Sanitized Reasoning Export
+                  Reasoning Export
                 </button>
               </section>
 
@@ -4484,7 +4429,7 @@ const handleRecordFiles = async (event) => {
                   autoFocus
                   value={lockPromptPin}
                   onChange={(e) => {
-                    setLockPromptPin(sanitizeCasePinInput(e.target.value));
+                    setLockPromptPin(sanitizePinInput(e.target.value));
                     setLockPromptError("");
                   }}
                   placeholder="Enter 4 to 6 digits"
@@ -4524,85 +4469,81 @@ const handleRecordFiles = async (event) => {
             </form>
           </div>
         ) : selectedCase ? (
-          <Suspense fallback={<LazyPanelFallback label="Loading case workspace..." />}>
-            <CaseDetail
-              selectedCase={selectedCase}
-              reviewQueue={reviewQueue}
-              activeTab={activeTab}
-              setActiveTab={setActiveTab}
-              tabs={tabs}
-              imageCache={imageCache}
-              attachmentImages={attachmentDiagnosticImages}
-              attachmentDiagnosticCases={cases}
-              setSelectedCaseId={setSelectedCaseId}
-              openRecordModal={openRecordModal}
-              renderCaseList={renderCaseList}
-              openEditRecordModal={openEditRecordModal}
-              openSequenceManagerRecordEdit={(recordType, record, options = {}) => {
-                if (recordType === "documents") {
-                  const fullDocument = selectedCase?.documents?.find((doc) => doc.id === record.id) || record;
-                  openDocumentModal(fullDocument, fullDocument.id || record.id, "document", { fromSequenceManager: options });
-                  return;
-                }
-                openEditRecordModal(recordType, record, { ...options, fromSequenceManager: options });
-              }}
-              openEditCaseModal={openEditCaseModal}
-              onUpdateCase={handleUpdateCase}
-              deleteRecord={deleteRecord}
-              exportSelectedCase={exportSelectedCaseBackup}
-              onExportSnapshot={exportCaseReasoningExport}
-              onCopyLinkMapExport={handleCopyLinkMapExport}
-              onExportFullBackup={handleFullBackup}
-              onOpenGptDeltaModal={openGptDeltaModal}
-              onOpenPinManager={openPinManager}
-              isPinLocked={selectedCaseLocked}
-              isCaseCurrentlyLocked={selectedCaseRequiresPin}
-              issueFixFeedback={recordIssueFeedback}
-              onViewRecord={setViewingRecord}
-              onPreviewFile={setPreviewFile}
-              openLedgerModal={openLedgerModal}
-              deleteLedgerEntry={deleteLedgerEntry}
-              duplicateLedgerEntry={duplicateLedgerEntry}
-              openDocumentModal={openDocumentModal}
-              deleteDocumentEntry={deleteDocumentEntry}
-              reviewQueueSection={SHOW_REVIEW_QUEUE ? (
-                <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
-                  <div className="mb-4 flex items-start justify-between gap-3">
-                    <div>
-                      <h2 className="text-xl font-semibold">Review Queue</h2>
-                      <p className="mt-1 text-sm text-neutral-600">Quick captures waiting to be classified.</p>
-                    </div>
-                    <span className="rounded-full border border-neutral-300 bg-neutral-50 px-3 py-1 text-xs font-medium text-neutral-700">
-                      {reviewQueue.length} Open
-                    </span>
+          <CaseDetail
+            selectedCase={selectedCase}
+            reviewQueue={reviewQueue}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            tabs={tabs}
+            imageCache={imageCache}
+            attachmentImages={attachmentDiagnosticImages}
+            attachmentDiagnosticCases={cases}
+            setSelectedCaseId={setSelectedCaseId}
+            openRecordModal={openRecordModal}
+            renderCaseList={renderCaseList}
+            openEditRecordModal={openEditRecordModal}
+            openSequenceManagerRecordEdit={(recordType, record, options = {}) => {
+              if (recordType === "documents") {
+                const fullDocument = selectedCase?.documents?.find((doc) => doc.id === record.id) || record;
+                openDocumentModal(fullDocument, fullDocument.id || record.id, "document", { fromSequenceManager: options });
+                return;
+              }
+              openEditRecordModal(recordType, record, { ...options, fromSequenceManager: options });
+            }}
+            openEditCaseModal={openEditCaseModal}
+            onUpdateCase={handleUpdateCase}
+            deleteRecord={deleteRecord}
+            exportSelectedCase={exportSelectedCaseBackup}
+            onExportSnapshot={exportCaseReasoningExport}
+            onCopyLinkMapExport={handleCopyLinkMapExport}
+            onExportFullBackup={handleFullBackup}
+            onOpenGptDeltaModal={openGptDeltaModal}
+            onOpenPinManager={openPinManager}
+            isPinLocked={selectedCaseLocked}
+            isCaseCurrentlyLocked={selectedCaseRequiresPin}
+            issueFixFeedback={recordIssueFeedback}
+            onViewRecord={setViewingRecord}
+            onPreviewFile={setPreviewFile}
+            openLedgerModal={openLedgerModal}
+            deleteLedgerEntry={deleteLedgerEntry}
+            duplicateLedgerEntry={duplicateLedgerEntry}
+            openDocumentModal={openDocumentModal}
+            deleteDocumentEntry={deleteDocumentEntry}
+            reviewQueueSection={SHOW_REVIEW_QUEUE ? (
+              <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-semibold">Review Queue</h2>
+                    <p className="mt-1 text-sm text-neutral-600">Quick captures waiting to be classified.</p>
                   </div>
-                  {renderReviewQueue()}
+                  <span className="rounded-full border border-neutral-300 bg-neutral-50 px-3 py-1 text-xs font-medium text-neutral-700">
+                    {reviewQueue.length} Open
+                  </span>
                 </div>
-              ) : null}
-            />
-          </Suspense>
+                {renderReviewQueue()}
+              </div>
+            ) : null}
+          />
         ) : (
           renderCaseList()
         )}
 
         {showGptDeltaModal && (
-          <Suspense fallback={<LazyPanelFallback label="Loading GPT delta tools..." />}>
-            <GptDeltaModal
-              applying={gptDeltaApplying}
-              backupPromptOpen={gptDeltaBackupPromptOpen}
-              error={gptDeltaError}
-              onApply={handleApplyGptDelta}
-              onCancel={resetGptDeltaModal}
-              onCancelBackupPrompt={handleCancelGptDeltaBackupPrompt}
-              onChangeText={handleGptDeltaTextChange}
-              onCreateBackupThenApply={handleCreateBackupThenApplyGptDelta}
-              onApplyWithoutBackup={handleApplyGptDeltaWithoutBackup}
-              onValidate={handleValidateGptDelta}
-              preview={gptDeltaPreview}
-              text={gptDeltaText}
-              validatedCase={gptDeltaValidatedCase}
-            />
-          </Suspense>
+          <GptDeltaModal
+            applying={gptDeltaApplying}
+            backupPromptOpen={gptDeltaBackupPromptOpen}
+            error={gptDeltaError}
+            onApply={handleApplyGptDelta}
+            onCancel={resetGptDeltaModal}
+            onCancelBackupPrompt={handleCancelGptDeltaBackupPrompt}
+            onChangeText={handleGptDeltaTextChange}
+            onCreateBackupThenApply={handleCreateBackupThenApplyGptDelta}
+            onApplyWithoutBackup={handleApplyGptDeltaWithoutBackup}
+            onValidate={handleValidateGptDelta}
+            preview={gptDeltaPreview}
+            text={gptDeltaText}
+            validatedCase={gptDeltaValidatedCase}
+          />
         )}
         {pinManagerState.open && pinManagerCase && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -4682,7 +4623,7 @@ const handleRecordFiles = async (event) => {
                         autoFocus
                         value={pinForm.newPin}
                         onChange={(e) => {
-                          setPinForm((prev) => ({ ...prev, newPin: sanitizeCasePinInput(e.target.value) }));
+                          setPinForm((prev) => ({ ...prev, newPin: sanitizePinInput(e.target.value) }));
                           setPinModalError("");
                         }}
                         placeholder="4 to 6 digits"
@@ -4697,7 +4638,7 @@ const handleRecordFiles = async (event) => {
                         inputMode="numeric"
                         value={pinForm.confirmPin}
                         onChange={(e) => {
-                          setPinForm((prev) => ({ ...prev, confirmPin: sanitizeCasePinInput(e.target.value) }));
+                          setPinForm((prev) => ({ ...prev, confirmPin: sanitizePinInput(e.target.value) }));
                           setPinModalError("");
                         }}
                         placeholder="Re-enter PIN"
@@ -4717,7 +4658,7 @@ const handleRecordFiles = async (event) => {
                         autoFocus
                         value={pinForm.currentPin}
                         onChange={(e) => {
-                          setPinForm((prev) => ({ ...prev, currentPin: sanitizeCasePinInput(e.target.value) }));
+                          setPinForm((prev) => ({ ...prev, currentPin: sanitizePinInput(e.target.value) }));
                           setPinModalError("");
                         }}
                         placeholder="Current PIN"
@@ -4732,7 +4673,7 @@ const handleRecordFiles = async (event) => {
                         inputMode="numeric"
                         value={pinForm.newPin}
                         onChange={(e) => {
-                          setPinForm((prev) => ({ ...prev, newPin: sanitizeCasePinInput(e.target.value) }));
+                          setPinForm((prev) => ({ ...prev, newPin: sanitizePinInput(e.target.value) }));
                           setPinModalError("");
                         }}
                         placeholder="4 to 6 digits"
@@ -4747,7 +4688,7 @@ const handleRecordFiles = async (event) => {
                         inputMode="numeric"
                         value={pinForm.confirmPin}
                         onChange={(e) => {
-                          setPinForm((prev) => ({ ...prev, confirmPin: sanitizeCasePinInput(e.target.value) }));
+                          setPinForm((prev) => ({ ...prev, confirmPin: sanitizePinInput(e.target.value) }));
                           setPinModalError("");
                         }}
                         placeholder="Re-enter new PIN"
@@ -4771,7 +4712,7 @@ const handleRecordFiles = async (event) => {
                         autoFocus
                         value={pinForm.currentPin}
                         onChange={(e) => {
-                          setPinForm((prev) => ({ ...prev, currentPin: sanitizeCasePinInput(e.target.value) }));
+                          setPinForm((prev) => ({ ...prev, currentPin: sanitizePinInput(e.target.value) }));
                           setPinModalError("");
                         }}
                         placeholder="Current PIN"
@@ -4860,25 +4801,23 @@ const handleRecordFiles = async (event) => {
         )}
 
         {recordType && selectedCase && (
-          <Suspense fallback={<LazyPanelFallback label="Loading record editor..." />}>
-            <RecordModal
-              recordType={recordType}
-              selectedCase={selectedCase}
-              recordForm={recordForm}
-              setRecordForm={setRecordForm}
-              handleRecordFiles={handleRecordFiles}
-              removeRecordAttachment={removeRecordAttachment}
-              saveRecord={saveRecord}
-              closeRecordModal={closeRecordModal}
-              focusField={recordFocusField}
-              focusHint={recordFocusHint}
-              onPreviewFile={setPreviewFile}
-              openEditRecordModal={openEditRecordModal}
-              openDocumentModal={openDocumentModal}
-              onCreateEvidenceFromIncident={handleCreateEvidenceFromIncident}
-              onUnlinkEvidenceFromIncident={handleUnlinkEvidenceFromIncident}
-            />
-          </Suspense>
+          <RecordModal
+            recordType={recordType}
+            selectedCase={selectedCase}
+            recordForm={recordForm}
+            setRecordForm={setRecordForm}
+            handleRecordFiles={handleRecordFiles}
+            removeRecordAttachment={removeRecordAttachment}
+            saveRecord={saveRecord}
+            closeRecordModal={closeRecordModal}
+            focusField={recordFocusField}
+            focusHint={recordFocusHint}
+            onPreviewFile={setPreviewFile}
+            openEditRecordModal={openEditRecordModal}
+            openDocumentModal={openDocumentModal}
+            onCreateEvidenceFromIncident={handleCreateEvidenceFromIncident}
+            onUnlinkEvidenceFromIncident={handleUnlinkEvidenceFromIncident}
+          />
         )}
 
         {SHOW_REVIEW_QUEUE && showQuickCapture && (
@@ -5624,13 +5563,11 @@ const handleRecordFiles = async (event) => {
         )}
 
         {previewFile && (
-          <Suspense fallback={<LazyPanelFallback label="Loading file preview..." />}>
-            <FilePreviewModal
-              file={previewFile}
-              imageCache={imageCache}
-              onClose={() => setPreviewFile(null)}
-            />
-          </Suspense>
+          <FilePreviewModal
+            file={previewFile}
+            imageCache={imageCache}
+            onClose={() => setPreviewFile(null)}
+          />
         )}
       </div>
     </div>

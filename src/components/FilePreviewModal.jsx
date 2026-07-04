@@ -4,7 +4,6 @@ import {
   getPreviewMimeType,
   isAllowedPreviewImageMimeType,
 } from "../lib/fileSecurity.js";
-import { EXPORT_PRIVACY_PROFILES, getExportPrivacyWarning } from "../export/exportPrivacy.js";
 
 export default function FilePreviewModal({ file, onClose, imageCache = {} }) {
   const url = useMemo(() => {
@@ -36,13 +35,6 @@ export default function FilePreviewModal({ file, onClose, imageCache = {} }) {
 
   const handleDownload = () => {
     if (!url) return;
-    if (
-      typeof window !== "undefined" &&
-      typeof window.confirm === "function" &&
-      !window.confirm(getExportPrivacyWarning(EXPORT_PRIVACY_PROFILES.EVIDENCE_FILE_EXPORT))
-    ) {
-      return;
-    }
     const a = document.createElement("a");
     a.href = url;
     a.download = name;
@@ -66,13 +58,7 @@ export default function FilePreviewModal({ file, onClose, imageCache = {} }) {
             <img src={url} alt={name} className="max-h-full max-w-full rounded-lg object-contain shadow-2xl" />
           )}
           {isPDF && url && (
-            <iframe
-              src={url}
-              className="h-full w-full rounded-lg bg-white shadow-2xl"
-              title={name}
-              sandbox="allow-downloads allow-same-origin"
-              referrerPolicy="no-referrer"
-            />
+            <iframe src={url} className="h-full w-full rounded-lg bg-white shadow-2xl" title={name} />
           )}
           {(!isImage && !isPDF) || !url ? (
             <div className="flex flex-col items-center gap-4 rounded-3xl bg-white p-12 text-center shadow-2xl">

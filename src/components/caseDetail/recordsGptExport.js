@@ -1,5 +1,3 @@
-import { buildExportPrivacyMetadata, EXPORT_PRIVACY_PROFILES } from "../../export/exportPrivacy.js";
-
 const BINARY_FIELD_NAMES = new Set([
   "arrayBuffer",
   "attachment",
@@ -95,10 +93,6 @@ export function buildTrackingRecordGptExport(caseItem = {}, record = {}, context
   return {
     app: "proveit",
     exportType: "GPT_RECORD_EXPORT",
-    exportMetadata: buildExportPrivacyMetadata(EXPORT_PRIVACY_PROFILES.GPT_AUDIT_PACK, {
-      exportType: "GPT_RECORD_EXPORT",
-      label: "GPT Audit Pack",
-    }),
     importable: false,
     includesBinaryData: false,
     case: caseEnvelope(caseItem),
@@ -117,10 +111,6 @@ export function buildAllTrackingRecordsGptExport(caseItem = {}, records = [], co
   return {
     app: "proveit",
     exportType: "GPT_RECORDS_EXPORT",
-    exportMetadata: buildExportPrivacyMetadata(EXPORT_PRIVACY_PROFILES.GPT_AUDIT_PACK, {
-      exportType: "GPT_RECORDS_EXPORT",
-      label: "GPT Audit Pack",
-    }),
     importable: false,
     includesBinaryData: false,
     case: caseEnvelope(caseItem),

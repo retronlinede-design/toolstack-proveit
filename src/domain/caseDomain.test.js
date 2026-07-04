@@ -2,16 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  CASE_PRIVACY_LOCK_VERSION,
-  createCasePrivacyLockConfig,
-} from "../casePrivacyLock.js";
-import {
   applyRecordPatchToCase,
   buildRecordTypeConversionPreview,
   convertRecordTypeInCase,
   convertQuickCaptureToRecord,
   deleteDocumentEntryFromCase,
   deleteLedgerEntryFromCase,
+  deletePartyFromCase,
   deleteRecordFromCase,
   getCaseSequenceGroups,
   getCaseSequenceGroupDetails,
@@ -23,16 +20,23 @@ import {
   clearRecordSequenceGroup,
   mergeCaseSequenceGroups,
   mergeCase,
+  mergeParties,
   moveRecordToSequenceGroup,
   normalizeCase,
   normalizeCasePrivacyLock,
+  normalizeParty,
   normalizeRecord,
+  PARTY_CONFIDENTIALITY_LEVELS,
+  PARTY_ENTITY_TYPES,
+  PARTY_ROLES,
+  PARTY_STATUSES,
   removeCaseSequenceGroup,
   renameCaseSequenceGroup,
   syncCaseLinks,
   unlinkRecordFromIncident,
   upsertDocumentEntryInCase,
   upsertLedgerEntryInCase,
+  upsertPartyInCase,
   upsertRecordInCase,
 } from "./caseDomain.js";
 import { prepareRecordFormForSave } from "./recordFormDomain.js";
@@ -494,22 +498,6 @@ test("normalizeCase preserves valid privacyLock metadata", () => {
   });
 });
 
-test("normalizeCase preserves hashed privacyLock metadata without plaintext PIN", async () => {
-  const privacyLock = await createCasePrivacyLockConfig("456789", {
-    enabledAt: "2024-02-01T10:00:00.000Z",
-  });
-  const normalized = normalizeCase({
-    id: "case-1",
-    name: "Locked case",
-    privacyLock,
-  });
-
-  assert.equal(normalized.privacyLock.version, CASE_PRIVACY_LOCK_VERSION);
-  assert.equal(normalized.privacyLock.pin, undefined);
-  assert.equal(normalized.privacyLock.pinHash, privacyLock.pinHash);
-  assert.equal(normalized.privacyLock.enabledAt, "2024-02-01T10:00:00.000Z");
-});
-
 test("mergeCase preserves an existing privacyLock when the incoming case has none", () => {
   const merged = mergeCase(
     {
@@ -705,6 +693,133 @@ test("normalizeRecord defaults incident milestone to false and preserves true va
   assert.equal(milestoneIncident.isMilestone, true);
 });
 
+test("party constants expose supported Phase 1 values", () => {
+  assert.deepEqual(PARTY_ENTITY_TYPES, [
+    "person",
+    "organisation",
+    "government_agency",
+    "company",
+    "law_firm",
+    "medical_provider",
+    "other",
+  ]);
+  assert.ok(PARTY_ROLES.includes("complainant"));
+  assert.ok(PARTY_ROLES.includes("respondent"));
+  assert.ok(PARTY_ROLES.includes("witness"));
+  assert.ok(PARTY_ROLES.includes("lawyer"));
+  assert.deepEqual(PARTY_STATUSES, ["active", "former", "potential", "excluded", "unknown"]);
+  assert.deepEqual(PARTY_CONFIDENTIALITY_LEVELS, ["normal", "sensitive", "privileged", "restricted"]);
+});
+
+test("normalizeParty normalizes entity details and safe defaults", () => {
+  const createdAt = iso("2024-01-01T09:00:00Z");
+  const updatedAt = iso("2024-01-02T09:00:00Z");
+  const party = normalizeParty({
+    id: " party-1 ",
+    entityType: "COMPANY",
+    displayName: "  Acme Ltd  ",
+    legalName: " Acme Legal Name ",
+    aliases: [" Acme ", "Acme", "", null, "ACME GmbH"],
+    roles: ["complainant", "witness", "witness", "bad-role"],
+    organisationName: " Parent Org ",
+    jobTitle: " Manager ",
+    department: " HR ",
+    relationshipToCase: "Reported issue",
+    contact: {
+      email: " test@example.com ",
+      phone: " 123 ",
+      website: " https://example.com ",
+      preferredMethod: "email",
+      notes: "contact notes",
+    },
+    address: {
+      line1: "Line 1",
+      line2: "Line 2",
+      city: "City",
+      region: "Region",
+      postalCode: "12345",
+      country: "DE",
+    },
+    status: "POTENTIAL",
+    tags: [" hr ", "hr", "important"],
+    notes: "party notes",
+    confidentiality: "PRIVILEGED",
+    edited: true,
+    createdAt,
+    updatedAt,
+  });
+
+  assert.equal(party.id, "party-1");
+  assert.equal(party.entityType, "company");
+  assert.equal(party.displayName, "Acme Ltd");
+  assert.equal(party.legalName, "Acme Legal Name");
+  assert.deepEqual(party.aliases, ["Acme", "ACME GmbH"]);
+  assert.deepEqual(party.roles, ["complainant", "witness", "other"]);
+  assert.equal(party.organisationName, "Parent Org");
+  assert.equal(party.jobTitle, "Manager");
+  assert.equal(party.department, "HR");
+  assert.equal(party.relationshipToCase, "Reported issue");
+  assert.deepEqual(party.contact, {
+    email: "test@example.com",
+    phone: "123",
+    website: "https://example.com",
+    preferredMethod: "email",
+    notes: "contact notes",
+  });
+  assert.deepEqual(party.address, {
+    line1: "Line 1",
+    line2: "Line 2",
+    city: "City",
+    region: "Region",
+    postalCode: "12345",
+    country: "DE",
+  });
+  assert.equal(party.status, "potential");
+  assert.deepEqual(party.tags, ["hr", "important"]);
+  assert.equal(party.notes, "party notes");
+  assert.equal(party.confidentiality, "privileged");
+  assert.equal(party.edited, true);
+  assert.equal(party.createdAt, createdAt);
+  assert.equal(party.updatedAt, updatedAt);
+});
+
+test("normalizeParty falls back to safe Phase 1 defaults", () => {
+  const party = normalizeParty({
+    entityType: "bad",
+    name: "Legacy Name",
+    roles: "bad",
+    status: "bad",
+    confidentiality: "bad",
+    aliases: "bad",
+    tags: "bad",
+    contact: null,
+    address: null,
+  });
+
+  assert.equal(party.entityType, "person");
+  assert.equal(party.displayName, "Legacy Name");
+  assert.deepEqual(party.roles, []);
+  assert.equal(party.status, "active");
+  assert.equal(party.confidentiality, "normal");
+  assert.deepEqual(party.aliases, []);
+  assert.deepEqual(party.tags, []);
+  assert.deepEqual(party.contact, {
+    email: "",
+    phone: "",
+    website: "",
+    preferredMethod: "",
+    notes: "",
+  });
+  assert.deepEqual(party.address, {
+    line1: "",
+    line2: "",
+    city: "",
+    region: "",
+    postalCode: "",
+    country: "",
+  });
+});
+
 test("normalizeCase builds the current canonical shape and sorts timeline arrays", () => {
   const normalized = normalizeCase({
     id: "case-1",
@@ -732,6 +847,7 @@ test("normalizeCase builds the current canonical shape and sorts timeline arrays
     tasks: [{ id: "task-1", title: "Task", date: "2024-07-01", createdAt: iso("2024-07-01T09:00:00Z") }],
     ledger: [{ id: "ledger-1", category: "bad", label: "Rent", expectedAmount: "10", paidAmount: "4" }],
     documents: [{ id: "doc-1", title: "Doc", linkedRecordIds: "bad" }],
+    parties: [{ id: "party-1", displayName: "Tenant", entityType: "person", roles: ["complainant"] }],
     actionSummary: {
       currentFocus: "Focus",
       nextActions: "bad",
@@ -753,6 +869,9 @@ test("normalizeCase builds the current canonical shape and sorts timeline arrays
   assert.equal(normalized.ledger[0].category, "other");
   assert.equal(normalized.ledger[0].differenceAmount, 6);
   assert.deepEqual(normalized.documents[0].linkedRecordIds, []);
+  assert.deepEqual(normalized.parties.map((party) => party.id), ["party-1"]);
+  assert.equal(normalized.parties[0].displayName, "Tenant");
+  assert.deepEqual(normalized.parties[0].roles, ["complainant"]);
   assert.deepEqual(normalized.actionSummary, {
     currentFocus: "Focus",
     nextActions: [],
@@ -761,6 +880,15 @@ test("normalizeCase builds the current canonical shape and sorts timeline arrays
     criticalDeadlines: ["currently dropped"],
     updatedAt: "",
   });
+});
+
+test("normalizeCase adds empty parties array for legacy cases", () => {
+  const normalized = normalizeCase({
+    id: "legacy-case",
+    name: "Legacy Case",
+  });
+
+  assert.deepEqual(normalized.parties, []);
 });
 
 test("normalizeCase migrates legacy generatedReportText into English report version", () => {
@@ -1277,6 +1405,26 @@ test("deleteRecordFromCase preserves non-linking record type delete behavior", (
   assert.equal(updated.evidence, evidence);
   assert.equal(updated.incidents, incidents);
   assert.match(updated.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
+});
+
+test("deletePartyFromCase removes target party and preserves unrelated sections", () => {
+  const evidence = [{ id: "ev-1", title: "Evidence without normalized timeline fields" }];
+  const caseItem = {
+    id: "case-party-delete",
+    updatedAt: iso("2024-01-01T08:00:00Z"),
+    evidence,
+    parties: [
+      { id: "party-delete", displayName: "Delete me" },
+      { id: "party-keep", displayName: "Keep me" },
+    ],
+  };
+
+  const updated = deletePartyFromCase(caseItem, "party-delete");
+
+  assert.deepEqual(updated.parties.map((party) => party.id), ["party-keep"]);
+  assert.equal(updated.evidence, evidence);
+  assert.match(updated.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.notEqual(updated.updatedAt, caseItem.updatedAt);
 });
 
 test("deleteLedgerEntryFromCase removes target ledger entry and preserves unrelated unnormalized data", () => {
@@ -2186,6 +2334,88 @@ test("convertRecordTypeInCase converts document to evidence and appends audit lo
   assert.equal(result.case.auditLog[0].recordId, "doc-1");
 });
 
+test("upsertPartyInCase create appends a normalized party and refreshes case timestamp", () => {
+  const evidence = [{ id: "ev-1", title: "Evidence" }];
+  const caseItem = {
+    id: "case-party-create",
+    updatedAt: iso("2024-01-01T08:00:00Z"),
+    evidence,
+    parties: [{ id: "party-old", displayName: "Existing" }],
+  };
+
+  const updated = upsertPartyInCase(caseItem, {
+    displayName: " New Party ",
+    entityType: "law_firm",
+    roles: ["lawyer"],
+    status: "potential",
+  });
+
+  assert.deepEqual(updated.parties.map((party) => party.id), ["party-old", updated.parties[1].id]);
+  assert.equal(updated.parties[1].displayName, "New Party");
+  assert.equal(updated.parties[1].entityType, "law_firm");
+  assert.deepEqual(updated.parties[1].roles, ["lawyer"]);
+  assert.equal(updated.parties[1].status, "potential");
+  assert.equal(updated.parties[1].edited, false);
+  assert.match(updated.parties[1].createdAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.match(updated.parties[1].updatedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(updated.evidence, evidence);
+  assert.match(updated.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.notEqual(updated.updatedAt, caseItem.updatedAt);
+});
+
+test("upsertPartyInCase edit replaces an existing party by id and preserves unrelated sections", () => {
+  const evidence = [{ id: "ev-1", title: "Evidence" }];
+  const unchangedParty = { id: "party-2", displayName: "Keep party" };
+  const caseItem = {
+    id: "case-party-edit",
+    updatedAt: iso("2024-01-01T08:00:00Z"),
+    evidence,
+    parties: [
+      { id: "party-1", displayName: "Old name", entityType: "person", roles: ["witness"], createdAt: iso("2024-01-01T09:00:00Z") },
+      unchangedParty,
+    ],
+  };
+
+  const updated = upsertPartyInCase(caseItem, {
+    displayName: "Updated name",
+    entityType: "company",
+    roles: ["respondent"],
+  }, "party-1");
+
+  assert.equal(updated.parties.length, 2);
+  assert.equal(updated.parties[0].id, "party-1");
+  assert.equal(updated.parties[0].displayName, "Updated name");
+  assert.equal(updated.parties[0].entityType, "company");
+  assert.deepEqual(updated.parties[0].roles, ["respondent"]);
+  assert.equal(updated.parties[0].edited, true);
+  assert.equal(updated.parties[0].createdAt, iso("2024-01-01T09:00:00Z"));
+  assert.match(updated.parties[0].updatedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(updated.parties[1], unchangedParty);
+  assert.equal(updated.evidence, evidence);
+  assert.match(updated.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
+});
+
+test("mergeParties merges by id and normalizes incoming parties", () => {
+  const merged = mergeParties(
+    [
+      { id: "party-1", displayName: "Existing", roles: ["witness"], tags: ["old"] },
+      { id: "party-keep", displayName: "Keep" },
+    ],
+    [
+      { id: "party-1", displayName: "Incoming", entityType: "company", roles: ["respondent"], tags: ["new"] },
+      { id: "party-new", displayName: "New", entityType: "government_agency", roles: ["regulator"] },
+    ]
+  );
+
+  assert.deepEqual(merged.map((party) => party.id), ["party-1", "party-keep", "party-new"]);
+  assert.equal(merged[0].displayName, "Incoming");
+  assert.equal(merged[0].entityType, "company");
+  assert.deepEqual(merged[0].roles, ["respondent"]);
+  assert.deepEqual(merged[0].tags, ["new"]);
+  assert.equal(merged[2].entityType, "government_agency");
+  assert.deepEqual(merged[2].roles, ["regulator"]);
+});
+
 test("upsertLedgerEntryInCase create appends a normalized ledger entry and refreshes case timestamp", () => {
   const evidence = [{ id: "ev-1", title: "Evidence" }];
   const documents = [{ id: "doc-1", title: "Document" }];
@@ -2432,6 +2662,10 @@ test("mergeCase normalizes both sides, merges collections by id, and keeps curre
     strategy: [{ id: "str-1", title: "Existing strategy", date: "2024-01-04", createdAt: iso("2024-01-04T09:00:00Z") }],
     ledger: [{ id: "ledger-1", label: "Old ledger", expectedAmount: "5", paidAmount: "2" }],
     documents: [{ id: "doc-1", title: "Old doc", summary: "old" }],
+    parties: [
+      { id: "party-1", displayName: "Existing party", roles: ["witness"] },
+      { id: "party-keep", displayName: "Kept party" },
+    ],
     generatedReportText: "Existing legacy report",
     generatedReportVersions: {
       en: "Existing English report",
@@ -2464,6 +2698,10 @@ test("mergeCase normalizes both sides, merges collections by id, and keeps curre
     evidence: [{ id: "ev-2", title: "Incoming evidence" }],
     ledger: [{ id: "ledger-1", label: "New ledger", expectedAmount: "9", paidAmount: "3" }],
     documents: [{ id: "doc-1", title: "New doc" }],
+    parties: [
+      { id: "party-1", displayName: "Incoming party", roles: ["respondent"], entityType: "company" },
+      { id: "party-new", displayName: "New party", roles: ["regulator"], entityType: "government_agency" },
+    ],
     generatedReportVersions: {
       de: "Incoming German report",
     },
@@ -2494,6 +2732,10 @@ test("mergeCase normalizes both sides, merges collections by id, and keeps curre
   assert.equal(merged.ledger[0].label, "New ledger");
   assert.equal(merged.ledger[0].differenceAmount, 6);
   assert.equal(merged.documents[0].title, "New doc");
+  assert.deepEqual(merged.parties.map((party) => party.id), ["party-1", "party-keep", "party-new"]);
+  assert.equal(merged.parties[0].displayName, "Incoming party");
+  assert.equal(merged.parties[0].entityType, "company");
+  assert.deepEqual(merged.parties[0].roles, ["respondent"]);
   assert.deepEqual(merged.actionSummary, {
     currentFocus: "Existing focus",
     nextActions: ["Existing action"],

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { AlertCircle, Briefcase, CheckCircle2, AlertTriangle, ChevronDown, ChevronRight, Download, FileText, Network, Search, ShieldCheck, Tags } from "lucide-react";
 import proveItHeaderLogo from "../assets/proveitheader.png";
 import { isTimelineCapable, getCaseHealthReport } from "../lib/caseHealth";
@@ -36,7 +36,6 @@ import {
   exportGptProtocolPackJson,
   exportGptProtocolPackMarkdown,
 } from "../export/gptProtocolPack.js";
-import { EXPORT_PRIVACY_PROFILES, getExportPrivacyWarning } from "../export/exportPrivacy.js";
 import {
   buildCaseSliceMarkdownPrompt,
   buildCaseSlicePack,
@@ -60,6 +59,14 @@ import { buildCaseBundleReport, buildDocumentPackReport, buildEvidencePackReport
 import { getLinkChipClasses } from "./linkChipStyles";
 import LinkedChip from "./LinkedChip";
 import RecordCard from "./RecordCard";
+import CaseBundleReportArticle from "./reports/CaseBundleReportArticle";
+import DocumentPackReportArticle from "./reports/DocumentPackReportArticle";
+import EvidencePackReportArticle from "./reports/EvidencePackReportArticle";
+import ExecutiveSummaryReportArticle from "./reports/ExecutiveSummaryReportArticle";
+import GeneratedClientReportArticle from "./reports/GeneratedClientReportArticle";
+import LedgerPackReportArticle from "./reports/LedgerPackReportArticle";
+import ThreadIssueReportArticle from "./reports/ThreadIssueReportArticle";
+import SequenceGroupManager from "./sequenceGroups/SequenceGroupManager";
 import {
   actionSummaryToForm,
   applyActionSummaryPatch,
@@ -95,15 +102,6 @@ import {
   readSequenceGroupMetaStore,
   renameSequenceGroupMeta,
 } from "../sequenceGroupMeta.js";
-
-const CaseBundleReportArticle = lazy(() => import("./reports/CaseBundleReportArticle"));
-const DocumentPackReportArticle = lazy(() => import("./reports/DocumentPackReportArticle"));
-const EvidencePackReportArticle = lazy(() => import("./reports/EvidencePackReportArticle"));
-const ExecutiveSummaryReportArticle = lazy(() => import("./reports/ExecutiveSummaryReportArticle"));
-const GeneratedClientReportArticle = lazy(() => import("./reports/GeneratedClientReportArticle"));
-const LedgerPackReportArticle = lazy(() => import("./reports/LedgerPackReportArticle"));
-const ThreadIssueReportArticle = lazy(() => import("./reports/ThreadIssueReportArticle"));
-const SequenceGroupManager = lazy(() => import("./sequenceGroups/SequenceGroupManager"));
 
 const ENABLE_SUPABASE_REMOTE = false;
 
@@ -709,11 +707,6 @@ export default function CaseDetail({
     URL.revokeObjectURL(url);
   }
 
-  function confirmSensitiveExport(profile, overrides) {
-    if (typeof window === "undefined" || typeof window.confirm !== "function") return true;
-    return window.confirm(getExportPrivacyWarning(profile, overrides));
-  }
-
   function getAuditExportFilename(extension) {
     const casePart = (selectedCase?.id || selectedCase?.name || "case").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "case";
     const groupPart = (selectedSequenceGroupAuditGroup || "sequence-group").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "sequence-group";
@@ -733,31 +726,17 @@ export default function CaseDetail({
   }
 
   function handleDownloadGptProtocolPackJson() {
-    if (!confirmSensitiveExport(EXPORT_PRIVACY_PROFILES.GPT_AUDIT_PACK, {
-      exportType: "PROVEIT_GPT_PROTOCOL_PACK",
-      label: "GPT Audit Pack",
-      includesPrivateNotes: false,
-    })) return;
     const payload = exportGptProtocolPackJson();
     downloadTextFile(JSON.stringify(payload, null, 2), getGptProtocolPackFilename("json"), "application/json");
   }
 
   function handleDownloadGptProtocolPackMarkdown() {
-    if (!confirmSensitiveExport(EXPORT_PRIVACY_PROFILES.GPT_AUDIT_PACK, {
-      exportType: "PROVEIT_GPT_PROTOCOL_PACK",
-      label: "GPT Audit Pack",
-      includesPrivateNotes: false,
-    })) return;
     const markdown = exportGptProtocolPackMarkdown();
     downloadTextFile(markdown, getGptProtocolPackFilename("md"), "text/markdown");
   }
 
   function handleDownloadSequenceGroupsIndexJson() {
     if (!selectedCase) return;
-    if (!confirmSensitiveExport(EXPORT_PRIVACY_PROFILES.GPT_AUDIT_PACK, {
-      exportType: "SEQUENCE_GROUPS_INDEX_REPORT",
-      label: "GPT Audit Pack",
-    })) return;
 
     try {
       const payload = exportSequenceGroupsIndexJson(selectedCase, {
@@ -773,10 +752,6 @@ export default function CaseDetail({
 
   function handleDownloadSequenceGroupsIndexMarkdown() {
     if (!selectedCase) return;
-    if (!confirmSensitiveExport(EXPORT_PRIVACY_PROFILES.GPT_AUDIT_PACK, {
-      exportType: "SEQUENCE_GROUPS_INDEX_REPORT",
-      label: "GPT Audit Pack",
-    })) return;
 
     try {
       const markdown = exportSequenceGroupsIndexMarkdown(selectedCase, {
@@ -796,10 +771,6 @@ export default function CaseDetail({
       setSequenceGroupAuditFeedback("No sequence groups exist for this case.");
       return;
     }
-    if (!confirmSensitiveExport(EXPORT_PRIVACY_PROFILES.GPT_AUDIT_PACK, {
-      exportType: "SEQUENCE_GROUP_FULL_RECORD_AUDIT_REPORT",
-      label: "GPT Audit Pack",
-    })) return;
 
     try {
       if (sequenceGroupAuditFormat === "json") {
@@ -2957,7 +2928,6 @@ ${ungroupedSequenceText}
   const aiWorkspaceIconMap = { Briefcase, Download, FileText, Network, Search };
 
   return (
-    <Suspense fallback={<div className="rounded-2xl border border-neutral-200 bg-white p-5 text-sm font-semibold text-neutral-500 shadow-sm">Loading advanced workspace...</div>}>
     <div className="space-y-6">
       <div className="flex flex-col gap-4 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden lg:flex-row lg:items-start lg:justify-between">
         <div>
@@ -3005,7 +2975,7 @@ ${ungroupedSequenceText}
                 <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
                 <div className="absolute right-0 z-50 mt-2 w-72 overflow-hidden rounded-xl border border-neutral-200 bg-white p-2 shadow-xl animate-in fade-in zoom-in duration-100">
                   <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                    Full Backup
+                    Backup
                   </div>
                   <button 
                     onClick={() => { exportSelectedCase(); setShowExportMenu(false); }}
@@ -3014,7 +2984,7 @@ ${ungroupedSequenceText}
                     Download Full Case Backup
                   </button>
                   <div className="mt-2 border-t border-neutral-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                    Sanitized Export
+                    GPT
                   </div>
                   <button 
                     onClick={() => { onExportSnapshot(selectedCase.id, "detailed"); setShowExportMenu(false); }}
@@ -3044,16 +3014,16 @@ ${ungroupedSequenceText}
                     Download GPT Protocol Pack Markdown
                   </button>
                   <div className="mt-2 border-t border-neutral-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                    Specialist Handoff
+                    Audit
                   </div>
                   <button
                     onClick={() => { openSequenceGroupAuditExport(); setShowExportMenu(false); }}
                     className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50"
                   >
-                    Open Specialist Handoff
+                    Open Sequence Group Audit
                   </button>
                   <div className="mt-2 border-t border-neutral-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                    Report Export
+                    Reasoning Snapshot Upload
                   </div>
                   {ENABLE_SUPABASE_REMOTE ? (
                     <button
@@ -6381,7 +6351,6 @@ ${ungroupedSequenceText}
         onClose={() => setActiveLedgerRecord(null)}
       />
     </div>
-    </Suspense>
   );
 }
 

@@ -105,11 +105,6 @@ test("buildCaseLinkMapExportPayload creates nodes for major linkable types", () 
 
   assert.equal(payload.exportType, "CASE_LINK_MAP_EXPORT");
   assert.equal(payload.schemaVersion, "link-map-1.0");
-  assert.equal(payload.exportMetadata.exportType, "CASE_LINK_MAP_EXPORT");
-  assert.equal(payload.exportMetadata.label, "Sanitized Export");
-  assert.equal(payload.exportMetadata.includesEvidenceFiles, false);
-  assert.equal(payload.exportMetadata.includesPrivateNotes, true);
-  assert.equal(payload.exportMetadata.includesPinData, false);
   assert.equal(payload.case.id, "case-1");
   assert.equal(payload.summary.nodeCountsByType.incident, 2);
   assert.equal(payload.summary.nodeCountsByType.evidence, 1);

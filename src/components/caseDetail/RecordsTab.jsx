@@ -157,7 +157,7 @@ export default function RecordsTab({
             </p>
           </div>
           <span className="shrink-0 rounded-lg border border-blue-200 bg-white px-2 py-1 text-xs font-semibold text-blue-700">
-            {trackingRecords.length} tracking record{trackingRecords.length === 1 ? "" : "s"} · {generatedLedgerEntries.length} generated payment preview{generatedLedgerEntries.length === 1 ? "" : "s"}
+            {trackingRecords.length} tracking record{trackingRecords.length === 1 ? "" : "s"} Â· {generatedLedgerEntries.length} generated payment preview{generatedLedgerEntries.length === 1 ? "" : "s"}
           </span>
         </div>
 
@@ -198,7 +198,7 @@ export default function RecordsTab({
                     </div>
 
                     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-600">
-                      <span><span className="font-medium text-neutral-800">Purpose:</span> {record.meta.subject || "—"}</span>
+                      <span><span className="font-medium text-neutral-800">Purpose:</span> {record.meta.subject || "â€”"}</span>
                       {record.meta.period && <span><span className="font-medium text-neutral-800">Period:</span> {record.meta.period}</span>}
                       <span>{tableRows.length} row{tableRows.length === 1 ? "" : "s"}</span>
                       {record.fileLinks.length > 0 && <span>{record.fileLinks.length} file link{record.fileLinks.length === 1 ? "" : "s"}</span>}
@@ -305,7 +305,7 @@ export default function RecordsTab({
                                     </span>
                                   ) : (
                                     <span className={`break-words ${isDifference ? `font-semibold ${getDifferenceClasses(value)}` : ""}`}>
-                                      {value || "—"}
+                                      {value || "â€”"}
                                     </span>
                                   )}
                                 </td>

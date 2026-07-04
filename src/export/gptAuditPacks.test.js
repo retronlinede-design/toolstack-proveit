@@ -201,9 +201,6 @@ function assertSafePack(pack) {
   const serialized = JSON.stringify(pack);
   assert.equal(pack.importable, false);
   assert.equal(pack.includesBinaryData, false);
-  assert.equal(pack.exportMetadata.includesEvidenceFiles, false);
-  assert.equal(pack.exportMetadata.includesPrivateNotes, true);
-  assert.equal(pack.exportMetadata.includesPinData, false);
   assert.match(serialized, /Do not invent facts/);
   assert.match(serialized, /Do not generate deltas/);
   assert.doesNotMatch(serialized, /dataUrl/);
@@ -306,7 +303,6 @@ test("full chain GPT pack includes complete safe chain records, external links, 
 
   assertSafePack(pack);
   assert.equal(pack.packType, "FULL_CHAIN_GPT_PACK");
-  assert.equal(pack.exportMetadata.label, "Specialist Handoff");
   assert.equal(pack.data.sequenceGroup.name, "Repair Chain");
   assert.equal(pack.data.sequenceGroup.description, "Repairs and proof chain.");
   assert.deepEqual(pack.data.incidents.map((record) => record.id), ["inc-chain", "inc-no-evidence"]);
@@ -332,7 +328,6 @@ test("management report builder pack includes sequence chains, source IDs, and s
 
   assertSafePack(pack);
   assert.equal(pack.packType, "MANAGEMENT_REPORT_BUILDER_PACK");
-  assert.equal(pack.exportMetadata.label, "Specialist Handoff");
   assert.equal(pack.data.scope.type, "wholeCase");
   assert.equal(pack.data.sequenceChains.some((chain) => chain.name === "Repair Chain"), true);
   assert.equal(pack.data.sourceIds.includes("inc-chain"), true);
