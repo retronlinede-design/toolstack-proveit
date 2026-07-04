@@ -787,25 +787,6 @@ export default function ProveItApp() {
     return rescue;
   }, []);
 
-  const updateRescueSnapshot = useCallback(async ({
-    cases: snapshotCases,
-    folders: snapshotFolders,
-    quickCaptures: snapshotQuickCaptures,
-  } = {}) => {
-    const sourceCases = Array.isArray(snapshotCases) ? snapshotCases : await getAllCases();
-    if (sourceCases.length === 0) return null;
-
-    const diagnostics = await getStorageDiagnostics();
-    const snapshot = writeRescueSnapshot({
-      cases: sourceCases,
-      folders: Array.isArray(snapshotFolders) ? snapshotFolders : readCaseFolders(),
-      quickCaptures: Array.isArray(snapshotQuickCaptures) ? snapshotQuickCaptures : quickCaptures,
-      imageCount: diagnostics.recordCounts?.images ?? 0,
-    });
-    refreshRescueSnapshot();
-    return snapshot;
-  }, [quickCaptures, refreshRescueSnapshot]);
-
   const refreshAppLockState = () => {
     const nextState = readAppLockConfig();
     setAppLockState(nextState);
@@ -1829,6 +1810,24 @@ export default function ProveItApp() {
       return [];
     }
   });
+  const updateRescueSnapshot = useCallback(async ({
+    cases: snapshotCases,
+    folders: snapshotFolders,
+    quickCaptures: snapshotQuickCaptures,
+  } = {}) => {
+    const sourceCases = Array.isArray(snapshotCases) ? snapshotCases : await getAllCases();
+    if (sourceCases.length === 0) return null;
+
+    const diagnostics = await getStorageDiagnostics();
+    const snapshot = writeRescueSnapshot({
+      cases: sourceCases,
+      folders: Array.isArray(snapshotFolders) ? snapshotFolders : readCaseFolders(),
+      quickCaptures: Array.isArray(snapshotQuickCaptures) ? snapshotQuickCaptures : quickCaptures,
+      imageCount: diagnostics.recordCounts?.images ?? 0,
+    });
+    refreshRescueSnapshot();
+    return snapshot;
+  }, [quickCaptures, refreshRescueSnapshot]);
   const [showQuickCapture, setShowQuickCapture] = useState(false);
   const reviewQueue = quickCaptures.filter((item) => item.status === "unreviewed");
   const [captureForm, setCaptureForm] = useState(EMPTY_CAPTURE_FORM);
