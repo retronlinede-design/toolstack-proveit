@@ -36,6 +36,7 @@ import {
   exportGptProtocolPackJson,
   exportGptProtocolPackMarkdown,
 } from "../export/gptProtocolPack.js";
+import { buildCaseReasoningExportPayload } from "../export/caseExport.js";
 import {
   buildCaseSliceMarkdownPrompt,
   buildCaseSlicePack,
@@ -1167,6 +1168,20 @@ export default function CaseDetail({
       console.error("Failed to copy AI specialist prompt", error);
       setAiToolsFeedback(error.message || "Could not copy AI specialist prompt.");
       setSequenceGroupFeedback("Could not copy AI specialist prompt.");
+    }
+  }
+
+  async function handleCopyRecommendedGptJson() {
+    if (!selectedCase) return;
+    try {
+      const payload = buildCaseReasoningExportPayload(selectedCase, "detailed");
+      await copySequenceGroupText(JSON.stringify(payload, null, 2));
+      setAiToolsFeedback("Recommended GPT JSON copied.");
+      setSequenceGroupFeedback("Recommended GPT JSON copied.");
+    } catch (error) {
+      console.error("Failed to copy recommended GPT JSON", error);
+      setAiToolsFeedback(error.message || "Could not copy recommended GPT JSON.");
+      setSequenceGroupFeedback("Could not copy recommended GPT JSON.");
     }
   }
 
@@ -6169,6 +6184,70 @@ ${ungroupedSequenceText}
                   </div>
                 )}
 
+                <section className="rounded-xl border border-lime-300 bg-lime-50/70 p-4 shadow-sm">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-lime-800">Send Case to GPT</div>
+                      <h4 className="mt-1 text-lg font-semibold text-neutral-950">AI Reasoning Snapshot JSON</h4>
+                      <p className="mt-1 text-sm leading-6 text-neutral-700">
+                        Use this when you want a GPT to understand and review the whole case.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCopyRecommendedGptJson}
+                      className="w-fit shrink-0 rounded-md border border-lime-600 bg-white px-3 py-2 text-sm font-bold text-neutral-950 shadow-sm hover:bg-lime-400/30"
+                    >
+                      Copy Recommended GPT JSON
+                    </button>
+                  </div>
+                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                    <div>
+                      <div className="text-xs font-bold uppercase tracking-wider text-lime-900">Best For</div>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {["Complete case review", "Legal specialist review", "Management specialist review", "Gap analysis", "General case reasoning"].map((item) => (
+                          <span key={item} className="rounded-md border border-lime-200 bg-white px-2 py-0.5 text-xs font-semibold text-lime-900">
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold uppercase tracking-wider text-lime-900">Safety</div>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {["Read Only", "Not importable", "Does not change case data"].map((item) => (
+                          <span key={item} className="rounded-md border border-lime-200 bg-white px-2 py-0.5 text-xs font-semibold text-lime-900">
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <div className="text-xs font-bold uppercase tracking-wider text-lime-900">Contains</div>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {["Case", "Parties", "Incidents", "Evidence", "Documents", "Records", "Ledger", "Timeline", "Reports"].map((item) => (
+                        <span key={item} className="rounded-md border border-lime-200 bg-white px-2 py-0.5 text-xs font-semibold text-neutral-800">
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <div className="text-xs font-bold uppercase tracking-wider text-lime-900">Does Not Contain</div>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {["Original files", "Binary attachments"].map((item) => (
+                        <span key={item} className="rounded-md border border-amber-200 bg-white px-2 py-0.5 text-xs font-semibold text-amber-800">
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="mt-4 text-xs leading-5 text-lime-900">
+                    Use this first unless you specifically need a chain review, report-writing pack, or technical/debug export.
+                  </p>
+                </section>
+
                 <div>
                   <h4 className="text-base font-semibold text-neutral-950">{activeAiToolOption.title}</h4>
                   <p className="mt-1 text-sm leading-6 text-neutral-600">{activeAiToolOption.description}</p>
@@ -6283,6 +6362,9 @@ ${ungroupedSequenceText}
             </div>
 
             <div className="flex shrink-0 flex-wrap gap-2 border-t border-neutral-100 bg-white p-4 sm:px-5">
+              <div className="basis-full text-xs leading-5 text-neutral-500">
+                <span className="font-semibold text-neutral-700">Advanced Formats:</span> Markdown and specialist packs are optional. Use them only when a GPT specifically needs a formatted prompt, one issue thread, or a technical audit.
+              </div>
               <button
                 type="button"
                 disabled={activeAiToolNeedsSequenceGroup && !aiToolsSequenceGroup}
