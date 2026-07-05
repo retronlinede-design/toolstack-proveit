@@ -1736,6 +1736,38 @@ ${strategyFocus.join("\n") || "—"}`;
     { label: "Ledger", tabId: "ledger", count: (selectedCase?.ledger || []).length },
     { label: "Timeline", tabId: "timeline", count: timelineItems.length },
   ];
+  const incidentIdsWithEvidence = new Set([
+    ...(selectedCase?.incidents || []).flatMap((incident) =>
+      (incident?.linkedEvidenceIds || []).length > 0 ? [incident.id] : []
+    ),
+    ...(selectedCase?.evidence || []).flatMap((evidence) => evidence?.linkedIncidentIds || []),
+  ]);
+  const overviewAttentionIssues = [
+    {
+      key: "incidents-missing-evidence",
+      tabId: "incidents",
+      count: (selectedCase?.incidents || []).filter((incident) => !incidentIdsWithEvidence.has(incident.id)).length,
+      message: (count) => `${count} incident(s) have no supporting evidence.`,
+    },
+    {
+      key: "evidence-missing-incident",
+      tabId: "evidence",
+      count: (selectedCase?.evidence || []).filter((evidence) => (evidence?.linkedIncidentIds || []).length === 0).length,
+      message: (count) => `${count} evidence item(s) are not linked to an incident.`,
+    },
+    {
+      key: "documents-missing-party",
+      tabId: "documents",
+      count: (selectedCase?.documents || []).filter((document) => (document?.linkedPartyIds || []).length === 0).length,
+      message: (count) => `${count} document(s) have no linked party.`,
+    },
+    {
+      key: "timeline-missing-date",
+      tabId: "timeline",
+      count: timelineItems.filter((item) => !safeText(item.date).trim()).length,
+      message: (count) => `${count} timeline item(s) are missing a date.`,
+    },
+  ].filter((issue) => issue.count > 0);
   const narrativeSections = useMemo(
     () => (selectedCase ? buildNarrativeSections(selectedCase) : []),
     [selectedCase]
@@ -3208,9 +3240,29 @@ ${ungroupedSequenceText}
                     </div>
                   </div>
                   <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Needs Attention</div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                      {overviewAttentionIssues.length > 0 ? "⚠ Needs Attention" : "✅ Investigation looks healthy."}
+                    </div>
                     <div className="mt-3 rounded-xl border border-dashed border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-500">
-                      Needs attention placeholder.
+                      {overviewAttentionIssues.length > 0 ? (
+                        <div className="space-y-3">
+                          <p>The following issues may reduce the quality or completeness of this investigation.</p>
+                          <div className="space-y-2">
+                            {overviewAttentionIssues.map((issue) => (
+                              <button
+                                key={issue.key}
+                                type="button"
+                                onClick={() => setActiveTab(issue.tabId)}
+                                className="block w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-left text-sm text-neutral-700"
+                              >
+                                • {issue.message(issue.count)}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <p>No obvious investigation gaps were detected.</p>
+                      )}
                     </div>
                   </div>
                 </section>
