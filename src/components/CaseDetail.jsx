@@ -3103,6 +3103,118 @@ ${ungroupedSequenceText}
           <div className="w-full rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
             {/* Tab content logic... */}
             {activeTab === "overview" && (
+              <div className="space-y-6">
+                <section className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Case Header</div>
+                      <h3 className="mt-1 text-2xl font-semibold text-neutral-950">{selectedCase.name}</h3>
+                      <p className="mt-1 text-sm text-neutral-600">Category: {selectedCase.category || "Uncategorised"}</p>
+                    </div>
+                    <div className="grid gap-3 text-sm sm:grid-cols-2 lg:min-w-96">
+                      <div className="rounded-xl border border-neutral-200 bg-white p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Created</div>
+                        <div className="mt-1 font-medium text-neutral-800">{selectedCase.createdAt || "Not recorded"}</div>
+                      </div>
+                      <div className="rounded-xl border border-neutral-200 bg-white p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Last Updated</div>
+                        <div className="mt-1 font-medium text-neutral-800">{selectedCase.updatedAt || "Not recorded"}</div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="grid gap-4 lg:grid-cols-3">
+                  <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Investigation Progress</div>
+                    <div className="mt-3 rounded-xl border border-dashed border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-500">
+                      Progress card placeholder.
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Case Health</div>
+                    <div className="mt-3 rounded-xl border border-dashed border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-500">
+                      Case health placeholder.
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Current Phase</div>
+                    <div className="mt-3 rounded-xl border border-dashed border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-500">
+                      Current phase placeholder.
+                    </div>
+                  </div>
+                </section>
+
+                <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                  <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Recommended Next Action</div>
+                    <div className="mt-3 rounded-xl border border-dashed border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-500">
+                      Recommended next action placeholder.
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Needs Attention</div>
+                    <div className="mt-3 rounded-xl border border-dashed border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-500">
+                      Needs attention placeholder.
+                    </div>
+                  </div>
+                </section>
+
+                <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                  <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-neutral-400">Investigation Checklist</div>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {["Add parties", "Capture incidents", "Attach evidence", "Add source documents", "Review timeline", "Prepare report"].map((item) => (
+                      <div key={item} className="rounded-xl border border-dashed border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600">
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                  <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-neutral-400">Quick Actions</div>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => setActiveTab("parties")} className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30">Add Party</button>
+                    <button onClick={() => openRecordModal("incidents")} className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30">Add Incident</button>
+                    <button onClick={() => openRecordModal("evidence")} className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30">Add Evidence</button>
+                    <button onClick={() => openDocumentModal()} className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30">Add Document</button>
+                    <button onClick={() => openLedgerModal()} className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30">Add Ledger</button>
+                    <button onClick={() => setActiveTab("generate-report")} className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30">Generate Report</button>
+                  </div>
+                </section>
+
+                <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                  <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-neutral-400">Case Summary</div>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {["Parties", "Incidents", "Evidence", "Documents", "Records", "Ledger", "Timeline"].map((label) => (
+                      <div key={label} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">{label}</div>
+                        <div className="mt-2 text-sm font-medium text-neutral-600">Placeholder</div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Recent Activity</div>
+                    <div className="mt-3 rounded-xl border border-dashed border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-500">
+                      Recent activity placeholder.
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                    <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-neutral-400">Reports</div>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30">Case Report</button>
+                      <button type="button" className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30">Evidence Pack</button>
+                      <button type="button" className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30">Document Pack</button>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {activeTab === "overview-legacy" && (
               <div className="space-y-5">
                 <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
