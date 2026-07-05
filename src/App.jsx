@@ -1861,15 +1861,15 @@ export default function ProveItApp() {
 
   const tabs = [
     { id: "overview", label: "Overview" },
-    { id: "evidence", label: "Evidence" },
-    { id: "incidents", label: "Incidents" },
-    { id: "strategy", label: "Strategy" },
     { id: "parties", label: "Parties" },
-    { id: "ledger", label: "Ledger" },
+    { id: "incidents", label: "Incidents" },
+    { id: "evidence", label: "Evidence" },
     { id: "documents", label: "Documents" },
-    { id: "narrative", label: "Narrative" },
+    { id: "ledger", label: "Ledger" },
     { id: "timeline", label: "Timeline" },
     { id: "generate-report", label: "Generate Report" },
+    { id: "strategy", label: "Strategy" },
+    { id: "narrative", label: "Narrative" },
     { id: "pack", label: "Print Pack" },
   ];
 
