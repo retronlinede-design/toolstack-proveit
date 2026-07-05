@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 const source = readFileSync("src/components/CaseDetail.jsx", "utf8");
 
-test("AI Tools modal is viewport constrained with visible header and footer actions", () => {
+test("AI Tools modal is viewport constrained with separated right-pane actions", () => {
   assert.match(source, /max-h-\[90vh\]/);
   assert.match(source, /flex max-h-\[90vh\] w-full max-w-4xl flex-col overflow-hidden/);
   assert.match(source, /role="dialog"/);
@@ -14,7 +14,11 @@ test("AI Tools modal is viewport constrained with visible header and footer acti
   assert.match(source, /max-h-56 overflow-y-auto overscroll-contain/);
   assert.match(source, /min-h-0 space-y-4 overflow-y-auto overscroll-contain/);
   assert.match(source, /sticky top-0 shrink-0 rounded-md/);
-  assert.match(source, /flex shrink-0 flex-wrap gap-2 border-t/);
+  assert.match(source, /Send Case to GPT/);
+  assert.match(source, /Recommended default export/);
+  assert.match(source, /Selected AI Tool/);
+  assert.match(source, /Optional specialist tools for specific tasks/);
+  assert.match(source, /mt-3 flex flex-wrap gap-2/);
 });
 
 test("AI modal is presented as a sectioned AI Workspace", () => {

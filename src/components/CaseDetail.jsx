@@ -6188,6 +6188,7 @@ ${ungroupedSequenceText}
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0">
                       <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-lime-800">Send Case to GPT</div>
+                      <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-lime-900">Recommended default export</p>
                       <h4 className="mt-1 text-lg font-semibold text-neutral-950">AI Reasoning Snapshot JSON</h4>
                       <p className="mt-1 text-sm leading-6 text-neutral-700">
                         Use this when you want a GPT to understand and review the whole case.
@@ -6248,7 +6249,12 @@ ${ungroupedSequenceText}
                   </p>
                 </section>
 
-                <div>
+                <section className="border-t border-neutral-200 pt-4">
+                  <div className="mb-3">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-500">Selected AI Tool</div>
+                    <p className="mt-1 text-xs leading-5 text-neutral-500">Optional specialist tools for specific tasks.</p>
+                  </div>
+                  <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
                   <h4 className="text-base font-semibold text-neutral-950">{activeAiToolOption.title}</h4>
                   <p className="mt-1 text-sm leading-6 text-neutral-600">{activeAiToolOption.description}</p>
                   <div className="mt-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-xs leading-5 text-neutral-600">
@@ -6300,10 +6306,9 @@ ${ungroupedSequenceText}
                       </div>
                     </div>
                   </div>
-                </div>
 
                 {(activeAiToolNeedsSequenceGroup || activeAiToolUsesReportBuilderScope) && (
-                  <label className="block">
+                  <label className="mt-4 block">
                     <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">
                       {activeAiToolUsesReportBuilderScope ? "Scope" : "Sequence group"}
                     </span>
@@ -6330,7 +6335,7 @@ ${ungroupedSequenceText}
                 )}
 
                 {activeAiTool === "case-slice-pack" && (
-                  <label className="block">
+                  <label className="mt-4 block">
                     <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Selected record IDs</span>
                     <textarea
                       value={caseSliceRecordIdsText}
@@ -6348,7 +6353,7 @@ ${ungroupedSequenceText}
                   </label>
                 )}
 
-                <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-600">
+                <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-600">
                   <div className="font-semibold text-neutral-900">Pack rules</div>
                   <ul className="mt-2 list-disc space-y-1 pl-5">
                     <li>Non-importable JSON with no attachment payloads or binaries.</li>
@@ -6358,38 +6363,40 @@ ${ungroupedSequenceText}
                   </ul>
                 </div>
 
-              </section>
-            </div>
+                  <div className="mt-4 text-xs leading-5 text-neutral-500">
+                    <span className="font-semibold text-neutral-700">Advanced Formats:</span> Markdown and specialist packs are optional. Use them only when a GPT specifically needs a formatted prompt, one issue thread, or a technical audit.
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={activeAiToolNeedsSequenceGroup && !aiToolsSequenceGroup}
+                      onClick={() => handleCopyAiToolJson()}
+                      className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:hover:bg-white"
+                    >
+                      Copy JSON
+                    </button>
+                    <button
+                      type="button"
+                      disabled={activeAiToolNeedsSequenceGroup && !aiToolsSequenceGroup}
+                      onClick={() => handleCopyAiToolMarkdown()}
+                      className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:text-neutral-400"
+                    >
+                      Copy Markdown Prompt
+                    </button>
+                    {activeAiToolUsesReportBuilderScope && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopyAiToolSpecialistPrompt()}
+                        className="rounded-md border border-sky-300 bg-white px-3 py-2 text-sm font-bold text-sky-800 hover:bg-sky-50"
+                      >
+                        Copy Specialist Prompt
+                      </button>
+                    )}
+                  </div>
+                  </div>
+                </section>
 
-            <div className="flex shrink-0 flex-wrap gap-2 border-t border-neutral-100 bg-white p-4 sm:px-5">
-              <div className="basis-full text-xs leading-5 text-neutral-500">
-                <span className="font-semibold text-neutral-700">Advanced Formats:</span> Markdown and specialist packs are optional. Use them only when a GPT specifically needs a formatted prompt, one issue thread, or a technical audit.
-              </div>
-              <button
-                type="button"
-                disabled={activeAiToolNeedsSequenceGroup && !aiToolsSequenceGroup}
-                onClick={() => handleCopyAiToolJson()}
-                className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:hover:bg-white"
-              >
-                Copy JSON
-              </button>
-              <button
-                type="button"
-                disabled={activeAiToolNeedsSequenceGroup && !aiToolsSequenceGroup}
-                onClick={() => handleCopyAiToolMarkdown()}
-                className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:text-neutral-400"
-              >
-                Copy Markdown Prompt
-              </button>
-              {activeAiToolUsesReportBuilderScope && (
-                <button
-                  type="button"
-                  onClick={() => handleCopyAiToolSpecialistPrompt()}
-                  className="rounded-md border border-sky-300 bg-white px-3 py-2 text-sm font-bold text-sky-800 hover:bg-sky-50"
-                >
-                  Copy Specialist Prompt
-                </button>
-              )}
+              </section>
             </div>
           </div>
         </div>
