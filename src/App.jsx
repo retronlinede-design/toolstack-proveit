@@ -1585,7 +1585,11 @@ export default function ProveItApp() {
   }
 
   const openDocumentModal = (preset = {}, documentId = null, mode = "document", options = {}) => {
-    const nextForm = { ...EMPTY_DOCUMENT_FORM, ...preset };
+    const nextForm = {
+      ...EMPTY_DOCUMENT_FORM,
+      ...preset,
+      linkedPartyIds: Array.isArray(preset.linkedPartyIds) ? preset.linkedPartyIds : [],
+    };
     if (mode === "record") {
       if (!hasTrackingRecordMarker(nextForm.textContent)) {
         nextForm.textContent = buildTrackingRecordText({

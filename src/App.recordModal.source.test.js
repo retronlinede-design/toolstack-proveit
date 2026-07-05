@@ -40,3 +40,9 @@ test("normal document modal keeps document-specific fields unchanged", () => {
   assert.match(source, /Attach Document/);
   assert.match(source, /Linked Records/);
 });
+
+test("document modal loads and edits linked party ids", () => {
+  assert.match(source, /linkedPartyIds: Array\.isArray\(preset\.linkedPartyIds\) \? preset\.linkedPartyIds : \[\]/);
+  assert.match(source, /<LinkedPartiesSelector\s+parties=\{selectedCase\?\.parties \|\| \[\]\}\s+linkedPartyIds=\{documentForm\.linkedPartyIds\}/);
+  assert.match(source, /onChange=\{\(linkedPartyIds\) => setDocumentForm\(\(prev\) => \(\{ \.\.\.prev, linkedPartyIds \}\)\)\}/);
+});

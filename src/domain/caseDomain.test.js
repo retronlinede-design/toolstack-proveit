@@ -2638,6 +2638,7 @@ test("upsertDocumentEntryInCase edit replaces an existing document entry by id a
         category: "notice",
         attachments: [existingAttachment],
         linkedRecordIds: ["ev-1"],
+        linkedPartyIds: ["party-old"],
         sequenceGroup: "Old sequence",
         createdAt: iso("2024-01-01T09:00:00Z"),
         updatedAt: iso("2024-01-01T09:00:00Z"),
@@ -2649,6 +2650,7 @@ test("upsertDocumentEntryInCase edit replaces an existing document entry by id a
   const updated = upsertDocumentEntryInCase(caseItem, {
     title: "Updated title",
     attachments: [newAttachment],
+    linkedPartyIds: ["party-new", "party-new"],
     sequenceGroup: "  Updated sequence  ",
   }, "doc-1");
 
@@ -2658,6 +2660,7 @@ test("upsertDocumentEntryInCase edit replaces an existing document entry by id a
   assert.equal(updated.documents[0].category, "notice");
   assert.deepEqual(updated.documents[0].attachments, [newAttachment]);
   assert.deepEqual(updated.documents[0].linkedRecordIds, ["ev-1"]);
+  assert.deepEqual(updated.documents[0].linkedPartyIds, ["party-new"]);
   assert.equal(updated.documents[0].sequenceGroup, "Updated sequence");
   assert.equal(updated.documents[0].edited, true);
   assert.equal(updated.documents[0].createdAt, iso("2024-01-01T09:00:00Z"));
