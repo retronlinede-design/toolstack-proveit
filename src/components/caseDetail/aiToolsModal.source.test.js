@@ -10,7 +10,9 @@ test("AI Tools modal is viewport constrained with visible header and footer acti
   assert.match(source, /role="dialog"/);
   assert.match(source, /aria-modal="true"/);
   assert.match(source, /aria-labelledby="ai-tools-modal-title"/);
-  assert.match(source, /grid min-h-0 flex-1 overflow-y-auto/);
+  assert.match(source, /grid min-h-0 flex-1 overflow-hidden/);
+  assert.match(source, /max-h-56 overflow-y-auto overscroll-contain/);
+  assert.match(source, /min-h-0 space-y-4 overflow-y-auto overscroll-contain/);
   assert.match(source, /sticky top-0 shrink-0 rounded-md/);
   assert.match(source, /flex shrink-0 flex-wrap gap-2 border-t/);
 });

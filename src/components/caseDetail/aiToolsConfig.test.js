@@ -23,11 +23,10 @@ test("AI Workspace groups tools into the requested command sections", () => {
   assert.deepEqual(
     AI_WORKSPACE_SECTIONS.map((section) => section.title),
     [
-      "Report Building",
-      "Audits & Reviews",
-      "GPT Exports",
-      "Sequence Group AI",
-      "Specialist Workflows",
+      "Investigation Quality",
+      "Sequence / Issue Review",
+      "Report Writing",
+      "Selected Record Review",
     ]
   );
 

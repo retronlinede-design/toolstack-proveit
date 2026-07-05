@@ -6111,8 +6111,8 @@ ${ungroupedSequenceText}
               </button>
             </div>
 
-            <div className="grid min-h-0 flex-1 overflow-y-auto overscroll-contain md:grid-cols-[21rem_1fr]">
-              <aside className="border-b border-neutral-100 bg-neutral-50/60 p-3 md:border-b-0 md:border-r">
+            <div className="grid min-h-0 flex-1 overflow-hidden md:grid-cols-[21rem_1fr]">
+              <aside className="max-h-56 overflow-y-auto overscroll-contain border-b border-neutral-100 bg-neutral-50/60 p-3 md:max-h-none md:border-b-0 md:border-r">
                 <div className="space-y-3">
                   {aiWorkspaceSections.map((section) => {
                     const SectionIcon = aiWorkspaceIconMap[section.icon] || FileText;
@@ -6162,7 +6162,7 @@ ${ungroupedSequenceText}
                 </div>
               </aside>
 
-              <section className="space-y-4 p-4 sm:p-5">
+              <section className="min-h-0 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-5">
                 {aiToolsFeedback && (
                   <div className="rounded-md border border-lime-200 bg-lime-50 p-3 text-sm font-medium text-lime-800">
                     {aiToolsFeedback}
