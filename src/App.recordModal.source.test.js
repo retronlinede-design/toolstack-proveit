@@ -46,3 +46,10 @@ test("document modal loads and edits linked party ids", () => {
   assert.match(source, /<LinkedPartiesSelector\s+parties=\{selectedCase\?\.parties \|\| \[\]\}\s+linkedPartyIds=\{documentForm\.linkedPartyIds\}/);
   assert.match(source, /onChange=\{\(linkedPartyIds\) => setDocumentForm\(\(prev\) => \(\{ \.\.\.prev, linkedPartyIds \}\)\)\}/);
 });
+
+test("ledger modal loads and edits linked party ids", () => {
+  assert.match(source, /linkedPartyIds: Array\.isArray\(preset\.linkedPartyIds\) \? preset\.linkedPartyIds : \[\]/);
+  assert.match(source, /linkedPartyIds: Array\.isArray\(duplicated\.linkedPartyIds\) \? duplicated\.linkedPartyIds : \[\]/);
+  assert.match(source, /<LinkedPartiesSelector\s+parties=\{selectedCase\?\.parties \|\| \[\]\}\s+linkedPartyIds=\{ledgerForm\.linkedPartyIds\}/);
+  assert.match(source, /onChange=\{\(linkedPartyIds\) => setLedgerForm\(\(prev\) => \(\{ \.\.\.prev, linkedPartyIds \}\)\)\}/);
+});

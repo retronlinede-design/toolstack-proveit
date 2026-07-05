@@ -2511,6 +2511,7 @@ test("upsertLedgerEntryInCase edit replaces an existing ledger entry by id and p
         category: "rent",
         expectedAmount: "100",
         paidAmount: "20",
+        linkedPartyIds: ["party-old"],
         createdAt: iso("2024-01-01T09:00:00Z"),
         updatedAt: iso("2024-01-01T09:00:00Z"),
       },
@@ -2522,6 +2523,7 @@ test("upsertLedgerEntryInCase edit replaces an existing ledger entry by id and p
     label: "Updated Rent",
     expectedAmount: "100",
     paidAmount: "80",
+    linkedPartyIds: ["party-new", "party-new"],
   }, "ledger-1");
 
   assert.equal(updated.ledger.length, 2);
@@ -2531,6 +2533,7 @@ test("upsertLedgerEntryInCase edit replaces an existing ledger entry by id and p
   assert.equal(updated.ledger[0].expectedAmount, 100);
   assert.equal(updated.ledger[0].paidAmount, 80);
   assert.equal(updated.ledger[0].differenceAmount, 20);
+  assert.deepEqual(updated.ledger[0].linkedPartyIds, ["party-new"]);
   assert.equal(updated.ledger[0].edited, true);
   assert.equal(updated.ledger[0].createdAt, iso("2024-01-01T09:00:00Z"));
   assert.match(updated.ledger[0].updatedAt, /^\d{4}-\d{2}-\d{2}T/);

@@ -1472,6 +1472,7 @@ export default function ProveItApp() {
     setLedgerForm({ 
       ...EMPTY_LEDGER_FORM, 
       ...preset, 
+      linkedPartyIds: Array.isArray(preset.linkedPartyIds) ? preset.linkedPartyIds : [],
       batchLabel,
       groupMode 
     });
@@ -1495,6 +1496,7 @@ export default function ProveItApp() {
     setLedgerForm({
       ...EMPTY_LEDGER_FORM,
       ...duplicated,
+      linkedPartyIds: Array.isArray(duplicated.linkedPartyIds) ? duplicated.linkedPartyIds : [],
     });
     setLedgerModalOpen(true);
   };
