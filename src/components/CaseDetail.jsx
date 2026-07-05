@@ -1742,32 +1742,82 @@ ${strategyFocus.join("\n") || "—"}`;
     ),
     ...(selectedCase?.evidence || []).flatMap((evidence) => evidence?.linkedIncidentIds || []),
   ]);
+  const incidentsWithoutEvidenceCount = (selectedCase?.incidents || [])
+    .filter((incident) => !incidentIdsWithEvidence.has(incident.id)).length;
+  const unlinkedEvidenceCount = (selectedCase?.evidence || [])
+    .filter((evidence) => (evidence?.linkedIncidentIds || []).length === 0).length;
+  const documentsWithoutPartiesCount = (selectedCase?.documents || [])
+    .filter((document) => (document?.linkedPartyIds || []).length === 0).length;
+  const timelineItemsMissingDateCount = timelineItems
+    .filter((item) => !safeText(item.date).trim()).length;
   const overviewAttentionIssues = [
     {
       key: "incidents-missing-evidence",
       tabId: "incidents",
-      count: (selectedCase?.incidents || []).filter((incident) => !incidentIdsWithEvidence.has(incident.id)).length,
+      count: incidentsWithoutEvidenceCount,
       message: (count) => `${count} incident(s) have no supporting evidence.`,
     },
     {
       key: "evidence-missing-incident",
       tabId: "evidence",
-      count: (selectedCase?.evidence || []).filter((evidence) => (evidence?.linkedIncidentIds || []).length === 0).length,
+      count: unlinkedEvidenceCount,
       message: (count) => `${count} evidence item(s) are not linked to an incident.`,
     },
     {
       key: "documents-missing-party",
       tabId: "documents",
-      count: (selectedCase?.documents || []).filter((document) => (document?.linkedPartyIds || []).length === 0).length,
+      count: documentsWithoutPartiesCount,
       message: (count) => `${count} document(s) have no linked party.`,
     },
     {
       key: "timeline-missing-date",
       tabId: "timeline",
-      count: timelineItems.filter((item) => !safeText(item.date).trim()).length,
+      count: timelineItemsMissingDateCount,
       message: (count) => `${count} timeline item(s) are missing a date.`,
     },
   ].filter((issue) => issue.count > 0);
+  const overviewRecommendedAction = (() => {
+    if ((selectedCase?.parties || []).length === 0) {
+      return {
+        message: "Add your first Party.",
+        tabId: "parties",
+        buttonLabel: "Open Parties tab",
+      };
+    }
+    if ((selectedCase?.incidents || []).length === 0) {
+      return {
+        message: "Add your first Incident.",
+        tabId: "incidents",
+        buttonLabel: "Open Incidents tab",
+      };
+    }
+    if (incidentsWithoutEvidenceCount > 0) {
+      return {
+        message: "Add supporting evidence to your investigation.",
+        tabId: "incidents",
+        buttonLabel: "Open Incidents tab",
+      };
+    }
+    if (documentsWithoutPartiesCount > 0) {
+      return {
+        message: "Link Parties to your Documents.",
+        tabId: "documents",
+        buttonLabel: "Open Documents tab",
+      };
+    }
+    if (timelineItemsMissingDateCount > 0) {
+      return {
+        message: "Review missing timeline dates.",
+        tabId: "timeline",
+        buttonLabel: "Open Timeline tab",
+      };
+    }
+    return {
+      message: "Your investigation is ready for reporting.",
+      tabId: "generate-report",
+      buttonLabel: "Open Reports tab",
+    };
+  })();
   const narrativeSections = useMemo(
     () => (selectedCase ? buildNarrativeSections(selectedCase) : []),
     [selectedCase]
@@ -3236,7 +3286,16 @@ ${ungroupedSequenceText}
                   <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Recommended Next Action</div>
                     <div className="mt-3 rounded-xl border border-dashed border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-500">
-                      Recommended next action placeholder.
+                      <div className="space-y-3">
+                        <p>{overviewRecommendedAction.message}</p>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab(overviewRecommendedAction.tabId)}
+                          className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30"
+                        >
+                          {overviewRecommendedAction.buttonLabel}
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
