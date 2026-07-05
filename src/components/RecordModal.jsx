@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { EVIDENCE_ROLES, EVIDENCE_TYPES, INCIDENT_LINK_TYPES } from "../domain/caseDomain.js";
 import { prepareRecordFormForSave, suggestEvidenceMetadataForForm } from "../domain/recordFormDomain.js";
+import LinkedPartiesSelector from "./caseDetail/LinkedPartiesSelector";
 
 const INCIDENT_EVIDENCE_STATUS_OPTIONS = [
   { value: "documented", label: "Documented" },
@@ -249,6 +250,7 @@ function getMeaningfulSuggestedEvidenceFields(recordForm, suggestedForm) {
 export default function RecordModal({
   recordType,
   selectedCase,
+  caseParties = [],
   recordForm,
   setRecordForm,
   handleRecordFiles,
@@ -1592,6 +1594,13 @@ export default function RecordModal({
               </>
             )}
           </>
+        )}
+        {recordType === "incidents" && (
+          <LinkedPartiesSelector
+            parties={caseParties}
+            linkedPartyIds={recordForm.linkedPartyIds}
+            onChange={(linkedPartyIds) => setRecordForm((prev) => ({ ...prev, linkedPartyIds }))}
+          />
         )}
         </>
         )}

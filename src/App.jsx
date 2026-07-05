@@ -14,6 +14,8 @@ import RecordModal from "./components/RecordModal";
 import CaseDetail from "./components/CaseDetail";
 import FilePreviewModal from "./components/FilePreviewModal";
 import GptDeltaModal from "./components/gpt/GptDeltaModal";
+import LinkedPartiesSelector from "./components/caseDetail/LinkedPartiesSelector";
+import PartyLinksRow from "./components/caseDetail/PartyLinksRow";
 import {
   buildFullBackupAllPayload,
   buildFullBackupCasePayload,
@@ -341,6 +343,7 @@ const EMPTY_RECORD_FORM = {
   notes: "",
   attachments: [],
   linkedRecordIds: [],
+  linkedPartyIds: [],
   linkedIncidentIds: [], // Added for evidence
   linkedEvidenceIds: [], // Added for incidents
   evidenceStatus: "needs_evidence",
@@ -386,6 +389,7 @@ const EMPTY_LEDGER_FORM = {
   batchLabel: "",
   groupMode: "none",
   linkedRecordIds: [],
+  linkedPartyIds: [],
 };
 
 const EMPTY_CAPTURE_FORM = {
@@ -406,6 +410,7 @@ const EMPTY_DOCUMENT_FORM = {
   textContent: "",
   attachments: [],
   linkedRecordIds: [],
+  linkedPartyIds: [],
   basedOnEvidenceIds: [],
   sequenceGroup: "",
 };
@@ -2853,7 +2858,8 @@ export default function ProveItApp() {
       date: new Date().toISOString().slice(0, 10),
       capturedAt: new Date().toISOString().slice(0, 10),
       evidenceStatus: type === "incidents" && initialLinkedEvidenceIds.length > 0 ? "documented" : EMPTY_RECORD_FORM.evidenceStatus,
-      ...initialFormState
+      ...initialFormState,
+      linkedPartyIds: Array.isArray(initialFormState.linkedPartyIds) ? initialFormState.linkedPartyIds : [],
     });
   };
 
@@ -2867,6 +2873,7 @@ export default function ProveItApp() {
       ...currentRecord,
       attachments: (currentRecord?.attachments?.length ? currentRecord.attachments : null) || (currentRecord?.files?.length ? currentRecord.files : null) || (type === "evidence" ? currentRecord?.availability?.digital?.files : []) || [],
       files: (currentRecord?.files?.length ? currentRecord.files : null) || (type === "evidence" ? currentRecord?.availability?.digital?.files : []) || [],
+      linkedPartyIds: Array.isArray(currentRecord?.linkedPartyIds) ? currentRecord.linkedPartyIds : [],
     });
     setRecordFocusField(options.focusField || null);
     setRecordFocusHint(options.focusHint || "");
@@ -4849,6 +4856,7 @@ const handleRecordFiles = async (event) => {
           <RecordModal
             recordType={recordType}
             selectedCase={selectedCase}
+            caseParties={selectedCase.parties || []}
             recordForm={recordForm}
             setRecordForm={setRecordForm}
             handleRecordFiles={handleRecordFiles}
@@ -5108,6 +5116,11 @@ const handleRecordFiles = async (event) => {
                     )}
                   </div>
                 </div>
+                <LinkedPartiesSelector
+                  parties={selectedCase?.parties || []}
+                  linkedPartyIds={ledgerForm.linkedPartyIds}
+                  onChange={(linkedPartyIds) => setLedgerForm((prev) => ({ ...prev, linkedPartyIds }))}
+                />
               </div>
 
               <div className="mt-6 flex gap-3 pt-4 border-t border-neutral-100">
@@ -5275,6 +5288,11 @@ const handleRecordFiles = async (event) => {
                       <p className="py-2 text-center text-[10px] italic text-neutral-400">No evidence available.</p>
                     )}
                   </div>
+                  <LinkedPartiesSelector
+                    parties={selectedCase?.parties || []}
+                    linkedPartyIds={documentForm.linkedPartyIds}
+                    onChange={(linkedPartyIds) => setDocumentForm((prev) => ({ ...prev, linkedPartyIds }))}
+                  />
                 </section>
 
                 <section className="rounded-2xl border border-neutral-200 bg-neutral-50/60 p-4">
@@ -5472,6 +5490,11 @@ const handleRecordFiles = async (event) => {
                     )}
                   </div>
                 </div>
+                <LinkedPartiesSelector
+                  parties={selectedCase?.parties || []}
+                  linkedPartyIds={documentForm.linkedPartyIds}
+                  onChange={(linkedPartyIds) => setDocumentForm((prev) => ({ ...prev, linkedPartyIds }))}
+                />
               </div>
               )}
 
@@ -5554,6 +5577,8 @@ const handleRecordFiles = async (event) => {
                     <p className="text-sm text-neutral-500 bg-neutral-50 p-3 rounded-xl border border-neutral-100 italic">{viewingRecord.notes}</p>
                   </div>
                 )}
+
+                <PartyLinksRow linkedPartyIds={viewingRecord.linkedPartyIds} parties={selectedCase?.parties || []} />
 
                 {relatedTrackingRecordsForViewing.length > 0 && (
                   <div className="space-y-3 pt-4 border-t border-neutral-100">

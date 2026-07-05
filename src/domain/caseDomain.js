@@ -400,6 +400,7 @@ export function normalizeLedgerEntry(item) {
     notes: item?.notes || "",
     batchLabel: item?.batchLabel || "",
     linkedRecordIds: normalizeLinkedRecordIds(item?.linkedRecordIds),
+    linkedPartyIds: normalizeLinkedRecordIds(item?.linkedPartyIds),
     edited: !!item?.edited,
     createdAt: item?.createdAt || new Date().toISOString(),
     updatedAt: item?.updatedAt || item?.createdAt || new Date().toISOString(),
@@ -428,6 +429,7 @@ export function normalizeDocumentEntry(item) {
     textContent: item?.textContent || "",
     attachments: Array.isArray(item?.attachments) ? item.attachments : [],
     linkedRecordIds: normalizeLinkedRecordIds(item?.linkedRecordIds),
+    linkedPartyIds: normalizeLinkedRecordIds(item?.linkedPartyIds),
     sequenceGroup: normalizeSequenceGroup(item?.sequenceGroup),
     edited: !!item?.edited,
     createdAt: item?.createdAt || new Date().toISOString(),
@@ -452,6 +454,7 @@ export function normalizeRecord(item, recordType) {
     attachments: Array.isArray(item?.attachments) ? item.attachments : [],
     tags: Array.isArray(item?.tags) ? item.tags : [],
     linkedRecordIds: normalizeLinkedRecordIds(item?.linkedRecordIds),
+    linkedPartyIds: normalizeLinkedRecordIds(item?.linkedPartyIds),
     linkedIncidentIds: normalizeLinkedRecordIds(item?.linkedIncidentIds), // For evidence
     linkedEvidenceIds: normalizeLinkedRecordIds(item?.linkedEvidenceIds), // For incidents
     status: normalizeRecordStatus(item?.status, recordType),
@@ -1255,7 +1258,7 @@ function cleanupLinkedFields(item, deletedId, updatedAt) {
 
   let changed = false;
   const nextItem = { ...item };
-  const arrayFields = ["linkedRecordIds", "linkedEvidenceIds", "linkedIncidentIds", "basedOnEvidenceIds"];
+  const arrayFields = ["linkedRecordIds", "linkedPartyIds", "linkedEvidenceIds", "linkedIncidentIds", "basedOnEvidenceIds"];
 
   arrayFields.forEach((field) => {
     const result = removeDeletedIdFromArray(nextItem[field], deletedId);
@@ -1331,11 +1334,13 @@ export function deleteDocumentEntryFromCase(caseItem, entryId) {
 }
 
 export function deletePartyFromCase(caseItem, partyId) {
-  return {
+  const updatedCase = {
     ...caseItem,
     parties: (caseItem.parties || []).filter((party) => party.id !== partyId),
     updatedAt: new Date().toISOString(),
   };
+
+  return cleanupDeletedRecordLinks(updatedCase, "party", partyId);
 }
 
 export function upsertPartyInCase(caseItem, partyInput, editingPartyId = null) {
@@ -1494,6 +1499,7 @@ export function upsertRecordInCase(caseItem, recordType, recordInput, editingRec
       evidenceStatus: normalizedRecordInput.evidenceStatus,
       linkedIncidentRefs: normalizedRecordInput.linkedIncidentRefs,
       linkedRecordIds: normalizedRecordInput.linkedRecordIds || editingRecord.linkedRecordIds || [],
+      linkedPartyIds: normalizedRecordInput.linkedPartyIds || editingRecord.linkedPartyIds || [],
       isMilestone: !!normalizedRecordInput.isMilestone,
       updatedAt: new Date().toISOString(),
       edited: true,
@@ -1550,6 +1556,7 @@ export function upsertRecordInCase(caseItem, recordType, recordInput, editingRec
       evidenceStatus: recordInput.evidenceStatus,
       linkedIncidentRefs: recordInput.linkedIncidentRefs,
       linkedRecordIds: recordInput.linkedRecordIds || [],
+      linkedPartyIds: recordInput.linkedPartyIds || [],
       isMilestone: !!recordInput.isMilestone,
       createdAt: new Date().toISOString(),
     }, recordType);

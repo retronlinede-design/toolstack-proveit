@@ -4654,6 +4654,7 @@ ${ungroupedSequenceText}
                 onDeleteLedgerEntry={deleteLedgerEntry}
                 getLinkedRecordMeta={(recordId) => getRecordDisplayMeta(selectedCase, recordId)}
                 onOpenLinkedRecord={openLinkedRecord}
+                parties={selectedCase?.parties || []}
               />
             )}
 
@@ -4671,6 +4672,7 @@ ${ungroupedSequenceText}
                   onPreviewFile={onPreviewFile}
                   getLinkedRecordMeta={(recordId) => getRecordDisplayMeta(selectedCase, recordId)}
                   onOpenLinkedRecord={openLinkedRecord}
+                  parties={selectedCase?.parties || []}
                 />
                 {parsedTrackingRecords.length > 0 && (
                   <section className="hidden">

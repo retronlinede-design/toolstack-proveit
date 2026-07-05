@@ -675,6 +675,16 @@ test("normalizeRecord preserves and dedupes incident linkedRecordIds", () => {
   assert.deepEqual(record.linkedRecordIds, ["doc-1", "doc-2"]);
 });
 
+test("normalizeRecord preserves and dedupes linkedPartyIds", () => {
+  const record = normalizeRecord({
+    id: "ev-1",
+    title: "Evidence",
+    linkedPartyIds: ["party-1", "party-1", "", null, "party-2"],
+  }, "evidence");
+
+  assert.deepEqual(record.linkedPartyIds, ["party-1", "party-2"]);
+});
+
 test("normalizeRecord defaults incident milestone to false and preserves true values", () => {
   const defaultIncident = normalizeRecord({
     id: "inc-1",
@@ -1407,12 +1417,18 @@ test("deleteRecordFromCase preserves non-linking record type delete behavior", (
   assert.match(updated.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
 });
 
-test("deletePartyFromCase removes target party and preserves unrelated sections", () => {
-  const evidence = [{ id: "ev-1", title: "Evidence without normalized timeline fields" }];
+test("deletePartyFromCase removes target party and linkedPartyIds across records", () => {
   const caseItem = {
     id: "case-party-delete",
     updatedAt: iso("2024-01-01T08:00:00Z"),
-    evidence,
+    evidence: [{ id: "ev-1", title: "Evidence", linkedPartyIds: ["party-delete", "party-keep"] }],
+    incidents: [{ id: "inc-1", title: "Incident", linkedPartyIds: ["party-delete"] }],
+    strategy: [{ id: "str-1", title: "Strategy", linkedPartyIds: ["party-delete"] }],
+    documents: [
+      { id: "doc-1", title: "Document", linkedPartyIds: ["party-delete", "party-keep"] },
+      { id: "record-1", title: "Tracking", textContent: "[TRACK RECORD]", linkedPartyIds: ["party-delete"] },
+    ],
+    ledger: [{ id: "ledger-1", label: "Ledger", linkedPartyIds: ["party-delete", "party-keep"] }],
     parties: [
       { id: "party-delete", displayName: "Delete me" },
       { id: "party-keep", displayName: "Keep me" },
@@ -1422,7 +1438,12 @@ test("deletePartyFromCase removes target party and preserves unrelated sections"
   const updated = deletePartyFromCase(caseItem, "party-delete");
 
   assert.deepEqual(updated.parties.map((party) => party.id), ["party-keep"]);
-  assert.equal(updated.evidence, evidence);
+  assert.deepEqual(updated.evidence[0].linkedPartyIds, ["party-keep"]);
+  assert.deepEqual(updated.incidents[0].linkedPartyIds, []);
+  assert.deepEqual(updated.strategy[0].linkedPartyIds, []);
+  assert.deepEqual(updated.documents[0].linkedPartyIds, ["party-keep"]);
+  assert.deepEqual(updated.documents[1].linkedPartyIds, []);
+  assert.deepEqual(updated.ledger[0].linkedPartyIds, ["party-keep"]);
   assert.match(updated.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.notEqual(updated.updatedAt, caseItem.updatedAt);
 });
@@ -1684,12 +1705,14 @@ test("upsertRecordInCase mirrors evidence attachments into availability and sync
     linkedIncidentIds: ["inc-1"],
     linkedEvidenceIds: [],
     linkedRecordIds: [],
+    linkedPartyIds: ["party-1", "party-1"],
   });
 
   assert.equal(updated.evidence[0].id, "ev-1");
   assert.deepEqual(updated.evidence[0].attachments, [attachment]);
   assert.deepEqual(updated.evidence[0].availability.digital.files, [attachment]);
   assert.equal(updated.evidence[0].availability.digital.hasDigital, true);
+  assert.deepEqual(updated.evidence[0].linkedPartyIds, ["party-1"]);
   assert.deepEqual(updated.incidents[0].linkedEvidenceIds, ["ev-1"]);
   assert.match(updated.incidents[0].updatedAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.match(updated.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
@@ -2432,6 +2455,7 @@ test("upsertLedgerEntryInCase create appends a normalized ledger entry and refre
     label: "Rent",
     expectedAmount: "100",
     paidAmount: "40",
+    linkedPartyIds: ["party-1", "party-1"],
   });
 
   assert.equal(updated.ledger.length, 2);
@@ -2442,6 +2466,7 @@ test("upsertLedgerEntryInCase create appends a normalized ledger entry and refre
   assert.equal(updated.ledger[1].status, "planned");
   assert.equal(updated.ledger[1].method, "bank_transfer");
   assert.equal(updated.ledger[1].proofStatus, "missing");
+  assert.deepEqual(updated.ledger[1].linkedPartyIds, ["party-1"]);
   assert.equal(updated.ledger[1].expectedAmount, 100);
   assert.equal(updated.ledger[1].paidAmount, 40);
   assert.equal(updated.ledger[1].differenceAmount, 60);
@@ -2533,6 +2558,7 @@ test("upsertDocumentEntryInCase create appends a normalized document entry with 
     title: "Lease",
     attachments: [attachment],
     linkedRecordIds: "not-array",
+    linkedPartyIds: ["party-1", "party-1"],
     sequenceGroup: "  Notice sequence  ",
   });
 
@@ -2546,6 +2572,7 @@ test("upsertDocumentEntryInCase create appends a normalized document entry with 
   assert.equal(updated.documents[1].textContent, "");
   assert.deepEqual(updated.documents[1].attachments, [attachment]);
   assert.deepEqual(updated.documents[1].linkedRecordIds, []);
+  assert.deepEqual(updated.documents[1].linkedPartyIds, ["party-1"]);
   assert.equal(updated.documents[1].sequenceGroup, "Notice sequence");
   assert.equal(updated.documents[1].edited, false);
   assert.match(updated.documents[1].id, /.+/);

@@ -1,5 +1,6 @@
 import { getLinkChipClasses } from "../linkChipStyles";
 import LinkedChip from "../LinkedChip";
+import PartyLinksRow from "./PartyLinksRow";
 import {
   filterLedgerEntries,
   groupLedgerEntriesByBatch,
@@ -65,6 +66,7 @@ export default function LedgerTab({
   onDeleteLedgerEntry,
   getLinkedRecordMeta,
   onOpenLinkedRecord,
+  parties = [],
 }) {
   const safeLedgerEntries = ledgerEntries || [];
   const ledger = sortLedgerEntries(safeLedgerEntries);
@@ -217,6 +219,7 @@ export default function LedgerTab({
 
                         {item.counterparty && <div className="text-xs text-neutral-500 mt-2">Counterparty: {item.counterparty}</div>}
                         {item.notes && <p className="text-xs text-neutral-500 mt-2 line-clamp-2">{item.notes}</p>}
+                        <PartyLinksRow linkedPartyIds={item.linkedPartyIds} parties={parties} />
 
                         {item.linkedRecordIds && item.linkedRecordIds.length > 0 && (
                           <div className="mt-1 border-t border-neutral-100 pt-1">

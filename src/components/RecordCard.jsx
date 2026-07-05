@@ -1,6 +1,7 @@
 import AttachmentPreview from "./AttachmentPreview";
 import { getLinkChipClasses } from "./linkChipStyles";
 import LinkedChip from "./LinkedChip";
+import PartyLinksRow from "./caseDetail/PartyLinksRow";
 import { getIncidentLinkGroups } from "../domain/caseDomain.js";
 import { getEvidenceDisplayMeta, getIncidentDisplayMeta, getRecordDisplayMeta } from "../domain/linkingResolvers.js";
 import { Tags } from "lucide-react";
@@ -303,6 +304,7 @@ export default function RecordCard({
                   : "Unknown"}
               </div>
             </div>
+            <PartyLinksRow linkedPartyIds={item.linkedPartyIds} parties={selectedCase?.parties || []} />
             {!isEvidence && recordType !== "incidents" && Array.isArray(item.linkedRecordIds) && item.linkedRecordIds.length > 0 && (
               renderCompactChipRow("Linked Records", item.linkedRecordIds, (linkedId) => {
                 const linkedItem = getRecordDisplayMeta(selectedCase, linkedId);

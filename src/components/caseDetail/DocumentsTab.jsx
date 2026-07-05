@@ -2,6 +2,7 @@ import { Tags } from "lucide-react";
 import AttachmentPreview from "../AttachmentPreview";
 import { getLinkChipClasses } from "../linkChipStyles";
 import LinkedChip from "../LinkedChip";
+import PartyLinksRow from "./PartyLinksRow";
 import {
   getDocumentStatusClasses,
   getDocumentTextStatus,
@@ -60,6 +61,7 @@ export default function DocumentsTab({
   onPreviewFile,
   getLinkedRecordMeta,
   onOpenLinkedRecord,
+  parties = [],
 }) {
   return (
     <>
@@ -218,6 +220,7 @@ export default function DocumentsTab({
                   })}
                 </div>
               )}
+              <PartyLinksRow linkedPartyIds={doc.linkedPartyIds} parties={parties} />
             </div>
               );
             })}

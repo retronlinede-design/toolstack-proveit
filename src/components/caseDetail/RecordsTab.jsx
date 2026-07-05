@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Tags } from "lucide-react";
 import { getLinkChipClasses } from "../linkChipStyles";
 import LinkedChip from "../LinkedChip";
+import PartyLinksRow from "./PartyLinksRow";
 import {
   formatRecordTableHeader,
   getDifferenceClasses,
@@ -243,6 +244,7 @@ export default function RecordsTab({
                 {record.summary && (
                   <p className="mt-3 border-l-2 border-blue-100 pl-3 text-sm text-neutral-700 line-clamp-3">{record.summary}</p>
                 )}
+                <PartyLinksRow linkedPartyIds={record.rawDocument?.linkedPartyIds} parties={caseItem?.parties || []} />
 
                 {basedOnEvidence.length > 0 && (
                   <div className="mt-1 border-t border-neutral-100 pt-1">

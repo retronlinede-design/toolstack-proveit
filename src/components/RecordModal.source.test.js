@@ -11,3 +11,11 @@ test("incident modal unlinks evidence from local form state before save", () => 
   assert.match(source, /onClick=\{\(\) => unlinkEvidenceFromIncidentForm\(evidenceItem\.id\)\}/);
   assert.doesNotMatch(source, /onClick=\{\(\) => onUnlinkEvidenceFromIncident\(recordForm\.id, evidenceItem\.id\)\}/);
 });
+
+test("incident modal renders linked parties selector from case parties", () => {
+  assert.match(source, /caseParties = \[\]/);
+  assert.match(source, /\{recordType === "incidents" && \(\s*<LinkedPartiesSelector/);
+  assert.match(source, /parties=\{caseParties\}/);
+  assert.match(source, /linkedPartyIds=\{recordForm\.linkedPartyIds\}/);
+  assert.match(source, /setRecordForm\(\(prev\) => \(\{ \.\.\.prev, linkedPartyIds \}\)\)/);
+});
