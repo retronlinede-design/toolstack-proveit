@@ -3131,75 +3131,101 @@ ${ungroupedSequenceText}
             {showExportMenu && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
-                <div className="absolute right-0 z-50 mt-2 w-72 overflow-hidden rounded-xl border border-neutral-200 bg-white p-2 shadow-xl animate-in fade-in zoom-in duration-100">
+                <div className="absolute right-0 z-50 mt-2 max-h-[75vh] w-80 overflow-y-auto rounded-xl border border-neutral-200 bg-white p-2 shadow-xl animate-in fade-in zoom-in duration-100">
                   <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                    Backup
+                    Backup & Restore
                   </div>
-                  <button 
+                  <button
                     onClick={() => { exportSelectedCase(); setShowExportMenu(false); }}
-                    className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50"
+                    className="block min-h-11 w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-neutral-50"
                   >
-                    Download Full Case Backup
+                    <span className="block text-sm font-semibold leading-snug text-neutral-800">Download Full Case Backup</span>
+                    <span className="mt-0.5 block text-xs leading-4 text-neutral-500">Restore-safe case export for backup and transfer.</span>
                   </button>
+
                   <div className="mt-2 border-t border-neutral-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                    GPT
+                    Reports & Handoff
                   </div>
-                  <button 
-                    onClick={() => { onExportSnapshot(selectedCase.id, "detailed"); setShowExportMenu(false); }}
-                    className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50"
+                  <button
+                    type="button"
+                    onClick={() => { setActiveTab("reports"); setShowExportMenu(false); }}
+                    className="block min-h-11 w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-neutral-50"
                   >
-                    Download Reasoning Snapshot JSON
+                    <span className="block text-sm font-semibold leading-snug text-neutral-800">Open Reports</span>
+                    <span className="mt-0.5 block text-xs leading-4 text-neutral-500">Create human-readable reports and case handoff packs.</span>
                   </button>
+
+                  <div className="mt-2 border-t border-neutral-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    AI / GPT Exports
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { openAiTool(activeAiTool || "missing-function-summaries"); setShowExportMenu(false); }}
+                    className="block min-h-11 w-full rounded-lg border border-lime-200 bg-lime-50/70 px-3 py-2 text-left transition-colors hover:bg-lime-50"
+                  >
+                    <span className="block text-sm font-semibold leading-snug text-neutral-900">Open AI Workspace</span>
+                    <span className="mt-0.5 block text-xs leading-4 text-lime-800">Recommended GPT export is now available in AI Workspace.</span>
+                  </button>
+                  <button
+                    onClick={() => { onExportSnapshot(selectedCase.id, "detailed"); setShowExportMenu(false); }}
+                    className="mt-1 block min-h-11 w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-neutral-50"
+                  >
+                    <span className="block text-sm font-semibold leading-snug text-neutral-700">AI Reasoning Snapshot JSON</span>
+                    <span className="mt-0.5 block text-xs leading-4 text-neutral-500">Secondary direct download for the same whole-case GPT snapshot.</span>
+                  </button>
+                  <div className="mt-1 rounded-lg px-3 py-2 text-left">
+                    <div className="text-sm font-semibold leading-snug text-neutral-700">Reasoning Snapshot Upload</div>
+                    <p className="mt-0.5 text-xs leading-4 text-neutral-500">Remote upload action for configured deployments.</p>
+                    {ENABLE_SUPABASE_REMOTE ? (
+                      <button
+                        onClick={() => { onSendReasoningSnapshotToSupabase(); setShowExportMenu(false); }}
+                        disabled={syncStatus === "syncing"}
+                        className="mt-2 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-bold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+                      >
+                        Send Reasoning Snapshot
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        className="mt-2 cursor-not-allowed rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 text-xs font-bold text-neutral-400"
+                      >
+                        Upload disabled until secure auth is configured.
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="mt-2 border-t border-neutral-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    Advanced / Technical
+                  </div>
                   <button
                     onClick={() => { onCopyLinkMapExport?.(selectedCase.id); setShowExportMenu(false); }}
-                    className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50"
+                    className="block min-h-11 w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-neutral-50"
                   >
-                    Copy Link Map JSON
+                    <span className="block text-sm font-semibold leading-snug text-neutral-700">Copy Link Map JSON</span>
+                    <span className="mt-0.5 block text-xs leading-4 text-neutral-500">Technical structure/debug export of case relationships.</span>
                   </button>
-                  <div className="mt-2 border-t border-neutral-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                    Data / AI Reference
-                  </div>
                   <button
                     onClick={() => { handleDownloadGptProtocolPackJson(); setShowExportMenu(false); }}
-                    className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50"
+                    className="block min-h-11 w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-neutral-50"
                   >
-                    Download GPT Protocol Pack JSON
+                    <span className="block text-sm font-semibold leading-snug text-neutral-700">Download GPT Protocol Pack JSON</span>
+                    <span className="mt-0.5 block text-xs leading-4 text-neutral-500">Custom GPT reference instructions, not case data.</span>
                   </button>
                   <button
                     onClick={() => { handleDownloadGptProtocolPackMarkdown(); setShowExportMenu(false); }}
-                    className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50"
+                    className="block min-h-11 w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-neutral-50"
                   >
-                    Download GPT Protocol Pack Markdown
+                    <span className="block text-sm font-semibold leading-snug text-neutral-700">Download GPT Protocol Pack Markdown</span>
+                    <span className="mt-0.5 block text-xs leading-4 text-neutral-500">Readable custom GPT reference, not case data.</span>
                   </button>
-                  <div className="mt-2 border-t border-neutral-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                    Audit
-                  </div>
                   <button
                     onClick={() => { openSequenceGroupAuditExport(); setShowExportMenu(false); }}
-                    className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50"
+                    className="block min-h-11 w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-neutral-50"
                   >
-                    Open Sequence Group Audit
+                    <span className="block text-sm font-semibold leading-snug text-neutral-700">Open Sequence Group Audit</span>
+                    <span className="mt-0.5 block text-xs leading-4 text-neutral-500">Issue/sequence review export tools for focused chain audits.</span>
                   </button>
-                  <div className="mt-2 border-t border-neutral-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                    Reasoning Snapshot Upload
-                  </div>
-                  {ENABLE_SUPABASE_REMOTE ? (
-                    <button
-                      onClick={() => { onSendReasoningSnapshotToSupabase(); setShowExportMenu(false); }}
-                      disabled={syncStatus === "syncing"}
-                      className="flex min-h-11 w-full items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
-                    >
-                      Send Reasoning Snapshot
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled
-                      className="flex min-h-11 w-full cursor-not-allowed items-center rounded-lg px-3 py-2 text-left text-sm font-medium leading-snug text-neutral-400"
-                    >
-                      Reasoning Snapshot Upload disabled until secure auth is configured. Not a full backup; attachment binaries are not included.
-                    </button>
-                  )}
                 </div>
               </>
             )}
