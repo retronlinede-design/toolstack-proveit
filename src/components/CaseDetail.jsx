@@ -1681,6 +1681,52 @@ ${strategyFocus.join("\n") || "—"}`;
     if (a.date !== b.date) return String(a.date).localeCompare(String(b.date));
     return String(a.title || "").localeCompare(String(b.title || ""));
   });
+  const generatedReportExists = Boolean(
+    safeText(selectedCase?.generatedReportText).trim() ||
+    safeText(selectedCase?.generatedReportVersions?.en).trim() ||
+    safeText(selectedCase?.generatedReportVersions?.de).trim()
+  );
+  const overviewChecklistItems = [
+    {
+      label: "Parties",
+      tabId: "parties",
+      complete: (selectedCase?.parties || []).length > 0,
+      detail: "At least one party has been added.",
+    },
+    {
+      label: "Incidents",
+      tabId: "incidents",
+      complete: (selectedCase?.incidents || []).length > 0,
+      detail: "At least one incident has been recorded.",
+    },
+    {
+      label: "Evidence",
+      tabId: "evidence",
+      complete: (selectedCase?.evidence || []).length > 0,
+      detail: "At least one evidence record exists.",
+    },
+    {
+      label: "Documents",
+      tabId: "documents",
+      complete: (selectedCase?.documents || []).length > 0,
+      detail: "At least one document exists.",
+    },
+    {
+      label: "Timeline",
+      tabId: "timeline",
+      complete: timelineItems.length > 0,
+      detail: "At least one timeline item exists.",
+    },
+    {
+      label: "Reports",
+      tabId: "generate-report",
+      complete: generatedReportExists,
+      detail: "A generated report has been saved.",
+    },
+  ].map((item) => ({
+    ...item,
+    status: item.complete ? "complete" : "not-started",
+  }));
   const narrativeSections = useMemo(
     () => (selectedCase ? buildNarrativeSections(selectedCase) : []),
     [selectedCase]
@@ -3162,12 +3208,44 @@ ${ungroupedSequenceText}
 
                 <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                   <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-neutral-400">Investigation Checklist</div>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {["Add parties", "Capture incidents", "Attach evidence", "Add source documents", "Review timeline", "Prepare report"].map((item) => (
-                      <div key={item} className="rounded-xl border border-dashed border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600">
-                        {item}
-                      </div>
-                    ))}
+                  <div className="grid gap-2">
+                    {overviewChecklistItems.map((item) => {
+                      const statusText = item.status === "complete"
+                        ? "✔ Complete"
+                        : item.status === "started"
+                          ? "⚠ Started but incomplete"
+                          : "✖ Not started";
+                      const statusClass = item.status === "complete"
+                        ? "border-lime-200 bg-lime-50 text-lime-800"
+                        : item.status === "started"
+                          ? "border-amber-200 bg-amber-50 text-amber-800"
+                          : "border-neutral-200 bg-neutral-50 text-neutral-600";
+                      const StatusIcon = item.status === "complete"
+                        ? CheckCircle2
+                        : item.status === "started"
+                          ? AlertTriangle
+                          : AlertCircle;
+
+                      return (
+                        <button
+                          key={item.label}
+                          type="button"
+                          onClick={() => setActiveTab(item.tabId)}
+                          className={`flex w-full flex-col gap-2 rounded-xl border px-3 py-3 text-left transition-colors hover:bg-white sm:flex-row sm:items-center sm:justify-between ${statusClass}`}
+                        >
+                          <span className="flex min-w-0 items-start gap-3">
+                            <StatusIcon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                            <span className="min-w-0">
+                              <span className="block text-sm font-semibold text-neutral-900">{item.label}</span>
+                              <span className="block text-xs text-neutral-500">{item.detail}</span>
+                            </span>
+                          </span>
+                          <span className="shrink-0 rounded-lg border border-current bg-white/60 px-2 py-1 text-[10px] font-bold uppercase tracking-wider">
+                            {statusText}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </section>
 
