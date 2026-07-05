@@ -1727,6 +1727,15 @@ ${strategyFocus.join("\n") || "—"}`;
     ...item,
     status: item.complete ? "complete" : "not-started",
   }));
+  const overviewSummaryItems = [
+    { label: "Parties", tabId: "parties", count: (selectedCase?.parties || []).length },
+    { label: "Incidents", tabId: "incidents", count: (selectedCase?.incidents || []).length },
+    { label: "Evidence", tabId: "evidence", count: (selectedCase?.evidence || []).length },
+    { label: "Documents", tabId: "documents", count: (selectedCase?.documents || []).length },
+    { label: "Records", tabId: "records", count: (selectedCase?.records || []).length },
+    { label: "Ledger", tabId: "ledger", count: (selectedCase?.ledger || []).length },
+    { label: "Timeline", tabId: "timeline", count: timelineItems.length },
+  ];
   const narrativeSections = useMemo(
     () => (selectedCase ? buildNarrativeSections(selectedCase) : []),
     [selectedCase]
@@ -3264,11 +3273,16 @@ ${ungroupedSequenceText}
                 <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                   <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-neutral-400">Case Summary</div>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    {["Parties", "Incidents", "Evidence", "Documents", "Records", "Ledger", "Timeline"].map((label) => (
-                      <div key={label} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">{label}</div>
-                        <div className="mt-2 text-sm font-medium text-neutral-600">Placeholder</div>
-                      </div>
+                    {overviewSummaryItems.map((item) => (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={() => setActiveTab(item.tabId)}
+                        className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-left"
+                      >
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">{item.label}</div>
+                        <div className="mt-2 text-sm font-medium text-neutral-600">{item.count}</div>
+                      </button>
                     ))}
                   </div>
                 </section>
