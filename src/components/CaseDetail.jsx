@@ -208,6 +208,7 @@ export default function CaseDetail({
   const [ideas, setIdeas] = useState([]);
   const [workspaceActionMenuOpen, setWorkspaceActionMenuOpen] = useState(false);
   const [aiToolsOpen, setAiToolsOpen] = useState(false);
+  const [activeAiTask, setActiveAiTask] = useState("review-entire-investigation");
   const [activeAiTool, setActiveAiTool] = useState("missing-function-summaries");
   const [aiToolsSequenceGroup, setAiToolsSequenceGroup] = useState("");
   const [aiToolsFeedback, setAiToolsFeedback] = useState("");
@@ -1074,6 +1075,10 @@ export default function CaseDetail({
 
   function openAiTool(toolId) {
     const nextGroup = selectedSequenceGroupName || sequenceGroups[0]?.name || "";
+    const matchingTask = AI_WORKSPACE_SECTIONS
+      .flatMap((section) => section.tasks || [])
+      .find((task) => task.toolId === toolId || task.actionKind === toolId);
+    if (matchingTask) setActiveAiTask(matchingTask.id);
     setActiveAiTool(toolId);
     setAiToolsSequenceGroup(toolId === "management-report-builder-pack" ? MANAGEMENT_REPORT_BUILDER_WHOLE_CASE : nextGroup);
     setAiToolsFeedback("");
@@ -3077,12 +3082,18 @@ ${ungroupedSequenceText}
   const aiToolOptions = AI_TOOL_OPTIONS;
   const aiWorkspaceSections = AI_WORKSPACE_SECTIONS;
   const aiToolById = new Map(aiToolOptions.map((tool) => [tool.id, tool]));
-  const activeAiToolOption = aiToolOptions.find((tool) => tool.id === activeAiTool) || aiToolOptions[0];
-  const activeAiToolContains = activeAiToolOption.contains || [];
-  const activeAiToolBestUsedFor = activeAiToolOption.bestUsedFor || [];
-  const activeAiToolDoesNotInclude = activeAiToolOption.doesNotInclude || [];
-  const activeAiToolNeedsSequenceGroup = activeAiTool === "chain-completion-pack" || activeAiTool === "full-chain-gpt-pack";
-  const activeAiToolUsesReportBuilderScope = activeAiTool === "management-report-builder-pack";
+  const aiWorkspaceTasks = aiWorkspaceSections.flatMap((section) => section.tasks || []);
+  const activeAiTaskOption = aiWorkspaceTasks.find((task) => task.id === activeAiTask) || aiWorkspaceTasks[0];
+  const activeAiToolOption = aiToolById.get(activeAiTaskOption?.toolId) || aiToolById.get(activeAiTool) || aiToolOptions[0];
+  const activeAiTaskActionKind = activeAiTaskOption?.actionKind || "ai-tool";
+  const activeAiTaskToolId = activeAiTaskOption?.toolId || activeAiTool;
+  const activeAiTaskPurpose = activeAiTaskOption?.purpose || activeAiToolOption.purpose;
+  const activeAiTaskContains = activeAiTaskOption?.contains || activeAiToolOption.contains || [];
+  const activeAiTaskBestGpt = activeAiTaskOption?.bestGpt || activeAiToolOption.bestUsedFor || [];
+  const activeAiTaskDoesNotInclude = activeAiTaskOption?.doesNotInclude || activeAiToolOption.doesNotInclude || [];
+  const activeAiTaskSafety = activeAiTaskOption?.safety || [activeAiToolOption.safety].filter(Boolean);
+  const activeAiToolNeedsSequenceGroup = activeAiTaskToolId === "chain-completion-pack" || activeAiTaskToolId === "full-chain-gpt-pack";
+  const activeAiToolUsesReportBuilderScope = activeAiTaskToolId === "management-report-builder-pack";
   const aiWorkspaceIconMap = { Briefcase, Download, FileText, Network, Search };
 
   return (
@@ -6169,30 +6180,29 @@ ${ungroupedSequenceText}
                           </div>
                         </div>
                         <div className="mt-2 grid gap-1.5">
-                          {section.toolIds.map((toolId) => {
-                            const tool = aiToolById.get(toolId);
-                            if (!tool) return null;
+                          {(section.tasks || []).map((task) => {
                             return (
                               <button
-                                key={`${section.id}-${tool.id}`}
+                                key={`${section.id}-${task.id}`}
                                 type="button"
                                 onClick={() => {
-                                  setActiveAiTool(tool.id);
-                                  if (tool.id === "management-report-builder-pack") {
+                                  setActiveAiTask(task.id);
+                                  if (task.toolId) setActiveAiTool(task.toolId);
+                                  if (task.toolId === "management-report-builder-pack") {
                                     setAiToolsSequenceGroup(MANAGEMENT_REPORT_BUILDER_WHOLE_CASE);
-                                  } else if ((tool.id === "chain-completion-pack" || tool.id === "full-chain-gpt-pack") && !aiToolsSequenceGroup) {
+                                  } else if ((task.toolId === "chain-completion-pack" || task.toolId === "full-chain-gpt-pack") && !aiToolsSequenceGroup) {
                                     setAiToolsSequenceGroup(selectedSequenceGroupName || sequenceGroups[0]?.name || "");
                                   }
                                   setAiToolsFeedback("");
                                 }}
                                 className={`rounded-lg border px-2.5 py-2 text-left transition-colors ${
-                                  activeAiTool === tool.id
+                                  activeAiTask === task.id
                                     ? "border-sky-400 bg-sky-50 text-neutral-950"
                                     : "border-neutral-200 bg-white text-neutral-700 hover:border-sky-200 hover:bg-sky-50/60"
                                 }`}
                               >
-                                <div className="text-xs font-bold">{tool.title}</div>
-                                <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-neutral-500">{tool.description}</p>
+                                <div className="text-xs font-bold">{task.title}</div>
+                                <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-neutral-500">Uses: {task.technicalTool}</p>
                               </button>
                             );
                           })}
@@ -6210,111 +6220,36 @@ ${ungroupedSequenceText}
                   </div>
                 )}
 
-                <section className="rounded-xl border border-lime-300 bg-lime-50/70 p-4 shadow-sm">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-lime-800">Send Case to GPT</div>
-                      <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-lime-900">Recommended default export</p>
-                      <h4 className="mt-1 text-lg font-semibold text-neutral-950">AI Reasoning Snapshot JSON</h4>
-                      <p className="mt-1 text-sm leading-6 text-neutral-700">
-                        Use this when you want a GPT to understand and review the whole case.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleCopyRecommendedGptJson}
-                      className="w-fit shrink-0 rounded-md border border-lime-600 bg-white px-3 py-2 text-sm font-bold text-neutral-950 shadow-sm hover:bg-lime-400/30"
-                    >
-                      Copy Recommended GPT JSON
-                    </button>
-                  </div>
-                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-700">Selected Task</div>
+                  <h4 className="mt-1 text-2xl font-semibold text-neutral-950">{activeAiTaskOption.title}</h4>
+                  <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-xs leading-5 text-neutral-600">
                     <div>
-                      <div className="text-xs font-bold uppercase tracking-wider text-lime-900">Best For</div>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {["Complete case review", "Legal specialist review", "Management specialist review", "Gap analysis", "General case reasoning"].map((item) => (
-                          <span key={item} className="rounded-md border border-lime-200 bg-white px-2 py-0.5 text-xs font-semibold text-lime-900">
-                            {item}
-                          </span>
-                        ))}
-                      </div>
+                      <div className="font-bold uppercase tracking-wider text-neutral-400">Technical Tool</div>
+                      <p className="mt-1 text-sm font-semibold text-neutral-900">{activeAiTaskOption.technicalTool}</p>
                     </div>
-                    <div>
-                      <div className="text-xs font-bold uppercase tracking-wider text-lime-900">Safety</div>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {["Read Only", "Not importable", "Does not change case data"].map((item) => (
-                          <span key={item} className="rounded-md border border-lime-200 bg-white px-2 py-0.5 text-xs font-semibold text-lime-900">
-                            {item}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-3">
-                    <div className="text-xs font-bold uppercase tracking-wider text-lime-900">Contains</div>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {["Case", "Parties", "Incidents", "Evidence", "Documents", "Records", "Ledger", "Timeline", "Reports"].map((item) => (
-                        <span key={item} className="rounded-md border border-lime-200 bg-white px-2 py-0.5 text-xs font-semibold text-neutral-800">
-                          {item}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="mt-3">
-                    <div className="text-xs font-bold uppercase tracking-wider text-lime-900">Does Not Contain</div>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {["Original files", "Binary attachments"].map((item) => (
-                        <span key={item} className="rounded-md border border-amber-200 bg-white px-2 py-0.5 text-xs font-semibold text-amber-800">
-                          {item}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <p className="mt-4 text-xs leading-5 text-lime-900">
-                    Use this first unless you specifically need a chain review, report-writing pack, or technical/debug export.
-                  </p>
-                </section>
-
-                <section className="border-t border-neutral-200 pt-4">
-                  <div className="mb-3">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-500">Selected AI Tool</div>
-                    <p className="mt-1 text-xs leading-5 text-neutral-500">Optional specialist tools for specific tasks.</p>
-                  </div>
-                  <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
-                  <h4 className="text-base font-semibold text-neutral-950">{activeAiToolOption.title}</h4>
-                  <p className="mt-1 text-sm leading-6 text-neutral-600">{activeAiToolOption.description}</p>
-                  <div className="mt-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-xs leading-5 text-neutral-600">
-                    <div>
+                    <div className="mt-3">
                       <div className="font-bold uppercase tracking-wider text-neutral-400">Purpose</div>
-                      <p className="mt-1 text-neutral-700">{activeAiToolOption.purpose}</p>
+                      <p className="mt-1 text-neutral-700">{activeAiTaskPurpose}</p>
                     </div>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <div className="font-bold uppercase tracking-wider text-neutral-400">Best Used For</div>
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {activeAiToolBestUsedFor.map((item) => (
-                            <span key={item} className="rounded-md border border-sky-200 bg-white px-2 py-0.5 font-semibold text-sky-800">
-                              {item}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="font-bold uppercase tracking-wider text-neutral-400">Action Type</div>
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          <span className="rounded-md border border-neutral-200 bg-white px-2 py-0.5 font-semibold text-neutral-700">
-                            {activeAiToolOption.actionType}
+                    <div className="mt-3">
+                      <div className="font-bold uppercase tracking-wider text-neutral-400">Use This When</div>
+                      <p className="mt-1 text-neutral-700">{activeAiTaskOption.useThisWhen}</p>
+                    </div>
+                    <div className="mt-3">
+                      <div className="font-bold uppercase tracking-wider text-neutral-400">Best GPT</div>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {activeAiTaskBestGpt.map((item) => (
+                          <span key={item} className="rounded-md border border-sky-200 bg-white px-2 py-0.5 font-semibold text-sky-800">
+                            {item}
                           </span>
-                          <span className="rounded-md border border-lime-200 bg-lime-50 px-2 py-0.5 font-semibold text-lime-800">
-                            {activeAiToolOption.safety}
-                          </span>
-                        </div>
+                        ))}
                       </div>
                     </div>
                     <div className="mt-3">
                       <div className="font-bold uppercase tracking-wider text-neutral-400">Contains</div>
                       <div className="mt-1 flex flex-wrap gap-1">
-                        {activeAiToolContains.map((item) => (
+                        {activeAiTaskContains.map((item) => (
                           <span key={item} className="rounded-md border border-neutral-200 bg-white px-2 py-0.5 font-semibold text-neutral-700">
                             {item}
                           </span>
@@ -6324,8 +6259,18 @@ ${ungroupedSequenceText}
                     <div className="mt-3">
                       <div className="font-bold uppercase tracking-wider text-neutral-400">Does Not Include</div>
                       <div className="mt-1 flex flex-wrap gap-1">
-                        {activeAiToolDoesNotInclude.map((item) => (
+                        {activeAiTaskDoesNotInclude.map((item) => (
                           <span key={item} className="rounded-md border border-amber-200 bg-white px-2 py-0.5 font-semibold text-amber-800">
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      <div className="font-bold uppercase tracking-wider text-neutral-400">Safety</div>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {activeAiTaskSafety.map((item) => (
+                          <span key={item} className="rounded-md border border-lime-200 bg-lime-50 px-2 py-0.5 font-semibold text-lime-800">
                             {item}
                           </span>
                         ))}
@@ -6360,7 +6305,7 @@ ${ungroupedSequenceText}
                   </label>
                 )}
 
-                {activeAiTool === "case-slice-pack" && (
+                {activeAiTaskToolId === "case-slice-pack" && (
                   <label className="mt-4 block">
                     <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Selected record IDs</span>
                     <textarea
@@ -6379,46 +6324,100 @@ ${ungroupedSequenceText}
                   </label>
                 )}
 
-                <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-600">
-                  <div className="font-semibold text-neutral-900">Pack rules</div>
-                  <ul className="mt-2 list-disc space-y-1 pl-5">
-                    <li>Non-importable JSON with no attachment payloads or binaries.</li>
-                    <li>Record IDs are preserved so GPT recommendations map back to ProveIt.</li>
-                    <li>Document excerpts are bounded and labeled as untrusted source material.</li>
-                    <li>Prompts explicitly say: Do not invent facts. Do not generate deltas.</li>
-                  </ul>
-                </div>
-
-                  <div className="mt-4 text-xs leading-5 text-neutral-500">
-                    <span className="font-semibold text-neutral-700">Advanced Formats:</span> Markdown and specialist packs are optional. Use them only when a GPT specifically needs a formatted prompt, one issue thread, or a technical audit.
-                  </div>
+                  <div className="mt-4 text-xs leading-5 text-neutral-500">This task uses {activeAiTaskOption.technicalTool}.</div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      disabled={activeAiToolNeedsSequenceGroup && !aiToolsSequenceGroup}
-                      onClick={() => handleCopyAiToolJson()}
-                      className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:hover:bg-white"
-                    >
-                      Copy JSON
-                    </button>
-                    <button
-                      type="button"
-                      disabled={activeAiToolNeedsSequenceGroup && !aiToolsSequenceGroup}
-                      onClick={() => handleCopyAiToolMarkdown()}
-                      className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:text-neutral-400"
-                    >
-                      Copy Markdown Prompt
-                    </button>
-                    {activeAiToolUsesReportBuilderScope && (
+                    {activeAiTaskActionKind === "reasoning-snapshot" && (
                       <button
                         type="button"
-                        onClick={() => handleCopyAiToolSpecialistPrompt()}
-                        className="rounded-md border border-sky-300 bg-white px-3 py-2 text-sm font-bold text-sky-800 hover:bg-sky-50"
+                        onClick={handleCopyRecommendedGptJson}
+                        className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
+                      >
+                        Copy Recommended GPT JSON
+                      </button>
+                    )}
+                    {activeAiTaskActionKind === "ai-tool" && (
+                      <>
+                        <button
+                          type="button"
+                          disabled={activeAiToolNeedsSequenceGroup && !aiToolsSequenceGroup}
+                          onClick={() => handleCopyAiToolJson(activeAiTaskToolId)}
+                          className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:hover:bg-white"
+                        >
+                          Copy JSON
+                        </button>
+                        <button
+                          type="button"
+                          disabled={activeAiToolNeedsSequenceGroup && !aiToolsSequenceGroup}
+                          onClick={() => handleCopyAiToolMarkdown(activeAiTaskToolId)}
+                          className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:text-neutral-400"
+                        >
+                          Copy Markdown Prompt
+                        </button>
+                      </>
+                    )}
+                    {activeAiTaskActionKind === "specialist-prompt" && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopyAiToolSpecialistPrompt(activeAiTaskToolId)}
+                        className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
                       >
                         Copy Specialist Prompt
                       </button>
                     )}
-                  </div>
+                    {activeAiTaskActionKind === "narrative-polish" && (
+                      <button
+                        type="button"
+                        onClick={handleCopyExecutiveSummaryPolishPrompt}
+                        className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
+                      >
+                        Copy Narrative Polish Prompt
+                      </button>
+                    )}
+                    {activeAiTaskActionKind === "link-map" && (
+                      <button
+                        type="button"
+                        onClick={() => onCopyLinkMapExport?.(selectedCase.id)}
+                        className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
+                      >
+                        Copy Link Map JSON
+                      </button>
+                    )}
+                    {activeAiTaskActionKind === "protocol-pack" && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleDownloadGptProtocolPackJson}
+                          className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
+                        >
+                          Download JSON
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDownloadGptProtocolPackMarkdown}
+                          className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
+                        >
+                          Download Markdown
+                        </button>
+                      </>
+                    )}
+                    {activeAiTaskActionKind === "gpt-update" && onOpenGptDeltaModal && (
+                      <button
+                        type="button"
+                        onClick={onOpenGptDeltaModal}
+                        className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
+                      >
+                        Open GPT Update
+                      </button>
+                    )}
+                    {activeAiTaskActionKind === "sequence-audit" && (
+                      <button
+                        type="button"
+                        onClick={openSequenceGroupAuditExport}
+                        className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
+                      >
+                        Open Sequence Group Audit
+                      </button>
+                    )}
                   </div>
                 </section>
 

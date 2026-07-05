@@ -14,10 +14,10 @@ test("AI Tools modal is viewport constrained with separated right-pane actions",
   assert.match(source, /max-h-56 overflow-y-auto overscroll-contain/);
   assert.match(source, /min-h-0 space-y-4 overflow-y-auto overscroll-contain/);
   assert.match(source, /sticky top-0 shrink-0 rounded-md/);
-  assert.match(source, /Send Case to GPT/);
-  assert.match(source, /Recommended default export/);
-  assert.match(source, /Selected AI Tool/);
-  assert.match(source, /Optional specialist tools for specific tasks/);
+  assert.match(source, /Selected Task/);
+  assert.match(source, /Technical Tool/);
+  assert.match(source, /Use This When/);
+  assert.match(source, /Best GPT/);
   assert.match(source, /mt-3 flex flex-wrap gap-2/);
 });
 
@@ -25,8 +25,9 @@ test("AI modal is presented as a sectioned AI Workspace", () => {
   assert.match(source, /AI Workspace/);
   assert.match(source, /AI command center/);
   assert.match(source, /aiWorkspaceSections\.map/);
-  assert.match(source, /section\.toolIds\.map/);
+  assert.match(source, /\(section\.tasks \|\| \[\]\)\.map/);
   assert.match(source, /SectionIcon/);
+  assert.match(source, /Uses: \{task\.technicalTool\}/);
 });
 
 test("AI Tools modal supports Escape close and focus containment", () => {

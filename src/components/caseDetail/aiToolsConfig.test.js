@@ -19,14 +19,15 @@ test("AI Tools modal selector still lists all GPT work packs", () => {
   );
 });
 
-test("AI Workspace groups tools into the requested command sections", () => {
+test("AI Workspace groups tasks into the requested command sections", () => {
   assert.deepEqual(
     AI_WORKSPACE_SECTIONS.map((section) => section.title),
     [
+      "Whole Case",
       "Investigation Quality",
-      "Sequence / Issue Review",
       "Report Writing",
-      "Selected Record Review",
+      "Issue Review",
+      "Advanced AI Tools",
     ]
   );
 
@@ -34,7 +35,9 @@ test("AI Workspace groups tools into the requested command sections", () => {
   for (const section of AI_WORKSPACE_SECTIONS) {
     assert.ok(section.description);
     assert.ok(section.icon);
-    assert.ok(section.toolIds.length > 0);
-    section.toolIds.forEach((toolId) => assert.equal(availableToolIds.has(toolId), true));
+    assert.ok(section.tasks.length > 0);
+    section.tasks
+      .filter((task) => task.toolId)
+      .forEach((task) => assert.equal(availableToolIds.has(task.toolId), true));
   }
 });
