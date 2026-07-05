@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { AI_TOOL_OPTIONS, AI_WORKSPACE_SECTIONS } from "./aiToolsConfig.js";
+import { AI_TASK_GUIDANCE, AI_TOOL_OPTIONS, AI_WORKSPACE_SECTIONS } from "./aiToolsConfig.js";
 
 test("AI Tools modal selector still lists all GPT work packs", () => {
   assert.deepEqual(
@@ -39,5 +39,12 @@ test("AI Workspace groups tasks into the requested command sections", () => {
     section.tasks
       .filter((task) => task.toolId)
       .forEach((task) => assert.equal(availableToolIds.has(task.toolId), true));
+    section.tasks.forEach((task) => {
+      const guidance = AI_TASK_GUIDANCE[task.id];
+      assert.ok(guidance);
+      assert.ok(guidance.workflow.length > 0);
+      assert.ok(guidance.recommendedGpt);
+      assert.ok(guidance.exampleQuestions.length >= 4);
+    });
   }
 });

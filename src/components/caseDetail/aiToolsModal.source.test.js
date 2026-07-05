@@ -18,6 +18,9 @@ test("AI Tools modal is viewport constrained with separated right-pane actions",
   assert.match(source, /Technical Tool/);
   assert.match(source, /Use This When/);
   assert.match(source, /Best GPT/);
+  assert.match(source, /Workflow/);
+  assert.match(source, /Recommended GPT/);
+  assert.match(source, /Example Questions/);
   assert.match(source, /mt-3 flex flex-wrap gap-2/);
 });
 

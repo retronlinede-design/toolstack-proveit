@@ -83,7 +83,7 @@ import FloatingWorkspaceMenu from "./caseDetail/FloatingWorkspaceMenu";
 import LedgerTab from "./caseDetail/LedgerTab";
 import PartiesTab from "./caseDetail/PartiesTab";
 import RecordsTab from "./caseDetail/RecordsTab";
-import { AI_TOOL_OPTIONS, AI_WORKSPACE_SECTIONS } from "./caseDetail/aiToolsConfig.js";
+import { AI_TASK_GUIDANCE, AI_TOOL_OPTIONS, AI_WORKSPACE_SECTIONS } from "./caseDetail/aiToolsConfig.js";
 import { sortChronological } from "./caseDetail/ledgerViewHelpers";
 import { toTimelineItems } from "./caseDetail/timelineItemHelpers";
 import {
@@ -3084,6 +3084,7 @@ ${ungroupedSequenceText}
   const aiToolById = new Map(aiToolOptions.map((tool) => [tool.id, tool]));
   const aiWorkspaceTasks = aiWorkspaceSections.flatMap((section) => section.tasks || []);
   const activeAiTaskOption = aiWorkspaceTasks.find((task) => task.id === activeAiTask) || aiWorkspaceTasks[0];
+  const activeAiTaskGuidance = AI_TASK_GUIDANCE[activeAiTaskOption?.id] || {};
   const activeAiToolOption = aiToolById.get(activeAiTaskOption?.toolId) || aiToolById.get(activeAiTool) || aiToolOptions[0];
   const activeAiTaskActionKind = activeAiTaskOption?.actionKind || "ai-tool";
   const activeAiTaskToolId = activeAiTaskOption?.toolId || activeAiTool;
@@ -3092,6 +3093,10 @@ ${ungroupedSequenceText}
   const activeAiTaskBestGpt = activeAiTaskOption?.bestGpt || activeAiToolOption.bestUsedFor || [];
   const activeAiTaskDoesNotInclude = activeAiTaskOption?.doesNotInclude || activeAiToolOption.doesNotInclude || [];
   const activeAiTaskSafety = activeAiTaskOption?.safety || [activeAiToolOption.safety].filter(Boolean);
+  const activeAiTaskWorkflow = activeAiTaskGuidance.workflow || [];
+  const activeAiRecommendedGpt = activeAiTaskGuidance.recommendedGpt || activeAiTaskBestGpt[0] || "General ChatGPT";
+  const activeAiAlsoSuitableGpts = activeAiTaskGuidance.alsoSuitableFor || activeAiTaskBestGpt.slice(1);
+  const activeAiExampleQuestions = activeAiTaskGuidance.exampleQuestions || [];
   const activeAiToolNeedsSequenceGroup = activeAiTaskToolId === "chain-completion-pack" || activeAiTaskToolId === "full-chain-gpt-pack";
   const activeAiToolUsesReportBuilderScope = activeAiTaskToolId === "management-report-builder-pack";
   const aiWorkspaceIconMap = { Briefcase, Download, FileText, Network, Search };
@@ -6323,6 +6328,45 @@ ${ungroupedSequenceText}
                     </p>
                   </label>
                 )}
+
+                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                    <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                      <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Workflow</div>
+                      <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm leading-6 text-neutral-700">
+                        {activeAiTaskWorkflow.map((step) => (
+                          <li key={step}>{step}</li>
+                        ))}
+                      </ol>
+                    </div>
+
+                    <div className="rounded-xl border border-sky-200 bg-sky-50/60 p-4">
+                      <div className="text-xs font-bold uppercase tracking-wider text-sky-700">Recommended GPT</div>
+                      <p className="mt-2 text-sm font-semibold text-neutral-950">{activeAiRecommendedGpt}</p>
+                      {activeAiAlsoSuitableGpts.length > 0 && (
+                        <div className="mt-3">
+                          <div className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">Also suitable for</div>
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {activeAiAlsoSuitableGpts.map((item) => (
+                              <span key={item} className="rounded-md border border-sky-200 bg-white px-2 py-0.5 text-xs font-semibold text-sky-800">
+                                {item}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-xl border border-neutral-200 bg-white p-4">
+                    <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Example Questions</div>
+                    <ul className="mt-2 grid gap-2 text-sm leading-6 text-neutral-700 sm:grid-cols-2">
+                      {activeAiExampleQuestions.map((question) => (
+                        <li key={question} className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
+                          {question}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
 
                   <div className="mt-4 text-xs leading-5 text-neutral-500">This task uses {activeAiTaskOption.technicalTool}.</div>
                   <div className="mt-3 flex flex-wrap gap-2">
