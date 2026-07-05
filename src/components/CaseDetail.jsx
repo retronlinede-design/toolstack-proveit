@@ -3063,6 +3063,9 @@ ${ungroupedSequenceText}
   const aiWorkspaceSections = AI_WORKSPACE_SECTIONS;
   const aiToolById = new Map(aiToolOptions.map((tool) => [tool.id, tool]));
   const activeAiToolOption = aiToolOptions.find((tool) => tool.id === activeAiTool) || aiToolOptions[0];
+  const activeAiToolContains = activeAiToolOption.contains || [];
+  const activeAiToolBestUsedFor = activeAiToolOption.bestUsedFor || [];
+  const activeAiToolDoesNotInclude = activeAiToolOption.doesNotInclude || [];
   const activeAiToolNeedsSequenceGroup = activeAiTool === "chain-completion-pack" || activeAiTool === "full-chain-gpt-pack";
   const activeAiToolUsesReportBuilderScope = activeAiTool === "management-report-builder-pack";
   const aiWorkspaceIconMap = { Briefcase, Download, FileText, Network, Search };
@@ -6169,6 +6172,55 @@ ${ungroupedSequenceText}
                 <div>
                   <h4 className="text-base font-semibold text-neutral-950">{activeAiToolOption.title}</h4>
                   <p className="mt-1 text-sm leading-6 text-neutral-600">{activeAiToolOption.description}</p>
+                  <div className="mt-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-xs leading-5 text-neutral-600">
+                    <div>
+                      <div className="font-bold uppercase tracking-wider text-neutral-400">Purpose</div>
+                      <p className="mt-1 text-neutral-700">{activeAiToolOption.purpose}</p>
+                    </div>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <div className="font-bold uppercase tracking-wider text-neutral-400">Best Used For</div>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {activeAiToolBestUsedFor.map((item) => (
+                            <span key={item} className="rounded-md border border-sky-200 bg-white px-2 py-0.5 font-semibold text-sky-800">
+                              {item}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="font-bold uppercase tracking-wider text-neutral-400">Action Type</div>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          <span className="rounded-md border border-neutral-200 bg-white px-2 py-0.5 font-semibold text-neutral-700">
+                            {activeAiToolOption.actionType}
+                          </span>
+                          <span className="rounded-md border border-lime-200 bg-lime-50 px-2 py-0.5 font-semibold text-lime-800">
+                            {activeAiToolOption.safety}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      <div className="font-bold uppercase tracking-wider text-neutral-400">Contains</div>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {activeAiToolContains.map((item) => (
+                          <span key={item} className="rounded-md border border-neutral-200 bg-white px-2 py-0.5 font-semibold text-neutral-700">
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      <div className="font-bold uppercase tracking-wider text-neutral-400">Does Not Include</div>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {activeAiToolDoesNotInclude.map((item) => (
+                          <span key={item} className="rounded-md border border-amber-200 bg-white px-2 py-0.5 font-semibold text-amber-800">
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {(activeAiToolNeedsSequenceGroup || activeAiToolUsesReportBuilderScope) && (
