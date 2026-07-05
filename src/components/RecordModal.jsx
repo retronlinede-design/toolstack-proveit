@@ -1595,6 +1595,13 @@ export default function RecordModal({
             )}
           </>
         )}
+        {recordType === "evidence" && (
+          <LinkedPartiesSelector
+            parties={caseParties}
+            linkedPartyIds={recordForm.linkedPartyIds}
+            onChange={(linkedPartyIds) => setRecordForm((prev) => ({ ...prev, linkedPartyIds }))}
+          />
+        )}
         {recordType === "incidents" && (
           <LinkedPartiesSelector
             parties={caseParties}

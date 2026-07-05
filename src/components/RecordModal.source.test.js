@@ -19,3 +19,9 @@ test("incident modal renders linked parties selector from case parties", () => {
   assert.match(source, /linkedPartyIds=\{recordForm\.linkedPartyIds\}/);
   assert.match(source, /setRecordForm\(\(prev\) => \(\{ \.\.\.prev, linkedPartyIds \}\)\)/);
 });
+
+test("evidence modal renders linked parties selector from case parties", () => {
+  assert.match(source, /\{recordType === "evidence" && \(\s*<LinkedPartiesSelector/);
+  assert.match(source, /parties=\{caseParties\}/);
+  assert.match(source, /linkedPartyIds=\{recordForm\.linkedPartyIds\}/);
+});
