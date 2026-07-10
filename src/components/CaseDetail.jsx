@@ -224,6 +224,7 @@ export default function CaseDetail({
   const [ledgerFilter, setLedgerFilter] = useState("all");
   const [incidentSearch, setIncidentSearch] = useState("");
   const [incidentFilter, setIncidentFilter] = useState("all");
+  const [incidentSequenceGroupFilter, setIncidentSequenceGroupFilter] = useState("all");
   const [expandedDocuments, setExpandedDocuments] = useState({});
   const [collapsedLedgerGroups, setCollapsedLedgerGroups] = useState({});
   const [showVerifiedEvidence, setShowVerifiedEvidence] = useState(false);
@@ -306,6 +307,12 @@ export default function CaseDetail({
     if (options.includes(sequenceGroupAuditGroup)) return sequenceGroupAuditGroup;
     return options[0] || "";
   }, [sequenceGroups, sequenceGroupAuditGroup]);
+  useEffect(() => {
+    if (incidentSequenceGroupFilter === "all" || incidentSequenceGroupFilter === "__ungrouped__") return;
+    if (!sequenceGroups.some((group) => group.name === incidentSequenceGroupFilter)) {
+      setIncidentSequenceGroupFilter("all");
+    }
+  }, [incidentSequenceGroupFilter, sequenceGroups]);
   const incidentDateMismatchReport = useMemo(
     () => scanIncidentDateMismatches(selectedCase),
     [selectedCase]
@@ -1800,7 +1807,14 @@ ${strategyFocus.join("\n") || "—"}`;
     scrollToIncidentList();
   };
   const incidentSearchQuery = incidentSearch.trim().toLowerCase();
+  const incidentMatchesSequenceGroup = (incident) => {
+    const sequenceGroup = safeText(incident?.sequenceGroup).trim();
+    if (incidentSequenceGroupFilter === "all") return true;
+    if (incidentSequenceGroupFilter === "__ungrouped__") return !sequenceGroup;
+    return sequenceGroup === incidentSequenceGroupFilter;
+  };
   const filteredIncidents = allIncidents.filter((incident) => {
+    if (!incidentMatchesSequenceGroup(incident)) return false;
     if (incidentFilter === "missing-evidence" && incidentHasEvidence(incident)) return false;
     if (incidentFilter === "missing-parties" && incidentHasParties(incident)) return false;
     if (incidentFilter === "missing-documents" && incidentHasDocuments(incident)) return false;
@@ -4052,6 +4066,12 @@ ${ungroupedSequenceText}
                 </section>
 
                 <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Filters</div>
+                    <div className="text-xs font-medium text-neutral-500">
+                      {filteredIncidents.length} matching incident{filteredIncidents.length === 1 ? "" : "s"}
+                    </div>
+                  </div>
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                     <div className="min-w-0 flex-1">
                       <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400" htmlFor="incident-search">
@@ -4072,6 +4092,22 @@ ${ungroupedSequenceText}
                     </div>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                       <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                        Sequence Group
+                        <select
+                          value={incidentSequenceGroupFilter}
+                          onChange={(event) => setIncidentSequenceGroupFilter(event.target.value)}
+                          className="mt-2 block w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 outline-none transition-colors focus:border-lime-500 sm:w-60"
+                        >
+                          <option value="all">All Sequence Groups</option>
+                          <option value="__ungrouped__">Ungrouped Incidents</option>
+                          {sequenceGroups.map((group) => (
+                            <option key={group.name} value={group.name}>
+                              {group.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                         Filter
                         <select
                           value={incidentFilter}
@@ -4085,12 +4121,13 @@ ${ungroupedSequenceText}
                           <option value="ready-review">Ready for review</option>
                         </select>
                       </label>
-                      {(incidentSearch || incidentFilter !== "all") && (
+                      {(incidentSearch || incidentFilter !== "all" || incidentSequenceGroupFilter !== "all") && (
                         <button
                           type="button"
                           onClick={() => {
                             setIncidentSearch("");
                             setIncidentFilter("all");
+                            setIncidentSequenceGroupFilter("all");
                           }}
                           className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-600 transition-colors hover:bg-neutral-50"
                         >
