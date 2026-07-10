@@ -225,6 +225,7 @@ export default function CaseDetail({
   const [incidentSearch, setIncidentSearch] = useState("");
   const [incidentFilter, setIncidentFilter] = useState("all");
   const [incidentSequenceGroupFilter, setIncidentSequenceGroupFilter] = useState("all");
+  const [incidentSort, setIncidentSort] = useState("recently-updated");
   const [expandedDocuments, setExpandedDocuments] = useState({});
   const [collapsedLedgerGroups, setCollapsedLedgerGroups] = useState({});
   const [showVerifiedEvidence, setShowVerifiedEvidence] = useState(false);
@@ -1682,7 +1683,7 @@ ${strategyFocus.join("\n") || "—"}`;
   );
 };
 
-  const renderListBlock = (items, emptyText, recordType) => {
+  const renderListBlock = (items, emptyText, recordType, options = {}) => {
     if (!items || !items.length) {
       return (
         <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
@@ -1700,7 +1701,7 @@ ${strategyFocus.join("\n") || "—"}`;
     }
 
     // Chronological grouping logic (like in Timeline tab)
-    const sorted = sortChronological(items);
+    const sorted = options.preserveOrder ? items : sortChronological(items);
     const groups = [];
     let lastDate = null;
     sorted.forEach(item => {
@@ -1739,6 +1740,7 @@ ${strategyFocus.join("\n") || "—"}`;
   const verifiedEvidence = allEvidence.filter(item => item.status === "verified");
   const allIncidents = selectedCase?.incidents || [];
   const allDocuments = selectedCase?.documents || [];
+  const allParties = selectedCase?.parties || [];
   const incidentIdsSupportedByEvidence = new Set([
     ...allIncidents.flatMap((incident) =>
       Array.isArray(incident?.linkedEvidenceIds) && incident.linkedEvidenceIds.length > 0 ? [incident.id] : []
@@ -1751,6 +1753,36 @@ ${strategyFocus.join("\n") || "—"}`;
       const documentLinkedRecordIds = Array.isArray(document?.linkedRecordIds) ? document.linkedRecordIds : [];
       return linkedRecordIds.includes(document.id) || documentLinkedRecordIds.includes(incident.id);
     });
+  };
+  const getIncidentEvidenceLinks = (incident) => {
+    const linkedEvidenceIds = Array.isArray(incident?.linkedEvidenceIds) ? incident.linkedEvidenceIds : [];
+    return allEvidence.filter((evidence) => (
+      linkedEvidenceIds.includes(evidence.id) ||
+      (Array.isArray(evidence?.linkedIncidentIds) && evidence.linkedIncidentIds.includes(incident.id))
+    ));
+  };
+  const getIncidentPartyLinks = (incident) => {
+    const linkedPartyIds = Array.isArray(incident?.linkedPartyIds) ? incident.linkedPartyIds : [];
+    return allParties.filter((party) => linkedPartyIds.includes(party.id));
+  };
+  const incidentMatchesSearch = (incident) => {
+    if (!incidentSearchQuery) return true;
+
+    const searchValues = [
+      incident.title,
+      incident.description,
+      incident.sequenceGroup,
+      ...(Array.isArray(incident.tags) ? incident.tags : []),
+      ...getIncidentPartyLinks(incident).flatMap((party) => [
+        party.displayName,
+        party.legalName,
+        party.organisationName,
+      ]),
+      ...getIncidentDocumentLinks(incident).map((document) => document.title),
+      ...getIncidentEvidenceLinks(incident).map((evidence) => evidence.title),
+    ];
+
+    return searchValues.some((value) => safeText(value).toLowerCase().includes(incidentSearchQuery));
   };
   const incidentHasEvidence = (incident) => incident?.id && incidentIdsSupportedByEvidence.has(incident.id);
   const incidentHasParties = (incident) => Array.isArray(incident?.linkedPartyIds) && incident.linkedPartyIds.length > 0;
@@ -1815,22 +1847,82 @@ ${strategyFocus.join("\n") || "—"}`;
   };
   const filteredIncidents = allIncidents.filter((incident) => {
     if (!incidentMatchesSequenceGroup(incident)) return false;
+    if (incidentFilter === "needs-attention" && incidentHasEvidence(incident) && incidentHasParties(incident) && incidentHasDocuments(incident)) return false;
     if (incidentFilter === "missing-evidence" && incidentHasEvidence(incident)) return false;
     if (incidentFilter === "missing-parties" && incidentHasParties(incident)) return false;
     if (incidentFilter === "missing-documents" && incidentHasDocuments(incident)) return false;
     if (incidentFilter === "ready-review" && !isIncidentReadyForReview(incident)) return false;
-    if (!incidentSearchQuery) return true;
-
-    return [
-      incident.title,
-      incident.description,
-      incident.notes,
-      incident.status,
-      incident.date,
-      incident.eventDate,
-      incident.sequenceGroup,
-    ].some((value) => safeText(value).toLowerCase().includes(incidentSearchQuery));
+    if (incidentFilter === "recent") {
+      const incidentTime = new Date(incident?.eventDate || incident?.date || incident?.createdAt || 0).getTime();
+      const latestIncidentTime = Math.max(...allIncidents.map((item) => new Date(item?.eventDate || item?.date || item?.createdAt || 0).getTime()).filter(Number.isFinite));
+      if (!Number.isFinite(incidentTime) || !Number.isFinite(latestIncidentTime) || incidentTime < latestIncidentTime - 1000 * 60 * 60 * 24 * 30) return false;
+    }
+    return incidentMatchesSearch(incident);
   });
+  const getIncidentTime = (incident, fields) => {
+    for (const field of fields) {
+      const time = new Date(incident?.[field] || 0).getTime();
+      if (Number.isFinite(time)) return time;
+    }
+    return 0;
+  };
+  const getIncidentEvidenceCount = (incident) => {
+    const directEvidenceIds = Array.isArray(incident?.linkedEvidenceIds) ? incident.linkedEvidenceIds : [];
+    const reverseEvidenceIds = allEvidence.filter((evidence) =>
+      Array.isArray(evidence?.linkedIncidentIds) && evidence.linkedIncidentIds.includes(incident.id)
+    ).map((evidence) => evidence.id).filter(Boolean);
+    return new Set([...directEvidenceIds, ...reverseEvidenceIds]).size;
+  };
+  const getIncidentAttentionScore = (incident) => (
+    (incidentHasEvidence(incident) ? 0 : 1) +
+    (incidentHasParties(incident) ? 0 : 1) +
+    (incidentHasDocuments(incident) ? 0 : 1)
+  );
+  const sortedFilteredIncidents = [...filteredIncidents].sort((a, b) => {
+    if (incidentSort === "newest-first") {
+      return getIncidentTime(b, ["eventDate", "date", "createdAt", "updatedAt"]) - getIncidentTime(a, ["eventDate", "date", "createdAt", "updatedAt"]);
+    }
+    if (incidentSort === "oldest-first") {
+      return getIncidentTime(a, ["eventDate", "date", "createdAt", "updatedAt"]) - getIncidentTime(b, ["eventDate", "date", "createdAt", "updatedAt"]);
+    }
+    if (incidentSort === "most-evidence") {
+      return getIncidentEvidenceCount(b) - getIncidentEvidenceCount(a);
+    }
+    if (incidentSort === "least-evidence") {
+      return getIncidentEvidenceCount(a) - getIncidentEvidenceCount(b);
+    }
+    if (incidentSort === "ready-review") {
+      return Number(isIncidentReadyForReview(b)) - Number(isIncidentReadyForReview(a));
+    }
+    if (incidentSort === "needs-attention") {
+      return getIncidentAttentionScore(b) - getIncidentAttentionScore(a);
+    }
+    return getIncidentTime(b, ["updatedAt", "createdAt", "eventDate", "date"]) - getIncidentTime(a, ["updatedAt", "createdAt", "eventDate", "date"]);
+  });
+  const activeQuickIncidentFilter = incidentSequenceGroupFilter === "__ungrouped__" ? "ungrouped" : incidentFilter;
+  const incidentQuickFilterChips = [
+    { id: "all", label: "All" },
+    { id: "needs-attention", label: "Needs Attention" },
+    { id: "missing-evidence", label: "No Evidence" },
+    { id: "missing-parties", label: "No Parties" },
+    { id: "missing-documents", label: "No Documents" },
+    { id: "ungrouped", label: "Ungrouped" },
+    { id: "ready-review", label: "Ready for Review" },
+    { id: "recent", label: "Recent" },
+  ];
+  const applyIncidentQuickFilter = (filterId) => {
+    if (filterId === "all") {
+      setIncidentFilter("all");
+      setIncidentSequenceGroupFilter("all");
+      return;
+    }
+    if (filterId === "ungrouped") {
+      setIncidentSequenceGroupFilter("__ungrouped__");
+      setIncidentFilter("all");
+      return;
+    }
+    setIncidentFilter(filterId);
+  };
 
   const timelineItems = [
     ...toTimelineItems(selectedCase?.incidents, "incident"),
@@ -4101,7 +4193,7 @@ ${ungroupedSequenceText}
                           type="search"
                           value={incidentSearch}
                           onChange={(event) => setIncidentSearch(event.target.value)}
-                          placeholder="Search title, notes, date, status, or sequence group"
+                          placeholder="Search incidents, tags, linked parties, evidence, documents, or sequence group"
                           className="min-w-0 flex-1 bg-transparent text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
                         />
                       </div>
@@ -4131,10 +4223,28 @@ ${ungroupedSequenceText}
                           className="mt-2 block w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 outline-none transition-colors focus:border-lime-500 sm:w-56"
                         >
                           <option value="all">All incidents</option>
+                          <option value="needs-attention">Needs attention</option>
                           <option value="missing-evidence">Without evidence</option>
                           <option value="missing-parties">Without parties</option>
                           <option value="missing-documents">Without documents</option>
                           <option value="ready-review">Ready for review</option>
+                          <option value="recent">Recent</option>
+                        </select>
+                      </label>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                        Sort
+                        <select
+                          value={incidentSort}
+                          onChange={(event) => setIncidentSort(event.target.value)}
+                          className="mt-2 block w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 outline-none transition-colors focus:border-lime-500 sm:w-52"
+                        >
+                          <option value="recently-updated">Recently Updated</option>
+                          <option value="newest-first">Newest First</option>
+                          <option value="oldest-first">Oldest First</option>
+                          <option value="most-evidence">Most Evidence</option>
+                          <option value="least-evidence">Least Evidence</option>
+                          <option value="ready-review">Ready for Review</option>
+                          <option value="needs-attention">Needs Attention</option>
                         </select>
                       </label>
                       {(incidentSearch || incidentFilter !== "all" || incidentSequenceGroupFilter !== "all") && (
@@ -4155,6 +4265,25 @@ ${ungroupedSequenceText}
                 </section>
 
                 <section id="incident-list" className="space-y-4 scroll-mt-24">
+                  <div className="flex flex-wrap gap-2">
+                    {incidentQuickFilterChips.map((chip) => {
+                      const selected = activeQuickIncidentFilter === chip.id || (chip.id === "all" && activeQuickIncidentFilter === "all");
+                      return (
+                        <button
+                          key={chip.id}
+                          type="button"
+                          onClick={() => applyIncidentQuickFilter(chip.id)}
+                          className={`min-h-8 rounded-full border px-3 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1 ${
+                            selected
+                              ? "border-lime-500 bg-lime-50 text-lime-800"
+                              : "border-neutral-200 bg-white text-neutral-600 hover:border-lime-300 hover:bg-lime-50"
+                          }`}
+                        >
+                          {chip.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Incident List</h3>
                     <span className="text-xs font-medium text-neutral-500">
@@ -4162,11 +4291,12 @@ ${ungroupedSequenceText}
                     </span>
                   </div>
                   {renderListBlock(
-                    filteredIncidents,
+                    sortedFilteredIncidents,
                     allIncidents.length === 0
                       ? "No incidents yet. Add your first incident to start the case timeline."
                       : "No incidents match the current filters.",
-                    "incidents"
+                    "incidents",
+                    { preserveOrder: true }
                   )}
                 </section>
               </div>
