@@ -3335,48 +3335,68 @@ ${ungroupedSequenceText}
   const activeAiToolNeedsSequenceGroup = activeAiTaskToolId === "chain-completion-pack" || activeAiTaskToolId === "full-chain-gpt-pack";
   const activeAiToolUsesReportBuilderScope = activeAiTaskToolId === "management-report-builder-pack";
   const aiWorkspaceIconMap = { Briefcase, Download, FileText, Network, Search };
+  const formatCaseHeaderDate = (value) => {
+    if (!value) return "";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString();
+  };
+  const caseHeaderSubtitle = selectedCase.category
+    ? `${selectedCase.category} Workspace`
+    : selectedCase.status
+      ? `${selectedCase.status} Case Workspace`
+      : "Case Workspace";
+  const caseHeaderMetadata = [
+    selectedCase.category ? { label: "Category", value: selectedCase.category } : null,
+    selectedCase.status ? { label: "Status", value: selectedCase.status } : null,
+    formatCaseHeaderDate(selectedCase.createdAt) ? { label: "Created", value: formatCaseHeaderDate(selectedCase.createdAt) } : null,
+    formatCaseHeaderDate(selectedCase.updatedAt) ? { label: "Updated", value: formatCaseHeaderDate(selectedCase.updatedAt) } : null,
+  ].filter(Boolean);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden lg:flex-row lg:items-start lg:justify-between">
-        <div>
+      <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+        <div className="min-w-0">
           <button onClick={() => setSelectedCaseId(null)} className="mb-3 text-sm font-medium text-neutral-500 underline-offset-4 hover:underline">
             ← Back to Cases
           </button>
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-semibold">{selectedCase.name}</h2>
-            <button onClick={() => openEditCaseModal(selectedCase)} className="text-sm font-medium text-lime-600 hover:text-lime-700">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <h2 className="min-w-0 text-3xl font-semibold leading-tight text-neutral-950">{selectedCase.name}</h2>
+            <button onClick={() => openEditCaseModal(selectedCase)} className="rounded-lg border border-neutral-200 bg-white px-2.5 py-1 text-xs font-semibold text-neutral-600 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1">
               Edit
             </button>
             <button
               onClick={() => onOpenPinManager?.(selectedCase)}
-              className="text-sm font-medium text-blue-700 hover:text-blue-800"
+              className="rounded-lg border border-neutral-200 bg-white px-2.5 py-1 text-xs font-semibold text-neutral-600 transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
             >
               {isPinLocked ? "Manage PIN" : "Set PIN"}
             </button>
           </div>
-          <p className="mt-1 text-sm text-neutral-600">Category: {selectedCase.category}</p>
-          <p className="mt-1 text-xs font-medium text-neutral-500">
+          <p className="mt-1 text-sm font-medium text-neutral-500">{caseHeaderSubtitle}</p>
+          {caseHeaderMetadata.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {caseHeaderMetadata.map((item) => (
+                <span key={item.label} className="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-medium text-neutral-600">
+                  <span className="text-neutral-400">{item.label}:</span> {item.value}
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="mt-2 text-xs font-medium text-neutral-500">
             {isPinLocked ? "Privacy lock: PIN enabled" : "Privacy lock: off"}
           </p>
-          {selectedCase.notes ? <p className="mt-3 max-w-2xl text-sm text-neutral-700">{selectedCase.notes}</p> : null}
+          {selectedCase.notes ? <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-700">{selectedCase.notes}</p> : null}
         </div>
-        <div className="flex gap-2 flex-wrap items-start">
-          {onOpenGptDeltaModal && (
-            <button
-              onClick={onOpenGptDeltaModal}
-              className="px-3 py-1.5 text-sm rounded-md whitespace-nowrap border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
-            >
-              GPT Update
-            </button>
-          )}
-
-          <div className="relative flex-1 min-w-max">
+        <div className="flex flex-col items-start gap-2 lg:items-end">
+          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+          <div className="relative">
             <button 
               onClick={() => setShowExportMenu(!showExportMenu)}
-              className="w-full px-3 py-1.5 text-sm rounded-md whitespace-nowrap border-2 border-lime-500 bg-white font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95 flex items-center justify-center gap-1"
+              className="flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
             >
-              Export <ChevronDown className={`h-4 w-4 transition-transform ${showExportMenu ? 'rotate-180' : ''}`} />
+              <Download className="h-3.5 w-3.5" />
+              Export
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showExportMenu ? 'rotate-180' : ''}`} />
             </button>
             
             {showExportMenu && (
@@ -3480,17 +3500,27 @@ ${ungroupedSequenceText}
                 </div>
               </>
             )}
-            
-            <div className="mt-1 flex flex-col items-center">
-              {syncMessage && (
-                <span className={`text-[10px] font-bold uppercase tracking-tight text-center ${syncStatus === 'error' ? 'text-red-500' : 'text-lime-600'}`}>{syncMessage}</span>
-              )}
-              {supabaseReasoningExportMessage && (
-                <span className={`text-[10px] font-bold uppercase tracking-tight text-center ${supabaseReasoningExportStatus === 'error' ? 'text-red-500' : 'text-lime-600'}`}>{supabaseReasoningExportMessage}</span>
-              )}
-            </div>
+          </div>
+          {onOpenGptDeltaModal && (
+            <button
+              onClick={onOpenGptDeltaModal}
+              className="flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              GPT Update
+            </button>
+          )}
+          </div>
+          <div className="flex flex-col items-start lg:items-end">
+            {syncMessage && (
+              <span className={`text-[10px] font-bold uppercase tracking-tight text-center ${syncStatus === 'error' ? 'text-red-500' : 'text-lime-600'}`}>{syncMessage}</span>
+            )}
+            {supabaseReasoningExportMessage && (
+              <span className={`text-[10px] font-bold uppercase tracking-tight text-center ${supabaseReasoningExportStatus === 'error' ? 'text-red-500' : 'text-lime-600'}`}>{supabaseReasoningExportMessage}</span>
+            )}
           </div>
         </div>
+      </div>
       </div>
 
       <ActionSummaryPanel
