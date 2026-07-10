@@ -4027,29 +4027,15 @@ ${ungroupedSequenceText}
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                  <div className="rounded-xl border border-neutral-200 bg-neutral-50/70 p-3">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Quick Actions</div>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <div className="mt-2 flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={() => openRecordModal("incidents")}
-                        className="rounded-xl border border-lime-500 bg-white px-4 py-3 text-left text-sm font-semibold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/30"
+                        className="min-h-9 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
                       >
                         New Incident
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openRecordModal("evidence")}
-                        className="rounded-xl border border-lime-500 bg-white px-4 py-3 text-left text-sm font-semibold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/30"
-                      >
-                        Add Evidence
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab("parties")}
-                        className="rounded-xl border border-lime-500 bg-white px-4 py-3 text-left text-sm font-semibold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/30"
-                      >
-                        Add Party
                       </button>
                       <button
                         type="button"
@@ -4057,9 +4043,39 @@ ${ungroupedSequenceText}
                           incidentSearchInputRef.current?.focus();
                           scrollToIncidentList();
                         }}
-                        className="rounded-xl border border-lime-500 bg-white px-4 py-3 text-left text-sm font-semibold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/30"
+                        className="min-h-9 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
                       >
                         Search Incidents
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (incidentAttentionIssues[0]) {
+                            applyIncidentAttentionFilter(incidentAttentionIssues[0].filter);
+                          } else {
+                            scrollToIncidentList();
+                          }
+                        }}
+                        className="min-h-9 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
+                      >
+                        Review Needs Attention
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIncidentSequenceGroupFilter("__ungrouped__");
+                          scrollToIncidentList();
+                        }}
+                        className="min-h-9 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
+                      >
+                        Show Ungrouped
+                      </button>
+                      <button
+                        type="button"
+                        onClick={openSequenceGroupManager}
+                        className="min-h-9 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
+                      >
+                        Sequence Groups
                       </button>
                     </div>
                   </div>
