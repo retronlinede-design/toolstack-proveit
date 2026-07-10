@@ -3543,24 +3543,35 @@ ${ungroupedSequenceText}
 
       <div className="grid gap-6 lg:grid-cols-12">
         <div className={`${reviewQueueSection ? "lg:col-span-8" : "lg:col-span-12"} space-y-6`}>
-          <div className="rounded-3xl border border-neutral-200 bg-white p-3 shadow-sm print:hidden">
-            <div className="flex flex-wrap gap-2">
+          <div className="rounded-2xl border border-neutral-200 bg-white p-2 shadow-sm print:hidden">
+            <div className="overflow-x-auto">
+              <div className="flex min-w-max items-center gap-1">
               {tabs
                 .flatMap((tab) => tab.id === "documents" ? [tab, { id: "records", label: "Records" }] : [tab])
                 .map((tab) => {
                   const label = tab.id === "generate-report" ? "Reports" : tab.label;
+                  const isActive = activeTab === tab.id;
+                  const isSecondary = ["strategy", "narrative", "pack"].includes(tab.id);
                   return (
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
-                      className={`rounded-2xl border border-lime-500 px-4 py-2 text-sm font-medium shadow-[0_2px_4px_rgba(60,60,60,0.2)] transition-colors ${
-                        activeTab === tab.id ? "bg-lime-400/30 text-neutral-900" : "bg-white text-neutral-700 hover:bg-lime-400/30"
+                        className={`relative whitespace-nowrap rounded-xl border px-3 py-2 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1 ${
+                        isActive
+                            ? "border-lime-300 bg-lime-50 text-neutral-950"
+                            : isSecondary
+                              ? "border-transparent bg-white text-neutral-500 hover:border-neutral-200 hover:bg-neutral-50 hover:text-neutral-700"
+                              : "border-transparent bg-white text-neutral-700 hover:border-neutral-200 hover:bg-neutral-50 hover:text-neutral-900"
                       }`}
                     >
                       {label}
+                        {isActive && (
+                          <span className="absolute inset-x-3 -bottom-0.5 h-0.5 rounded-full bg-lime-500" />
+                        )}
                     </button>
                   );
                 })}
+              </div>
             </div>
           </div>
 
