@@ -16,6 +16,22 @@ function compactText(value) {
   return safeText(value).replace(/\s+/g, " ").trim();
 }
 
+function getActionSummaryItemText(item) {
+  if (typeof item === "string") return item;
+  return typeof item?.text === "string" ? item.text : "";
+}
+
+function isCompletedActionSummaryItem(item) {
+  return typeof item === "object" && item !== null && item.completed === true;
+}
+
+function getActiveActionSummaryTexts(items = []) {
+  return (Array.isArray(items) ? items : [])
+    .filter((item) => !isCompletedActionSummaryItem(item))
+    .map(getActionSummaryItemText)
+    .filter(Boolean);
+}
+
 function shortText(value, limit = 220) {
   const text = compactText(value);
   if (text.length <= limit) return text;
@@ -429,7 +445,7 @@ function buildDiagnosticsSummary(diagnostics) {
 
 function itemMentionsSequenceGroup(item, sequenceGroup) {
   if (!sequenceGroup) return false;
-  return safeText(item).toLowerCase().includes(sequenceGroup.toLowerCase());
+  return getActionSummaryItemText(item).toLowerCase().includes(sequenceGroup.toLowerCase());
 }
 
 function buildOpenQuestionsAndNextActions(caseItem, strategyRecords, sequenceGroup) {
@@ -450,7 +466,7 @@ function buildOpenQuestionsAndNextActions(caseItem, strategyRecords, sequenceGro
   }));
   const actionSummary = caseItem?.actionSummary || {};
   const summaryActions = [
-    ...(Array.isArray(actionSummary.nextActions) ? actionSummary.nextActions : []),
+    ...getActiveActionSummaryTexts(actionSummary.nextActions),
     ...(Array.isArray(actionSummary.criticalDeadlines) ? actionSummary.criticalDeadlines : []),
   ]
     .filter((item) => itemMentionsSequenceGroup(item, sequenceGroup))
@@ -928,7 +944,7 @@ function buildStrategyActionsSummary(caseItem = {}, normalizedScope = {}, includ
     strategyRecords,
     actionSummary: {
       currentFocus: safeText(actionSummary.currentFocus),
-      nextActions: (Array.isArray(actionSummary.nextActions) ? actionSummary.nextActions : []).filter(includeSummaryItem),
+      nextActions: getActiveActionSummaryTexts(actionSummary.nextActions).filter(includeSummaryItem),
       importantReminders: (Array.isArray(actionSummary.importantReminders) ? actionSummary.importantReminders : []).filter(includeSummaryItem),
       strategyFocus: (Array.isArray(actionSummary.strategyFocus) ? actionSummary.strategyFocus : []).filter(includeSummaryItem),
       criticalDeadlines: (Array.isArray(actionSummary.criticalDeadlines) ? actionSummary.criticalDeadlines : []).filter(includeSummaryItem),
@@ -1139,7 +1155,7 @@ function getExecutiveRisksAndConcerns(diagnostics = {}) {
 
 function getExecutiveRecommendedNextSteps(caseItem = {}, diagnostics = {}) {
   const actionSummary = caseItem.actionSummary || {};
-  const actionItems = (Array.isArray(actionSummary.nextActions) ? actionSummary.nextActions : [])
+  const actionItems = getActiveActionSummaryTexts(actionSummary.nextActions)
     .map((text, index) => ({ id: `action-${index}`, source: "actionSummary", text }));
   const strategyItems = (caseItem.strategy || [])
     .filter((item) => item?.id && !["done", "closed", "archived"].includes(item.status))
@@ -1618,7 +1634,7 @@ function buildManagementChainRisks(incidents = [], proof = [], gaps = []) {
 
 function buildManagementChainActions(groupName, strategyRecords = [], actionSummary = {}, gaps = []) {
   const mentionedActions = [
-    ...(Array.isArray(actionSummary.nextActions) ? actionSummary.nextActions : []),
+    ...getActiveActionSummaryTexts(actionSummary.nextActions),
     ...(Array.isArray(actionSummary.criticalDeadlines) ? actionSummary.criticalDeadlines : []),
   ]
     .filter((item) => itemMentionsSequenceGroup(item, groupName))

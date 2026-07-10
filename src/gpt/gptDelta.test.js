@@ -822,7 +822,7 @@ test("ingestGptDelta actionSummary patch applies only supported fields", () => {
   assert.equal(result.ok, true);
   assert.deepEqual(result.warnings, ["actionSummary has unsupported field(s) for gpt-delta-1.0: unsupportedField."]);
   assert.equal(result.case.actionSummary.currentFocus, "New focus");
-  assert.deepEqual(result.case.actionSummary.nextActions, ["New action"]);
+  assert.deepEqual(result.case.actionSummary.nextActions, [{ text: "New action", completed: false, completedAt: null }]);
   assert.deepEqual(result.case.actionSummary.importantReminders, ["New reminder"]);
   assert.deepEqual(result.case.actionSummary.strategyFocus, ["New strategy"]);
   assert.deepEqual(result.case.actionSummary.criticalDeadlines, ["New deadline"]);

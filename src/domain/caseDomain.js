@@ -229,6 +229,39 @@ function normalizeStringList(value) {
   }, []);
 }
 
+function getActionSummaryItemText(item) {
+  if (typeof item === "string") return item;
+  return typeof item?.text === "string" ? item.text : "";
+}
+
+function normalizeActionCompletionTimestamp(value) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function normalizeNextActionItem(item) {
+  const text = getActionSummaryItemText(item).trim();
+  if (!text) return null;
+  const completed = typeof item === "object" && item !== null && item.completed === true;
+
+  return {
+    text,
+    completed,
+    completedAt: completed ? normalizeActionCompletionTimestamp(item.completedAt) : null,
+  };
+}
+
+function normalizeNextActionItems(value) {
+  if (!Array.isArray(value)) return [];
+
+  return value.reduce((items, item) => {
+    const normalized = normalizeNextActionItem(item);
+    if (normalized) items.push(normalized);
+    return items;
+  }, []);
+}
+
 export function normalizePartyEntityType(value) {
   const normalized = safeString(value).toLowerCase().trim();
   return PARTY_ENTITY_TYPES.includes(normalized) ? normalized : "person";
@@ -410,7 +443,7 @@ export function normalizeLedgerEntry(item) {
 export function normalizeActionSummary(summary) {
   return {
     currentFocus: summary?.currentFocus || "",
-    nextActions: Array.isArray(summary?.nextActions) ? summary.nextActions : [],
+    nextActions: normalizeNextActionItems(summary?.nextActions),
     importantReminders: Array.isArray(summary?.importantReminders) ? summary.importantReminders : [],
     strategyFocus: Array.isArray(summary?.strategyFocus) ? summary.strategyFocus : [],
     criticalDeadlines: Array.isArray(summary?.criticalDeadlines) ? summary.criticalDeadlines : [],

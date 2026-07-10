@@ -22,6 +22,7 @@ import {
   mergeCase,
   mergeParties,
   moveRecordToSequenceGroup,
+  normalizeActionSummary,
   normalizeCase,
   normalizeCasePrivacyLock,
   normalizeParty,
@@ -42,6 +43,23 @@ import {
 import { prepareRecordFormForSave } from "./recordFormDomain.js";
 
 const iso = (value) => new Date(value).toISOString();
+
+test("normalizeActionSummary preserves next action completion metadata", () => {
+  const completedAt = iso("2024-05-01T10:00:00Z");
+  const normalized = normalizeActionSummary({
+    nextActions: [
+      "Legacy active action",
+      { text: "Completed action", completed: true, completedAt },
+      { text: "Unchecked action", completed: false, completedAt },
+    ],
+  });
+
+  assert.deepEqual(normalized.nextActions, [
+    { text: "Legacy active action", completed: false, completedAt: null },
+    { text: "Completed action", completed: true, completedAt },
+    { text: "Unchecked action", completed: false, completedAt: null },
+  ]);
+});
 
 test("normalizeRecord applies shared timeline fields to evidence and preserves capturedAt behavior", () => {
   const attachment = { id: "file-1", name: "photo.png" };
@@ -2771,7 +2789,7 @@ test("mergeCase normalizes both sides, merges collections by id, and keeps curre
   assert.deepEqual(merged.parties[0].roles, ["respondent"]);
   assert.deepEqual(merged.actionSummary, {
     currentFocus: "Existing focus",
-    nextActions: ["Existing action"],
+    nextActions: [{ text: "Existing action", completed: false, completedAt: null }],
     importantReminders: [],
     strategyFocus: [],
     criticalDeadlines: [],

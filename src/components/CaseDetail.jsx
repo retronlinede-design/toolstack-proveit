@@ -73,6 +73,8 @@ import {
   applyActionSummaryPatch,
   emptyActionSummaryForm,
   formToActionSummary,
+  getActionText,
+  getActiveNextActions,
   normalizeActionSummary,
 } from "./caseDetail/actionSummaryHelpers";
 import ActionSummaryModal from "./caseDetail/ActionSummaryModal";
@@ -445,7 +447,9 @@ export default function CaseDetail({
         status: selectedCase.status || "",
       },
       currentFocus: normalizedActionSummary.currentFocus || "",
-      nextActions: normalizedActionSummary.nextActions.filter(mentionsScope),
+      nextActions: getActiveNextActions(normalizedActionSummary.nextActions)
+        .map(getActionText)
+        .filter(mentionsScope),
       importantReminders: normalizedActionSummary.importantReminders.filter(mentionsScope),
       strategyFocus: normalizedActionSummary.strategyFocus.filter(mentionsScope),
       criticalDeadlines: normalizedActionSummary.criticalDeadlines.filter(mentionsScope),
@@ -461,10 +465,10 @@ export default function CaseDetail({
         ...(unsupportedIncidents.length > 0 ? ["Link evidence to unsupported incidents before escalation."] : []),
         ...(weakRecords.length > 0 || orphanRecords.length > 0 ? ["Review weak or unlinked records and connect them to the relevant incidents, evidence, documents, or ledger entries."] : []),
         ...(chronologyGaps.length > 0 ? ["Add missing dates or ordering information to strengthen chronology."] : []),
-        ...(normalizedActionSummary.nextActions.length === 0 ? ["Add explicit next actions to the case action summary."] : []),
+        ...(getActiveNextActions(normalizedActionSummary.nextActions).length === 0 ? ["Add explicit next actions to the case action summary."] : []),
       ],
       counts: {
-        nextActions: normalizedActionSummary.nextActions.length,
+        nextActions: getActiveNextActions(normalizedActionSummary.nextActions).length,
         reminders: normalizedActionSummary.importantReminders.length,
         deadlines: normalizedActionSummary.criticalDeadlines.length,
         openStrategy: strategyRecords.length,
@@ -617,7 +621,7 @@ export default function CaseDetail({
   function saveActionSummary() {
     if (!selectedCase) return;
 
-    updateActionSummary(formToActionSummary(actionSummaryForm));
+    updateActionSummary(formToActionSummary(actionSummaryForm, rawActionSummary));
     setActionSummaryEditOpen(false);
   }
 
@@ -1395,11 +1399,14 @@ export default function CaseDetail({
   const actionSummary = normalizeActionSummary(rawActionSummary);
   const {
     currentFocus,
-    nextActions = [],
+    nextActions: storedNextActions = [],
     importantReminders = [],
     strategyFocus = [],
     criticalDeadlines = [],
   } = actionSummary;
+  const activeNextActions = storedNextActions.filter((action) => !action.completed);
+  const completedNextActions = storedNextActions.filter((action) => action.completed);
+  const nextActions = activeNextActions.map(getActionText);
 
   const copyActionSummaryToClipboard = () => {
     const text = `Focus: ${currentFocus || "—"}
@@ -1420,7 +1427,7 @@ ${strategyFocus.join("\n") || "—"}`;
     if (!val) return;
 
     applyActionSummaryUpdate({
-      nextActions: [...nextActions, val],
+      nextActions: [...storedNextActions, { text: val, completed: false, completedAt: null }],
       updatedAt: new Date().toISOString(),
     });
     setQuickActionInput("");
@@ -1433,21 +1440,53 @@ ${strategyFocus.join("\n") || "—"}`;
   };
 
   const handleRemoveNextAction = (index) => {
+    let activeIndex = -1;
     applyActionSummaryUpdate({
-      nextActions: nextActions.filter((_, i) => i !== index),
+      nextActions: storedNextActions.filter((action) => {
+        if (action.completed) return true;
+        activeIndex += 1;
+        return activeIndex !== index;
+      }),
       updatedAt: new Date().toISOString(),
     });
   };
 
   const handleMoveNextAction = (fromIndex, toIndex) => {
-    if (toIndex < 0 || toIndex >= nextActions.length || fromIndex === toIndex) return;
+    if (toIndex < 0 || toIndex >= activeNextActions.length || fromIndex === toIndex) return;
 
-    const reordered = [...nextActions];
-    const [item] = reordered.splice(fromIndex, 1);
-    reordered.splice(toIndex, 0, item);
+    const reorderedActiveActions = [...activeNextActions];
+    const [item] = reorderedActiveActions.splice(fromIndex, 1);
+    reorderedActiveActions.splice(toIndex, 0, item);
+    let activeIndex = 0;
+    const reordered = storedNextActions.map((action) => {
+      if (action.completed) return action;
+      const nextAction = reorderedActiveActions[activeIndex];
+      activeIndex += 1;
+      return nextAction;
+    });
 
     applyActionSummaryUpdate({
       nextActions: reordered,
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
+  const handleToggleNextActionCompleted = (targetAction, completed) => {
+    let updated = false;
+    const updatedActions = storedNextActions.map((action) => {
+      if (updated || action !== targetAction) return action;
+      updated = true;
+      return {
+        ...action,
+        completed,
+        completedAt: completed ? new Date().toISOString() : null,
+      };
+    });
+
+    if (!updated) return;
+
+    applyActionSummaryUpdate({
+      nextActions: updatedActions,
       updatedAt: new Date().toISOString(),
     });
   };
@@ -1462,7 +1501,7 @@ ${strategyFocus.join("\n") || "—"}`;
     "No executive summary available."
   );
   const packAppendixItems = [
-    ...(nextActions || []).map((item) => ({ kind: "Next step", text: item })),
+    ...(activeNextActions || []).map((item) => ({ kind: "Next step", text: getActionText(item) })),
     ...(importantReminders || []).map((item) => ({ kind: "Reminder", text: item })),
   ];
 
@@ -3261,12 +3300,14 @@ ${ungroupedSequenceText}
       <ActionSummaryPanel
         updatedAt={actionSummary.updatedAt}
         currentFocus={currentFocus}
-        nextActions={nextActions}
+        nextActions={activeNextActions}
+        completedNextActions={completedNextActions}
         importantReminders={importantReminders}
         criticalDeadlines={criticalDeadlines}
         quickActionInput={quickActionInput}
         onEdit={openActionSummaryEdit}
         onCopy={copyActionSummaryToClipboard}
+        onToggleNextActionCompleted={handleToggleNextActionCompleted}
         onMoveNextAction={handleMoveNextAction}
         onRemoveNextAction={handleRemoveNextAction}
         onQuickActionInputChange={setQuickActionInput}
