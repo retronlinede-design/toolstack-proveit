@@ -3543,36 +3543,54 @@ ${ungroupedSequenceText}
 
       <div className="grid gap-6 lg:grid-cols-12">
         <div className={`${reviewQueueSection ? "lg:col-span-8" : "lg:col-span-12"} space-y-6`}>
-          <div className="rounded-2xl border border-neutral-200 bg-white p-2 shadow-sm print:hidden">
-            <div className="overflow-x-auto">
-              <div className="flex min-w-max items-center gap-1">
-              {tabs
+          <div className="border-b border-neutral-200 bg-white print:hidden">
+            {(() => {
+              const workspaceTabs = tabs
                 .flatMap((tab) => tab.id === "documents" ? [tab, { id: "records", label: "Records" }] : [tab])
-                .map((tab) => {
-                  const label = tab.id === "generate-report" ? "Reports" : tab.label;
-                  const isActive = activeTab === tab.id;
-                  const isSecondary = ["strategy", "narrative", "pack"].includes(tab.id);
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                        className={`relative whitespace-nowrap rounded-xl border px-3 py-2 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1 ${
-                        isActive
-                            ? "border-lime-300 bg-lime-50 text-neutral-950"
-                            : isSecondary
-                              ? "border-transparent bg-white text-neutral-500 hover:border-neutral-200 hover:bg-neutral-50 hover:text-neutral-700"
-                              : "border-transparent bg-white text-neutral-700 hover:border-neutral-200 hover:bg-neutral-50 hover:text-neutral-900"
-                      }`}
+                .map((tab) => ({
+                  ...tab,
+                  label: tab.id === "generate-report" ? "Reports" : tab.label,
+                  secondary: ["strategy", "narrative", "pack"].includes(tab.id),
+                }));
+
+              return (
+                <>
+                  <label className="block pb-3 text-xs font-semibold uppercase tracking-wider text-neutral-500 md:hidden">
+                    Workspace View
+                    <select
+                      value={activeTab}
+                      onChange={(event) => setActiveTab(event.target.value)}
+                      className="mt-2 block w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-500/20"
                     >
-                      {label}
-                        {isActive && (
-                          <span className="absolute inset-x-3 -bottom-0.5 h-0.5 rounded-full bg-lime-500" />
-                        )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+                      {workspaceTabs.map((tab) => (
+                        <option key={tab.id} value={tab.id}>{tab.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="hidden grid-cols-12 md:grid">
+                    {workspaceTabs.map((tab) => {
+                      const isActive = activeTab === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={() => setActiveTab(tab.id)}
+                          className={`relative min-w-0 border-r border-neutral-100 px-1.5 py-2 text-center text-[11px] font-semibold leading-tight transition-colors last:border-r-0 focus:outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1 lg:px-2 lg:text-xs xl:px-3 xl:text-sm ${
+                            isActive
+                              ? "text-neutral-950"
+                              : tab.secondary
+                                ? "text-neutral-500 hover:bg-neutral-50 hover:text-neutral-700"
+                                : "text-neutral-700 hover:bg-neutral-50 hover:text-neutral-950"
+                          }`}
+                        >
+                          <span className="block truncate">{tab.label}</span>
+                          {isActive && <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-lime-500" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              );
+            })()}
           </div>
 
           <div className="w-full rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
