@@ -3574,12 +3574,12 @@ ${ungroupedSequenceText}
                         <button
                           key={tab.id}
                           onClick={() => setActiveTab(tab.id)}
-                          className={`relative min-w-0 border-r border-neutral-100 px-1.5 py-2 text-center text-[11px] font-semibold leading-tight transition-colors last:border-r-0 focus:outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1 lg:px-2 lg:text-xs xl:px-3 xl:text-sm ${
+                          className={`relative min-w-0 border-r border-neutral-100 px-1.5 py-2 text-center text-[11px] font-semibold leading-tight transition-colors duration-200 last:border-r-0 hover:rounded-md hover:bg-lime-500/30 focus:outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1 lg:px-2 lg:text-xs xl:px-3 xl:text-sm ${
                             isActive
                               ? "text-neutral-950"
                               : tab.secondary
-                                ? "text-neutral-500 hover:bg-neutral-50 hover:text-neutral-700"
-                                : "text-neutral-700 hover:bg-neutral-50 hover:text-neutral-950"
+                                ? "text-neutral-500 hover:text-neutral-700"
+                                : "text-neutral-700 hover:text-neutral-950"
                           }`}
                         >
                           <span className="block truncate">{tab.label}</span>
