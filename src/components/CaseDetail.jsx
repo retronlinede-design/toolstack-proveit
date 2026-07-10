@@ -222,6 +222,8 @@ export default function CaseDetail({
   const [timelineSequenceGroupFilter, setTimelineSequenceGroupFilter] = useState("all");
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [ledgerFilter, setLedgerFilter] = useState("all");
+  const [incidentSearch, setIncidentSearch] = useState("");
+  const [incidentFilter, setIncidentFilter] = useState("all");
   const [expandedDocuments, setExpandedDocuments] = useState({});
   const [collapsedLedgerGroups, setCollapsedLedgerGroups] = useState({});
   const [showVerifiedEvidence, setShowVerifiedEvidence] = useState(false);
@@ -230,6 +232,7 @@ export default function CaseDetail({
   const [actionSummaryEditOpen, setActionSummaryEditOpen] = useState(false);
   const [quickActionInput, setQuickActionInput] = useState("");
   const [actionSummaryForm, setActionSummaryForm] = useState(emptyActionSummaryForm);
+  const incidentSearchInputRef = useRef(null);
   const [reportMode, setReportMode] = useState("internal");
   const [reportDisplayLanguage, setReportDisplayLanguage] = useState(DEFAULT_REPORT_DISPLAY_LANGUAGE);
   const [generatedReportDraft, setGeneratedReportDraft] = useState("");
@@ -1727,6 +1730,93 @@ ${strategyFocus.join("\n") || "—"}`;
   const needsReviewEvidence = allEvidence.filter(item => item.status === "needs_review");
   const incompleteEvidence = allEvidence.filter(item => item.status === "incomplete");
   const verifiedEvidence = allEvidence.filter(item => item.status === "verified");
+  const allIncidents = selectedCase?.incidents || [];
+  const allDocuments = selectedCase?.documents || [];
+  const incidentIdsSupportedByEvidence = new Set([
+    ...allIncidents.flatMap((incident) =>
+      Array.isArray(incident?.linkedEvidenceIds) && incident.linkedEvidenceIds.length > 0 ? [incident.id] : []
+    ),
+    ...allEvidence.flatMap((evidence) => Array.isArray(evidence?.linkedIncidentIds) ? evidence.linkedIncidentIds : []),
+  ]);
+  const getIncidentDocumentLinks = (incident) => {
+    const linkedRecordIds = Array.isArray(incident?.linkedRecordIds) ? incident.linkedRecordIds : [];
+    return allDocuments.filter((document) => {
+      const documentLinkedRecordIds = Array.isArray(document?.linkedRecordIds) ? document.linkedRecordIds : [];
+      return linkedRecordIds.includes(document.id) || documentLinkedRecordIds.includes(incident.id);
+    });
+  };
+  const incidentHasEvidence = (incident) => incident?.id && incidentIdsSupportedByEvidence.has(incident.id);
+  const incidentHasParties = (incident) => Array.isArray(incident?.linkedPartyIds) && incident.linkedPartyIds.length > 0;
+  const incidentHasDocuments = (incident) => getIncidentDocumentLinks(incident).length > 0;
+  const isIncidentActive = (incident) => !["done", "closed", "archived"].includes(safeText(incident?.status).toLowerCase());
+  const isIncidentReadyForReview = (incident) => (
+    Boolean(safeText(incident?.title).trim()) &&
+    Boolean(safeText(incident?.eventDate || incident?.date).trim()) &&
+    incidentHasEvidence(incident) &&
+    incidentHasParties(incident) &&
+    incidentHasDocuments(incident)
+  );
+  const incidentsWithEvidence = allIncidents.filter(incidentHasEvidence);
+  const incidentsWithoutEvidence = allIncidents.filter((incident) => !incidentHasEvidence(incident));
+  const incidentsWithParties = allIncidents.filter(incidentHasParties);
+  const incidentsWithoutParties = allIncidents.filter((incident) => !incidentHasParties(incident));
+  const incidentsWithoutDocuments = allIncidents.filter((incident) => !incidentHasDocuments(incident));
+  const incidentsReadyForReview = allIncidents.filter(isIncidentReadyForReview);
+  const incidentSummaryCards = [
+    { label: "Total Incidents", value: allIncidents.length },
+    { label: "Active Incidents", value: allIncidents.filter(isIncidentActive).length },
+    { label: "Incidents with Evidence", value: incidentsWithEvidence.length },
+    { label: "Incidents without Evidence", value: incidentsWithoutEvidence.length },
+    { label: "Incidents with Parties", value: incidentsWithParties.length },
+    { label: "Incidents Ready for Review", value: incidentsReadyForReview.length },
+  ];
+  const incidentAttentionIssues = [
+    {
+      key: "missing-evidence",
+      filter: "missing-evidence",
+      count: incidentsWithoutEvidence.length,
+      text: `${incidentsWithoutEvidence.length} incident${incidentsWithoutEvidence.length === 1 ? "" : "s"} have no supporting evidence.`,
+    },
+    {
+      key: "missing-parties",
+      filter: "missing-parties",
+      count: incidentsWithoutParties.length,
+      text: `${incidentsWithoutParties.length} incident${incidentsWithoutParties.length === 1 ? "" : "s"} have no linked parties.`,
+    },
+    {
+      key: "missing-documents",
+      filter: "missing-documents",
+      count: incidentsWithoutDocuments.length,
+      text: `${incidentsWithoutDocuments.length} incident${incidentsWithoutDocuments.length === 1 ? "" : "s"} have no linked documents.`,
+    },
+  ].filter((issue) => issue.count > 0);
+  const scrollToIncidentList = () => {
+    window.requestAnimationFrame(() => {
+      document.getElementById("incident-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+  const applyIncidentAttentionFilter = (filter) => {
+    setIncidentFilter(filter);
+    scrollToIncidentList();
+  };
+  const incidentSearchQuery = incidentSearch.trim().toLowerCase();
+  const filteredIncidents = allIncidents.filter((incident) => {
+    if (incidentFilter === "missing-evidence" && incidentHasEvidence(incident)) return false;
+    if (incidentFilter === "missing-parties" && incidentHasParties(incident)) return false;
+    if (incidentFilter === "missing-documents" && incidentHasDocuments(incident)) return false;
+    if (incidentFilter === "ready-review" && !isIncidentReadyForReview(incident)) return false;
+    if (!incidentSearchQuery) return true;
+
+    return [
+      incident.title,
+      incident.description,
+      incident.notes,
+      incident.status,
+      incident.date,
+      incident.eventDate,
+      incident.sequenceGroup,
+    ].some((value) => safeText(value).toLowerCase().includes(incidentSearchQuery));
+  });
 
   const timelineItems = [
     ...toTimelineItems(selectedCase?.incidents, "incident"),
@@ -3878,7 +3968,156 @@ ${ungroupedSequenceText}
                   </div>
               </div>
             )}
-            {activeTab === "incidents" && renderListBlock(selectedCase.incidents, "No incidents yet. Add your first incident to start the case timeline.", "incidents")}
+            {activeTab === "incidents" && (
+              <div className="space-y-6">
+                <section className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Investigation Command Centre</div>
+                      <h3 className="mt-1 text-xl font-semibold text-neutral-950">Incident Summary</h3>
+                    </div>
+                    <div className="text-xs font-medium text-neutral-500">
+                      {filteredIncidents.length} shown of {allIncidents.length}
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+                    {incidentSummaryCards.map((card) => (
+                      <div key={card.label} className="rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">{card.label}</div>
+                        <div className="mt-2 text-2xl font-semibold text-neutral-900">{card.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+                  <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Needs Attention</div>
+                    <div className="mt-3 space-y-2">
+                      {incidentAttentionIssues.length > 0 ? (
+                        incidentAttentionIssues.map((issue) => (
+                          <button
+                            key={issue.key}
+                            type="button"
+                            onClick={() => applyIncidentAttentionFilter(issue.filter)}
+                            className="block w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-left text-sm text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50"
+                          >
+                            {issue.text}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="rounded-xl border border-lime-200 bg-lime-50 px-3 py-2 text-sm font-medium text-lime-800">
+                          ✅ All incidents appear complete.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Quick Actions</div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => openRecordModal("incidents")}
+                        className="rounded-xl border border-lime-500 bg-white px-4 py-3 text-left text-sm font-semibold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/30"
+                      >
+                        New Incident
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openRecordModal("evidence")}
+                        className="rounded-xl border border-lime-500 bg-white px-4 py-3 text-left text-sm font-semibold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/30"
+                      >
+                        Add Evidence
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("parties")}
+                        className="rounded-xl border border-lime-500 bg-white px-4 py-3 text-left text-sm font-semibold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/30"
+                      >
+                        Add Party
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          incidentSearchInputRef.current?.focus();
+                          scrollToIncidentList();
+                        }}
+                        className="rounded-xl border border-lime-500 bg-white px-4 py-3 text-left text-sm font-semibold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/30"
+                      >
+                        Search Incidents
+                      </button>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400" htmlFor="incident-search">
+                        Search Incidents
+                      </label>
+                      <div className="mt-2 flex items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2">
+                        <Search className="h-4 w-4 shrink-0 text-neutral-400" />
+                        <input
+                          id="incident-search"
+                          ref={incidentSearchInputRef}
+                          type="search"
+                          value={incidentSearch}
+                          onChange={(event) => setIncidentSearch(event.target.value)}
+                          placeholder="Search title, notes, date, status, or sequence group"
+                          className="min-w-0 flex-1 bg-transparent text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                        Filter
+                        <select
+                          value={incidentFilter}
+                          onChange={(event) => setIncidentFilter(event.target.value)}
+                          className="mt-2 block w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 outline-none transition-colors focus:border-lime-500 sm:w-56"
+                        >
+                          <option value="all">All incidents</option>
+                          <option value="missing-evidence">Without evidence</option>
+                          <option value="missing-parties">Without parties</option>
+                          <option value="missing-documents">Without documents</option>
+                          <option value="ready-review">Ready for review</option>
+                        </select>
+                      </label>
+                      {(incidentSearch || incidentFilter !== "all") && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIncidentSearch("");
+                            setIncidentFilter("all");
+                          }}
+                          className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-600 transition-colors hover:bg-neutral-50"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </section>
+
+                <section id="incident-list" className="space-y-4 scroll-mt-24">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Incident List</h3>
+                    <span className="text-xs font-medium text-neutral-500">
+                      {filteredIncidents.length} incident{filteredIncidents.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  {renderListBlock(
+                    filteredIncidents,
+                    allIncidents.length === 0
+                      ? "No incidents yet. Add your first incident to start the case timeline."
+                      : "No incidents match the current filters.",
+                    "incidents"
+                  )}
+                </section>
+              </div>
+            )}
             {activeTab === "strategy" && renderListBlock(selectedCase.strategy, "No strategy notes yet. Add strategy to track approach and planning.", "strategy")}
             {activeTab === "parties" && (
               <PartiesTab
