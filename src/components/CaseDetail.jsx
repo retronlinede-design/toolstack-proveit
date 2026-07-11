@@ -226,6 +226,8 @@ export default function CaseDetail({
   const [incidentFilter, setIncidentFilter] = useState("all");
   const [incidentSequenceGroupFilter, setIncidentSequenceGroupFilter] = useState("all");
   const [incidentSort, setIncidentSort] = useState("recently-updated");
+  const [evidenceSearch, setEvidenceSearch] = useState("");
+  const [evidenceFilter, setEvidenceFilter] = useState("all");
   const [expandedDocuments, setExpandedDocuments] = useState({});
   const [collapsedLedgerGroups, setCollapsedLedgerGroups] = useState({});
   const [showVerifiedEvidence, setShowVerifiedEvidence] = useState(false);
@@ -235,6 +237,7 @@ export default function CaseDetail({
   const [quickActionInput, setQuickActionInput] = useState("");
   const [actionSummaryForm, setActionSummaryForm] = useState(emptyActionSummaryForm);
   const incidentSearchInputRef = useRef(null);
+  const evidenceSearchInputRef = useRef(null);
   const [reportMode, setReportMode] = useState("internal");
   const [reportDisplayLanguage, setReportDisplayLanguage] = useState(DEFAULT_REPORT_DISPLAY_LANGUAGE);
   const [generatedReportDraft, setGeneratedReportDraft] = useState("");
@@ -1735,12 +1738,115 @@ ${strategyFocus.join("\n") || "—"}`;
   };
 
   const allEvidence = selectedCase?.evidence || [];
-  const needsReviewEvidence = allEvidence.filter(item => item.status === "needs_review");
-  const incompleteEvidence = allEvidence.filter(item => item.status === "incomplete");
-  const verifiedEvidence = allEvidence.filter(item => item.status === "verified");
   const allIncidents = selectedCase?.incidents || [];
   const allDocuments = selectedCase?.documents || [];
   const allParties = selectedCase?.parties || [];
+  const evidenceHasIncident = (evidence) => (
+    Array.isArray(evidence?.linkedIncidentIds) && evidence.linkedIncidentIds.length > 0
+  ) || allIncidents.some((incident) => (
+    Array.isArray(incident?.linkedEvidenceIds) && incident.linkedEvidenceIds.includes(evidence?.id)
+  ));
+  const evidenceHasParties = (evidence) => Array.isArray(evidence?.linkedPartyIds) && evidence.linkedPartyIds.length > 0;
+  const evidenceHasAttachmentOrAvailability = (evidence) => (
+    (Array.isArray(evidence?.attachments) && evidence.attachments.length > 0) ||
+    (Array.isArray(evidence?.availability?.digital?.files) && evidence.availability.digital.files.length > 0) ||
+    Boolean(evidence?.availability?.digital?.hasDigital) ||
+    Boolean(evidence?.availability?.physical?.hasOriginal) ||
+    Boolean(safeText(evidence?.availability?.physical?.location).trim()) ||
+    Boolean(safeText(evidence?.availability?.physical?.notes).trim()) ||
+    Boolean(safeText(evidence?.availability?.digital?.notes).trim())
+  );
+  const evidenceHasFunctionSummary = (evidence) => Boolean(safeText(evidence?.functionSummary).trim());
+  const evidenceLinkedToIncidents = allEvidence.filter(evidenceHasIncident);
+  const evidenceUnlinked = allEvidence.filter((evidence) => !evidenceHasIncident(evidence));
+  const evidenceWithParties = allEvidence.filter(evidenceHasParties);
+  const evidenceWithAttachments = allEvidence.filter(evidenceHasAttachmentOrAvailability);
+  const evidenceMissingFunctionSummary = allEvidence.filter((evidence) => !evidenceHasFunctionSummary(evidence));
+  const evidenceWithoutParties = allEvidence.filter((evidence) => !evidenceHasParties(evidence));
+  const evidenceWithoutAttachmentOrAvailability = allEvidence.filter((evidence) => !evidenceHasAttachmentOrAvailability(evidence));
+  const evidenceSummaryCards = [
+    { label: "Total Evidence", value: allEvidence.length },
+    { label: "Linked to Incidents", value: evidenceLinkedToIncidents.length },
+    { label: "Unlinked Evidence", value: evidenceUnlinked.length },
+    { label: "Evidence with Parties", value: evidenceWithParties.length },
+    { label: "Evidence with Attachments", value: evidenceWithAttachments.length },
+    { label: "Missing Function Summary", value: evidenceMissingFunctionSummary.length },
+  ];
+  const evidenceAttentionIssues = [
+    {
+      key: "unlinked",
+      filter: "unlinked",
+      count: evidenceUnlinked.length,
+      text: `${evidenceUnlinked.length} evidence item${evidenceUnlinked.length === 1 ? " is" : "s are"} not linked to an incident.`,
+    },
+    {
+      key: "missing-parties",
+      filter: "missing-parties",
+      count: evidenceWithoutParties.length,
+      text: `${evidenceWithoutParties.length} evidence item${evidenceWithoutParties.length === 1 ? "" : "s"} have no linked party.`,
+    },
+    {
+      key: "missing-summary",
+      filter: "missing-summary",
+      count: evidenceMissingFunctionSummary.length,
+      text: `${evidenceMissingFunctionSummary.length} evidence item${evidenceMissingFunctionSummary.length === 1 ? "" : "s"} have no function summary.`,
+    },
+    {
+      key: "missing-attachments",
+      filter: "missing-attachments",
+      count: evidenceWithoutAttachmentOrAvailability.length,
+      text: `${evidenceWithoutAttachmentOrAvailability.length} evidence item${evidenceWithoutAttachmentOrAvailability.length === 1 ? "" : "s"} have no attachment or recorded availability.`,
+    },
+  ].filter((issue) => issue.count > 0);
+  const scrollToEvidenceList = () => {
+    window.requestAnimationFrame(() => {
+      document.getElementById("evidence-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+  const applyEvidenceFilter = (filter) => {
+    setEvidenceFilter(filter);
+    scrollToEvidenceList();
+  };
+  const evidenceSearchQuery = evidenceSearch.trim().toLowerCase();
+  const evidenceMatchesSearch = (evidence) => {
+    if (!evidenceSearchQuery) return true;
+    const linkedIncidentTitles = allIncidents
+      .filter((incident) => (
+        (Array.isArray(evidence?.linkedIncidentIds) && evidence.linkedIncidentIds.includes(incident.id)) ||
+        (Array.isArray(incident?.linkedEvidenceIds) && incident.linkedEvidenceIds.includes(evidence?.id))
+      ))
+      .map((incident) => incident.title);
+    const linkedPartyNames = allParties
+      .filter((party) => Array.isArray(evidence?.linkedPartyIds) && evidence.linkedPartyIds.includes(party.id))
+      .flatMap((party) => [party.displayName, party.legalName, party.organisationName]);
+    const searchValues = [
+      evidence.title,
+      evidence.description,
+      evidence.functionSummary,
+      evidence.reviewNotes,
+      evidence.sequenceGroup,
+      evidence.evidenceType,
+      evidence.evidenceRole,
+      evidence.status,
+      ...(Array.isArray(evidence.tags) ? evidence.tags : []),
+      ...linkedIncidentTitles,
+      ...linkedPartyNames,
+    ];
+    return searchValues.some((value) => safeText(value).toLowerCase().includes(evidenceSearchQuery));
+  };
+  const filteredEvidence = allEvidence.filter((evidence) => {
+    if (evidenceFilter === "needs_review" && evidence.status !== "needs_review") return false;
+    if (evidenceFilter === "incomplete" && evidence.status !== "incomplete") return false;
+    if (evidenceFilter === "verified" && evidence.status !== "verified") return false;
+    if (evidenceFilter === "unlinked" && evidenceHasIncident(evidence)) return false;
+    if (evidenceFilter === "missing-parties" && evidenceHasParties(evidence)) return false;
+    if (evidenceFilter === "missing-summary" && evidenceHasFunctionSummary(evidence)) return false;
+    if (evidenceFilter === "missing-attachments" && evidenceHasAttachmentOrAvailability(evidence)) return false;
+    return evidenceMatchesSearch(evidence);
+  });
+  const needsReviewEvidence = filteredEvidence.filter(item => item.status === "needs_review");
+  const incompleteEvidence = filteredEvidence.filter(item => item.status === "incomplete");
+  const verifiedEvidence = filteredEvidence.filter(item => item.status === "verified");
   const incidentIdsSupportedByEvidence = new Set([
     ...allIncidents.flatMap((incident) =>
       Array.isArray(incident?.linkedEvidenceIds) && incident.linkedEvidenceIds.length > 0 ? [incident.id] : []
@@ -4087,27 +4193,167 @@ ${ungroupedSequenceText}
             
             {activeTab === "evidence" && (
               <div className="space-y-6">
-                <div className="space-y-8">
-                    <div className="grid gap-3 md:grid-cols-3">
-                      <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Needs Review</div>
-                        <div className="mt-1 text-lg font-semibold text-neutral-900">{needsReviewEvidence.length}</div>
+                <section className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Evidence Command Centre</div>
+                      <h3 className="mt-1 text-xl font-semibold text-neutral-950">Evidence Summary</h3>
+                    </div>
+                    <div className="text-xs font-medium text-neutral-500">
+                      {filteredEvidence.length} shown of {allEvidence.length}
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+                    {evidenceSummaryCards.map((card) => (
+                      <div key={card.label} className="rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">{card.label}</div>
+                        <div className="mt-2 text-2xl font-semibold text-neutral-900">{card.value}</div>
                       </div>
+                    ))}
+                  </div>
+                </section>
 
-                      <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Incomplete</div>
-                        <div className="mt-1 text-lg font-semibold text-neutral-900">{incompleteEvidence.length}</div>
-                      </div>
+                <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+                  <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Needs Attention</div>
+                    <div className="mt-3 space-y-2">
+                      {evidenceAttentionIssues.length > 0 ? (
+                        evidenceAttentionIssues.map((issue) => (
+                          <button
+                            key={issue.key}
+                            type="button"
+                            onClick={() => applyEvidenceFilter(issue.filter)}
+                            className="block w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-left text-sm text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50"
+                          >
+                            {issue.text}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="rounded-xl border border-lime-200 bg-lime-50 px-3 py-2 text-sm font-medium text-lime-800">
+                          ✓ Evidence collection appears complete.
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
-                      <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Verified</div>
-                        <div className="mt-1 text-lg font-semibold text-neutral-900">{verifiedEvidence.length}</div>
+                  <div className="rounded-xl border border-neutral-200 bg-neutral-50/70 p-3">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Quick Actions</div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openRecordModal("evidence")}
+                        className="min-h-9 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
+                      >
+                        New Evidence
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          evidenceSearchInputRef.current?.focus();
+                          scrollToEvidenceList();
+                        }}
+                        className="min-h-9 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
+                      >
+                        Search Evidence
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (evidenceAttentionIssues[0]) {
+                            applyEvidenceFilter(evidenceAttentionIssues[0].filter);
+                          } else {
+                            scrollToEvidenceList();
+                          }
+                        }}
+                        className="min-h-9 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
+                      >
+                        Review Needs Attention
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyEvidenceFilter("unlinked")}
+                        className="min-h-9 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
+                      >
+                        Show Unlinked
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyEvidenceFilter("missing-summary")}
+                        className="min-h-9 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
+                      >
+                        Show Missing Summaries
+                      </button>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Filters</div>
+                    <div className="text-xs font-medium text-neutral-500">
+                      {filteredEvidence.length} matching evidence item{filteredEvidence.length === 1 ? "" : "s"}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400" htmlFor="evidence-search">
+                        Search Evidence
+                      </label>
+                      <div className="mt-2 flex items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2">
+                        <Search className="h-4 w-4 shrink-0 text-neutral-400" />
+                        <input
+                          id="evidence-search"
+                          ref={evidenceSearchInputRef}
+                          type="search"
+                          value={evidenceSearch}
+                          onChange={(event) => setEvidenceSearch(event.target.value)}
+                          placeholder="Search evidence, summaries, tags, linked incidents, parties, or sequence group"
+                          className="min-w-0 flex-1 bg-transparent text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
+                        />
                       </div>
                     </div>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                        Filter
+                        <select
+                          value={evidenceFilter}
+                          onChange={(event) => setEvidenceFilter(event.target.value)}
+                          className="mt-2 block w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 outline-none transition-colors focus:border-lime-500 sm:w-60"
+                        >
+                          <option value="all">All evidence</option>
+                          <option value="needs_review">Needs review</option>
+                          <option value="incomplete">Incomplete</option>
+                          <option value="verified">Verified</option>
+                          <option value="unlinked">Unlinked from incidents</option>
+                          <option value="missing-parties">Without parties</option>
+                          <option value="missing-summary">Missing function summary</option>
+                          <option value="missing-attachments">No attachment or availability</option>
+                        </select>
+                      </label>
+                      {(evidenceSearch || evidenceFilter !== "all") && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEvidenceSearch("");
+                            setEvidenceFilter("all");
+                          }}
+                          className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-600 transition-colors hover:bg-neutral-50"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </section>
 
+                <section id="evidence-list" className="space-y-8 scroll-mt-24">
                     <div className="space-y-4">
                       <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Needs Review</h3>
-                      {renderListBlock(needsReviewEvidence, "No evidence needing review.", "evidence")}
+                      {renderListBlock(
+                        needsReviewEvidence,
+                        allEvidence.length === 0 ? "No evidence yet. Add your first evidence item to support the case." : "No evidence needing review.",
+                        "evidence"
+                      )}
                     </div>
 
                     <div className="space-y-4">
@@ -4130,7 +4376,7 @@ ${ungroupedSequenceText}
 
                       {showVerifiedEvidence && renderListBlock(verifiedEvidence, "No verified evidence yet.", "evidence")}
                     </div>
-                  </div>
+                  </section>
               </div>
             )}
             {activeTab === "incidents" && (
