@@ -228,6 +228,7 @@ export default function CaseDetail({
   const [incidentSort, setIncidentSort] = useState("recently-updated");
   const [evidenceSearch, setEvidenceSearch] = useState("");
   const [evidenceFilter, setEvidenceFilter] = useState("all");
+  const [evidenceSequenceGroupFilter, setEvidenceSequenceGroupFilter] = useState("all");
   const [expandedDocuments, setExpandedDocuments] = useState({});
   const [collapsedLedgerGroups, setCollapsedLedgerGroups] = useState({});
   const [showVerifiedEvidence, setShowVerifiedEvidence] = useState(false);
@@ -317,6 +318,12 @@ export default function CaseDetail({
       setIncidentSequenceGroupFilter("all");
     }
   }, [incidentSequenceGroupFilter, sequenceGroups]);
+  useEffect(() => {
+    if (evidenceSequenceGroupFilter === "all" || evidenceSequenceGroupFilter === "__ungrouped__") return;
+    if (!sequenceGroups.some((group) => group.name === evidenceSequenceGroupFilter)) {
+      setEvidenceSequenceGroupFilter("all");
+    }
+  }, [evidenceSequenceGroupFilter, sequenceGroups]);
   const incidentDateMismatchReport = useMemo(
     () => scanIncidentDateMismatches(selectedCase),
     [selectedCase]
@@ -1807,6 +1814,12 @@ ${strategyFocus.join("\n") || "—"}`;
     setEvidenceFilter(filter);
     scrollToEvidenceList();
   };
+  const evidenceMatchesSequenceGroup = (evidence) => {
+    const sequenceGroup = safeText(evidence?.sequenceGroup).trim();
+    if (evidenceSequenceGroupFilter === "all") return true;
+    if (evidenceSequenceGroupFilter === "__ungrouped__") return !sequenceGroup;
+    return sequenceGroup === evidenceSequenceGroupFilter;
+  };
   const evidenceSearchQuery = evidenceSearch.trim().toLowerCase();
   const evidenceMatchesSearch = (evidence) => {
     if (!evidenceSearchQuery) return true;
@@ -1835,6 +1848,7 @@ ${strategyFocus.join("\n") || "—"}`;
     return searchValues.some((value) => safeText(value).toLowerCase().includes(evidenceSearchQuery));
   };
   const filteredEvidence = allEvidence.filter((evidence) => {
+    if (!evidenceMatchesSequenceGroup(evidence)) return false;
     if (evidenceFilter === "needs_review" && evidence.status !== "needs_review") return false;
     if (evidenceFilter === "incomplete" && evidence.status !== "incomplete") return false;
     if (evidenceFilter === "verified" && evidence.status !== "verified") return false;
@@ -4314,6 +4328,22 @@ ${ungroupedSequenceText}
                     </div>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                       <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                        Sequence Group
+                        <select
+                          value={evidenceSequenceGroupFilter}
+                          onChange={(event) => setEvidenceSequenceGroupFilter(event.target.value)}
+                          className="mt-2 block w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 outline-none transition-colors focus:border-lime-500 sm:w-60"
+                        >
+                          <option value="all">All Sequence Groups</option>
+                          <option value="__ungrouped__">Ungrouped Evidence</option>
+                          {sequenceGroups.map((group) => (
+                            <option key={group.name} value={group.name}>
+                              {group.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                         Filter
                         <select
                           value={evidenceFilter}
@@ -4330,12 +4360,13 @@ ${ungroupedSequenceText}
                           <option value="missing-attachments">No attachment or availability</option>
                         </select>
                       </label>
-                      {(evidenceSearch || evidenceFilter !== "all") && (
+                      {(evidenceSearch || evidenceFilter !== "all" || evidenceSequenceGroupFilter !== "all") && (
                         <button
                           type="button"
                           onClick={() => {
                             setEvidenceSearch("");
                             setEvidenceFilter("all");
+                            setEvidenceSequenceGroupFilter("all");
                           }}
                           className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-600 transition-colors hover:bg-neutral-50"
                         >
