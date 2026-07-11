@@ -229,6 +229,7 @@ export default function CaseDetail({
   const [evidenceSearch, setEvidenceSearch] = useState("");
   const [evidenceFilter, setEvidenceFilter] = useState("all");
   const [evidenceSequenceGroupFilter, setEvidenceSequenceGroupFilter] = useState("all");
+  const [evidenceQuickFilter, setEvidenceQuickFilter] = useState("all");
   const [expandedDocuments, setExpandedDocuments] = useState({});
   const [collapsedLedgerGroups, setCollapsedLedgerGroups] = useState({});
   const [showVerifiedEvidence, setShowVerifiedEvidence] = useState(false);
@@ -1847,6 +1848,46 @@ ${strategyFocus.join("\n") || "—"}`;
     ];
     return searchValues.some((value) => safeText(value).toLowerCase().includes(evidenceSearchQuery));
   };
+  const getEvidenceTime = (evidence, fields) => {
+    for (const field of fields) {
+      const time = new Date(evidence?.[field] || 0).getTime();
+      if (Number.isFinite(time)) return time;
+    }
+    return 0;
+  };
+  const latestEvidenceTime = Math.max(...allEvidence.map((item) =>
+    getEvidenceTime(item, ["updatedAt", "createdAt", "eventDate", "date", "capturedAt"])
+  ).filter((time) => time > 0));
+  const evidenceNeedsAttention = (evidence) => (
+    !evidenceHasIncident(evidence) ||
+    !evidenceHasParties(evidence) ||
+    !evidenceHasFunctionSummary(evidence) ||
+    !evidenceHasAttachmentOrAvailability(evidence)
+  );
+  const evidenceMatchesQuickFilter = (evidence) => {
+    if (evidenceQuickFilter === "all") return true;
+    if (evidenceQuickFilter === "needs-attention") return evidenceNeedsAttention(evidence);
+    if (evidenceQuickFilter === "unlinked") return !evidenceHasIncident(evidence);
+    if (evidenceQuickFilter === "missing-parties") return !evidenceHasParties(evidence);
+    if (evidenceQuickFilter === "missing-summary") return !evidenceHasFunctionSummary(evidence);
+    if (evidenceQuickFilter === "missing-attachments") return !evidenceHasAttachmentOrAvailability(evidence);
+    if (evidenceQuickFilter === "ungrouped") return !safeText(evidence?.sequenceGroup).trim();
+    if (evidenceQuickFilter === "recent") {
+      const evidenceTime = getEvidenceTime(evidence, ["updatedAt", "createdAt", "eventDate", "date", "capturedAt"]);
+      return Number.isFinite(latestEvidenceTime) && latestEvidenceTime > 0 && evidenceTime >= latestEvidenceTime - 1000 * 60 * 60 * 24 * 30;
+    }
+    return true;
+  };
+  const evidenceQuickFilterChips = [
+    { id: "all", label: "All" },
+    { id: "needs-attention", label: "Needs Attention" },
+    { id: "unlinked", label: "Unlinked" },
+    { id: "missing-parties", label: "No Parties" },
+    { id: "missing-summary", label: "Missing Summary" },
+    { id: "missing-attachments", label: "No Attachment" },
+    { id: "ungrouped", label: "Ungrouped" },
+    { id: "recent", label: "Recent" },
+  ];
   const filteredEvidence = allEvidence.filter((evidence) => {
     if (!evidenceMatchesSequenceGroup(evidence)) return false;
     if (evidenceFilter === "needs_review" && evidence.status !== "needs_review") return false;
@@ -1856,6 +1897,7 @@ ${strategyFocus.join("\n") || "—"}`;
     if (evidenceFilter === "missing-parties" && evidenceHasParties(evidence)) return false;
     if (evidenceFilter === "missing-summary" && evidenceHasFunctionSummary(evidence)) return false;
     if (evidenceFilter === "missing-attachments" && evidenceHasAttachmentOrAvailability(evidence)) return false;
+    if (!evidenceMatchesQuickFilter(evidence)) return false;
     return evidenceMatchesSearch(evidence);
   });
   const needsReviewEvidence = filteredEvidence.filter(item => item.status === "needs_review");
@@ -4374,6 +4416,25 @@ ${ungroupedSequenceText}
                         </button>
                       )}
                     </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {evidenceQuickFilterChips.map((chip) => {
+                      const selected = evidenceQuickFilter === chip.id;
+                      return (
+                        <button
+                          key={chip.id}
+                          type="button"
+                          onClick={() => setEvidenceQuickFilter(chip.id)}
+                          className={`min-h-8 rounded-full border px-3 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1 ${
+                            selected
+                              ? "border-lime-500 bg-lime-50 text-lime-800"
+                              : "border-neutral-200 bg-white text-neutral-600 hover:border-lime-300 hover:bg-lime-50"
+                          }`}
+                        >
+                          {chip.label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </section>
 
