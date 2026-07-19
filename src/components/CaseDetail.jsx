@@ -87,6 +87,11 @@ import PartiesTab from "./caseDetail/PartiesTab";
 import RecordsTab from "./caseDetail/RecordsTab";
 import { AI_TASK_GUIDANCE, AI_TOOL_OPTIONS, AI_WORKSPACE_SECTIONS } from "./caseDetail/aiToolsConfig.js";
 import { sortChronological } from "./caseDetail/ledgerViewHelpers";
+import {
+  compareIncidentsNewestFirst,
+  compareIncidentsOldestFirst,
+  parseIncidentDate,
+} from "./caseDetail/incidentOrdering.js";
 import { toTimelineItems } from "./caseDetail/timelineItemHelpers";
 import {
   formatRecordTableHeader,
@@ -225,7 +230,7 @@ export default function CaseDetail({
   const [incidentSearch, setIncidentSearch] = useState("");
   const [incidentFilter, setIncidentFilter] = useState("all");
   const [incidentSequenceGroupFilter, setIncidentSequenceGroupFilter] = useState("all");
-  const [incidentSort, setIncidentSort] = useState("recently-updated");
+  const [incidentSort, setIncidentSort] = useState("newest-first");
   const [evidenceSearch, setEvidenceSearch] = useState("");
   const [evidenceFilter, setEvidenceFilter] = useState("all");
   const [evidenceSequenceGroupFilter, setEvidenceSequenceGroupFilter] = useState("all");
@@ -2015,19 +2020,13 @@ ${strategyFocus.join("\n") || "—"}`;
     if (incidentFilter === "missing-documents" && incidentHasDocuments(incident)) return false;
     if (incidentFilter === "ready-review" && !isIncidentReadyForReview(incident)) return false;
     if (incidentFilter === "recent") {
-      const incidentTime = new Date(incident?.eventDate || incident?.date || incident?.createdAt || 0).getTime();
-      const latestIncidentTime = Math.max(...allIncidents.map((item) => new Date(item?.eventDate || item?.date || item?.createdAt || 0).getTime()).filter(Number.isFinite));
-      if (!Number.isFinite(incidentTime) || !Number.isFinite(latestIncidentTime) || incidentTime < latestIncidentTime - 1000 * 60 * 60 * 24 * 30) return false;
+      const incidentTime = parseIncidentDate(incident?.eventDate);
+      const incidentTimes = allIncidents.map((item) => parseIncidentDate(item?.eventDate)).filter((time) => time !== null);
+      const latestIncidentTime = incidentTimes.length > 0 ? Math.max(...incidentTimes) : null;
+      if (incidentTime === null || latestIncidentTime === null || incidentTime < latestIncidentTime - 1000 * 60 * 60 * 24 * 30) return false;
     }
     return incidentMatchesSearch(incident);
   });
-  const getIncidentTime = (incident, fields) => {
-    for (const field of fields) {
-      const time = new Date(incident?.[field] || 0).getTime();
-      if (Number.isFinite(time)) return time;
-    }
-    return 0;
-  };
   const getIncidentEvidenceCount = (incident) => {
     const directEvidenceIds = Array.isArray(incident?.linkedEvidenceIds) ? incident.linkedEvidenceIds : [];
     const reverseEvidenceIds = allEvidence.filter((evidence) =>
@@ -2042,10 +2041,10 @@ ${strategyFocus.join("\n") || "—"}`;
   );
   const sortedFilteredIncidents = [...filteredIncidents].sort((a, b) => {
     if (incidentSort === "newest-first") {
-      return getIncidentTime(b, ["eventDate", "date", "createdAt", "updatedAt"]) - getIncidentTime(a, ["eventDate", "date", "createdAt", "updatedAt"]);
+      return compareIncidentsNewestFirst(a, b);
     }
     if (incidentSort === "oldest-first") {
-      return getIncidentTime(a, ["eventDate", "date", "createdAt", "updatedAt"]) - getIncidentTime(b, ["eventDate", "date", "createdAt", "updatedAt"]);
+      return compareIncidentsOldestFirst(a, b);
     }
     if (incidentSort === "most-evidence") {
       return getIncidentEvidenceCount(b) - getIncidentEvidenceCount(a);
@@ -2059,7 +2058,7 @@ ${strategyFocus.join("\n") || "—"}`;
     if (incidentSort === "needs-attention") {
       return getIncidentAttentionScore(b) - getIncidentAttentionScore(a);
     }
-    return getIncidentTime(b, ["updatedAt", "createdAt", "eventDate", "date"]) - getIncidentTime(a, ["updatedAt", "createdAt", "eventDate", "date"]);
+    return compareIncidentsNewestFirst(a, b);
   });
   const activeQuickIncidentFilter = incidentSequenceGroupFilter === "__ungrouped__" ? "ungrouped" : incidentFilter;
   const incidentQuickFilterChips = [
@@ -4635,7 +4634,6 @@ ${ungroupedSequenceText}
                           onChange={(event) => setIncidentSort(event.target.value)}
                           className="mt-2 block w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 outline-none transition-colors focus:border-lime-500 sm:w-52"
                         >
-                          <option value="recently-updated">Recently Updated</option>
                           <option value="newest-first">Newest First</option>
                           <option value="oldest-first">Oldest First</option>
                           <option value="most-evidence">Most Evidence</option>
