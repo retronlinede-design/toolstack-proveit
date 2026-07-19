@@ -1,4 +1,4 @@
-export function parseIncidentDate(value) {
+export function parseCalendarDate(value) {
   if (typeof value !== "string") return null;
 
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
@@ -21,9 +21,9 @@ export function parseIncidentDate(value) {
   return time;
 }
 
-export function compareIncidentsNewestFirst(a, b) {
-  const aTime = parseIncidentDate(a?.eventDate);
-  const bTime = parseIncidentDate(b?.eventDate);
+export function compareRecordsNewestFirst(a, b) {
+  const aTime = parseCalendarDate(a?.eventDate);
+  const bTime = parseCalendarDate(b?.eventDate);
 
   if (aTime === null && bTime === null) return 0;
   if (aTime === null) return 1;
@@ -31,9 +31,9 @@ export function compareIncidentsNewestFirst(a, b) {
   return bTime - aTime;
 }
 
-export function compareIncidentsOldestFirst(a, b) {
-  const aTime = parseIncidentDate(a?.eventDate);
-  const bTime = parseIncidentDate(b?.eventDate);
+export function compareRecordsOldestFirst(a, b) {
+  const aTime = parseCalendarDate(a?.eventDate);
+  const bTime = parseCalendarDate(b?.eventDate);
 
   if (aTime === null && bTime === null) return 0;
   if (aTime === null) return 1;

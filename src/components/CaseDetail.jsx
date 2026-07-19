@@ -88,10 +88,10 @@ import RecordsTab from "./caseDetail/RecordsTab";
 import { AI_TASK_GUIDANCE, AI_TOOL_OPTIONS, AI_WORKSPACE_SECTIONS } from "./caseDetail/aiToolsConfig.js";
 import { sortChronological } from "./caseDetail/ledgerViewHelpers";
 import {
-  compareIncidentsNewestFirst,
-  compareIncidentsOldestFirst,
-  parseIncidentDate,
-} from "./caseDetail/incidentOrdering.js";
+  compareRecordsNewestFirst,
+  compareRecordsOldestFirst,
+  parseCalendarDate,
+} from "./caseDetail/recordDateOrdering.js";
 import { toTimelineItems } from "./caseDetail/timelineItemHelpers";
 import {
   formatRecordTableHeader,
@@ -1853,16 +1853,8 @@ ${strategyFocus.join("\n") || "—"}`;
     ];
     return searchValues.some((value) => safeText(value).toLowerCase().includes(evidenceSearchQuery));
   };
-  const getEvidenceTime = (evidence, fields) => {
-    for (const field of fields) {
-      const time = new Date(evidence?.[field] || 0).getTime();
-      if (Number.isFinite(time)) return time;
-    }
-    return 0;
-  };
-  const latestEvidenceTime = Math.max(...allEvidence.map((item) =>
-    getEvidenceTime(item, ["updatedAt", "createdAt", "eventDate", "date", "capturedAt"])
-  ).filter((time) => time > 0));
+  const evidenceTimes = allEvidence.map((item) => parseCalendarDate(item?.eventDate)).filter((time) => time !== null);
+  const latestEvidenceTime = evidenceTimes.length > 0 ? Math.max(...evidenceTimes) : null;
   const evidenceNeedsAttention = (evidence) => (
     !evidenceHasIncident(evidence) ||
     !evidenceHasParties(evidence) ||
@@ -1878,8 +1870,8 @@ ${strategyFocus.join("\n") || "—"}`;
     if (evidenceQuickFilter === "missing-attachments") return !evidenceHasAttachmentOrAvailability(evidence);
     if (evidenceQuickFilter === "ungrouped") return !safeText(evidence?.sequenceGroup).trim();
     if (evidenceQuickFilter === "recent") {
-      const evidenceTime = getEvidenceTime(evidence, ["updatedAt", "createdAt", "eventDate", "date", "capturedAt"]);
-      return Number.isFinite(latestEvidenceTime) && latestEvidenceTime > 0 && evidenceTime >= latestEvidenceTime - 1000 * 60 * 60 * 24 * 30;
+      const evidenceTime = parseCalendarDate(evidence?.eventDate);
+      return evidenceTime !== null && latestEvidenceTime !== null && evidenceTime >= latestEvidenceTime - 1000 * 60 * 60 * 24 * 30;
     }
     return true;
   };
@@ -1905,9 +1897,10 @@ ${strategyFocus.join("\n") || "—"}`;
     if (!evidenceMatchesQuickFilter(evidence)) return false;
     return evidenceMatchesSearch(evidence);
   });
-  const needsReviewEvidence = filteredEvidence.filter(item => item.status === "needs_review");
-  const incompleteEvidence = filteredEvidence.filter(item => item.status === "incomplete");
-  const verifiedEvidence = filteredEvidence.filter(item => item.status === "verified");
+  const sortedFilteredEvidence = [...filteredEvidence].sort(compareRecordsNewestFirst);
+  const needsReviewEvidence = sortedFilteredEvidence.filter(item => item.status === "needs_review");
+  const incompleteEvidence = sortedFilteredEvidence.filter(item => item.status === "incomplete");
+  const verifiedEvidence = sortedFilteredEvidence.filter(item => item.status === "verified");
   const incidentIdsSupportedByEvidence = new Set([
     ...allIncidents.flatMap((incident) =>
       Array.isArray(incident?.linkedEvidenceIds) && incident.linkedEvidenceIds.length > 0 ? [incident.id] : []
@@ -2020,8 +2013,8 @@ ${strategyFocus.join("\n") || "—"}`;
     if (incidentFilter === "missing-documents" && incidentHasDocuments(incident)) return false;
     if (incidentFilter === "ready-review" && !isIncidentReadyForReview(incident)) return false;
     if (incidentFilter === "recent") {
-      const incidentTime = parseIncidentDate(incident?.eventDate);
-      const incidentTimes = allIncidents.map((item) => parseIncidentDate(item?.eventDate)).filter((time) => time !== null);
+      const incidentTime = parseCalendarDate(incident?.eventDate);
+      const incidentTimes = allIncidents.map((item) => parseCalendarDate(item?.eventDate)).filter((time) => time !== null);
       const latestIncidentTime = incidentTimes.length > 0 ? Math.max(...incidentTimes) : null;
       if (incidentTime === null || latestIncidentTime === null || incidentTime < latestIncidentTime - 1000 * 60 * 60 * 24 * 30) return false;
     }
@@ -2041,10 +2034,10 @@ ${strategyFocus.join("\n") || "—"}`;
   );
   const sortedFilteredIncidents = [...filteredIncidents].sort((a, b) => {
     if (incidentSort === "newest-first") {
-      return compareIncidentsNewestFirst(a, b);
+      return compareRecordsNewestFirst(a, b);
     }
     if (incidentSort === "oldest-first") {
-      return compareIncidentsOldestFirst(a, b);
+      return compareRecordsOldestFirst(a, b);
     }
     if (incidentSort === "most-evidence") {
       return getIncidentEvidenceCount(b) - getIncidentEvidenceCount(a);
@@ -2058,7 +2051,7 @@ ${strategyFocus.join("\n") || "—"}`;
     if (incidentSort === "needs-attention") {
       return getIncidentAttentionScore(b) - getIncidentAttentionScore(a);
     }
-    return compareIncidentsNewestFirst(a, b);
+    return compareRecordsNewestFirst(a, b);
   });
   const activeQuickIncidentFilter = incidentSequenceGroupFilter === "__ungrouped__" ? "ungrouped" : incidentFilter;
   const incidentQuickFilterChips = [
