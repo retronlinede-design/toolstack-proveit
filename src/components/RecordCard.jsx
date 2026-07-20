@@ -2,6 +2,7 @@ import AttachmentPreview from "./AttachmentPreview";
 import { getLinkChipClasses } from "./linkChipStyles";
 import LinkedChip from "./LinkedChip";
 import PartyLinksRow from "./caseDetail/PartyLinksRow";
+import StrategyRecordCard from "./StrategyRecordCard";
 import { getIncidentLinkGroups } from "../domain/caseDomain.js";
 import { getEvidenceDisplayMeta, getIncidentDisplayMeta, getRecordDisplayMeta } from "../domain/linkingResolvers.js";
 import { Tags } from "lucide-react";
@@ -60,6 +61,21 @@ export default function RecordCard({
         doc.basedOnEvidenceIds.includes(item.id)
       )
     : [];
+
+  if (recordType === "strategy") {
+    return (
+      <StrategyRecordCard
+        item={item}
+        selectedCase={selectedCase}
+        imageCache={imageCache}
+        onPreviewFile={onPreviewFile}
+        openEditRecordModal={openEditRecordModal}
+        onConvertRecord={onConvertRecord}
+        deleteRecord={deleteRecord}
+        openLinkedRecord={openLinkedRecord}
+      />
+    );
+  }
 
   const badgeColors = {
     evidence: "bg-purple-50 text-purple-700 border-purple-200",
