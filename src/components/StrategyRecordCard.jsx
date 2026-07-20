@@ -3,6 +3,7 @@ import { CalendarDays, Clock3, Paperclip, Tags } from "lucide-react";
 import { getRecordDisplayMeta } from "../domain/linkingResolvers.js";
 import AttachmentPreview from "./AttachmentPreview";
 import LinkedChip from "./LinkedChip";
+import { resolveStrategyOwner } from "./caseDetail/strategyWorkspaceHelpers.js";
 
 function formatStatus(value) {
   return typeof value === "string" && value.trim()
@@ -26,6 +27,34 @@ function getLinkedRecords(item, selectedCase) {
   return [...linkedIds]
     .map((id) => getRecordDisplayMeta(selectedCase, id))
     .filter(Boolean);
+}
+
+function getStringItems(value) {
+  return Array.isArray(value) ? value.filter((item) => typeof item === "string" && item.trim()) : [];
+}
+
+function hasText(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function StrategyList({ title, items, tone = "neutral" }) {
+  const values = getStringItems(items);
+  if (values.length === 0) return null;
+  const tones = {
+    next: "border-lime-200 bg-lime-50/60 text-lime-800",
+    risk: "border-amber-200 bg-amber-50/70 text-amber-900",
+    neutral: "border-neutral-200 bg-neutral-50 text-neutral-700",
+  };
+
+  return (
+    <details className={`rounded-xl border p-3 ${tones[tone] || tones.neutral}`} open={values.length <= 2}>
+      <summary className="cursor-pointer text-xs font-bold uppercase tracking-wider">{title} ({values.length})</summary>
+      <ul className="mt-2 space-y-1.5 border-t border-current/10 pt-2 text-sm leading-5">
+        {values.slice(0, 5).map((value, index) => <li key={`${title}-${index}`} className="break-words">• {value}</li>)}
+        {values.length > 5 && <li className="text-xs font-semibold opacity-70">+{values.length - 5} more</li>}
+      </ul>
+    </details>
+  );
 }
 
 export default function StrategyRecordCard({
@@ -57,6 +86,14 @@ export default function StrategyRecordCard({
   const sequenceGroup = typeof item?.sequenceGroup === "string" ? item.sequenceGroup.trim() : "";
   const updatedAt = formatTimestamp(item?.updatedAt);
   const attachmentCount = Array.isArray(item?.attachments) ? item.attachments.length : 0;
+  const strategyType = formatStatus(item?.strategyType);
+  const priority = formatStatus(item?.priority);
+  const decisionStatus = formatStatus(item?.decisionStatus);
+  const owner = resolveStrategyOwner(item, selectedCase?.parties || []);
+  const reviewDate = typeof item?.reviewDate === "string" ? item.reviewDate.trim() : "";
+  const hasObjective = hasText(item?.objective);
+  const hasDesiredOutcome = hasText(item?.desiredOutcome);
+  const hasRationale = hasText(item?.rationale);
 
   return (
     <article id={`record-${item.id}`} className="relative overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
@@ -64,6 +101,8 @@ export default function StrategyRecordCard({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1 sm:pr-3">
             <div className="flex flex-wrap items-center gap-2">
+              {strategyType && <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-violet-700">{strategyType}</span>}
+              {priority && <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${item.priority === "critical" ? "border-red-200 bg-red-50 text-red-700" : item.priority === "high" ? "border-amber-200 bg-amber-50 text-amber-700" : "border-neutral-200 bg-white text-neutral-600"}`}>{priority} priority</span>}
               {status && (
                 <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
                   item.status === "archived"
@@ -73,6 +112,7 @@ export default function StrategyRecordCard({
                   {status}
                 </span>
               )}
+              {decisionStatus && <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-cyan-700">{decisionStatus}</span>}
               {eventDate && (
                 <span className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-600">
                   <CalendarDays className="h-3.5 w-3.5 text-neutral-400" aria-hidden="true" />
@@ -115,10 +155,46 @@ export default function StrategyRecordCard({
       </div>
 
       <div className="space-y-4 p-4 sm:p-5">
-        {item?.description && (
+        {hasObjective && (
           <section className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
             <div className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Objective</div>
-            <p className="mt-2 whitespace-pre-wrap text-sm font-medium leading-6 text-neutral-800">{item.description}</p>
+            <p className="mt-2 whitespace-pre-wrap text-sm font-semibold leading-6 text-neutral-900">{item.objective}</p>
+          </section>
+        )}
+
+        {hasDesiredOutcome && (
+          <section className="rounded-xl border border-lime-100 bg-lime-50/50 p-4">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-lime-700">Desired Outcome</div>
+            <p className="mt-2 whitespace-pre-wrap text-sm font-medium leading-6 text-neutral-800">{item.desiredOutcome}</p>
+          </section>
+        )}
+
+        {hasRationale && (
+          <section>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Rationale</div>
+            <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-neutral-700">{item.rationale}</p>
+          </section>
+        )}
+
+        {(getStringItems(item?.nextSteps).length > 0 || getStringItems(item?.risks).length > 0 || getStringItems(item?.assumptions).length > 0) && (
+          <div className="grid gap-3 lg:grid-cols-3">
+            <StrategyList title="Next Steps" items={item.nextSteps} tone="next" />
+            <StrategyList title="Risks" items={item.risks} tone="risk" />
+            <StrategyList title="Assumptions" items={item.assumptions} />
+          </div>
+        )}
+
+        {(owner || reviewDate) && (
+          <div className="flex flex-wrap gap-x-5 gap-y-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-600">
+            {owner && <span><span className="font-semibold text-neutral-800">Owner:</span> {owner.name}</span>}
+            {reviewDate && <span><span className="font-semibold text-neutral-800">Review:</span> {reviewDate}</span>}
+          </div>
+        )}
+
+        {item?.description && (
+          <section className={hasObjective ? "rounded-xl border border-neutral-200 bg-neutral-50 p-4" : "rounded-xl border border-blue-100 bg-blue-50/60 p-4"}>
+            <div className={`text-[10px] font-bold uppercase tracking-wider ${hasObjective ? "text-neutral-500" : "text-blue-700"}`}>{hasObjective ? "Additional Context" : "Objective"}</div>
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-neutral-800">{item.description}</p>
           </section>
         )}
 

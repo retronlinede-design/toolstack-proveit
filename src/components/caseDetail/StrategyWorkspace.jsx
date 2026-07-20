@@ -11,12 +11,19 @@ import {
 export default function StrategyWorkspace({ strategies = [], onAddStrategy, renderStrategyCard }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [strategyTypeFilter, setStrategyTypeFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [reviewStateFilter, setReviewStateFilter] = useState("all");
   const [sortMode, setSortMode] = useState("newest");
   const summary = useMemo(() => getStrategySummary(strategies), [strategies]);
   const visibleStrategies = useMemo(() => {
-    const filtered = filterStrategies(strategies, search, statusFilter);
+    const filtered = filterStrategies(strategies, search, statusFilter, {
+      strategyType: strategyTypeFilter,
+      priority: priorityFilter,
+      reviewState: reviewStateFilter,
+    });
     return sortStrategies(filtered, sortMode);
-  }, [search, sortMode, statusFilter, strategies]);
+  }, [priorityFilter, reviewStateFilter, search, sortMode, statusFilter, strategies, strategyTypeFilter]);
   const sequenceGroups = useMemo(
     () => sortMode === "sequence-group" ? groupStrategiesBySequenceGroup(visibleStrategies) : [],
     [sortMode, visibleStrategies]
@@ -27,7 +34,19 @@ export default function StrategyWorkspace({ strategies = [], onAddStrategy, rend
     ["Archived", summary.archived],
     ["Unlinked", summary.unlinked],
     ["Updated in 14 Days", summary.recentlyUpdated],
+    ["Critical Priority", summary.criticalPriority],
+    ["High Priority", summary.highPriority],
+    ["Due for Review", summary.dueForReview],
+    ["Overdue Reviews", summary.overdueReview],
+    ["Open Next Steps", summary.openNextSteps],
   ];
+  const resetFilters = () => {
+    setSearch("");
+    setStatusFilter("all");
+    setStrategyTypeFilter("all");
+    setPriorityFilter("all");
+    setReviewStateFilter("all");
+  };
 
   return (
     <div className="space-y-6">
@@ -70,7 +89,7 @@ export default function StrategyWorkspace({ strategies = [], onAddStrategy, rend
       ) : (
         <>
           <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_13rem] lg:items-end">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 xl:items-end">
               <label className="min-w-0 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                 Search
                 <div className="mt-2 flex items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2">
@@ -83,6 +102,29 @@ export default function StrategyWorkspace({ strategies = [], onAddStrategy, rend
                     className="min-w-0 flex-1 bg-transparent text-sm font-medium text-neutral-800 outline-none"
                   />
                 </div>
+              </label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                Strategy Type
+                <select value={strategyTypeFilter} onChange={(event) => setStrategyTypeFilter(event.target.value)} className="mt-2 block w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700">
+                  <option value="all">All Types</option>
+                  <option value="objective">Objective</option><option value="argument">Argument</option><option value="action">Action</option><option value="risk">Risk</option><option value="decision">Decision</option><option value="question">Question</option>
+                </select>
+              </label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                Priority
+                <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)} className="mt-2 block w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700">
+                  <option value="all">All Priorities</option>
+                  <option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
+                </select>
+              </label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                Review State
+                <select value={reviewStateFilter} onChange={(event) => setReviewStateFilter(event.target.value)} className="mt-2 block w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700">
+                  <option value="all">All</option>
+                  <option value="overdue">Overdue</option>
+                  <option value="due-soon">Due Soon</option>
+                  <option value="no-review-date">No Review Date</option>
+                </select>
               </label>
               <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                 Status
@@ -99,6 +141,8 @@ export default function StrategyWorkspace({ strategies = [], onAddStrategy, rend
                   <option value="newest">Newest</option>
                   <option value="oldest">Oldest</option>
                   <option value="recently-updated">Recently Updated</option>
+                  <option value="priority">Priority</option>
+                  <option value="review-date">Review Date</option>
                   <option value="sequence-group">Sequence Group</option>
                 </select>
               </label>
@@ -110,7 +154,10 @@ export default function StrategyWorkspace({ strategies = [], onAddStrategy, rend
 
           {visibleStrategies.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-6 text-center text-sm text-neutral-600">
-              No strategies match the current search and filter.
+              <p>No strategies match the current search and filters.</p>
+              <button type="button" onClick={resetFilters} className="mt-3 rounded-xl border border-lime-500 bg-white px-4 py-2 text-xs font-semibold text-neutral-800 hover:bg-lime-50">
+                Reset Filters
+              </button>
             </div>
           ) : sortMode === "sequence-group" ? (
             <div className="space-y-8">

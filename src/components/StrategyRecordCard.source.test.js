@@ -24,3 +24,18 @@ test("strategy card omits optional sections when their fields are empty", () => 
   assert.match(source, /\{attachmentCount > 0 && \(/);
   assert.match(source, /\{updatedAt && \(/);
 });
+
+test("strategy card renders structured planning, ownership, and operational fields conditionally", () => {
+  assert.match(source, /strategyType/);
+  assert.match(source, /priority/);
+  assert.match(source, /decisionStatus/);
+  assert.match(source, /hasObjective &&/);
+  assert.match(source, /hasDesiredOutcome &&/);
+  assert.match(source, /hasRationale &&/);
+  assert.match(source, /title="Next Steps"/);
+  assert.match(source, /title="Risks"/);
+  assert.match(source, /title="Assumptions"/);
+  assert.match(source, /resolveStrategyOwner/);
+  assert.match(source, /Review:/);
+  assert.match(source, /Additional Context/);
+});
