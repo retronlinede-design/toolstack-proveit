@@ -124,7 +124,7 @@ test("prepareRecordFormForSave aligns hidden evidence eventDate with visible mod
   assert.equal(prepared.capturedAt, "2024-04-13");
 });
 
-test("prepareRecordFormForSave leaves strategy eventDate untouched", () => {
+test("prepareRecordFormForSave aligns hidden strategy eventDate with visible modal date", () => {
   const form = {
     id: "str-1",
     title: "Strategy",
@@ -135,7 +135,7 @@ test("prepareRecordFormForSave leaves strategy eventDate untouched", () => {
   const prepared = prepareRecordFormForSave(form, "strategy");
 
   assert.equal(prepared.date, "2024-04-12");
-  assert.equal(prepared.eventDate, "2024-04-01");
+  assert.equal(prepared.eventDate, "2024-04-12");
 });
 
 test("suggestEvidenceMetadataForForm biases image attachments toward visual corroboration", () => {

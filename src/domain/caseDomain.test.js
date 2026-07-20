@@ -2171,6 +2171,84 @@ test("modal-prepared evidence date edit stores visible date in date and eventDat
   assert.deepEqual(updated.evidence.map((item) => item.id), ["ev-early", "ev-1"]);
 });
 
+test("modal-prepared strategy create stores matching date and eventDate", () => {
+  const caseItem = {
+    id: "case-1",
+    updatedAt: iso("2026-07-01T08:00:00Z"),
+    incidents: [],
+    evidence: [],
+    strategy: [],
+  };
+  const modalDraft = {
+    title: "Prepare response",
+    date: "2026-07-20",
+    description: "Prepare the response before the deadline.",
+    notes: "",
+    attachments: [],
+    linkedRecordIds: [],
+    sequenceGroup: "Response",
+  };
+  const preparedPayload = prepareRecordFormForSave(modalDraft, "strategy");
+
+  const updated = upsertRecordInCase(caseItem, "strategy", preparedPayload);
+
+  assert.equal(updated.strategy[0].date, "2026-07-20");
+  assert.equal(updated.strategy[0].eventDate, "2026-07-20");
+});
+
+test("modal-prepared strategy date edit updates chronology and preserves record data", () => {
+  const editingRecord = {
+    id: "str-1",
+    title: "Prepare response",
+    date: "2026-07-10",
+    eventDate: "2026-07-10",
+    description: "Original strategy",
+    notes: "Keep this note",
+    attachments: [{ id: "att-1", name: "plan.pdf" }],
+    tags: ["priority"],
+    linkedRecordIds: ["inc-1"],
+    status: "open",
+    sequenceGroup: "Response",
+    createdAt: iso("2026-07-10T09:00:00Z"),
+  };
+  const laterRecord = {
+    id: "str-2",
+    title: "Later strategy",
+    date: "2026-07-15",
+    eventDate: "2026-07-15",
+    description: "Already later",
+    notes: "",
+    attachments: [],
+    linkedRecordIds: [],
+    createdAt: iso("2026-07-15T09:00:00Z"),
+  };
+  const caseItem = {
+    id: "case-1",
+    updatedAt: iso("2026-07-10T08:00:00Z"),
+    incidents: [],
+    evidence: [],
+    strategy: [editingRecord, laterRecord],
+  };
+  const preparedPayload = prepareRecordFormForSave({
+    ...editingRecord,
+    date: "2026-07-20",
+  }, "strategy");
+
+  const updated = upsertRecordInCase(caseItem, "strategy", preparedPayload, editingRecord);
+  const edited = updated.strategy.find((item) => item.id === "str-1");
+
+  assert.equal(edited.date, "2026-07-20");
+  assert.equal(edited.eventDate, "2026-07-20");
+  assert.equal(edited.id, "str-1");
+  assert.equal(edited.createdAt, editingRecord.createdAt);
+  assert.deepEqual(edited.attachments, editingRecord.attachments);
+  assert.deepEqual(edited.tags, editingRecord.tags);
+  assert.deepEqual(edited.linkedRecordIds, editingRecord.linkedRecordIds);
+  assert.equal(edited.status, editingRecord.status);
+  assert.equal(edited.sequenceGroup, editingRecord.sequenceGroup);
+  assert.deepEqual(updated.strategy.map((item) => item.id), ["str-2", "str-1"]);
+});
+
 test("convertQuickCaptureToRecord creates a record, prepends non-timeline targets, and marks capture converted", () => {
   const evidence = [{ id: "ev-1", title: "Evidence" }];
   const existingTask = { id: "task-old", title: "Old task" };
