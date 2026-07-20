@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  normalizeStrategyStringList,
   prepareRecordFormForSave,
   removeRecordAttachmentFromForm,
   suggestEvidenceMetadataForForm,
@@ -136,6 +137,88 @@ test("prepareRecordFormForSave aligns hidden strategy eventDate with visible mod
 
   assert.equal(prepared.date, "2024-04-12");
   assert.equal(prepared.eventDate, "2024-04-12");
+});
+
+test("normalizeStrategyStringList trims entries, drops blanks, and preserves order", () => {
+  assert.deepEqual(normalizeStrategyStringList(["  First  ", "", "  ", "Second", null, "First"]), [
+    "First",
+    "Second",
+    "First",
+  ]);
+});
+
+test("prepareRecordFormForSave preserves structured strategy fields, links, and attachments", () => {
+  const attachment = { id: "att-1", name: "plan.pdf" };
+  const prepared = prepareRecordFormForSave({
+    id: "str-1",
+    title: "Negotiation plan",
+    date: "2026-07-20",
+    strategyType: "negotiation",
+    objective: "Reach agreement",
+    rationale: "Avoid delay",
+    desiredOutcome: "Signed terms",
+    priority: "high",
+    reviewDate: "2026-08-01",
+    decisionStatus: "approved",
+    ownerPartyId: "party-1",
+    assumptions: ["  Offer remains open  "],
+    risks: [" Terms may change "],
+    nextSteps: [" Draft response ", ""],
+    description: "Legacy description",
+    notes: "Legacy notes",
+    attachments: [attachment],
+    linkedRecordIds: ["inc-1"],
+  }, "strategy", [{ id: "party-1" }]);
+
+  assert.equal(prepared.eventDate, "2026-07-20");
+  assert.equal(prepared.strategyType, "negotiation");
+  assert.equal(prepared.objective, "Reach agreement");
+  assert.equal(prepared.rationale, "Avoid delay");
+  assert.equal(prepared.desiredOutcome, "Signed terms");
+  assert.equal(prepared.priority, "high");
+  assert.equal(prepared.reviewDate, "2026-08-01");
+  assert.equal(prepared.decisionStatus, "approved");
+  assert.equal(prepared.ownerPartyId, "party-1");
+  assert.deepEqual(prepared.assumptions, ["Offer remains open"]);
+  assert.deepEqual(prepared.risks, ["Terms may change"]);
+  assert.deepEqual(prepared.nextSteps, ["Draft response"]);
+  assert.equal(prepared.description, "Legacy description");
+  assert.equal(prepared.notes, "Legacy notes");
+  assert.deepEqual(prepared.attachments, [attachment]);
+  assert.deepEqual(prepared.linkedRecordIds, ["inc-1"]);
+});
+
+test("prepareRecordFormForSave resaves legacy strategy text without deriving structured fields", () => {
+  const prepared = prepareRecordFormForSave({
+    id: "str-legacy",
+    title: "Legacy strategy",
+    date: "2024-01-10",
+    description: "Keep this description",
+    notes: "Keep these notes",
+  }, "strategy", []);
+
+  assert.equal(prepared.description, "Keep this description");
+  assert.equal(prepared.notes, "Keep these notes");
+  assert.deepEqual(prepared.assumptions, []);
+  assert.deepEqual(prepared.risks, []);
+  assert.deepEqual(prepared.nextSteps, []);
+  assert.equal(prepared.objective, undefined);
+});
+
+test("prepareRecordFormForSave clears an owner that is not an existing case party", () => {
+  const prepared = prepareRecordFormForSave({ title: "Plan", ownerPartyId: "missing-party" }, "strategy", [
+    { id: "party-1" },
+  ]);
+
+  assert.equal(prepared.ownerPartyId, "");
+});
+
+test("prepareRecordFormForSave does not apply strategy list or owner handling to other forms", () => {
+  const incident = { title: "Incident", date: "2026-07-20", assumptions: ["  untouched  "], ownerPartyId: "missing" };
+  const evidence = { title: "Evidence", date: "2026-07-20", risks: ["  untouched  "] };
+
+  assert.deepEqual(prepareRecordFormForSave(incident, "incidents", []), { ...incident, eventDate: "2026-07-20" });
+  assert.deepEqual(prepareRecordFormForSave(evidence, "evidence", []), { ...evidence, eventDate: "2026-07-20" });
 });
 
 test("suggestEvidenceMetadataForForm biases image attachments toward visual corroboration", () => {

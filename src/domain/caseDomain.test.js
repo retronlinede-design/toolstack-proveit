@@ -2291,13 +2291,28 @@ test("modal-prepared strategy create stores matching date and eventDate", () => 
     attachments: [],
     linkedRecordIds: [],
     sequenceGroup: "Response",
+    strategyType: "action",
+    objective: "Submit a complete response",
+    priority: "high",
+    reviewDate: "2026-07-25",
+    decisionStatus: "approved",
+    ownerPartyId: "party-1",
+    assumptions: ["  Instructions remain unchanged  ", ""],
+    risks: ["Late submission"],
+    nextSteps: ["Draft response"],
   };
-  const preparedPayload = prepareRecordFormForSave(modalDraft, "strategy");
+  const preparedPayload = prepareRecordFormForSave(modalDraft, "strategy", [{ id: "party-1" }]);
 
   const updated = upsertRecordInCase(caseItem, "strategy", preparedPayload);
 
   assert.equal(updated.strategy[0].date, "2026-07-20");
   assert.equal(updated.strategy[0].eventDate, "2026-07-20");
+  assert.equal(updated.strategy[0].strategyType, "action");
+  assert.equal(updated.strategy[0].objective, "Submit a complete response");
+  assert.equal(updated.strategy[0].ownerPartyId, "party-1");
+  assert.deepEqual(updated.strategy[0].assumptions, ["Instructions remain unchanged"]);
+  assert.deepEqual(updated.strategy[0].risks, ["Late submission"]);
+  assert.deepEqual(updated.strategy[0].nextSteps, ["Draft response"]);
 });
 
 test("modal-prepared strategy date edit updates chronology and preserves record data", () => {
@@ -2313,6 +2328,12 @@ test("modal-prepared strategy date edit updates chronology and preserves record 
     linkedRecordIds: ["inc-1"],
     status: "open",
     sequenceGroup: "Response",
+    strategyType: "objective",
+    objective: "Original objective",
+    ownerPartyId: "party-1",
+    assumptions: ["Original assumption"],
+    risks: ["Original risk"],
+    nextSteps: ["Original next step"],
     createdAt: iso("2026-07-10T09:00:00Z"),
   };
   const laterRecord = {
@@ -2336,7 +2357,9 @@ test("modal-prepared strategy date edit updates chronology and preserves record 
   const preparedPayload = prepareRecordFormForSave({
     ...editingRecord,
     date: "2026-07-20",
-  }, "strategy");
+    objective: "Updated objective",
+    nextSteps: ["  Updated next step  ", ""],
+  }, "strategy", [{ id: "party-1" }]);
 
   const updated = upsertRecordInCase(caseItem, "strategy", preparedPayload, editingRecord);
   const edited = updated.strategy.find((item) => item.id === "str-1");
@@ -2350,6 +2373,11 @@ test("modal-prepared strategy date edit updates chronology and preserves record 
   assert.deepEqual(edited.linkedRecordIds, editingRecord.linkedRecordIds);
   assert.equal(edited.status, editingRecord.status);
   assert.equal(edited.sequenceGroup, editingRecord.sequenceGroup);
+  assert.equal(edited.objective, "Updated objective");
+  assert.equal(edited.ownerPartyId, "party-1");
+  assert.deepEqual(edited.assumptions, editingRecord.assumptions);
+  assert.deepEqual(edited.risks, editingRecord.risks);
+  assert.deepEqual(edited.nextSteps, ["Updated next step"]);
   assert.deepEqual(updated.strategy.map((item) => item.id), ["str-2", "str-1"]);
 });
 

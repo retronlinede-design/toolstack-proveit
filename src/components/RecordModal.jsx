@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { EVIDENCE_ROLES, EVIDENCE_TYPES, INCIDENT_LINK_TYPES } from "../domain/caseDomain.js";
 import { prepareRecordFormForSave, suggestEvidenceMetadataForForm } from "../domain/recordFormDomain.js";
 import LinkedPartiesSelector from "./caseDetail/LinkedPartiesSelector";
+import StrategyEditorSection from "./StrategyEditorSection";
 
 const INCIDENT_EVIDENCE_STATUS_OPTIONS = [
   { value: "documented", label: "Documented" },
@@ -507,7 +508,7 @@ export default function RecordModal({
     });
   };
   const handleSubmitRecord = () => {
-    const preparedForm = prepareRecordFormForSave(recordForm, recordType);
+    const preparedForm = prepareRecordFormForSave(recordForm, recordType, caseParties);
     const payload = {
       ...preparedForm,
       isMilestone: !!preparedForm.isMilestone,
@@ -939,6 +940,16 @@ export default function RecordModal({
               />
             </div>
           </div>
+        ) : recordType === "strategy" ? (
+          <StrategyEditorSection
+            recordForm={recordForm}
+            setRecordForm={setRecordForm}
+            caseParties={caseParties}
+            titleInputRef={titleInputRef}
+            dateInputRef={dateInputRef}
+            descriptionTextareaRef={descriptionTextareaRef}
+            sequenceGroupField={renderSequenceGroupField()}
+          />
         ) : (
           <>
             <input
@@ -965,7 +976,7 @@ export default function RecordModal({
             />
           </>
         )}
-        {recordType !== "evidence" && recordType !== "incidents" && (
+        {recordType !== "evidence" && recordType !== "incidents" && recordType !== "strategy" && (
           <textarea
             placeholder="Notes"
             value={recordForm.notes}
@@ -1529,8 +1540,6 @@ export default function RecordModal({
           <>
             {recordType === "strategy" && (
               <div className="mb-4 space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                {renderSequenceGroupField()}
-
                 <div>
                   <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Linked Case Items</h4>
                   <p className="mt-1 text-sm text-neutral-600">Connect this strategy to incidents, evidence, documents, or tracking records.</p>

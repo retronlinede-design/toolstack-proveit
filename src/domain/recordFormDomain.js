@@ -145,11 +145,30 @@ export function suggestEvidenceMetadataForForm(recordForm, selectedCase = {}) {
   };
 }
 
-export function prepareRecordFormForSave(recordForm, recordType) {
+export function normalizeStrategyStringList(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item) => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+export function prepareRecordFormForSave(recordForm, recordType, caseParties) {
   const nextForm = { ...(recordForm || {}) };
 
   if (["incidents", "evidence", "strategy"].includes(recordType) && typeof nextForm.date === "string" && nextForm.date) {
     nextForm.eventDate = nextForm.date;
+  }
+
+  if (recordType === "strategy") {
+    nextForm.assumptions = normalizeStrategyStringList(nextForm.assumptions);
+    nextForm.risks = normalizeStrategyStringList(nextForm.risks);
+    nextForm.nextSteps = normalizeStrategyStringList(nextForm.nextSteps);
+
+    if (Array.isArray(caseParties)) {
+      const validOwnerIds = new Set(caseParties.map((party) => party?.id).filter(Boolean));
+      if (nextForm.ownerPartyId && !validOwnerIds.has(nextForm.ownerPartyId)) nextForm.ownerPartyId = "";
+    }
   }
 
   return nextForm;

@@ -357,6 +357,17 @@ const EMPTY_RECORD_FORM = {
   evidenceRole: "OTHER",
   evidenceType: "",
   sequenceGroup: "",
+  strategyType: "",
+  objective: "",
+  rationale: "",
+  desiredOutcome: "",
+  priority: "",
+  reviewDate: "",
+  decisionStatus: "",
+  ownerPartyId: "",
+  assumptions: [],
+  risks: [],
+  nextSteps: [],
   functionSummary: "",
   sourceType: "other",
   capturedAt: "",
@@ -2866,6 +2877,9 @@ export default function ProveItApp() {
       evidenceStatus: type === "incidents" && initialLinkedEvidenceIds.length > 0 ? "documented" : EMPTY_RECORD_FORM.evidenceStatus,
       ...initialFormState,
       linkedPartyIds: Array.isArray(initialFormState.linkedPartyIds) ? initialFormState.linkedPartyIds : [],
+      assumptions: Array.isArray(initialFormState.assumptions) ? initialFormState.assumptions : [],
+      risks: Array.isArray(initialFormState.risks) ? initialFormState.risks : [],
+      nextSteps: Array.isArray(initialFormState.nextSteps) ? initialFormState.nextSteps : [],
     });
   };
 
@@ -2880,6 +2894,9 @@ export default function ProveItApp() {
       attachments: (currentRecord?.attachments?.length ? currentRecord.attachments : null) || (currentRecord?.files?.length ? currentRecord.files : null) || (type === "evidence" ? currentRecord?.availability?.digital?.files : []) || [],
       files: (currentRecord?.files?.length ? currentRecord.files : null) || (type === "evidence" ? currentRecord?.availability?.digital?.files : []) || [],
       linkedPartyIds: Array.isArray(currentRecord?.linkedPartyIds) ? currentRecord.linkedPartyIds : [],
+      assumptions: Array.isArray(currentRecord?.assumptions) ? currentRecord.assumptions : [],
+      risks: Array.isArray(currentRecord?.risks) ? currentRecord.risks : [],
+      nextSteps: Array.isArray(currentRecord?.nextSteps) ? currentRecord.nextSteps : [],
     });
     setRecordFocusField(options.focusField || null);
     setRecordFocusHint(options.focusHint || "");
