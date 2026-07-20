@@ -85,6 +85,7 @@ import FloatingWorkspaceMenu from "./caseDetail/FloatingWorkspaceMenu";
 import LedgerTab from "./caseDetail/LedgerTab";
 import PartiesTab from "./caseDetail/PartiesTab";
 import RecordsTab from "./caseDetail/RecordsTab";
+import StrategyWorkspace from "./caseDetail/StrategyWorkspace";
 import { AI_TASK_GUIDANCE, AI_TOOL_OPTIONS, AI_WORKSPACE_SECTIONS } from "./caseDetail/aiToolsConfig.js";
 import { sortChronological } from "./caseDetail/ledgerViewHelpers";
 import {
@@ -4689,7 +4690,13 @@ ${ungroupedSequenceText}
                 </section>
               </div>
             )}
-            {activeTab === "strategy" && renderListBlock(selectedCase.strategy, "No strategy notes yet. Add strategy to track approach and planning.", "strategy")}
+            {activeTab === "strategy" && (
+              <StrategyWorkspace
+                strategies={selectedCase.strategy || []}
+                onAddStrategy={() => openRecordModal("strategy")}
+                renderStrategyCard={(strategy) => renderRecordCard(strategy, "strategy")}
+              />
+            )}
             {activeTab === "parties" && (
               <PartiesTab
                 parties={selectedCase.parties || []}
