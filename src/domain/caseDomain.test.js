@@ -166,6 +166,110 @@ test("normalizeRecord preserves sequenceGroup on active non-evidence records", (
   assert.equal(strategy.sequenceGroup, "Repair plan");
 });
 
+test("normalizeRecord adds Strategy v3 defaults to legacy strategy records", () => {
+  const attachment = { id: "att-1", name: "plan.pdf" };
+  const createdAt = iso("2024-02-01T09:00:00Z");
+  const updatedAt = iso("2024-02-02T09:00:00Z");
+  const strategy = normalizeRecord({
+    id: "str-legacy",
+    title: "Legacy plan",
+    date: "2024-02-10",
+    eventDate: "2024-02-10",
+    attachments: [attachment],
+    tags: ["urgent"],
+    linkedRecordIds: ["inc-1"],
+    linkedPartyIds: ["party-1"],
+    sequenceGroup: " Notice ",
+    createdAt,
+    updatedAt,
+  }, "strategy");
+
+  assert.deepEqual({
+    strategySchemaVersion: strategy.strategySchemaVersion,
+    strategyType: strategy.strategyType,
+    objective: strategy.objective,
+    rationale: strategy.rationale,
+    desiredOutcome: strategy.desiredOutcome,
+    priority: strategy.priority,
+    reviewDate: strategy.reviewDate,
+    decisionStatus: strategy.decisionStatus,
+    ownerPartyId: strategy.ownerPartyId,
+    assumptions: strategy.assumptions,
+    risks: strategy.risks,
+    nextSteps: strategy.nextSteps,
+  }, {
+    strategySchemaVersion: 2,
+    strategyType: "",
+    objective: "",
+    rationale: "",
+    desiredOutcome: "",
+    priority: "",
+    reviewDate: "",
+    decisionStatus: "",
+    ownerPartyId: "",
+    assumptions: [],
+    risks: [],
+    nextSteps: [],
+  });
+  assert.equal(strategy.id, "str-legacy");
+  assert.equal(strategy.date, "2024-02-10");
+  assert.equal(strategy.eventDate, "2024-02-10");
+  assert.equal(strategy.createdAt, createdAt);
+  assert.equal(strategy.updatedAt, updatedAt);
+  assert.deepEqual(strategy.attachments, [attachment]);
+  assert.deepEqual(strategy.tags, ["urgent"]);
+  assert.deepEqual(strategy.linkedRecordIds, ["inc-1"]);
+  assert.deepEqual(strategy.linkedPartyIds, ["party-1"]);
+  assert.equal(strategy.sequenceGroup, "Notice");
+});
+
+test("normalizeRecord preserves supplied Strategy v3 planning fields", () => {
+  const strategy = normalizeRecord({
+    id: "str-v3",
+    date: "2026-07-20",
+    strategySchemaVersion: 3,
+    strategyType: "negotiation",
+    objective: "Reach agreement",
+    rationale: "Avoid delay",
+    desiredOutcome: "Signed terms",
+    priority: "high",
+    reviewDate: "2026-08-01",
+    decisionStatus: "approved",
+    ownerPartyId: "party-1",
+    assumptions: ["The offer remains open"],
+    risks: ["Terms may change"],
+    nextSteps: ["Draft response"],
+  }, "strategy");
+
+  assert.equal(strategy.strategySchemaVersion, 3);
+  assert.equal(strategy.strategyType, "negotiation");
+  assert.equal(strategy.objective, "Reach agreement");
+  assert.equal(strategy.rationale, "Avoid delay");
+  assert.equal(strategy.desiredOutcome, "Signed terms");
+  assert.equal(strategy.priority, "high");
+  assert.equal(strategy.reviewDate, "2026-08-01");
+  assert.equal(strategy.decisionStatus, "approved");
+  assert.equal(strategy.ownerPartyId, "party-1");
+  assert.deepEqual(strategy.assumptions, ["The offer remains open"]);
+  assert.deepEqual(strategy.risks, ["Terms may change"]);
+  assert.deepEqual(strategy.nextSteps, ["Draft response"]);
+});
+
+test("normalizeCase imports legacy strategies without structured planning fields", () => {
+  const normalized = normalizeCase({
+    id: "case-import",
+    name: "Imported legacy case",
+    strategy: [{ id: "str-1", title: "Imported plan", date: "2023-06-15" }],
+  });
+
+  assert.equal(normalized.strategy[0].id, "str-1");
+  assert.equal(normalized.strategy[0].title, "Imported plan");
+  assert.equal(normalized.strategy[0].strategySchemaVersion, 2);
+  assert.deepEqual(normalized.strategy[0].assumptions, []);
+  assert.deepEqual(normalized.strategy[0].risks, []);
+  assert.deepEqual(normalized.strategy[0].nextSteps, []);
+});
+
 test("getCaseSequenceGroups extracts groups from supported record types and ignores blanks", () => {
   const caseItem = {
     incidents: [

@@ -540,6 +540,29 @@ export function normalizeRecord(item, recordType) {
     };
   }
 
+  if (recordType === "strategy") {
+    const timelineData = normalizeTimelineFields(item);
+    return {
+      ...base,
+      ...timelineData,
+      sequenceGroup: normalizeSequenceGroup(item?.sequenceGroup),
+      strategySchemaVersion: Number.isInteger(item?.strategySchemaVersion) && item.strategySchemaVersion > 0
+        ? item.strategySchemaVersion
+        : 2,
+      strategyType: safeString(item?.strategyType),
+      objective: safeString(item?.objective),
+      rationale: safeString(item?.rationale),
+      desiredOutcome: safeString(item?.desiredOutcome),
+      priority: safeString(item?.priority),
+      reviewDate: safeString(item?.reviewDate),
+      decisionStatus: safeString(item?.decisionStatus),
+      ownerPartyId: safeString(item?.ownerPartyId),
+      assumptions: Array.isArray(item?.assumptions) ? item.assumptions : [],
+      risks: Array.isArray(item?.risks) ? item.risks : [],
+      nextSteps: Array.isArray(item?.nextSteps) ? item.nextSteps : [],
+    };
+  }
+
   if (isTimelineCapable(recordType)) {
     const timelineData = normalizeTimelineFields(item);
     return { ...base, ...timelineData, sequenceGroup: normalizeSequenceGroup(item?.sequenceGroup) };

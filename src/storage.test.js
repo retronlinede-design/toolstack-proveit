@@ -279,3 +279,27 @@ test("saveCaseToDb allows explicit suspicious overwrite override and creates eme
     assert.equal(backup.caseCount, 1);
   });
 });
+
+test("saveCaseToDb persists Strategy v3 planning fields without storage transformation", async () => {
+  const strategy = {
+    id: "str-v3",
+    strategySchemaVersion: 2,
+    objective: "Reach agreement",
+    assumptions: ["The offer remains open"],
+    risks: ["Terms may change"],
+    nextSteps: ["Draft response"],
+  };
+  const caseItem = {
+    id: "case-v3",
+    incidents: [],
+    evidence: [],
+    documents: [],
+    ledger: [],
+    strategy: [strategy],
+  };
+  const db = makeFakeDb();
+
+  await saveCaseToDb(db, caseItem);
+
+  assert.deepEqual(db.stores.cases.get("case-v3").strategy[0], strategy);
+});

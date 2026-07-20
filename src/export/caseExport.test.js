@@ -191,6 +191,35 @@ test("sanitizeCaseForExport preserves canonical actionSummary shape including cr
   assert.equal(sanitized.documents[0].attachments[0].backupDataUrl, undefined);
 });
 
+test("sanitizeCaseForExport includes Strategy v3 fields without removing legacy fields", () => {
+  const strategy = {
+    id: "str-v3",
+    title: "Negotiation plan",
+    date: "2026-07-20",
+    description: "Legacy summary",
+    strategySchemaVersion: 2,
+    strategyType: "negotiation",
+    objective: "Reach agreement",
+    rationale: "Avoid delay",
+    desiredOutcome: "Signed terms",
+    priority: "high",
+    reviewDate: "2026-08-01",
+    decisionStatus: "approved",
+    ownerPartyId: "party-1",
+    assumptions: ["The offer remains open"],
+    risks: ["Terms may change"],
+    nextSteps: ["Draft response"],
+    attachments: [],
+  };
+
+  const sanitized = sanitizeCaseForExport({ strategy: [strategy] });
+
+  assert.deepEqual(sanitized.strategy[0], {
+    ...strategy,
+    availability: undefined,
+  });
+});
+
 test("buildCaseReasoningExportPayload returns expected core shape for a valid case", () => {
   const payload = buildCaseReasoningExportPayload(buildReasoningCase());
 
