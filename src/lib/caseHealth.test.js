@@ -253,3 +253,26 @@ test("getCaseHealthReport flags stale document and ledger linked records", () =>
   assert.equal(ledgerIssue?.record, ledgerRecord);
   assert.equal(ledgerIssue?.missingLinkCount, 1);
 });
+
+test("getCaseHealthReport exposes planning and monitoring counts with navigation metadata", () => {
+  const report = getCaseHealthReport({
+    incidents: [], evidence: [], tasks: [], documents: [], ledger: [], parties: [],
+    strategy: [{ id: "s1", title: "Critical plan", status: "open", priority: "critical", reviewDate: "2026-05-10", nextSteps: [] }],
+    watchItems: [{ id: "w1", title: "Developing matter", status: "escalated", reviewDate: "2026-05-10" }],
+  }, { now: "2026-05-11T12:00:00.000Z", today: "2026-05-11" });
+  assert.equal(report.totals.overdueStrategyReviews, 1);
+  assert.equal(report.totals.unsupportedStrategies, 1);
+  assert.equal(report.totals.highPriorityStrategiesWithoutNextSteps, 1);
+  assert.equal(report.totals.overdueWatchReviews, 1);
+  assert.equal(report.totals.escalatedWatchItemsWithoutOutcome, 1);
+  const watchIssue = report.issues.find((group) => group.category === "To Watch").items.find((issue) => issue.code === "WATCH_ESCALATED_NO_OUTCOME");
+  assert.equal(watchIssue.tab, "watch");
+  assert.equal(watchIssue.navigationTarget.tab, "watch");
+});
+
+test("getCaseHealthReport uses shared broken references for missing owners and watch parties", () => {
+  const report = getCaseHealthReport({ incidents: [], evidence: [], tasks: [], documents: [], ledger: [], parties: [], strategy: [{ id: "s", title: "Owned", status: "open", ownerPartyId: "missing-owner" }], watchItems: [{ id: "w", title: "Watch", status: "watching", linkedPartyIds: ["missing-party"] }] }, { now: "2026-05-11T12:00:00.000Z" });
+  const links = report.issues.find((group) => group.category === "Links").items;
+  assert.equal(links.find((issue) => issue.id === "s").missingLinks[0].field, "ownerPartyId");
+  assert.equal(links.find((issue) => issue.id === "w").missingLinks[0].field, "linkedPartyIds");
+});

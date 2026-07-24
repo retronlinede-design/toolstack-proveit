@@ -1,9 +1,10 @@
 import { resolveRecordById } from "../domain/linkingResolvers.js";
+import { runOperationalIntegrityCheck } from "../diagnostics/operationalIntegrity.js";
 
 export const isTimelineCapable = (type) =>
   ["evidence", "incidents", "strategy"].includes(type?.toLowerCase());
 
-export const getCaseHealthReport = (selectedCase) => {
+export const getCaseHealthReport = (selectedCase, options = {}) => {
   const issues = [];
   const incidents = selectedCase.incidents || [];
   const evidence = selectedCase.evidence || [];
@@ -11,7 +12,9 @@ export const getCaseHealthReport = (selectedCase) => {
   const strategy = selectedCase.strategy || [];
   const documents = selectedCase.documents || [];
   const ledger = selectedCase.ledger || [];
+  const watchItems = selectedCase.watchItems || [];
   const incidentIds = new Set(incidents.map((i) => i.id));
+  const partyIds = new Set((selectedCase.parties || []).map((party) => party?.id).filter(Boolean));
 
   const collectMissingLinks = (item) => {
     const missing = [];
@@ -27,6 +30,8 @@ export const getCaseHealthReport = (selectedCase) => {
     checkIds("linkedRecordIds", item?.linkedRecordIds);
     checkIds("linkedEvidenceIds", item?.linkedEvidenceIds);
     checkIds("linkedIncidentIds", item?.linkedIncidentIds);
+    if (Array.isArray(item?.linkedPartyIds)) item.linkedPartyIds.forEach((id) => { if (id && !partyIds.has(id)) missing.push({ field: "linkedPartyIds", id }); });
+    if (item?.ownerPartyId && !partyIds.has(item.ownerPartyId)) missing.push({ field: "ownerPartyId", id: item.ownerPartyId });
 
     if (Array.isArray(item?.linkedIncidentRefs)) {
       item.linkedIncidentRefs.forEach((ref) => {
@@ -246,7 +251,7 @@ export const getCaseHealthReport = (selectedCase) => {
   if (taskIssues.length) issues.push({ category: "Tasks", items: taskIssues });
 
   const strategyIssues = strategy
-    .filter((s) => !s.title?.trim())
+    .filter((s) => !["done", "closed", "complete", "completed", "archived"].includes(String(s.status || "").toLowerCase()) && ![s.title, s.objective, s.description].some((value) => String(value || "").trim()))
     .map((s) => ({
       id: s.id,
       title: "Untitled Strategy",
@@ -259,6 +264,18 @@ export const getCaseHealthReport = (selectedCase) => {
 
   if (strategyIssues.length) issues.push({ category: "Strategy", items: strategyIssues });
 
+  const includePlanningMonitoring = options.includePlanningMonitoring !== false;
+  const operationalPlanning = runOperationalIntegrityCheck(selectedCase, options).openOperationalLoops;
+  const planningIssues = operationalPlanning.issues
+    .filter((issue) => issue.recordType === "strategy" && issue.code !== "STRATEGY_MISSING_OBJECTIVE")
+    .map((issue) => ({ id: issue.recordId, code: issue.code, title: issue.title, detail: issue.message, record: strategy.find((item) => item.id === issue.recordId), type: "strategy", tab: "strategy", severity: issue.severity === "warning" ? "advisory" : "advisory", classification: "gap", navigationTarget: issue.navigationTarget, recommendedAction: issue.recommendedAction, ...issue.details }));
+  if (includePlanningMonitoring && planningIssues.length) issues.push({ category: "Strategy Planning", items: planningIssues });
+
+  const watchIssues = operationalPlanning.issues
+    .filter((issue) => issue.recordType === "watchItems")
+    .map((issue) => ({ id: issue.recordId, code: issue.code, title: issue.title, detail: issue.message, record: watchItems.find((item) => item.id === issue.recordId), type: "watchItems", tab: "watch", severity: "advisory", classification: "gap", navigationTarget: issue.navigationTarget, recommendedAction: issue.recommendedAction, ...issue.details }));
+  if (includePlanningMonitoring && watchIssues.length) issues.push({ category: "To Watch", items: watchIssues });
+
   const staleLinkSources = [
     ...incidents.map((item) => ({ item, type: "incidents", tab: "incidents" })),
     ...evidence.map((item) => ({ item, type: "evidence", tab: "evidence" })),
@@ -266,6 +283,7 @@ export const getCaseHealthReport = (selectedCase) => {
     ...tasks.map((item) => ({ item, type: "tasks", tab: "tasks" })),
     ...documents.map((item) => ({ item, type: "documents", tab: "documents" })),
     ...ledger.map((item) => ({ item, type: "ledger", tab: "ledger" })),
+    ...(includePlanningMonitoring ? watchItems.map((item) => ({ item, type: "watchItems", tab: "watch" })) : []),
   ];
   const staleLinkIssues = staleLinkSources
     .map(({ item, type, tab }) => makeMissingLinkIssue(item, type, tab))
@@ -372,6 +390,16 @@ export const getCaseHealthReport = (selectedCase) => {
       tasks: openTasks.length,
       strategy: strategy.length,
       timeline: timelineItems.length,
+      ...(includePlanningMonitoring ? {
+        watchItems: watchItems.length,
+        overdueStrategyReviews: operationalPlanning.stats.overdueStrategyReviews,
+        unsupportedStrategies: operationalPlanning.stats.unsupportedStrategies,
+        highPriorityStrategiesWithoutNextSteps: operationalPlanning.stats.highPriorityStrategiesWithoutNextSteps,
+        overdueWatchReviews: operationalPlanning.stats.overdueWatchReviews,
+        staleWatchItems: operationalPlanning.stats.staleWatchItems,
+        escalatedWatchItemsWithoutOutcome: operationalPlanning.stats.escalatedWatchItemsWithoutOutcome,
+        watchItemsRequiringEscalationReview: operationalPlanning.stats.watchItemsRequiringEscalationReview,
+      } : {}),
     },
     issues,
     totalIssues,

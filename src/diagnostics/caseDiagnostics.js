@@ -1,4 +1,5 @@
 import { buildCaseLinkMapExportPayload } from "../export/linkMapExport.js";
+import { runOperationalIntegrityCheck } from "./operationalIntegrity.js";
 
 const DIAGNOSTIC_RECORD_TYPES = ["incidents", "evidence", "documents", "ledger", "strategy"];
 const SEQUENCE_RECORD_TYPES = ["incidents", "evidence", "documents", "strategy"];
@@ -477,7 +478,7 @@ function analyzeOpenIssues(caseItem, evidenceCoverage) {
   };
 }
 
-export function analyzeCaseDiagnostics(caseItem) {
+export function analyzeCaseDiagnostics(caseItem, options = {}) {
   const linkMap = buildCaseLinkMapExportPayload(caseItem || {});
   const linkMetrics = getLinkMetrics(linkMap);
   const evidenceCoverage = analyzeEvidenceCoverage(caseItem || {});
@@ -491,6 +492,7 @@ export function analyzeCaseDiagnostics(caseItem) {
   const risks = [];
   const warnings = [];
   const suggestions = [];
+  const planningMonitoring = runOperationalIntegrityCheck(caseItem || {}, options).openOperationalLoops;
 
   if (brokenLinks.length > 0) risks.push({ id: "broken-links", message: `${brokenLinks.length} broken link(s) detected.` });
   if (evidenceCoverage.incidentsNeedingEvidence.length > 0) risks.push({ id: "unsupported-incidents", message: `${evidenceCoverage.incidentsNeedingEvidence.length} incident(s) still need evidence.` });
@@ -533,6 +535,19 @@ export function analyzeCaseDiagnostics(caseItem) {
     },
     openIssues,
     milestoneCoverage,
+    planningMonitoring: {
+      status: planningMonitoring.status,
+      findings: planningMonitoring.issues.filter((issue) => issue.recordType === "strategy" || issue.recordType === "watchItems"),
+      metrics: {
+        overdueStrategyReviews: planningMonitoring.stats.overdueStrategyReviews,
+        unsupportedStrategies: planningMonitoring.stats.unsupportedStrategies,
+        highPriorityStrategiesWithoutNextSteps: planningMonitoring.stats.highPriorityStrategiesWithoutNextSteps,
+        overdueWatchReviews: planningMonitoring.stats.overdueWatchReviews,
+        staleWatchItems: planningMonitoring.stats.staleWatchItems,
+        escalatedWatchItemsWithoutOutcome: planningMonitoring.stats.escalatedWatchItemsWithoutOutcome,
+        watchItemsRequiringEscalationReview: planningMonitoring.stats.watchItemsRequiringEscalationReview,
+      },
+    },
     risks,
     warnings,
     suggestions,

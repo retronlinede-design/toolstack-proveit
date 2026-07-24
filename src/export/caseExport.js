@@ -100,7 +100,8 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
   }
 
   const c = sanitizeCaseForExport(caseItem);
-  const health = getCaseHealthReport(c);
+  // Preserve the versioned reasoning-export health shape; planning/monitoring diagnostics are UI-local in this phase.
+  const health = getCaseHealthReport(c, { includePlanningMonitoring: false });
   const limits = mode === "compact"
     ? { timeline: 5, facts: 8, tasks: 8, incidents: 20, evidence: 30, documents: 30, ledger: 20, chronology: 40, documentExcerpt: 600, resolvedLinks: 5 }
     : { timeline: 12, facts: 12, tasks: 12, incidents: 60, evidence: 80, documents: 80, ledger: 75, chronology: 120, documentExcerpt: 1500, resolvedLinks: 5 };

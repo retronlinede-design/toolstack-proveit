@@ -1,5 +1,6 @@
 const STATUS_RANK = {
   ok: 0,
+  info: 0,
   warning: 1,
   critical: 2,
 };
@@ -68,6 +69,37 @@ function getNewestRecordUpdate(caseData = {}) {
 
 function differenceInDays(nowTime, thenTime) {
   return Math.floor((nowTime - thenTime) / (24 * 60 * 60 * 1000));
+}
+
+function strictCalendarDate(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? value : "";
+}
+
+function calendarDaysBetween(later, earlier) {
+  const a = strictCalendarDate(later);
+  const b = strictCalendarDate(earlier);
+  if (!a || !b) return null;
+  const toTime = (value) => { const [y, m, d] = value.split("-").map(Number); return Date.UTC(y, m - 1, d); };
+  return Math.floor((toTime(a) - toTime(b)) / 86400000);
+}
+
+function textListHasItems(value) {
+  return safeArray(value).some((item) => String(typeof item === "string" ? item : item?.text || "").trim());
+}
+
+function buildRecordIndex(caseData = {}) {
+  const index = new Map();
+  for (const [type, records] of [["incidents", caseData.incidents], ["evidence", caseData.evidence], ["documents", caseData.documents], ["ledger", caseData.ledger], ["strategy", caseData.strategy], ["watchItems", caseData.watchItems]]) {
+    for (const record of safeArray(records)) if (record?.id) index.set(record.id, { type, record });
+  }
+  return index;
+}
+
+function issueForRecord(code, severity, message, record, recordType, details = {}, recommendedAction = "Review required.") {
+  return { code, severity, title: record?.title || record?.id || (recordType === "watchItems" ? "Untitled monitored concern" : "Untitled strategy"), message, recordType, recordId: record?.id || "", navigationTarget: { tab: recordType === "watchItems" ? "watch" : "strategy", recordId: record?.id || "" }, recommendedAction, details };
 }
 
 function isOpenStatus(value) {
@@ -260,6 +292,77 @@ function buildOpenOperationalLoops(caseData = {}, options = {}) {
   const strategyStaleDays = Number.isFinite(options.strategyStaleDays) ? options.strategyStaleDays : 14;
   const dormantThreadDays = Number.isFinite(options.dormantThreadDays) ? options.dormantThreadDays : 30;
   const actionSummaryStaleDays = Number.isFinite(options.actionSummaryStaleDays) ? options.actionSummaryStaleDays : 14;
+  const watchStaleDays = Number.isFinite(options.watchStaleDays) ? options.watchStaleDays : 14;
+  const today = strictCalendarDate(options.today) || strictCalendarDate((options.now || new Date().toISOString()).slice(0, 10));
+  const recordIndex = buildRecordIndex(caseData);
+  const partyIds = new Set(safeArray(caseData.parties).map((party) => party?.id).filter(Boolean));
+  const metrics = { overdueStrategyReviews: 0, unsupportedStrategies: 0, highPriorityStrategiesWithoutNextSteps: 0, overdueWatchReviews: 0, staleWatchItems: 0, escalatedWatchItemsWithoutOutcome: 0, watchItemsRequiringEscalationReview: 0 };
+
+  for (const strategy of safeArray(caseData.strategy)) {
+    if (!isOpenStatus(strategy?.status)) continue;
+    const priority = String(strategy?.priority || "").toLowerCase();
+    const linkedIds = [...safeArray(strategy.linkedRecordIds), ...safeArray(strategy.linkedIncidentIds), ...safeArray(strategy.linkedEvidenceIds)];
+    const validLinks = linkedIds.filter((id) => recordIndex.has(id));
+    const groupSupport = String(strategy.sequenceGroup || "").trim() && [...recordIndex.values()].some(({ record }) => record?.id !== strategy.id && String(record?.sequenceGroup || "").trim() === String(strategy.sequenceGroup).trim());
+    if (validLinks.length === 0 && !groupSupport) {
+      metrics.unsupportedStrategies += 1;
+      addIssue(issues, issueForRecord("STRATEGY_UNSUPPORTED", ["high", "critical"].includes(priority) ? "warning" : "info", "Active strategy has no linked supporting records or sequence-group support.", strategy, "strategy", {}, "Link relevant records or confirm the strategy context."));
+    }
+    const hasNextSteps = textListHasItems(strategy.nextSteps);
+    if (["high", "critical"].includes(priority) && !hasNextSteps) {
+      metrics.highPriorityStrategiesWithoutNextSteps += 1;
+      addIssue(issues, issueForRecord("STRATEGY_NO_NEXT_STEPS", "warning", "High-priority strategy has no recorded next steps.", strategy, "strategy", {}, "Record a concrete next step."));
+    }
+    const overdueDays = calendarDaysBetween(today, strategy.reviewDate);
+    if (overdueDays != null && overdueDays > 0) {
+      metrics.overdueStrategyReviews += 1;
+      addIssue(issues, issueForRecord("STRATEGY_REVIEW_OVERDUE", ["high", "critical"].includes(priority) ? "warning" : "info", `Strategy review is ${overdueDays} calendar day${overdueDays === 1 ? "" : "s"} overdue.`, strategy, "strategy", { reviewDate: strategy.reviewDate, daysOverdue: overdueDays }, "Review the strategy and update its review date or status."));
+    }
+    if (textListHasItems(strategy.risks) && !hasNextSteps) addIssue(issues, issueForRecord("STRATEGY_RISK_WITHOUT_ACTION", "warning", "Strategy records risks but no corresponding next steps.", strategy, "strategy", {}, "Add next steps addressing the recorded planning risks."));
+    if (![strategy.objective, strategy.description, strategy.title].some((value) => String(value || "").trim())) addIssue(issues, issueForRecord("STRATEGY_MISSING_OBJECTIVE", "warning", "Strategy has no objective, description, or title.", strategy, "strategy", {}, "Record the strategy objective."));
+    if (priority === "critical" && !String(strategy.ownerPartyId || "").trim()) addIssue(issues, issueForRecord("STRATEGY_CRITICAL_NO_OWNER", "warning", "Critical strategy has no recorded owner.", strategy, "strategy", {}, "Assign an accountable owner."));
+    // Missing owner targets are left to the shared broken-reference diagnostic.
+    void partyIds;
+  }
+
+  const inactiveWatchStatuses = new Set(["resolved", "archived", "no_longer_relevant"]);
+  for (const watch of safeArray(caseData.watchItems)) {
+    const status = String(watch?.status || "watching").toLowerCase();
+    if (inactiveWatchStatuses.has(status)) continue;
+    const priority = String(watch?.priority || "").toLowerCase();
+    const observations = safeArray(watch.observations).filter((item) => String(item?.text || "").trim());
+    const observationDates = observations.map((item) => strictCalendarDate(item.date)).filter(Boolean).sort();
+    const newestObservationDate = observationDates.at(-1) || observations.map((item) => strictCalendarDate(String(item.createdAt || "").slice(0, 10))).filter(Boolean).sort().at(-1) || "";
+    const reviewOverdueDays = calendarDaysBetween(today, watch.reviewDate);
+    if (["watching", "escalated"].includes(status) && reviewOverdueDays != null && reviewOverdueDays > 0) {
+      metrics.overdueWatchReviews += 1;
+      addIssue(issues, issueForRecord("WATCH_REVIEW_OVERDUE", "warning", `Monitoring review is ${reviewOverdueDays} calendar day${reviewOverdueDays === 1 ? "" : "s"} overdue.`, watch, "watchItems", { reviewDate: watch.reviewDate, daysOverdue: reviewOverdueDays }, "Review this monitored concern."));
+    }
+    const timestamp = recordTimestamp(watch);
+    const parsedTimestamp = parseTimestamp(timestamp);
+    const timestampAge = parsedTimestamp.ok ? differenceInDays(nowTime, parsedTimestamp.time) : null;
+    const observationAge = newestObservationDate ? calendarDaysBetween(today, newestObservationDate) : null;
+    const monitoringAge = observationAge ?? timestampAge;
+    if (status === "watching" && ["high", "critical"].includes(priority) && (monitoringAge == null || monitoringAge > watchStaleDays)) addIssue(issues, issueForRecord("WATCH_NO_RECENT_OBSERVATION", "warning", "High-priority monitoring item has no recent observation recorded.", watch, "watchItems", { daysSinceObservation: monitoringAge, thresholdDays: watchStaleDays }, "Record a current observation or revise the monitoring status."));
+    if (status === "watching" && (monitoringAge == null || monitoringAge > watchStaleDays)) {
+      metrics.staleWatchItems += 1;
+      addIssue(issues, issueForRecord("WATCH_STALE", "warning", "Monitoring item has no recent update or observation.", watch, "watchItems", { daysInactive: monitoringAge, thresholdDays: watchStaleDays }, "Review or update this monitoring item."));
+    }
+    if (status === "watching" && !String(watch.watchFor || "").trim() && !textListHasItems(watch.triggerConditions)) addIssue(issues, issueForRecord("WATCH_NO_MONITORING_DEFINITION", "warning", "Active monitoring item has no monitoring definition or trigger conditions.", watch, "watchItems", {}, "Define what should be monitored or the trigger for review."));
+    const validLinkedOutcomes = safeArray(watch.linkedRecordIds).map((id) => recordIndex.get(id)).filter((target) => ["incidents", "strategy"].includes(target?.type));
+    if (status === "escalated" && validLinkedOutcomes.length === 0) {
+      metrics.escalatedWatchItemsWithoutOutcome += 1;
+      addIssue(issues, issueForRecord("WATCH_ESCALATED_NO_OUTCOME", "warning", "Escalated watch item is not linked to an Incident or Strategy.", watch, "watchItems", {}, "Link the escalation outcome while preserving the monitored concern."));
+    }
+    if (status === "watching" && textListHasItems(watch.triggerConditions) && (String(watch.latestObservation || "").trim() || observations.length > 0)) {
+      metrics.watchItemsRequiringEscalationReview += 1;
+      addIssue(issues, issueForRecord("WATCH_TRIGGER_REVIEW_REQUIRED", "warning", "New observations exist against recorded trigger conditions. Review whether escalation is required.", watch, "watchItems", {}, "Review required; do not treat the trigger as satisfied without confirmation."));
+    }
+    if (status === "watching" && ["high", "critical"].includes(priority) && !String(watch.nextCheck || "").trim() && !strictCalendarDate(watch.reviewDate)) addIssue(issues, issueForRecord("WATCH_NO_NEXT_CHECK", "warning", "High-priority monitoring item has no next check or review date.", watch, "watchItems", {}, "Record a next check or review date."));
+    const validContext = safeArray(watch.linkedRecordIds).some((id) => recordIndex.has(id));
+    const validParties = safeArray(watch.linkedPartyIds).some((id) => partyIds.has(id));
+    if ((status === "escalated" || priority === "critical") && !validContext && !validParties) addIssue(issues, issueForRecord("WATCH_MISSING_LINKED_CONTEXT", "info", "Monitoring item has no linked supporting records or related people.", watch, "watchItems", {}, "Add relevant context if available."));
+  }
 
   const staleStrategyItems = safeArray(caseData.strategy).filter((strategy) => {
     if (!isOpenStatus(strategy?.status)) return false;
@@ -365,6 +468,8 @@ function buildOpenOperationalLoops(caseData = {}, options = {}) {
       strategyStaleDays,
       dormantThreadDays,
       actionSummaryStaleDays,
+      watchStaleDays,
+      ...metrics,
       checkedAt: options.now || new Date(nowTime).toISOString(),
     },
   };

@@ -149,6 +149,7 @@ test("analyzeCaseDiagnostics output has stable top-level structure", () => {
     "duplicates",
     "openIssues",
     "milestoneCoverage",
+    "planningMonitoring",
     "risks",
     "warnings",
     "suggestions",

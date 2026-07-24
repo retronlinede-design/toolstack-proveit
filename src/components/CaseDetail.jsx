@@ -1549,6 +1549,10 @@ ${strategyFocus.join("\n") || "—"}`;
 
   const handleOpenIssue = (issue) => {
     if (issue.tab) setActiveTab(issue.tab);
+    if (issue.type === "watchItems") {
+      setActiveTab("watch");
+      return;
+    }
     if (issue.record && issue.type === "documents") {
       openDocumentModal(issue.record, issue.record.id, isTrackingRecord(issue.record) ? "record" : "document");
       return;
@@ -4090,11 +4094,12 @@ ${ungroupedSequenceText}
                                 {openOperationalLoops.status} · {openOperationalLoopIssueCount} issue{openOperationalLoopIssueCount === 1 ? "" : "s"}
                               </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-2 text-[10px] text-neutral-600 sm:grid-cols-4">
+                            <div className="grid grid-cols-2 gap-2 text-[10px] text-neutral-600 sm:grid-cols-5">
                               <div>Strategy: <span className="font-semibold">{openOperationalLoops.stats.staleStrategyItemCount}</span></div>
                               <div>Incidents: <span className="font-semibold">{openOperationalLoops.stats.weakIncidentCount}</span></div>
                               <div>Threads: <span className="font-semibold">{openOperationalLoops.stats.dormantThreadCount}</span></div>
                               <div>Actions: <span className="font-semibold">{openOperationalLoops.issues.filter((issue) => issue.code === "STALE_ACTION_SUMMARY").length}</span></div>
+                              <div>To Watch: <span className="font-semibold">{openOperationalLoops.stats.overdueWatchReviews + openOperationalLoops.stats.staleWatchItems + openOperationalLoops.stats.escalatedWatchItemsWithoutOutcome}</span></div>
                             </div>
                           </div>
                         </div>
@@ -4116,6 +4121,7 @@ ${ungroupedSequenceText}
                                 {Number.isFinite(issue.details?.daysInactive) && (
                                   <div className="mt-1 text-[10px] font-medium text-amber-700">Days inactive: {issue.details.daysInactive}</div>
                                 )}
+                                {issue.navigationTarget?.tab && <button type="button" onClick={() => setActiveTab(issue.navigationTarget.tab)} className="mt-2 rounded border border-amber-200 bg-white px-2 py-1 text-[10px] font-semibold text-amber-900">Open {issue.recordType === "watchItems" ? "To Watch" : "Strategy"}</button>}
                               </div>
                             ))}
                           </div>
