@@ -16,6 +16,15 @@ test("AI-facing GPT delta instructions describe the current v1 and v2 contract",
   assert.doesNotMatch(caseDetailSource, /GPT delta updates are currently limited to actionSummary and strategy patches/);
 });
 
+test("AI-facing instructions describe v3 controlled monitoring operations", () => {
+  assert.match(caseDetailSource, /gpt-delta-3\.0 supports structured operations\.patch\.strategy/);
+  assert.match(caseDetailSource, /operations\.create\.watchItems and operations\.patch\.watchItems/);
+  assert.match(caseDetailSource, /append-only operations\.append\.watchObservations/);
+  assert.match(caseDetailSource, /A To Watch item is a monitored or developing concern/);
+  assert.match(gptDeltaModalSource, /Creates a monitored concern, not an Incident/);
+  assert.match(gptDeltaModalSource, /Watch Observations \(Append Only\)/);
+});
+
 test("GPT delta UI copy warns about forbidden fields, ID rules, and full replacement arrays", () => {
   assert.match(gptDeltaModalSource, /gpt-delta-1\.0 supports only actionSummary and strategy patches/);
   assert.match(gptDeltaModalSource, /gpt-delta-2\.0 supports incident, evidence, document, and ledger creates/);

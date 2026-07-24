@@ -23,6 +23,7 @@ export default function GptDeltaModal({
           <p className="mt-1 text-sm text-neutral-600">
             Paste a ProveIt GPT delta, validate it, then review the supported changes before applying.
             gpt-delta-1.0 supports only actionSummary and strategy patches. gpt-delta-2.0 supports incident, evidence, document, and ledger creates, plus incident, evidence, document, ledger, and strategy patches.
+            gpt-delta-3.0 supports structured Strategy patches and controlled To Watch create, patch, and observation-append operations.
             Use sequence-group-delta-1.0 for sequence group cleanup.
           </p>
         </div>
@@ -163,6 +164,7 @@ export default function GptDeltaModal({
                             {item.changes.map((change) => (
                               <div key={`${item.id}-${change.field}`} className="rounded border border-neutral-100 bg-neutral-50 p-2">
                                 <div className="text-xs font-bold text-neutral-800">{change.field}</div>
+                                {change.replacement && <div className="text-[10px] font-semibold text-amber-700">This array will be fully replaced.</div>}
                                 <div className="mt-1 grid gap-2 sm:grid-cols-2">
                                   <div>
                                     <span className="block text-[10px] font-bold uppercase text-neutral-400">Before</span>
@@ -196,6 +198,7 @@ export default function GptDeltaModal({
                           <span className="font-medium">{item.title}</span>
                           <span className="break-all font-mono text-xs text-neutral-500">{item.id}</span>
                         </div>
+                        {item.escalatedWarning && <p className="mt-2 rounded bg-amber-50 p-2 text-xs font-semibold text-amber-800">Status changes to escalated. This does not create an Incident or Strategy.</p>}
                         {item.changes?.length > 0 && (
                           <div className="mt-2 space-y-2">
                             {item.changes.map((change) => (
@@ -239,6 +242,16 @@ export default function GptDeltaModal({
                             tempId <span className="font-mono">{item.tempId}</span>
                           </div>
                         )}
+                        {item.clientId && <div className="mt-1 text-xs text-neutral-500">clientId <span className="font-mono">{item.clientId}</span></div>}
+                        {item.recordType?.includes("monitored concern") && (
+                          <div className="mt-2 text-xs text-neutral-700">
+                            <p className="font-semibold text-amber-800">Creates a monitored concern, not an Incident.</p>
+                            <p>{[item.category, item.priority, item.status].filter(Boolean).join(" · ")}</p>
+                            {item.watchFor && <p className="mt-1"><strong>Watching for:</strong> {item.watchFor}</p>}
+                            {item.triggerConditions?.length > 0 && <p className="mt-1"><strong>Trigger conditions:</strong> {item.triggerConditions.join("; ")}</p>}
+                            {(item.linkedPartyIds?.length > 0 || item.linkedRecordIds?.length > 0) && <p className="mt-1"><strong>Related IDs:</strong> {[...(item.linkedPartyIds || []), ...(item.linkedRecordIds || [])].join(", ")}</p>}
+                          </div>
+                        )}
                         {item.links && Object.keys(item.links).length > 0 && (
                           <div className="mt-2 text-xs text-neutral-600">
                             <span className="font-semibold text-neutral-800">Links:</span>{" "}
@@ -252,6 +265,17 @@ export default function GptDeltaModal({
                       </li>
                     ))}
                   </ul>
+                </div>
+              )}
+
+              {preview.observationAppends?.length > 0 && (
+                <div className="mt-4">
+                  <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">Watch Observations (Append Only)</span>
+                  <ul className="mt-2 space-y-2">{preview.observationAppends.map((item, index) => (
+                    <li key={`${item.watchItemId}-${index}`} className="rounded-md bg-white p-2 text-xs">
+                      <div className="font-semibold">{item.title} · {item.date}</div><p className="mt-1 whitespace-pre-wrap">{item.text}</p>
+                    </li>
+                  ))}</ul>
                 </div>
               )}
 
@@ -270,8 +294,22 @@ export default function GptDeltaModal({
                 </div>
               )}
 
+              {preview.clientIdMappings?.length > 0 && (
+                <div className="mt-4"><span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">Client ID Mapping</span>
+                  <ul className="mt-2 space-y-1">{preview.clientIdMappings.map((item) => <li key={item.clientId} className="rounded-md bg-white px-2 py-1 font-mono text-xs">{item.clientId} -&gt; {item.finalId}</li>)}</ul>
+                </div>
+              )}
+
+              {preview.resultSummary && Object.values(preview.resultSummary).some((value) => value > 0) && (
+                <div className="mt-4"><span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">Application Summary</span>
+                  <p className="mt-1 text-xs">{Object.entries(preview.resultSummary).filter(([, value]) => value > 0).map(([key, value]) => `${key}: ${value}`).join(" · ")}</p>
+                </div>
+              )}
+
               <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs font-medium text-amber-800">
-                gpt-delta-2.0 does not support actionSummary patches or strategy creates. Patch IDs must be existing record IDs; create links may use tempId values that are declared in the same delta.
+                {preview.contractVersion === "gpt-delta-3.0"
+                  ? "To Watch records are monitored concerns, not confirmed incidents or evidence. v3 cannot convert or delete records, create Strategy or factual records, change attachments, or replace observation history."
+                  : "gpt-delta-2.0 does not support actionSummary patches or strategy creates. Patch IDs must be existing record IDs; create links may use tempId values that are declared in the same delta."}
               </p>
             </div>
           )}

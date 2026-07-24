@@ -124,8 +124,8 @@ test("ingestGptDelta rejects wrong app", () => {
   assert.deepEqual(result, { ok: false, reason: "Unsupported GPT delta contract." });
 });
 
-test("ingestGptDelta rejects wrong contractVersion", () => {
-  const result = ingestGptDelta(baseCase(), delta({}, { contractVersion: "gpt-delta-3.0" }));
+test("ingestGptDelta rejects unsupported contractVersion", () => {
+  const result = ingestGptDelta(baseCase(), delta({}, { contractVersion: "gpt-delta-4.0" }));
 
   assert.deepEqual(result, { ok: false, reason: "Unsupported GPT delta contract." });
 });

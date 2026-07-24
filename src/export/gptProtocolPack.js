@@ -242,6 +242,20 @@ const PROTOCOL_SECTIONS = [
     bullets: REQUIRED_SAFE_RULES,
   },
   {
+    id: "gpt-delta-3-contract",
+    title: "gpt-delta-3.0 Strategy and To Watch Contract",
+    summary: "gpt-delta-3.0 adds structured Strategy patches and controlled monitored-concern operations without changing gpt-delta-1.0 or gpt-delta-2.0.",
+    bullets: [
+      "Supported operations are operations.patch.strategy, operations.create.watchItems, operations.patch.watchItems, and append-only operations.append.watchObservations.",
+      "Structured Strategy patches may include strategyType, objective, rationale, desiredOutcome, priority, reviewDate, decisionStatus, ownerPartyId, assumptions, risks, and nextSteps, in addition to the compatible Strategy fields.",
+      "Array patch fields are complete replacements. Watch observation history cannot be replaced; observations can only be appended with a validated date and text.",
+      "All record and party IDs must resolve in the current case. clientId maps a new watch item in the result but is not persisted and cannot be used as a same-delta link.",
+      "gpt-delta-3.0 cannot create Incidents, Evidence, Documents, Ledger records, or Strategy records; convert records; change IDs or attachments; or delete records or observations.",
+      "A To Watch item is a monitored or developing concern. It is not evidence and must not be described as a confirmed incident unless the user separately records and verifies it.",
+      "Existing gpt-delta-1.0 and gpt-delta-2.0 contracts retain their historical operation sets and semantics.",
+    ],
+  },
+  {
     id: "examples",
     title: "Examples",
     summary: "These examples show safe output shapes and wording. They are reference examples, not data from the current case.",

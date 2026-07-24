@@ -26,6 +26,7 @@ const REQUIRED_SECTIONS = [
   "Unsupported Contracts",
   "Strategy Limitation",
   "Safe Output Rules",
+  "gpt-delta-3.0 Strategy and To Watch Contract",
   "Examples",
   "Forbidden Behavior",
 ];
@@ -94,6 +95,15 @@ test("protocol JSON documents the real gpt-delta-2.0 contract", () => {
   assert.match(serialized, /Not supported: strategy create/);
   assert.match(serialized, /Strategy create is not supported in gpt-delta-2\.0/);
   assert.match(serialized, /Strategy patch is supported in gpt-delta-2\.0/);
+});
+
+test("protocol documents gpt-delta-3.0 without changing historical v1/v2 rules", () => {
+  const serialized = JSON.stringify(exportGptProtocolPackJson());
+  assert.match(serialized, /gpt-delta-3\.0 Strategy and To Watch Contract/);
+  assert.match(serialized, /operations\.append\.watchObservations/);
+  assert.match(serialized, /monitored or developing concern/);
+  assert.match(serialized, /not evidence and must not be described as a confirmed incident/);
+  assert.match(serialized, /Existing gpt-delta-1\.0 and gpt-delta-2\.0 contracts retain their historical/);
 });
 
 test("protocol JSON includes accepted create and patch examples plus invalid wrappers", () => {

@@ -10,6 +10,7 @@ import {
   upsertLedgerEntryInCase,
   upsertRecordInCase,
 } from "../domain/caseDomain.js";
+import { buildGptV3Preview, ingestGptV3Delta } from "./gptDeltaV3.js";
 
 const SUPPORTED_PATCH_SECTIONS = ["actionSummary", "strategy"];
 const SUPPORTED_V2_PATCH_SECTIONS = ["incidents", "evidence", "documents", "ledger", "strategy"];
@@ -1490,6 +1491,9 @@ export function ingestGptV2Delta(caseItem, payload) {
 }
 
 export function ingestGptDelta(caseItem, payload) {
+  if (getPayloadContractVersion(payload) === "gpt-delta-3.0") {
+    return ingestGptV3Delta(caseItem, payload);
+  }
   if (getPayloadContractVersion(payload) === "gpt-delta-2.0") {
     return ingestGptV2Delta(caseItem, payload);
   }
@@ -1573,6 +1577,7 @@ function buildFieldChanges(fields, currentSource = {}, updatedSource = {}) {
 }
 
 export function buildGptDeltaPreview(payload, currentCase, updatedCase, resultMeta = []) {
+  if (getPayloadContractVersion(payload) === "gpt-delta-3.0") return buildGptV3Preview(payload, currentCase, updatedCase, resultMeta);
   const patch = payload?.operations?.patch || {};
   const create = payload?.operations?.create || {};
   const metadata = Array.isArray(resultMeta) ? { warnings: resultMeta } : (resultMeta || {});
