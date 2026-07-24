@@ -15,6 +15,10 @@ import {
   buildExecutiveSummaryReport,
   buildLedgerPackReport,
   buildThreadIssueReport,
+  buildStrategyReportItem,
+  buildWatchReportItem,
+  classifyReportReviewDate,
+  getCurrentWatchItems,
 } from "./reportBuilder.js";
 
 function buildCase() {
@@ -127,6 +131,69 @@ function buildCase() {
     ],
   };
 }
+
+test("structured strategy projection prefers objective and resolves planning metadata", () => {
+  const source = { id: "s1", title: "Plan", objective: "Primary objective", description: "Primary objective", rationale: "Because", desiredOutcome: "Resolved", priority: "high", reviewDate: "2026-07-23", ownerPartyId: "p1", assumptions: [" Assumption "], risks: [{ text: "Risk" }], nextSteps: ["Act"] };
+  const caseItem = { parties: [{ id: "p1", displayName: "Case Owner" }] };
+  const item = buildStrategyReportItem(caseItem, source, "2026-07-24");
+  assert.equal(item.objective, "Primary objective");
+  assert.equal(item.legacyDescription, "");
+  assert.equal(item.ownerName, "Case Owner");
+  assert.equal(item.reviewState, "overdue");
+  assert.deepEqual(item.risks, ["Risk"]);
+  assert.deepEqual(item.assumptions, ["Assumption"]);
+  assert.deepEqual(item.nextSteps, ["Act"]);
+  assert.equal(item.desiredOutcome, "Resolved");
+});
+
+test("legacy strategy projection falls back to description and tolerates missing owner", () => {
+  const item = buildStrategyReportItem({}, { id: "legacy", title: "Legacy", description: "Legacy plan", ownerPartyId: "missing" }, "2026-07-24");
+  assert.equal(item.objective, "Legacy plan");
+  assert.equal(item.ownerName, "");
+  assert.deepEqual(item.risks, []);
+});
+
+test("watch projection is explicitly monitored, bounded, and resolves links safely", () => {
+  const caseItem = { parties: [{ id: "p1", displayName: "Alex" }], incidents: [{ id: "i1", title: "Recorded incident" }] };
+  const item = buildWatchReportItem(caseItem, { id: "w1", title: "Developing issue", status: "watching", watchFor: "A change", latestObservation: "Unconfirmed update", triggerConditions: ["Threshold reached"], reviewDate: "2026-08-01", linkedPartyIds: ["p1", "missing"], linkedRecordIds: ["i1", "missing"], observations: [{ id: "o1", date: "2026-07-20", text: "One" }, { id: "o2", date: "2026-07-21", text: "Two" }, { id: "o3", date: "2026-07-22", text: "Three" }, { id: "o4", date: "2026-07-23", text: "Four" }] }, "2026-07-24");
+  assert.equal(item.recordLabel, "Monitored concern");
+  assert.equal(item.reviewState, "due_soon");
+  assert.equal(item.recentObservations.length, 3);
+  assert.deepEqual(item.relatedParties, ["Alex"]);
+  assert.equal(item.linkedRecords[1].status, "missing");
+});
+
+test("watch current selection excludes resolved and archived items", () => {
+  const items = getCurrentWatchItems({ watchItems: [{ id: "a", title: "Active", status: "watching" }, { id: "r", title: "Resolved", status: "resolved" }, { id: "x", title: "Archived", status: "archived" }] });
+  assert.deepEqual(items.map((item) => item.id), ["a"]);
+  assert.equal(classifyReportReviewDate("2026-08-07", "2026-07-24"), "due_soon");
+  assert.equal(classifyReportReviewDate("2026-08-08", "2026-07-24"), "scheduled");
+});
+
+test("thread report scopes watch items by group or direct links and excludes unrelated monitoring", () => {
+  const caseItem = buildCase();
+  caseItem.watchItems = [
+    { id: "w-group", title: "Grouped watch", status: "watching", sequenceGroup: "Leak thread" },
+    { id: "w-linked", title: "Linked watch", status: "watching", linkedRecordIds: ["inc-1"] },
+    { id: "w-other", title: "Unrelated watch", status: "watching", sequenceGroup: "Noise thread" },
+  ];
+  const report = buildThreadIssueReport(caseItem, "Leak thread", { today: "2026-07-24" });
+  assert.deepEqual(report.watchItems.map((item) => item.id).sort(), ["w-group", "w-linked"]);
+  assert.match(report.watchDisclaimer, /not be treated as confirmed incidents or established facts/);
+  assert.equal(report.chronology.some((item) => item.recordType === "watch"), false);
+});
+
+test("executive and bundle reports include prioritized and separated watch projections", () => {
+  const caseItem = buildCase();
+  caseItem.strategy[0] = { ...caseItem.strategy[0], objective: "Obtain repair commitment", priority: "critical", nextSteps: ["Send request"] };
+  caseItem.watchItems = [{ id: "w1", title: "Response delay", status: "watching", priority: "high", latestObservation: "No reply yet", reviewDate: "2026-07-23" }, { id: "w2", title: "Closed concern", status: "resolved", outcome: "Reply received" }];
+  const executive = buildExecutiveSummaryReport(caseItem, { today: "2026-07-24" });
+  assert.equal(executive.priorityStrategies[0].objective, "Obtain repair commitment");
+  assert.deepEqual(executive.priorityWatchItems.map((item) => item.id), ["w1"]);
+  const bundle = buildCaseBundleReport(caseItem, { scopeType: "case" });
+  assert.deepEqual(bundle.sections.strategyActions.watchItems.map((item) => item.id), ["w1"]);
+  assert.deepEqual(bundle.sections.strategyActions.closedWatchItems.map((item) => item.id), ["w2"]);
+});
 
 test("buildThreadIssueReport builds a structured report for a sequenceGroup", () => {
   const report = buildThreadIssueReport(buildCase(), "Leak thread", {

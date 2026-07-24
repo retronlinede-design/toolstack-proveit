@@ -4,6 +4,7 @@ import {
   parseExecutivePolishSections,
   parseManagementReportV1Polish,
 } from "../../report/executiveSummaryPolish.js";
+import { StrategyReportCards, WatchReportCards } from "./PlanningReportSections.jsx";
 
 function safeText(value) {
   return typeof value === "string" ? value : "";
@@ -727,6 +728,8 @@ export default function ExecutiveSummaryReportArticle({
             <p className="mt-2 text-sm leading-6 text-neutral-800">{report.managementQuestion || "Not specified"}</p>
           </div>
         </section>
+
+        {(report.priorityStrategies?.length > 0 || report.priorityWatchItems?.length > 0) && <section className="border-b border-neutral-200 py-7 print:py-5"><h2 className="text-base font-semibold text-neutral-950">Strategy and Monitoring Priorities</h2>{report.priorityStrategies?.length > 0 && <><h3 className="mt-4 text-sm font-bold uppercase tracking-wider text-neutral-500">Priority Strategy</h3><StrategyReportCards items={report.priorityStrategies}/></>}{report.priorityWatchItems?.length > 0 && <><h3 className="mt-6 text-sm font-bold uppercase tracking-wider text-neutral-500">Matters to Watch</h3><WatchReportCards items={report.priorityWatchItems} disclaimer={report.watchDisclaimer}/></>}</section>}
 
         <ChainSummaryStrip chainSummary={report.chainSummary} ungroupedSummary={report.ungroupedSummary} />
 

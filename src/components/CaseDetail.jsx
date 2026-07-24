@@ -56,7 +56,7 @@ import {
   buildWeakLinksAuditMarkdownPrompt,
   buildWeakLinksAuditPack,
 } from "../export/gptAuditPacks.js";
-import { buildCaseBundleReport, buildDocumentPackReport, buildEvidencePackReport, buildExecutiveSummaryNarrativePolishPrompt, buildExecutiveSummaryReport, buildLedgerPackReport, buildThreadIssueReport } from "../report/reportBuilder.js";
+import { buildCaseBundleReport, buildDocumentPackReport, buildEvidencePackReport, buildExecutiveSummaryNarrativePolishPrompt, buildExecutiveSummaryReport, buildLedgerPackReport, buildStrategyReportItem, buildThreadIssueReport, getCurrentWatchItems } from "../report/reportBuilder.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import LinkedChip from "./LinkedChip";
 import RecordCard from "./RecordCard";
@@ -455,6 +455,7 @@ export default function CaseDetail({
     const chronologyGaps = diagnostics.chronology?.missingDateRecords || [];
     const strategyRecords = (selectedCase.strategy || [])
       .filter((item) => item?.id && !["done", "closed", "archived"].includes(item.status));
+    const watchItems = getCurrentWatchItems(selectedCase);
     const openTasks = (selectedCase.tasks || [])
       .filter((item) => item?.id && !["done", "closed", "archived"].includes(item.status));
     const sequenceGroup = reportCentreScope.sequenceGroup;
@@ -482,7 +483,8 @@ export default function CaseDetail({
       importantReminders: normalizedActionSummary.importantReminders.filter(mentionsScope),
       strategyFocus: normalizedActionSummary.strategyFocus.filter(mentionsScope),
       criticalDeadlines: normalizedActionSummary.criticalDeadlines.filter(mentionsScope),
-      openStrategyRecords: strategyRecords.filter((item) => mentionsScope(`${item.title} ${item.description} ${item.notes} ${item.sequenceGroup}`)),
+      openStrategyRecords: strategyRecords.filter((item) => mentionsScope(`${item.title} ${item.objective} ${item.description} ${item.notes} ${item.sequenceGroup}`)).map((item) => buildStrategyReportItem(selectedCase, item)),
+      watchItems: watchItems.filter((item) => mentionsScope(`${item.title} ${item.watchFor} ${item.rationale} ${item.sequenceGroup}`)),
       openTasks: openTasks.filter((item) => mentionsScope(`${item.title} ${item.description} ${item.notes} ${item.sequenceGroup}`)),
       risks: [
         ...unsupportedIncidents.map((item) => ({ id: `unsupported-${item.id}`, label: "Unsupported incident", text: item.title })),
@@ -3147,6 +3149,7 @@ Rules:
       ...(caseItem?.evidence || []).map((record) => ({ ...record, sequenceType: "evidence" })),
       ...(caseItem?.documents || []).map((record) => ({ ...record, sequenceType: "document" })),
       ...(caseItem?.strategy || []).map((record) => ({ ...record, sequenceType: "strategy" })),
+      ...(caseItem?.watchItems || []).map((record) => ({ ...record, sequenceType: "monitored concern" })),
     ];
     const getSequenceRecordTitle = (record) => record.title || record.label || record.id || "Untitled record";
     const getSequenceRecordDate = (record) =>
@@ -3194,6 +3197,7 @@ Rules:
 - Evidence: ${nodeCounts.evidence || 0}
 - Documents: ${documentCount}
 - Strategy: ${nodeCounts.strategy || 0}
+- To Watch: ${(caseItem?.watchItems || []).length}
 
 ## LINK INTEGRITY
 
@@ -3403,13 +3407,15 @@ ${ungroupedSequenceText}
         <section className="grid gap-6 border-b border-neutral-200 py-6 print:py-5 lg:grid-cols-2">
           <div>
             <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Open Strategy Records</h2>
-            {renderActionPlanList(report.openStrategyRecords, (item) => item.title || item.id)}
+            {renderActionPlanList(report.openStrategyRecords, (item) => item.objective || item.title || item.id)}
           </div>
           <div>
             <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Open Tasks</h2>
             {renderActionPlanList(report.openTasks, (item) => item.title || item.id)}
           </div>
         </section>
+
+        {report.watchItems?.length > 0 && <section className="border-b border-neutral-200 py-6 print:py-5"><h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Matters to Watch</h2><p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">Items in this section are monitored concerns or developing matters. They should not be treated as confirmed incidents or established facts unless separately recorded and supported.</p>{renderActionPlanList(report.watchItems, (item) => <><span className="font-semibold">Monitored concern: {item.title}</span>{item.watchFor ? ` — ${item.watchFor}` : ""}{item.reviewDate ? ` (review ${item.reviewDate})` : ""}</>)}</section>}
 
         <section className="border-b border-neutral-200 py-6 print:py-5">
           <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Risks And Gaps</h2>

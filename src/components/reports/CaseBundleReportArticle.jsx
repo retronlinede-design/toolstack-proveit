@@ -1,5 +1,6 @@
 import { formatReportDate } from "./reportArticleHelpers.js";
 import { ReportLinkedList } from "./ReportArticleShared.jsx";
+import { StrategyReportCards, WatchReportCards } from "./PlanningReportSections.jsx";
 
 export default function CaseBundleReportArticle({ report, className = "" }) {
   if (!report) return null;
@@ -107,11 +108,8 @@ export default function CaseBundleReportArticle({ report, className = "" }) {
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <div>
               <h3 className="text-sm font-semibold text-neutral-950">Strategy Records</h3>
-              {report.sections.strategyActions.strategyRecords.length === 0 ? <p className="mt-2 text-sm text-neutral-600">No strategy records included.</p> : (
-                <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
-                  {report.sections.strategyActions.strategyRecords.map((item) => <li key={item.id}>- {item.title}</li>)}
-                </ul>
-              )}
+              {report.sections.strategyActions.strategyRecords.length === 0 && <p className="mt-2 text-sm text-neutral-600">No strategy records included.</p>}
+              <StrategyReportCards items={report.sections.strategyActions.strategyRecords} />
             </div>
             <div>
               <h3 className="text-sm font-semibold text-neutral-950">Next Actions</h3>
@@ -122,6 +120,8 @@ export default function CaseBundleReportArticle({ report, className = "" }) {
               )}
             </div>
           </div>
+          {report.sections.strategyActions.watchItems?.length > 0 && <div className="mt-6"><h3 className="text-sm font-semibold text-neutral-950">Matters to Watch</h3><WatchReportCards items={report.sections.strategyActions.watchItems} disclaimer={report.sections.strategyActions.watchDisclaimer} showHistory /></div>}
+          {report.sections.strategyActions.closedWatchItems?.length > 0 && <div className="mt-6"><h3 className="text-sm font-semibold text-neutral-950">Resolved / Archived Monitoring Items</h3><WatchReportCards items={report.sections.strategyActions.closedWatchItems} disclaimer={report.sections.strategyActions.watchDisclaimer} showHistory /></div>}
         </section>
       )}
 

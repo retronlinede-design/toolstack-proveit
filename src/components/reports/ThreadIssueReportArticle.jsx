@@ -1,5 +1,6 @@
 import { formatReportDate, formatReportMoney } from "./reportArticleHelpers.js";
 import { GlanceGrid, ReportLinkedList, ReportTypeBadge } from "./ReportArticleShared.jsx";
+import { StrategyReportCards, WatchReportCards } from "./PlanningReportSections.jsx";
 
 function ChronologyItem({ item }) {
   return (
@@ -238,6 +239,8 @@ export default function ThreadIssueReportArticle({
 
       {visibility.strategy && (
         <section className="py-6 print:py-5">
+          {report.strategies?.length > 0 && <><h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Relevant Strategy</h2><StrategyReportCards items={report.strategies}/></>}
+          {report.watchItems?.length > 0 && <div className="mt-6"><h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Matters to Watch</h2><WatchReportCards items={report.watchItems} disclaimer={report.watchDisclaimer}/></div>}
           <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Open Questions / Next Actions</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <div>

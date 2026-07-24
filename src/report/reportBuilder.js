@@ -55,7 +55,8 @@ function getSummary(record = {}, recordType = "record") {
   if (recordType === "evidence") return shortText(record.functionSummary || record.description || record.notes || record.reviewNotes);
   if (recordType === "document") return shortText(record.summary || record.textContent || record.source || record.notes);
   if (recordType === "ledger") return shortText(record.notes || record.counterparty || record.category || record.period);
-  if (recordType === "strategy") return shortText(record.description || record.notes || record.source);
+  if (recordType === "strategy") return shortText(record.objective || record.description || record.notes || record.source);
+  if (recordType === "watch") return shortText(record.watchFor || record.latestObservation || record.rationale);
   return shortText(record.description || record.summary || record.notes);
 }
 
@@ -81,7 +82,108 @@ function collectTypedRecords(caseItem = {}) {
     ...(caseItem.documents || []).filter((record) => record?.id).map((record) => ({ record, recordType: "document" })),
     ...(caseItem.strategy || []).filter((record) => record?.id).map((record) => ({ record, recordType: "strategy" })),
     ...(caseItem.ledger || []).filter((record) => record?.id).map((record) => ({ record, recordType: "ledger" })),
+    ...(caseItem.watchItems || []).filter((record) => record?.id).map((record) => ({ record, recordType: "watch" })),
   ];
+}
+
+function strictCalendarDate(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? value : "";
+}
+
+function addCalendarDays(value, days) {
+  const valid = strictCalendarDate(value);
+  if (!valid) return "";
+  const [year, month, day] = valid.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  return date.toISOString().slice(0, 10);
+}
+
+export function classifyReportReviewDate(reviewDate, today = new Date().toISOString().slice(0, 10)) {
+  const validReviewDate = strictCalendarDate(reviewDate);
+  const validToday = strictCalendarDate(today);
+  if (!validReviewDate || !validToday) return "none";
+  if (validReviewDate < validToday) return "overdue";
+  return validReviewDate <= addCalendarDays(validToday, 14) ? "due_soon" : "scheduled";
+}
+
+function resolvePartyName(caseItem, partyId) {
+  if (!partyId) return "";
+  const party = (caseItem.parties || []).find((item) => item?.id === partyId);
+  return compactText(party?.displayName || party?.legalName || "");
+}
+
+function cleanStringList(value) {
+  return uniqueValues((Array.isArray(value) ? value : []).map((item) => typeof item === "string" ? compactText(item) : compactText(item?.text)).filter(Boolean));
+}
+
+export function buildStrategyReportItem(caseItem = {}, item = {}, today) {
+  const objective = compactText(item.objective || item.description);
+  const description = compactText(item.description);
+  return {
+    id: item.id || "",
+    title: getRecordTitle(item, "strategy"),
+    objective,
+    legacyDescription: description && description !== objective ? description : "",
+    rationale: compactText(item.rationale),
+    desiredOutcome: compactText(item.desiredOutcome),
+    strategyType: compactText(item.strategyType),
+    priority: compactText(item.priority),
+    status: compactText(item.status),
+    decisionStatus: compactText(item.decisionStatus),
+    ownerName: resolvePartyName(caseItem, item.ownerPartyId),
+    reviewDate: strictCalendarDate(item.reviewDate),
+    reviewState: classifyReportReviewDate(item.reviewDate, today),
+    assumptions: cleanStringList(item.assumptions),
+    risks: cleanStringList(item.risks),
+    nextSteps: cleanStringList(item.nextSteps),
+    sequenceGroup: compactText(item.sequenceGroup),
+    linkedRecords: resolveLinkedRecords(caseItem, item.linkedRecordIds),
+    tags: cleanStringList(item.tags),
+  };
+}
+
+export function buildWatchReportItem(caseItem = {}, item = {}, today) {
+  const observations = (Array.isArray(item.observations) ? item.observations : [])
+    .filter((observation) => compactText(observation?.text))
+    .map((observation) => ({ id: observation.id || "", date: strictCalendarDate(observation.date), text: compactText(observation.text) }))
+    .sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
+  return {
+    id: item.id || "",
+    title: getRecordTitle(item, "watch"),
+    recordLabel: "Monitored concern",
+    status: compactText(item.status) || "watching",
+    category: compactText(item.category),
+    priority: compactText(item.priority),
+    date: strictCalendarDate(item.eventDate) || strictCalendarDate(item.date),
+    reviewDate: strictCalendarDate(item.reviewDate),
+    reviewState: classifyReportReviewDate(item.reviewDate, today),
+    watchFor: compactText(item.watchFor),
+    rationale: compactText(item.rationale),
+    triggerConditions: cleanStringList(item.triggerConditions),
+    latestObservation: compactText(item.latestObservation),
+    nextCheck: compactText(item.nextCheck),
+    outcome: compactText(item.outcome),
+    recentObservations: observations.slice(0, 3),
+    observationCount: observations.length,
+    linkedRecords: resolveLinkedRecords(caseItem, item.linkedRecordIds),
+    relatedParties: uniqueValues((item.linkedPartyIds || []).map((id) => resolvePartyName(caseItem, id)).filter(Boolean)),
+    sequenceGroup: compactText(item.sequenceGroup),
+    tags: cleanStringList(item.tags),
+    updatedAt: safeText(item.updatedAt),
+  };
+}
+
+export function getCurrentWatchItems(caseItem = {}, options = {}) {
+  const excluded = new Set(["resolved", "no_longer_relevant", "archived"]);
+  return (caseItem.watchItems || []).filter((item) => item?.id && !excluded.has(item.status)).map((item) => buildWatchReportItem(caseItem, item, options.today));
+}
+
+export function getPriorityStrategies(caseItem = {}, options = {}) {
+  return (caseItem.strategy || []).filter((item) => item?.id).map((item) => buildStrategyReportItem(caseItem, item, options.today))
+    .filter((item) => ["critical", "high"].includes(item.priority) || item.reviewState === "overdue");
 }
 
 function resolveTitle(caseItem, id) {
@@ -488,9 +590,10 @@ export function buildThreadIssueReport(caseItem = {}, sequenceGroupValue = "", o
   const evidence = allRecords.filter(({ recordType }) => recordType === "evidence").map(({ record }) => record);
   const documents = allRecords.filter(({ recordType }) => recordType === "document").map(({ record }) => record);
   const strategy = allRecords.filter(({ recordType }) => recordType === "strategy").map(({ record }) => record);
+  const watchItems = allRecords.filter(({ recordType }) => recordType === "watch").map(({ record }) => record);
   const ledger = allRecords.filter(({ recordType }) => recordType === "ledger").map(({ record }) => record);
   const questionsAndActions = buildOpenQuestionsAndNextActions(caseItem, strategy, sequenceGroup);
-  const chronology = sortChronologyItems(allRecords.map(({ record, recordType }) => buildChronologyItem(record, recordType)));
+  const chronology = sortChronologyItems(allRecords.filter(({ recordType }) => recordType !== "watch").map(({ record, recordType }) => buildChronologyItem(record, recordType)));
   const chronologyByDate = groupChronologyItems(chronology);
   const diagnostics = buildThreadDiagnostics(caseItem, sequenceGroup, includedIdSet);
   const diagnosticsSummary = buildDiagnosticsSummary(diagnostics);
@@ -527,6 +630,7 @@ export function buildThreadIssueReport(caseItem = {}, sequenceGroupValue = "", o
       evidenceCount: evidence.length,
       documentCount: documents.length,
       strategyCount: strategy.length,
+      watchCount: watchItems.length,
       ledgerCount: ledger.length,
     },
     chronology,
@@ -537,6 +641,9 @@ export function buildThreadIssueReport(caseItem = {}, sequenceGroupValue = "", o
     evidenceMatrix: evidence.map((item) => buildEvidence(caseItem, item)),
     documents: documents.map((document) => buildDocument(caseItem, document)),
     ledger: ledger.map((entry) => buildLedger(caseItem, entry)),
+    strategies: strategy.map((item) => buildStrategyReportItem(caseItem, item, options.today)),
+    watchItems: watchItems.map((item) => buildWatchReportItem(caseItem, item, options.today)),
+    watchDisclaimer: "Items in this section are monitored concerns or developing matters. They should not be treated as confirmed incidents or established facts unless separately recorded and supported.",
     diagnostics,
     diagnosticsSummary,
     openQuestions: questionsAndActions.openQuestions,
@@ -927,14 +1034,10 @@ function buildStrategyActionsSummary(caseItem = {}, normalizedScope = {}, includ
   const includeRecord = (record) => !includedIds || includedIds.has(record.id);
   const strategyRecords = (caseItem.strategy || [])
     .filter((item) => item?.id && includeRecord(item))
-    .map((item) => ({
-      id: item.id,
-      title: getRecordTitle(item, "strategy"),
-      status: item.status || "",
-      date: item.eventDate || item.date || item.createdAt || "",
-      sequenceGroup: item.sequenceGroup || "",
-      summary: getSummary(item, "strategy"),
-    }));
+    .map((item) => buildStrategyReportItem(caseItem, item));
+  const watchItems = (caseItem.watchItems || [])
+    .filter((item) => item?.id && includeRecord(item))
+    .map((item) => buildWatchReportItem(caseItem, item));
   const actionSummary = caseItem.actionSummary || {};
   const includeSummaryItem = (value) => (
     normalizedScope.scopeType !== "sequenceGroup" || itemMentionsSequenceGroup(value, normalizedScope.sequenceGroup)
@@ -942,6 +1045,9 @@ function buildStrategyActionsSummary(caseItem = {}, normalizedScope = {}, includ
 
   return {
     strategyRecords,
+    watchItems: watchItems.filter((item) => !["resolved", "no_longer_relevant", "archived"].includes(item.status)),
+    closedWatchItems: watchItems.filter((item) => ["resolved", "no_longer_relevant", "archived"].includes(item.status)),
+    watchDisclaimer: "Items in this section are monitored concerns or developing matters. They should not be treated as confirmed incidents or established facts unless separately recorded and supported.",
     actionSummary: {
       currentFocus: safeText(actionSummary.currentFocus),
       nextActions: getActiveActionSummaryTexts(actionSummary.nextActions).filter(includeSummaryItem),
@@ -1776,6 +1882,13 @@ export function buildExecutiveSummaryReport(caseItem = {}, options = {}) {
   const currentPosition = getExecutiveCurrentPosition(caseItem, diagnostics);
   const risksAndConcerns = getExecutiveRisksAndConcerns(diagnostics);
   const recommendedNextSteps = getExecutiveRecommendedNextSteps(caseItem, diagnostics);
+  const priorityStrategies = getPriorityStrategies(caseItem, { today: options.today })
+    .sort((a, b) => (a.reviewState === "overdue" ? -1 : 0) - (b.reviewState === "overdue" ? -1 : 0) || a.title.localeCompare(b.title))
+    .slice(0, 5);
+  const priorityWatchItems = getCurrentWatchItems(caseItem, { today: options.today })
+    .filter((item) => ["critical", "high"].includes(item.priority) || ["overdue", "due_soon"].includes(item.reviewState))
+    .sort((a, b) => (a.reviewState === "overdue" ? -1 : 0) - (b.reviewState === "overdue" ? -1 : 0) || a.title.localeCompare(b.title))
+    .slice(0, 5);
   const atAGlance = {
     incidentCount: (caseItem.incidents || []).length,
     evidenceCount: (caseItem.evidence || []).length,
@@ -1847,6 +1960,9 @@ export function buildExecutiveSummaryReport(caseItem = {}, options = {}) {
     risksAndConcerns,
     recommendedNextSteps,
     sequenceGroupOverview,
+    priorityStrategies,
+    priorityWatchItems,
+    watchDisclaimer: "Items in this section are monitored concerns or developing matters. They should not be treated as confirmed incidents or established facts unless separately recorded and supported.",
     diagnosticsSummary: {
       unsupportedIncidentCount: diagnostics.evidenceCoverage?.incidentsNeedingEvidence?.length || 0,
       unusedEvidenceCount: diagnostics.evidenceCoverage?.unusedEvidence?.length || 0,
