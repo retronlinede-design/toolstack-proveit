@@ -1875,6 +1875,7 @@ export default function ProveItApp() {
     { id: "parties", label: "Parties" },
     { id: "incidents", label: "Incidents" },
     { id: "evidence", label: "Evidence" },
+    { id: "watch", label: "To Watch" },
     { id: "documents", label: "Documents" },
     { id: "ledger", label: "Ledger" },
     { id: "timeline", label: "Timeline" },
@@ -2738,6 +2739,7 @@ export default function ProveItApp() {
       incidents: [],
       tasks: [],
       strategy: [],
+      watchItems: [],
       parties: [],
     };
 
@@ -2789,6 +2791,7 @@ export default function ProveItApp() {
         incidents: [],
         tasks: [],
         strategy: [],
+        watchItems: [],
         parties: [],
       };
 

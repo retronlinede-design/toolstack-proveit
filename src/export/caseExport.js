@@ -60,6 +60,7 @@ export function sanitizeCaseForExport(caseItem) {
     incidents: Array.isArray(caseItem.incidents) ? caseItem.incidents.map(sanitizeRecordForExport) : [],
     tasks: Array.isArray(caseItem.tasks) ? caseItem.tasks.map(sanitizeRecordForExport) : [],
     strategy: Array.isArray(caseItem.strategy) ? caseItem.strategy.map(sanitizeRecordForExport) : [],
+    watchItems: Array.isArray(caseItem.watchItems) ? caseItem.watchItems.map(sanitizeRecordForExport) : [],
     ledger: Array.isArray(caseItem.ledger) ? caseItem.ledger.map(item => ({ ...item })) : [],
     documents: Array.isArray(caseItem.documents)
       ? caseItem.documents.map(item => ({

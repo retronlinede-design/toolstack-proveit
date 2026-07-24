@@ -158,6 +158,68 @@ export function normalizeEvidenceRole(value) {
   return EVIDENCE_ROLES.includes(value) ? value : "OTHER";
 }
 
+export const WATCH_CATEGORIES = ["conduct", "work_allocation", "management", "security", "workplace_practice", "deadline", "communication", "evidence_gap", "external_response", "other"];
+export const WATCH_STATUSES = ["watching", "escalated", "resolved", "no_longer_relevant", "archived"];
+export const WATCH_PRIORITIES = ["low", "medium", "high", "critical"];
+
+export function getStrictCalendarDate(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? value : "";
+}
+
+export function normalizeWatchObservation(item = {}) {
+  if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+  const text = safeString(item.text).trim();
+  if (!text) return null;
+  const createdAt = safeString(item.createdAt) || new Date().toISOString();
+  return {
+    id: safeString(item.id).trim() || `watch-observation-${generateId()}`,
+    date: getStrictCalendarDate(item.date),
+    text,
+    createdAt,
+  };
+}
+
+export function normalizeWatchItem(item = {}) {
+  const now = new Date().toISOString();
+  const createdAt = safeString(item.createdAt) || now;
+  const date = getStrictCalendarDate(item.date) || getStrictCalendarDate(item.eventDate) || now.slice(0, 10);
+  const status = safeString(item.status).trim().toLowerCase();
+  const category = safeString(item.category).trim().toLowerCase();
+  const priority = safeString(item.priority).trim().toLowerCase();
+  const observations = (Array.isArray(item.observations) ? item.observations : [])
+    .map(normalizeWatchObservation).filter(Boolean)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+  return {
+    id: safeString(item.id).trim() || `watch-${generateId()}`,
+    type: "watch",
+    title: safeString(item.title).trim(),
+    category: !category || WATCH_CATEGORIES.includes(category) ? category : category,
+    status: WATCH_STATUSES.includes(status) ? status : "watching",
+    priority: !priority || WATCH_PRIORITIES.includes(priority) ? priority : priority,
+    date,
+    eventDate: date,
+    reviewDate: getStrictCalendarDate(item.reviewDate),
+    watchFor: safeString(item.watchFor).trim(),
+    rationale: safeString(item.rationale).trim(),
+    triggerConditions: normalizeStringList(item.triggerConditions),
+    latestObservation: safeString(item.latestObservation).trim(),
+    nextCheck: safeString(item.nextCheck).trim(),
+    outcome: safeString(item.outcome).trim(),
+    linkedRecordIds: normalizeLinkedRecordIds(item.linkedRecordIds),
+    linkedPartyIds: normalizeLinkedRecordIds(item.linkedPartyIds),
+    sequenceGroup: normalizeSequenceGroup(item.sequenceGroup),
+    tags: normalizeStringList(item.tags),
+    attachments: Array.isArray(item.attachments) ? item.attachments : [],
+    observations,
+    source: safeString(item.source).trim() || "manual",
+    createdAt,
+    updatedAt: safeString(item.updatedAt) || createdAt,
+  };
+}
+
 export function normalizeEvidenceType(value, attachments = []) {
   if (EVIDENCE_TYPES.includes(value)) return value;
   return Array.isArray(attachments) && attachments.length > 0 ? "documented" : "observed";
@@ -661,7 +723,7 @@ export function applyRecordPatchToCase(caseItem, recordType, recordId, patch = {
   return updatedCase;
 }
 
-const SEQUENCE_GROUP_RECORD_TYPES = ["incidents", "evidence", "documents", "strategy"];
+const SEQUENCE_GROUP_RECORD_TYPES = ["incidents", "evidence", "documents", "strategy", "watchItems"];
 const CONVERTIBLE_RECORD_TYPES = ["incidents", "evidence", "documents", "strategy"];
 
 export const RECORD_TYPE_LABELS = {
@@ -669,6 +731,7 @@ export const RECORD_TYPE_LABELS = {
   evidence: "Evidence",
   documents: "Document",
   strategy: "Strategy",
+  watchItems: "To Watch",
 };
 
 function getSequenceGroupValue(value) {
@@ -696,7 +759,7 @@ export function getCaseSequenceGroups(caseItem) {
       };
 
       current.totalCount += 1;
-      current.counts[recordType] += 1;
+      current.counts[recordType] = (current.counts[recordType] || 0) + 1;
       groups.set(name, current);
     });
   });
@@ -1087,6 +1150,7 @@ export function normalizeCase(caseItem) {
   const ledger = Array.isArray(caseItem?.ledger) ? caseItem.ledger.map(normalizeLedgerEntry) : [];
   const documents = Array.isArray(caseItem?.documents) ? caseItem.documents.map(normalizeDocumentEntry) : [];
   const parties = Array.isArray(caseItem?.parties) ? caseItem.parties.map(normalizeParty) : [];
+  const watchItems = Array.isArray(caseItem?.watchItems) ? caseItem.watchItems.map(normalizeWatchItem) : [];
   const actionSummary = normalizeActionSummary(caseItem?.actionSummary || {});
   const privacyLock = normalizeCasePrivacyLock(caseItem?.privacyLock);
   const generatedReportText = normalizeGeneratedReportText(caseItem?.generatedReportText);
@@ -1109,6 +1173,7 @@ export function normalizeCase(caseItem) {
     ledger: ledger,
     documents: documents,
     parties: parties,
+    watchItems,
     actionSummary,
     privacyLock,
     generatedReportText,
@@ -1355,6 +1420,7 @@ export function cleanupDeletedRecordLinks(caseItem, deletedType, deletedId) {
     strategy: cleanupCollection(caseItem.strategy || [], { timeline: true }),
     documents: cleanupCollection(caseItem.documents || []),
     ledger: cleanupCollection(caseItem.ledger || []),
+    watchItems: cleanupCollection(caseItem.watchItems || []),
     updatedAt: caseItem.updatedAt,
   };
 }
@@ -1911,6 +1977,16 @@ export function mergeParties(existingParties = [], incomingParties = []) {
   return Array.from(partyMap.values());
 }
 
+export function mergeWatchItems(existingItems = [], incomingItems = []) {
+  const itemMap = new Map(existingItems.map((item) => [item.id, item]));
+  for (const incoming of incomingItems) {
+    const existing = itemMap.get(incoming.id);
+    const definedIncoming = Object.fromEntries(Object.entries(incoming || {}).filter(([, value]) => value !== undefined));
+    itemMap.set(incoming.id, normalizeWatchItem(existing ? { ...existing, ...definedIncoming } : incoming));
+  }
+  return Array.from(itemMap.values());
+}
+
 export function mergeCase(existingCase, incomingCase) {
   const nExisting = normalizeCase(existingCase);
   const nIncoming = normalizeCase(incomingCase);
@@ -1947,6 +2023,7 @@ export function mergeCase(existingCase, incomingCase) {
     ledger: mergeLedgerEntries(nExisting.ledger, nIncoming.ledger),
     documents: mergeDocumentEntries(nExisting.documents, nIncoming.documents),
     parties: mergeParties(nExisting.parties, nIncoming.parties),
+    watchItems: mergeWatchItems(nExisting.watchItems, Array.isArray(incomingCase?.watchItems) ? incomingCase.watchItems : []),
     actionSummary: normalizeActionSummary(
       incomingCase?.actionSummary && (
         incomingCase.actionSummary.currentFocus ||

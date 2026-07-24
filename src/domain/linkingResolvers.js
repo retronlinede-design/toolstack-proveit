@@ -110,6 +110,9 @@ export function resolveRecordById(caseData, id) {
   const ledger = (caseData.ledger || []).find((item) => item.id === id);
   if (ledger) return buildDisplayMeta(ledger, "ledger", "Ledger", ledger.notes || ledger.counterparty || "");
 
+  const watch = (caseData.watchItems || []).find((item) => item.id === id);
+  if (watch) return buildDisplayMeta(watch, "watch", "To Watch", watch.latestObservation || watch.watchFor || watch.rationale || "");
+
   return null;
 }
 

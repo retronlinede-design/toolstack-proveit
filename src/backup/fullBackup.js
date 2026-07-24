@@ -58,6 +58,10 @@ export async function buildFullBackupCase(caseItem, deps = {}) {
     (caseItem.strategy || []).map((record) => buildFullBackupRecord(record, deps))
   );
 
+  cloned.watchItems = await Promise.all(
+    (caseItem.watchItems || []).map((record) => buildFullBackupRecord(record, deps))
+  );
+
   cloned.documents = await Promise.all(
     (caseItem.documents || []).map(async (doc) => ({
       ...doc,
@@ -183,6 +187,7 @@ export async function restoreFullBackupCase(caseItem, deps = {}) {
   cloned.incidents = await Promise.all((caseItem.incidents || []).map((record) => restoreFullBackupRecord(record, scopedDeps)));
   cloned.tasks = await Promise.all((caseItem.tasks || []).map((record) => restoreFullBackupRecord(record, scopedDeps)));
   cloned.strategy = await Promise.all((caseItem.strategy || []).map((record) => restoreFullBackupRecord(record, scopedDeps)));
+  cloned.watchItems = await Promise.all((caseItem.watchItems || []).map((record) => restoreFullBackupRecord(record, scopedDeps)));
   cloned.documents = await Promise.all((caseItem.documents || []).map((doc) => restoreFullBackupDocument(doc, scopedDeps)));
 
   return cloned;

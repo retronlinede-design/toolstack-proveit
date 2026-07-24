@@ -86,6 +86,7 @@ import LedgerTab from "./caseDetail/LedgerTab";
 import PartiesTab from "./caseDetail/PartiesTab";
 import RecordsTab from "./caseDetail/RecordsTab";
 import StrategyWorkspace from "./caseDetail/StrategyWorkspace";
+import WatchWorkspace from "./caseDetail/WatchWorkspace";
 import { AI_TASK_GUIDANCE, AI_TOOL_OPTIONS, AI_WORKSPACE_SECTIONS } from "./caseDetail/aiToolsConfig.js";
 import { sortChronological } from "./caseDetail/ledgerViewHelpers";
 import {
@@ -3450,6 +3451,7 @@ ${ungroupedSequenceText}
     activeLedgerRecord,
   });
   const floatingAddActions = [
+    { label: "Add Watch Item", onClick: () => { setActiveTab("watch"); closeWorkspaceActionMenu(); } },
     { label: "Add Incident", onClick: () => handleWorkspaceAddRecord("incidents") },
     { label: "Add Evidence", onClick: () => handleWorkspaceAddRecord("evidence") },
     { label: "Add Document", onClick: handleWorkspaceAddDocument },
@@ -3462,6 +3464,7 @@ ${ungroupedSequenceText}
     { id: "timeline", label: "Timeline" },
     { id: "documents", label: "Documents" },
     { id: "ledger", label: "Ledger" },
+    { id: "watch", label: "To Watch" },
     { id: "generate-report", label: "Reports" },
   ];
   const floatingToolActions = buildFloatingToolActions({
@@ -4696,6 +4699,9 @@ ${ungroupedSequenceText}
                 onAddStrategy={() => openRecordModal("strategy")}
                 renderStrategyCard={(strategy) => renderRecordCard(strategy, "strategy")}
               />
+            )}
+            {activeTab === "watch" && (
+              <WatchWorkspace caseItem={selectedCase} onUpdateCase={onUpdateCase} />
             )}
             {activeTab === "parties" && (
               <PartiesTab

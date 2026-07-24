@@ -6,7 +6,7 @@
 
 import { STORE_NAMES } from "./dbConstants.js";
 
-export const CORE_CASE_ARRAY_FIELDS = ["incidents", "evidence", "documents", "ledger", "strategy"];
+export const CORE_CASE_ARRAY_FIELDS = ["incidents", "evidence", "documents", "ledger", "strategy", "watchItems"];
 export const EMERGENCY_BACKUP_PREFIX = "toolstack.proveit.v1.emergencyBackup.";
 
 async function getDb() {
@@ -180,7 +180,7 @@ export function collectEmbeddedCaseImageIds(caseItem) {
   const imageIds = new Set();
   if (!caseItem || typeof caseItem !== "object") return imageIds;
 
-  for (const recordType of ["evidence", "incidents", "tasks", "strategy"]) {
+  for (const recordType of ["evidence", "incidents", "tasks", "strategy", "watchItems"]) {
     const records = Array.isArray(caseItem[recordType]) ? caseItem[recordType] : [];
     for (const record of records) {
       collectAttachmentImageIds(record?.attachments, imageIds);
