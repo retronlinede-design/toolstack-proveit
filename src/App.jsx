@@ -26,6 +26,7 @@ import { downloadJson } from "./browser/downloadJson";
 import {
   buildCaseReasoningExportPayload,
 } from "./export/caseExport";
+import { buildCaseReasoningExportV3Payload } from "./export/reasoningExportV3";
 import { buildCaseLinkMapExportPayload } from "./export/linkMapExport";
 import {
   buildGptDeltaPreview,
@@ -2886,6 +2887,14 @@ export default function ProveItApp() {
     });
   };
 
+  const exportCaseReasoningExportV3 = (caseId) => {
+    const c = cases.find((item) => item.id === caseId);
+    if (!c) return;
+    const payload = buildCaseReasoningExportV3Payload(c);
+    const safeName = c.name.toLowerCase().replace(/[^a-z0-9]/g, "-");
+    downloadJson(payload, `proveit-case-reasoning-export-${safeName}-v3.json`, { space: 2 });
+  };
+
   const openEditRecordModal = (type, item, options = {}) => {
     const currentRecord = item?.id && Array.isArray(selectedCase?.[type])
       ? selectedCase[type].find((record) => record.id === item.id) || item
@@ -3855,6 +3864,15 @@ const handleRecordFiles = async (event) => {
                 >
                   <FileJson className="h-4 w-4" />
                   Reasoning Export
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectedCase && exportCaseReasoningExportV3(selectedCase.id)}
+                  disabled={!selectedCase || selectedCaseRequiresPin}
+                  className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20 disabled:cursor-not-allowed disabled:border-neutral-300 disabled:bg-neutral-100 disabled:text-neutral-400 sm:ml-2 sm:w-auto"
+                >
+                  <FileJson className="h-4 w-4" />
+                  Reasoning Export v3 — Structured Strategy and To Watch
                 </button>
               </section>
 

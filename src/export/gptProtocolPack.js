@@ -242,6 +242,21 @@ const PROTOCOL_SECTIONS = [
     bullets: REQUIRED_SAFE_RULES,
   },
   {
+    id: "reasoning-export-v3",
+    title: "Reasoning Export v3",
+    summary: "reasoning-export-3.0 is an explicit compact GPT snapshot for structured planning, monitoring, links, and local diagnostics; older reasoning exports retain their existing shapes and defaults.",
+    bullets: [
+      "Strategy projections use structured objectives, rationale, desired outcomes, risks, assumptions, next steps, ownership, review state, compact links, and record diagnostics; they are labelled planning_or_analysis rather than evidence.",
+      "Active To Watch records are labelled unconfirmed_monitored_concern. Closed, archived, and no-longer-relevant monitoring items are excluded by default and represented by an omitted count.",
+      "Each watch item includes at most three valid recent observations, ordered by observation date descending with createdAt and stable ID fallbacks.",
+      "Linked records and parties are compact references, not recursively embedded records. Missing links are represented by diagnostics and never fabricated.",
+      "The diagnostic summary includes overdue Strategy and watch reviews, unsupported or actionless Strategy records, stale watch items, escalation outcome gaps, and cautious trigger-review counts.",
+      "Sequence-group membership provides contextual grouping and must not be interpreted as evidentiary proof.",
+      "Reasoning Export v3 can inform a separately reviewed gpt-delta-3.0 request, but the export itself is non-importable and cannot mutate the case.",
+      "A To Watch item is a monitored or developing concern. It is not evidence and must not be treated as a confirmed incident unless separately recorded and supported.",
+    ],
+  },
+  {
     id: "gpt-delta-3-contract",
     title: "gpt-delta-3.0 Strategy and To Watch Contract",
     summary: "gpt-delta-3.0 adds structured Strategy patches and controlled monitored-concern operations without changing gpt-delta-1.0 or gpt-delta-2.0.",

@@ -26,6 +26,7 @@ const REQUIRED_SECTIONS = [
   "Unsupported Contracts",
   "Strategy Limitation",
   "Safe Output Rules",
+  "Reasoning Export v3",
   "gpt-delta-3.0 Strategy and To Watch Contract",
   "Examples",
   "Forbidden Behavior",
@@ -104,6 +105,15 @@ test("protocol documents gpt-delta-3.0 without changing historical v1/v2 rules",
   assert.match(serialized, /monitored or developing concern/);
   assert.match(serialized, /not evidence and must not be described as a confirmed incident/);
   assert.match(serialized, /Existing gpt-delta-1\.0 and gpt-delta-2\.0 contracts retain their historical/);
+});
+
+test("protocol documents compact reasoning-export-3.0 semantics", () => {
+  const serialized = JSON.stringify(exportGptProtocolPackJson());
+  assert.match(serialized, /reasoning-export-3\.0/);
+  assert.match(serialized, /at most three valid recent observations/);
+  assert.match(serialized, /unconfirmed_monitored_concern/);
+  assert.match(serialized, /gpt-delta-3\.0 request/);
+  assert.match(serialized, /not evidence and must not be treated as a confirmed incident/);
 });
 
 test("protocol JSON includes accepted create and patch examples plus invalid wrappers", () => {
