@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { buildFloatingToolActions } from "./workspaceToolActions.js";
 
-test("floating workspace menu leaves AI access to the dedicated AI button", () => {
+test("floating Tools menu keeps AI access separate from investigation tool actions", () => {
   const calls = [];
   const actions = buildFloatingToolActions({
     handleWorkspaceOpenSequenceGroups: () => calls.push("groups"),

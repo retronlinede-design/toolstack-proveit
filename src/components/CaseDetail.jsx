@@ -952,35 +952,6 @@ export default function CaseDetail({
     setWorkspaceActionMenuOpen(false);
   }
 
-  function handleWorkspaceAddRecord(recordType) {
-    openRecordModal(recordType);
-    closeWorkspaceActionMenu();
-  }
-
-  function handleWorkspaceAddDocument() {
-    openDocumentModal();
-    closeWorkspaceActionMenu();
-  }
-
-  function handleWorkspaceAddLedgerEntry() {
-    openLedgerModal();
-    closeWorkspaceActionMenu();
-  }
-
-  function handleWorkspaceAddIdea() {
-    if (!selectedCase) return;
-    const newIdea = { id: Date.now().toString(), title: "New idea", description: "", status: "raw" };
-    const updatedIdeas = [...(selectedCase.ideas || []), newIdea];
-    setIdeas(updatedIdeas);
-    onUpdateCase({ ...selectedCase, ideas: updatedIdeas });
-    closeWorkspaceActionMenu();
-  }
-
-  function handleWorkspaceNavigate(tabId) {
-    setActiveTab(tabId);
-    closeWorkspaceActionMenu();
-  }
-
   function handleWorkspaceOpenSequenceGroups() {
     openSequenceGroupManager();
     closeWorkspaceActionMenu();
@@ -3432,23 +3403,6 @@ ${ungroupedSequenceText}
     incidentDateRepairOpen,
     activeLedgerRecord,
   });
-  const floatingAddActions = [
-    { label: "Add Watch Item", onClick: () => { setActiveTab("watch"); closeWorkspaceActionMenu(); } },
-    { label: "Add Incident", onClick: () => handleWorkspaceAddRecord("incidents") },
-    { label: "Add Evidence", onClick: () => handleWorkspaceAddRecord("evidence") },
-    { label: "Add Document", onClick: handleWorkspaceAddDocument },
-    { label: "Add Ledger Entry", onClick: handleWorkspaceAddLedgerEntry },
-    { label: "Add Strategy", onClick: () => handleWorkspaceAddRecord("strategy") },
-    { label: "Add Idea", onClick: handleWorkspaceAddIdea },
-  ];
-  const floatingNavigationActions = [
-    { id: "overview", label: "Overview" },
-    { id: "timeline", label: "Timeline" },
-    { id: "documents", label: "Documents" },
-    { id: "ledger", label: "Ledger" },
-    { id: "watch", label: "To Watch" },
-    { id: "generate-report", label: "Reports" },
-  ];
   const floatingToolActions = buildFloatingToolActions({
     handleWorkspaceOpenSequenceGroups,
     handleWorkspaceOpenSequenceGroupAuditExport,
@@ -7329,12 +7283,8 @@ ${ungroupedSequenceText}
       <FloatingWorkspaceMenu
         visible={showFloatingWorkspaceMenu}
         open={workspaceActionMenuOpen}
-        activeTab={activeTab}
-        addActions={floatingAddActions}
-        navigationActions={floatingNavigationActions}
         toolActions={floatingToolActions}
         onClose={closeWorkspaceActionMenu}
-        onNavigate={handleWorkspaceNavigate}
         onOpenAiWorkspace={() => openAiTool(activeAiTool || "management-report-builder-pack")}
         onBackToTop={handleWorkspaceBackToTop}
         onToggleOpen={() => setWorkspaceActionMenuOpen((open) => !open)}
