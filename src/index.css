@@ -45,6 +45,45 @@
   background: color-mix(in srgb, var(--case-surface) 82%, var(--case-app-bg));
 }
 
+.case-dashboard-shell .case-workspace-header,
+.case-dashboard-shell .case-workspace-metric {
+  border-color: var(--case-border);
+  background: var(--case-surface);
+}
+
+.case-dashboard-shell .case-workspace-header {
+  box-shadow: 0 1px 2px rgb(17 24 39 / 0.04);
+}
+
+.case-dashboard-shell .case-workspace-metric {
+  background: color-mix(in srgb, var(--case-surface) 82%, var(--case-app-bg));
+}
+
+.case-dashboard-shell .case-toolbar-group {
+  min-width: 0;
+}
+
+.case-dashboard-shell .case-toolbar-label {
+  margin-bottom: 0.25rem;
+  color: var(--case-muted);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.case-dashboard-shell .case-toolbar-critical {
+  border-color: color-mix(in srgb, var(--case-accent) 25%, var(--case-border));
+}
+
+.case-dashboard-shell .case-workspace-tabs [aria-current="page"] {
+  color: var(--case-accent);
+}
+
+.case-dashboard-shell .case-workspace-tab-indicator {
+  background: var(--case-accent);
+}
+
 .case-dashboard-shell .case-folder-card,
 .case-dashboard-shell .case-management-card {
   border-color: var(--case-border);

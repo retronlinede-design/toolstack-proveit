@@ -3537,17 +3537,25 @@ ${ungroupedSequenceText}
     formatCaseHeaderDate(selectedCase.createdAt) ? { label: "Created", value: formatCaseHeaderDate(selectedCase.createdAt) } : null,
     formatCaseHeaderDate(selectedCase.updatedAt) ? { label: "Updated", value: formatCaseHeaderDate(selectedCase.updatedAt) } : null,
   ].filter(Boolean);
+  const caseHeaderMetrics = [
+    { label: "Incidents", value: (selectedCase.incidents || []).length },
+    { label: "Evidence", value: (selectedCase.evidence || []).length },
+    { label: "Documents", value: (selectedCase.documents || []).length },
+    { label: "Strategy", value: (selectedCase.strategy || []).length },
+    { label: "Timeline", value: timelineItems.length },
+    { label: "Sequence Groups", value: sequenceGroupDetails.groups.length },
+  ];
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden">
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+      <div className="case-workspace-header rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5 print:hidden">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <div className="min-w-0">
-          <button onClick={() => setSelectedCaseId(null)} className="mb-3 text-sm font-medium text-neutral-500 underline-offset-4 hover:underline">
+          <button onClick={() => setSelectedCaseId(null)} className="mb-2 text-sm font-medium text-neutral-500 underline-offset-4 hover:underline">
             ← Back to Cases
           </button>
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <h2 className="min-w-0 text-3xl font-semibold leading-tight text-neutral-950">{selectedCase.name}</h2>
+            <h2 className="min-w-0 text-2xl font-semibold leading-tight text-neutral-950 sm:text-3xl">{selectedCase.name}</h2>
             <button onClick={() => openEditCaseModal(selectedCase)} className="rounded-lg border border-neutral-200 bg-white px-2.5 py-1 text-xs font-semibold text-neutral-600 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1">
               Edit
             </button>
@@ -3556,13 +3564,6 @@ ${ungroupedSequenceText}
               className="rounded-lg border border-neutral-200 bg-white px-2.5 py-1 text-xs font-semibold text-neutral-600 transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
             >
               {isPinLocked ? "Manage PIN" : "Set PIN"}
-            </button>
-            <button
-              type="button"
-              onClick={openSequenceGroupManager}
-              className="rounded-lg border border-neutral-200 bg-white px-2.5 py-1 text-xs font-semibold text-neutral-600 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
-            >
-              Open Sequence Group Manager
             </button>
           </div>
           <p className="mt-1 text-sm font-medium text-neutral-500">{caseHeaderSubtitle}</p>
@@ -3579,9 +3580,19 @@ ${ungroupedSequenceText}
             {isPinLocked ? "Privacy lock: PIN enabled" : "Privacy lock: off"}
           </p>
           {selectedCase.notes ? <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-700">{selectedCase.notes}</p> : null}
+          <div className="case-workspace-metrics mt-4 flex flex-wrap gap-1.5" aria-label="Case metrics">
+            {caseHeaderMetrics.map((metric) => (
+              <span key={metric.label} className="case-workspace-metric inline-flex items-baseline gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs text-neutral-500">
+                <strong className="font-semibold text-neutral-900">{metric.value}</strong>
+                {metric.label}
+              </span>
+            ))}
+          </div>
         </div>
-        <div className="flex flex-col items-start gap-2 lg:items-end">
-          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+        <div className="case-workspace-toolbar flex flex-col items-start gap-2 lg:items-end">
+          <div className="flex flex-wrap items-end gap-3 lg:justify-end">
+          <div className="case-toolbar-group">
+            <div className="case-toolbar-label">Case</div>
           <div className="relative">
             <button 
               onClick={() => setShowExportMenu(!showExportMenu)}
@@ -3694,6 +3705,25 @@ ${ungroupedSequenceText}
               </>
             )}
           </div>
+          </div>
+          <div className="case-toolbar-group">
+            <div className="case-toolbar-label">Analysis</div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={openSequenceGroupManager}
+                className="case-toolbar-critical flex min-h-9 items-center justify-center rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
+              >
+                Sequence Group Manager
+              </button>
+              <button
+                type="button"
+                onClick={() => openAiTool(activeAiTool || "missing-function-summaries")}
+                className="flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
+              >
+                <Briefcase className="h-3.5 w-3.5" />
+                AI Workspace
+              </button>
           {onOpenGptDeltaModal && (
             <button
               onClick={onOpenGptDeltaModal}
@@ -3703,6 +3733,8 @@ ${ungroupedSequenceText}
               GPT Update
             </button>
           )}
+            </div>
+          </div>
           </div>
           <div className="flex flex-col items-start lg:items-end">
             {syncMessage && (
@@ -3736,7 +3768,7 @@ ${ungroupedSequenceText}
 
       <div className="grid gap-6 lg:grid-cols-12">
         <div className={`${reviewQueueSection ? "lg:col-span-8" : "lg:col-span-12"} space-y-6`}>
-          <div className="border-b border-neutral-200 bg-white print:hidden">
+          <div className="case-workspace-tabs border-b border-neutral-200 bg-white print:hidden">
             {(() => {
               const workspaceTabs = tabs
                 .flatMap((tab) => tab.id === "documents" ? [tab, { id: "records", label: "Records" }] : [tab])
@@ -3767,6 +3799,7 @@ ${ungroupedSequenceText}
                         <button
                           key={tab.id}
                           onClick={() => setActiveTab(tab.id)}
+                          aria-current={isActive ? "page" : undefined}
                           className={`relative min-w-0 border-r border-neutral-100 px-1.5 py-2 text-center text-[11px] font-semibold leading-tight transition-colors duration-200 last:border-r-0 hover:rounded-md hover:bg-lime-500/30 focus:outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1 lg:px-2 lg:text-xs xl:px-3 xl:text-sm ${
                             isActive
                               ? "text-neutral-950"
@@ -3776,7 +3809,7 @@ ${ungroupedSequenceText}
                           }`}
                         >
                           <span className="block truncate">{tab.label}</span>
-                          {isActive && <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-lime-500" />}
+                          {isActive && <span className="case-workspace-tab-indicator absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-lime-500" />}
                         </button>
                       );
                     })}
