@@ -3194,7 +3194,7 @@ const handleRecordFiles = async (event) => {
   });
 
   const renderFolderTiles = () => (
-    <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm print:hidden">
+    <section className="case-folder-panel rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm print:hidden">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Folders</h2>
@@ -3208,7 +3208,7 @@ const handleRecordFiles = async (event) => {
         <button
           type="button"
           onClick={() => setFolderModalOpen(true)}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-800 shadow-sm transition-colors hover:bg-neutral-100"
+          className="case-dashboard-secondary-action inline-flex items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm transition-colors hover:bg-neutral-100"
         >
           <Settings className="h-4 w-4" />
           Manage Folders
@@ -3218,7 +3218,7 @@ const handleRecordFiles = async (event) => {
       <button
         type="button"
         onClick={() => toggleFolderView("unfiled")}
-        className={`mt-5 flex w-full max-w-xl items-center gap-3 rounded-xl border p-4 text-left transition-colors ${
+        className={`case-folder-card mt-5 flex w-full max-w-xl items-center gap-3 rounded-xl border p-4 text-left transition-colors ${
           activeFolderId === "unfiled"
             ? "border-lime-500 bg-lime-50 shadow-[0_0_0_1px_rgba(132,204,22,0.2)]"
             : "border-neutral-200 bg-neutral-50 hover:border-neutral-300 hover:bg-white"
@@ -3274,7 +3274,7 @@ const handleRecordFiles = async (event) => {
                 toggleFolderView(folder.id);
               }
             }}
-            className={`min-w-0 rounded-xl border p-4 text-left transition-colors ${
+            className={`case-folder-card min-w-0 rounded-xl border p-4 text-left transition-colors ${
               isActive
                 ? "border-lime-500 bg-lime-50 shadow-[0_0_0_1px_rgba(132,204,22,0.25)]"
                 : "border-neutral-200 bg-neutral-50 hover:border-neutral-300 hover:bg-white"
@@ -3475,7 +3475,7 @@ const handleRecordFiles = async (event) => {
               <div
                 key={c.id}
                 onClick={() => openCase(c.id)}
-                className={`flex flex-col gap-4 rounded-2xl border bg-white p-5 shadow-sm cursor-pointer transition-colors hover:border-neutral-300 lg:flex-row lg:items-start lg:justify-between ${
+                className={`case-management-card flex flex-col gap-4 rounded-2xl border bg-white p-5 shadow-sm cursor-pointer transition-colors hover:border-neutral-300 lg:flex-row lg:items-start lg:justify-between ${
                   isMostRecent && !activeCustomFolderColor
                     ? "border-lime-300 bg-lime-50/30 shadow-[0_0_0_1px_rgba(163,230,53,0.35)]"
                     : "border-neutral-200"
@@ -3515,11 +3515,11 @@ const handleRecordFiles = async (event) => {
                   )}
                   {!caseIsLocked && (
                     <div className="mt-4 flex flex-wrap gap-1.5">
-                      <span className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">
+                      <span className="case-metadata-chip rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
                         Folder: {getCaseFolderName(c)}
                       </span>
                       {caseMetadata.map((item) => (
-                        <span key={item} className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] font-bold text-neutral-600">
+                        <span key={item} className="case-metadata-chip rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] font-semibold text-neutral-600">
                           {item}
                         </span>
                       ))}
@@ -3558,7 +3558,7 @@ const handleRecordFiles = async (event) => {
                   </label>
                   <button
                     onClick={(e) => { e.stopPropagation(); openCase(c.id); }}
-                    className="rounded-xl border border-lime-500 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
+                    className="case-primary-action rounded-xl border border-lime-500 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
                   >
                     {primaryActionLabel}
                   </button>
@@ -3726,7 +3726,7 @@ const handleRecordFiles = async (event) => {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 text-neutral-800">
+    <div className={`min-h-screen bg-neutral-50 text-neutral-800 ${onCaseListPage ? "case-dashboard-shell" : ""}`}>
       {appNotice ? (
         <div className="fixed right-4 top-4 z-[120] max-w-md">
           <div
@@ -4343,7 +4343,7 @@ const handleRecordFiles = async (event) => {
         </div>
       ) : null}
       <div className="mx-auto max-w-7xl px-4 py-6">
-        <header className="proveit-app-header relative mb-3 flex flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
+        <header className="front-page-header proveit-app-header relative mb-3 flex flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <h1 className="sr-only">ProveIt</h1>
@@ -4372,12 +4372,12 @@ const handleRecordFiles = async (event) => {
         </header>
 
         {onCaseListPage ? (
-          <section className="mb-6 rounded-xl border border-lime-500 bg-lime-50 p-3 shadow-[0_0_0_1px_rgba(132,204,22,0.25)] print:hidden">
+          <section className="front-page-actions mb-6 rounded-xl border border-lime-500 bg-lime-50 p-3 shadow-[0_0_0_1px_rgba(132,204,22,0.25)] print:hidden">
             <div className="flex flex-wrap gap-2 sm:justify-end">
               <button
                 type="button"
                 onClick={openCreateCaseModal}
-                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/20 active:scale-95 sm:w-auto"
+                className="front-page-primary-action inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/20 sm:w-auto"
               >
                 <Plus className="h-4 w-4 shrink-0" />
                 <span>New Case</span>
@@ -4385,7 +4385,7 @@ const handleRecordFiles = async (event) => {
               <button
                 type="button"
                 onClick={() => setExportImportOpen(true)}
-                className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-bold text-neutral-800 shadow-sm transition-colors hover:bg-neutral-100 active:scale-95 sm:flex-none"
+                className="case-dashboard-secondary-action inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-colors hover:bg-neutral-100 sm:flex-none"
               >
                 <Download className="h-3.5 w-3.5 shrink-0" />
                 <span>Export / Import</span>
@@ -4393,7 +4393,7 @@ const handleRecordFiles = async (event) => {
               <button
                 type="button"
                 onClick={() => setSettingsOpen(true)}
-                className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-bold text-neutral-800 shadow-sm transition-colors hover:bg-neutral-100 active:scale-95 sm:flex-none"
+                className="case-dashboard-secondary-action inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-colors hover:bg-neutral-100 sm:flex-none"
               >
                 <Settings className="h-3.5 w-3.5 shrink-0" />
                 <span>Settings</span>
@@ -4401,7 +4401,7 @@ const handleRecordFiles = async (event) => {
               <button
                 type="button"
                 onClick={handleStorageDiagnostics}
-                className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-bold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-100 active:scale-95 sm:flex-none"
+                className="case-dashboard-secondary-action inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-100 sm:flex-none"
               >
                 <Database className="h-3.5 w-3.5 shrink-0" />
                 <span>Diagnostics</span>
@@ -4410,7 +4410,7 @@ const handleRecordFiles = async (event) => {
                 <button
                   type="button"
                   onClick={lockApp}
-                  className="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-bold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-100 active:scale-95 sm:flex-none"
+                  className="case-dashboard-secondary-action inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-100 sm:flex-none"
                 >
                   <Lock className="h-3.5 w-3.5 shrink-0" />
                   <span>Lock App</span>
