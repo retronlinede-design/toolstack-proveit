@@ -256,24 +256,6 @@ function getImportedFolderSource(parsed, imported) {
   };
 }
 
-function hexToRgba(hexValue, alpha = 1) {
-  const value = safeText(hexValue).trim();
-  if (!/^#[0-9a-f]{6}$/i.test(value)) return "";
-
-  const red = Number.parseInt(value.slice(1, 3), 16);
-  const green = Number.parseInt(value.slice(3, 5), 16);
-  const blue = Number.parseInt(value.slice(5, 7), 16);
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
-}
-
-function getFolderTintBackground(folderColor, alpha = 0.25) {
-  return hexToRgba(folderColor, alpha);
-}
-
-function getFolderAccentBorder(folderColor) {
-  return /^#[0-9a-f]{6}$/i.test(safeText(folderColor).trim()) ? safeText(folderColor).trim() : "";
-}
-
 function mergeImportedCaseFolders(localFolders, importedFolders, importedCases) {
   const folderMap = new Map();
 
@@ -2144,39 +2126,30 @@ export default function ProveItApp() {
   const activeCustomFolder = activeFolderId && activeFolderId !== "unfiled"
     ? caseFolders.find((folder) => folder.id === activeFolderId) || null
     : null;
-  const activeCustomFolderColor = /^#[0-9a-f]{6}$/i.test(activeCustomFolder?.color || "")
-    ? activeCustomFolder.color
-    : "";
-  const selectedFolderHeaderStyle = activeCustomFolderColor
+  const selectedFolderHeaderStyle = activeCustomFolder
     ? {
-        backgroundColor: getFolderTintBackground(activeCustomFolderColor, 0.3),
-        borderLeftColor: getFolderAccentBorder(activeCustomFolderColor),
-        borderLeftWidth: "4px",
+        backgroundColor: "var(--case-surface)",
+        borderColor: "color-mix(in srgb, var(--case-accent) 28%, var(--case-border))",
+        borderLeftColor: "var(--case-accent)",
+        borderLeftWidth: "3px",
       }
     : undefined;
-  const selectedFolderListAccentStyle = activeCustomFolderColor
+  const selectedFolderBadgeStyle = activeCustomFolder
     ? {
-        borderTopColor: getFolderAccentBorder(activeCustomFolderColor),
-        borderTopWidth: "3px",
+        backgroundColor: "color-mix(in srgb, var(--case-accent) 5%, var(--case-surface))",
+        borderColor: "color-mix(in srgb, var(--case-accent) 24%, var(--case-border))",
       }
     : undefined;
-  const selectedFolderBadgeStyle = activeCustomFolderColor
+  const selectedFolderControlStyle = activeCustomFolder
     ? {
-        backgroundColor: getFolderTintBackground(activeCustomFolderColor, 0.22),
-        borderColor: getFolderAccentBorder(activeCustomFolderColor),
+        borderColor: "color-mix(in srgb, var(--case-accent) 20%, var(--case-border))",
       }
     : undefined;
-  const selectedFolderControlStyle = activeCustomFolderColor
+  const selectedFolderCaseHighlightStyle = activeCustomFolder
     ? {
-        borderColor: getFolderTintBackground(activeCustomFolderColor, 0.45),
-        boxShadow: `inset 0 -2px 0 ${getFolderAccentBorder(activeCustomFolderColor)}`,
-      }
-    : undefined;
-  const selectedFolderCaseHighlightStyle = activeCustomFolderColor
-    ? {
-        backgroundColor: getFolderTintBackground(activeCustomFolderColor, 0.16),
-        borderColor: getFolderAccentBorder(activeCustomFolderColor),
-        boxShadow: `0 0 0 1px ${getFolderTintBackground(activeCustomFolderColor, 0.28)}`,
+        backgroundColor: "var(--case-surface)",
+        borderColor: "color-mix(in srgb, var(--case-accent) 24%, var(--case-border))",
+        boxShadow: "0 1px 3px rgb(15 23 42 / 0.06)",
       }
     : undefined;
 
@@ -3276,14 +3249,14 @@ const handleRecordFiles = async (event) => {
             }}
             className={`case-folder-card min-w-0 rounded-xl border p-4 text-left transition-colors ${
               isActive
-                ? "border-lime-500 bg-lime-50 shadow-[0_0_0_1px_rgba(132,204,22,0.25)]"
+                ? "case-folder-card-active"
                 : "border-neutral-200 bg-neutral-50 hover:border-neutral-300 hover:bg-white"
             }`}
           >
             <div className="flex min-w-0 items-start gap-3">
               <FolderIcon
                 className={`mt-0.5 h-8 w-8 shrink-0 ${isActive ? "text-lime-700" : "text-neutral-500"}`}
-                style={folder.color ? { color: folder.color } : undefined}
+                style={folder.color ? { color: `color-mix(in srgb, ${folder.color} 58%, var(--case-muted))` } : undefined}
               />
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-start justify-between gap-2">
@@ -3410,13 +3383,13 @@ const handleRecordFiles = async (event) => {
           <>
             <div
               className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm"
-              style={{ ...(selectedFolderHeaderStyle || {}), ...(selectedFolderListAccentStyle || {}) }}
+              style={selectedFolderHeaderStyle}
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Selected folder</div>
-                  {activeCustomFolderColor ? (
+                  {activeCustomFolder ? (
                     <span
                       className="inline-flex h-2.5 w-2.5 rounded-full border"
                       style={selectedFolderBadgeStyle}
@@ -3476,11 +3449,11 @@ const handleRecordFiles = async (event) => {
                 key={c.id}
                 onClick={() => openCase(c.id)}
                 className={`case-management-card flex flex-col gap-4 rounded-2xl border bg-white p-5 shadow-sm cursor-pointer transition-colors hover:border-neutral-300 lg:flex-row lg:items-start lg:justify-between ${
-                  isMostRecent && !activeCustomFolderColor
+                  isMostRecent && !activeCustomFolder
                     ? "border-lime-300 bg-lime-50/30 shadow-[0_0_0_1px_rgba(163,230,53,0.35)]"
                     : "border-neutral-200"
                 }`}
-                style={activeCustomFolderColor && isFocusedCaseCard ? selectedFolderCaseHighlightStyle : undefined}
+                style={activeCustomFolder && isFocusedCaseCard ? selectedFolderCaseHighlightStyle : undefined}
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-start gap-2">
@@ -3488,11 +3461,11 @@ const handleRecordFiles = async (event) => {
                     {!caseIsLocked && isMostRecent && (
                       <span
                         className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                          activeCustomFolderColor
+                          activeCustomFolder
                             ? "text-neutral-800"
                             : "border-lime-300 bg-lime-100 text-lime-700"
                         }`}
-                        style={activeCustomFolderColor ? selectedFolderBadgeStyle : undefined}
+                        style={activeCustomFolder ? selectedFolderBadgeStyle : undefined}
                       >
                         Most Recent
                       </span>

@@ -47,6 +47,18 @@
   transform: translateY(-1px);
 }
 
+.case-dashboard-shell .case-folder-card-active {
+  border-color: color-mix(in srgb, var(--case-accent) 28%, var(--case-border));
+  border-left: 3px solid var(--case-accent);
+  background: var(--case-surface);
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.06);
+}
+
+.case-dashboard-shell .case-folder-card-active:hover {
+  border-color: color-mix(in srgb, var(--case-accent) 38%, var(--case-border-strong));
+  border-left-color: var(--case-accent);
+}
+
 .case-dashboard-shell .case-folder-card:focus-visible,
 .case-dashboard-shell .case-folder-card:focus-within,
 .case-dashboard-shell .case-management-card:focus-within {
