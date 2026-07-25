@@ -1834,7 +1834,10 @@ export default function ProveItApp() {
     return snapshot;
   }, [quickCaptures, refreshRescueSnapshot]);
   const [showQuickCapture, setShowQuickCapture] = useState(false);
-  const reviewQueue = quickCaptures.filter((item) => item.status === "unreviewed");
+  const reviewQueue = useMemo(
+    () => quickCaptures.filter((item) => item.status === "unreviewed"),
+    [quickCaptures]
+  );
   const [captureForm, setCaptureForm] = useState(EMPTY_CAPTURE_FORM);
   const [form, setForm] = useState({ name: "", category: "general", customCategory: "", notes: "", description: "" });
 
