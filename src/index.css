@@ -84,6 +84,36 @@
   background: var(--case-accent);
 }
 
+.case-briefing {
+  --case-app-bg: #f6f7f9;
+  --case-surface: #ffffff;
+  --case-border: #e5e7eb;
+  --case-text: #111827;
+  --case-muted: #6b7280;
+  --case-accent: #7a263a;
+}
+
+.case-briefing,
+.case-briefing-control,
+.case-briefing-disclosure,
+.case-briefing-chip {
+  border-color: var(--case-border);
+  background: var(--case-surface);
+}
+
+.case-briefing {
+  box-shadow: 0 1px 2px rgb(17 24 39 / 0.04);
+}
+
+.case-briefing-chip {
+  background: color-mix(in srgb, var(--case-surface) 82%, var(--case-app-bg));
+}
+
+.case-briefing-disclosure {
+  border-color: color-mix(in srgb, var(--case-accent) 25%, var(--case-border));
+  color: var(--case-accent);
+}
+
 .case-dashboard-shell .case-folder-card,
 .case-dashboard-shell .case-management-card {
   border-color: var(--case-border);
@@ -162,6 +192,15 @@
 }
 
 @media (prefers-color-scheme: dark) {
+  .case-briefing {
+    --case-app-bg: #111318;
+    --case-surface: #1a1d24;
+    --case-border: #2d323d;
+    --case-text: #f3f4f6;
+    --case-muted: #9ca3af;
+    --case-accent: #a94b63;
+  }
+
   .case-dashboard-shell {
     --case-app-bg: #111318;
     --case-surface: #1a1d24;
@@ -178,8 +217,31 @@
   .case-dashboard-shell .case-folder-panel,
   .case-dashboard-shell .case-folder-card,
   .case-dashboard-shell .case-management-card,
-  .case-dashboard-shell .case-dashboard-secondary-action {
+  .case-dashboard-shell .case-dashboard-secondary-action,
+  .case-briefing,
+  .case-briefing-control,
+  .case-briefing-chip {
     color: var(--case-text);
+  }
+
+  .case-briefing :is(.bg-white, .bg-neutral-50, .bg-lime-50) {
+    background: color-mix(in srgb, var(--case-surface) 88%, var(--case-app-bg));
+  }
+
+  .case-briefing :is(.border-neutral-100, .border-neutral-200, .border-lime-200, .border-lime-300) {
+    border-color: var(--case-border);
+  }
+
+  .case-briefing :is(.text-neutral-900, .text-neutral-800, .text-neutral-700) {
+    color: var(--case-text);
+  }
+
+  .case-briefing :is(.text-neutral-600, .text-neutral-500, .text-neutral-400) {
+    color: var(--case-muted);
+  }
+
+  .case-briefing :is(.text-lime-700, .text-lime-600) {
+    color: var(--case-accent);
   }
 }
 
@@ -187,7 +249,8 @@
   .case-dashboard-shell .case-folder-card,
   .case-dashboard-shell .case-management-card,
   .case-dashboard-shell .front-page-primary-action,
-  .case-dashboard-shell .case-primary-action {
+  .case-dashboard-shell .case-primary-action,
+  .case-briefing-disclosure {
     transition-duration: 0.01ms;
     transform: none;
   }

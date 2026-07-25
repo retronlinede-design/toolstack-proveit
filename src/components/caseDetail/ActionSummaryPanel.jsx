@@ -1,4 +1,5 @@
-import { X } from "lucide-react";
+import { useState } from "react";
+import { ChevronDown, X } from "lucide-react";
 import { getActionText } from "./actionSummaryHelpers";
 
 export default function ActionSummaryPanel({
@@ -8,6 +9,7 @@ export default function ActionSummaryPanel({
   completedNextActions = [],
   importantReminders,
   criticalDeadlines,
+  strategyFocus = [],
   quickActionInput,
   onEdit,
   onCopy,
@@ -18,51 +20,74 @@ export default function ActionSummaryPanel({
   onQuickActionKeyDown,
   onAddQuickAction,
 }) {
+  const [expanded, setExpanded] = useState(false);
   const activeActionCount = nextActions.length;
+  const indicatorItems = [
+    ["Active Actions", activeActionCount],
+    ["Completed Actions", completedNextActions.length],
+    ["Reminders", importantReminders.length],
+    ["Deadlines", criticalDeadlines.length],
+  ];
 
   return (
-    <div className="mb-6 w-full rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden">
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <section className="case-briefing mb-6 w-full rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5 print:hidden" aria-labelledby="case-briefing-title">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-neutral-900">Action Summary</h3>
-          <p className="text-sm text-neutral-600">Live case briefing for focus, actions, reminders, and deadlines.</p>
+          <h3 id="case-briefing-title" className="text-lg font-semibold text-neutral-900">Case Briefing</h3>
+          <p className="text-sm text-neutral-600">Manually maintained focus, actions, reminders, and deadlines.</p>
         </div>
-        <div className="flex flex-col gap-2 sm:items-end">
-          <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-semibold text-neutral-600">
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 text-xs font-medium text-neutral-500">
             Updated: {updatedAt ? new Date(updatedAt).toLocaleString() : "Never"}
           </div>
-          <div className="flex gap-4">
-            <button onClick={onEdit} className="text-xs font-bold text-lime-700 hover:underline">
-              Edit
-            </button>
-            <button onClick={onCopy} className="text-xs font-bold text-neutral-500 hover:text-neutral-700 transition-colors">
-              Copy summary
-            </button>
+          <button type="button" onClick={onEdit} className="case-briefing-control rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500">Edit</button>
+          <button type="button" onClick={onCopy} className="case-briefing-control rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500">Copy</button>
+          <button
+            type="button"
+            onClick={() => setExpanded((value) => !value)}
+            aria-expanded={expanded}
+            aria-controls="case-briefing-details"
+            className="case-briefing-disclosure inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500"
+          >
+            {expanded ? "Collapse Briefing" : "Expand Briefing"}
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+
+      {!expanded ? (
+        <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+          <div className="min-w-0">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Current Focus</div>
+            <p className="mt-1 text-sm font-medium leading-5 text-neutral-900">{currentFocus || "No current focus has been set."}</p>
+          </div>
+          <div className="min-w-0 border-t border-neutral-100 pt-3 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Top Next Action</div>
+            <p className="mt-1 truncate text-sm font-medium text-neutral-900">{getActionText(nextActions[0]) || "No active actions."}</p>
+          </div>
+          <div className="flex flex-wrap gap-1.5 lg:col-span-2" aria-label="Case briefing indicators">
+            {indicatorItems.map(([label, count]) => (
+              <span key={label} className="case-briefing-chip rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs text-neutral-500">
+                <strong className="font-semibold text-neutral-900">{count}</strong> {label}
+              </span>
+            ))}
           </div>
         </div>
-      </div>
-
-      <div className="mb-5 grid gap-3 lg:grid-cols-12">
-        <div className="rounded-xl border border-lime-200 bg-lime-50 p-4 lg:col-span-8">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-lime-700">Current Focus</div>
-          <div className="mt-2 text-lg font-semibold leading-snug text-neutral-900">{currentFocus || "No current focus set."}</div>
-        </div>
-        <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 lg:col-span-3">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-lime-700">Top Next Action</div>
-          <div className="mt-1 truncate text-sm font-semibold text-neutral-900">{getActionText(nextActions[0]) || "No next action"}</div>
-        </div>
-        <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 lg:col-span-1">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Remaining Actions</div>
-          <div className="mt-1 text-sm font-semibold text-neutral-900">{Math.max(activeActionCount - 1, 0)}</div>
-        </div>
-      </div>
-
-      <div className="grid gap-5 lg:grid-cols-12">
-        <section className="lg:col-span-5 space-y-2 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+      ) : (
+      <div id="case-briefing-details" className="mt-4 grid gap-4 border-t border-neutral-100 pt-4 lg:grid-cols-12">
+        <section className="space-y-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4 lg:col-span-5">
           <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Current Focus</h4>
-          <p className="text-base font-semibold leading-relaxed text-neutral-900">
+          <p className="text-sm font-medium leading-6 text-neutral-900">
             {currentFocus || "No current focus set."}
           </p>
+          <div className="border-t border-neutral-200 pt-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Strategy Focus</h4>
+            {strategyFocus.length > 0 ? (
+              <ul className="mt-2 space-y-1.5">
+                {strategyFocus.map((item, index) => <li key={index} className="text-sm text-neutral-700">- {item}</li>)}
+              </ul>
+            ) : <p className="mt-2 text-sm italic text-neutral-500">No strategy focus set.</p>}
+          </div>
         </section>
 
         <section className="lg:col-span-7 space-y-3 rounded-lg border border-lime-200 bg-lime-50 p-4">
@@ -117,7 +142,9 @@ export default function ActionSummaryPanel({
                       Down
                     </button>
                     <button
+                      type="button"
                       onClick={() => onRemoveNextAction(i)}
+                      aria-label={`Remove action ${i + 1}: ${actionText}`}
                       className="rounded-md border border-neutral-200 bg-white p-1 text-neutral-400 transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-500"
                       title="Remove"
                     >
@@ -207,6 +234,7 @@ export default function ActionSummaryPanel({
           )}
         </section>
       </div>
-    </div>
+      )}
+    </section>
   );
 }

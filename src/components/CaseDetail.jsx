@@ -3755,6 +3755,7 @@ ${ungroupedSequenceText}
         completedNextActions={completedNextActions}
         importantReminders={importantReminders}
         criticalDeadlines={criticalDeadlines}
+        strategyFocus={strategyFocus}
         quickActionInput={quickActionInput}
         onEdit={openActionSummaryEdit}
         onCopy={copyActionSummaryToClipboard}
