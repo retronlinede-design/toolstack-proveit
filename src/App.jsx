@@ -3368,7 +3368,7 @@ const handleRecordFiles = async (event) => {
     }
 
     return (
-      <div className="grid gap-4">
+      <div className="grid gap-6">
         {renderFolderTiles()}
         {!activeFolderId ? (
           <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
@@ -3383,7 +3383,7 @@ const handleRecordFiles = async (event) => {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Selected folder</div>
+                  <h2 className="text-xl font-semibold text-neutral-900 sm:text-2xl">Cases in {activeFolderName}</h2>
                   {activeCustomFolder ? (
                     <span
                       className="inline-flex h-2.5 w-2.5 rounded-full border"
@@ -3392,7 +3392,6 @@ const handleRecordFiles = async (event) => {
                     />
                   ) : null}
                 </div>
-                <h2 className="mt-1 text-2xl font-semibold text-neutral-900">{activeFolderName}</h2>
                 <p className="mt-1 text-sm text-neutral-500">
                   {getFolderCaseCount(activeFolderId)} case{getFolderCaseCount(activeFolderId) === 1 ? "" : "s"} | Last activity: {formatFolderLastActivity(activeFolderId)}
                 </p>
@@ -4313,18 +4312,23 @@ const handleRecordFiles = async (event) => {
         </div>
       ) : null}
       <div className="mx-auto max-w-7xl px-4 py-6">
-        <header className="front-page-header proveit-app-header relative mb-3 flex flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <h1 className="sr-only">ProveIt</h1>
+        <header className="front-page-header proveit-app-header relative mb-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
               <img
                 src={proveItLogo}
                 alt="ProveIt"
-                className="block h-auto max-h-[5.25rem] w-auto max-w-[min(82vw,33rem)] object-contain sm:max-h-[7.5rem] sm:max-w-[42rem]"
+                className={onCaseListPage ? "block h-12 w-auto max-w-[9rem] shrink-0 object-contain sm:h-14 sm:max-w-[11rem]" : "block h-auto max-h-[5.25rem] w-auto max-w-[min(82vw,33rem)] object-contain sm:max-h-[7.5rem] sm:max-w-[42rem]"}
               />
+              {onCaseListPage ? (
+                <div className="min-w-0 border-l border-neutral-200 pl-3">
+                  <h1 className="text-xl font-semibold tracking-tight text-neutral-950 sm:text-2xl">ProveIt</h1>
+                  <p className="mt-0.5 text-sm text-neutral-500">Professional Case Management</p>
+                </div>
+              ) : <h1 className="sr-only">ProveIt</h1>}
             </div>
 
-            <div className="flex flex-col gap-2 sm:items-end print:hidden">
+            <div className="flex flex-col gap-2 lg:items-end print:hidden">
               <div className="flex max-w-full flex-wrap gap-2 sm:justify-end">
                 <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${compactBackupStatus.className}`}>
                   {compactBackupStatus.label}
@@ -4339,53 +4343,42 @@ const handleRecordFiles = async (event) => {
 
             </div>
           </div>
+          {onCaseListPage ? (
+            <div className="front-page-actions mt-4 flex w-full flex-wrap gap-2 border-t border-neutral-100 pt-4 lg:justify-end print:hidden">
+              <button type="button" onClick={openCreateCaseModal} className="front-page-primary-action inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/20 sm:w-auto">
+                <Plus className="h-4 w-4 shrink-0" /><span>New Case</span>
+              </button>
+              <button type="button" onClick={() => setExportImportOpen(true)} className="case-dashboard-secondary-action inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-colors hover:bg-neutral-100 sm:flex-none">
+                <Download className="h-3.5 w-3.5 shrink-0" /><span>Export / Import</span>
+              </button>
+              <button type="button" onClick={() => setSettingsOpen(true)} className="case-dashboard-secondary-action inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-colors hover:bg-neutral-100 sm:flex-none">
+                <Settings className="h-3.5 w-3.5 shrink-0" /><span>Settings</span>
+              </button>
+              <button type="button" onClick={handleStorageDiagnostics} className="case-dashboard-secondary-action inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-100 sm:flex-none">
+                <Database className="h-3.5 w-3.5 shrink-0" /><span>Diagnostics</span>
+              </button>
+              {appLockEnabled ? (
+                <button type="button" onClick={lockApp} className="case-dashboard-secondary-action inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-100 sm:flex-none">
+                  <Lock className="h-3.5 w-3.5 shrink-0" /><span>Lock App</span>
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </header>
 
         {onCaseListPage ? (
-          <section className="front-page-actions mb-6 rounded-xl border border-lime-500 bg-lime-50 p-3 shadow-[0_0_0_1px_rgba(132,204,22,0.25)] print:hidden">
-            <div className="flex flex-wrap gap-2 sm:justify-end">
-              <button
-                type="button"
-                onClick={openCreateCaseModal}
-                className="front-page-primary-action inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/20 sm:w-auto"
-              >
-                <Plus className="h-4 w-4 shrink-0" />
-                <span>New Case</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setExportImportOpen(true)}
-                className="case-dashboard-secondary-action inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-colors hover:bg-neutral-100 sm:flex-none"
-              >
-                <Download className="h-3.5 w-3.5 shrink-0" />
-                <span>Export / Import</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSettingsOpen(true)}
-                className="case-dashboard-secondary-action inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-colors hover:bg-neutral-100 sm:flex-none"
-              >
-                <Settings className="h-3.5 w-3.5 shrink-0" />
-                <span>Settings</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleStorageDiagnostics}
-                className="case-dashboard-secondary-action inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-100 sm:flex-none"
-              >
-                <Database className="h-3.5 w-3.5 shrink-0" />
-                <span>Diagnostics</span>
-              </button>
-              {appLockEnabled ? (
-                <button
-                  type="button"
-                  onClick={lockApp}
-                  className="case-dashboard-secondary-action inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-100 sm:flex-none"
-                >
-                  <Lock className="h-3.5 w-3.5 shrink-0" />
-                  <span>Lock App</span>
-                </button>
-              ) : null}
+          <section className="dashboard-summary mb-6 grid grid-cols-2 gap-2 rounded-xl border border-neutral-200 bg-white p-2.5 shadow-sm sm:grid-cols-3 print:hidden" aria-label="Dashboard summary">
+            <div className="dashboard-metric rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
+              <div className="text-lg font-semibold text-neutral-900">{cases.length}</div>
+              <div className="text-xs text-neutral-500">Total cases</div>
+            </div>
+            <div className="dashboard-metric rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
+              <div className="text-lg font-semibold text-neutral-900">{caseFolders.length}</div>
+              <div className="text-xs text-neutral-500">Custom folders</div>
+            </div>
+            <div className="dashboard-metric col-span-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 sm:col-span-1">
+              <div className="text-lg font-semibold text-neutral-900">{reviewQueue.length}</div>
+              <div className="text-xs text-neutral-500">Waiting for review</div>
             </div>
           </section>
         ) : null}

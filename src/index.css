@@ -31,6 +31,20 @@
   box-shadow: none;
 }
 
+.case-dashboard-shell .dashboard-summary,
+.case-dashboard-shell .dashboard-metric {
+  border-color: var(--case-border);
+  background: var(--case-surface);
+}
+
+.case-dashboard-shell .dashboard-summary {
+  box-shadow: 0 1px 2px rgb(17 24 39 / 0.04);
+}
+
+.case-dashboard-shell .dashboard-metric {
+  background: color-mix(in srgb, var(--case-surface) 82%, var(--case-app-bg));
+}
+
 .case-dashboard-shell .case-folder-card,
 .case-dashboard-shell .case-management-card {
   border-color: var(--case-border);
