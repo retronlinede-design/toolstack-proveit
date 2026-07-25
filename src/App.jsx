@@ -3191,22 +3191,22 @@ const handleRecordFiles = async (event) => {
       <button
         type="button"
         onClick={() => toggleFolderView("unfiled")}
-        className={`case-folder-card mt-5 flex w-full max-w-xl items-center gap-3 rounded-xl border p-4 text-left transition-colors ${
+        className={`case-folder-card mt-4 flex w-full max-w-xl items-start gap-2.5 rounded-xl border p-3.5 text-left transition-colors ${
           activeFolderId === "unfiled"
             ? "border-lime-500 bg-lime-50 shadow-[0_0_0_1px_rgba(132,204,22,0.2)]"
             : "border-neutral-200 bg-neutral-50 hover:border-neutral-300 hover:bg-white"
         }`}
       >
-        <FolderOpen className={`h-6 w-6 shrink-0 ${activeFolderId === "unfiled" ? "text-lime-700" : "text-neutral-500"}`} />
+        <FolderOpen className={`mt-0.5 h-5 w-5 shrink-0 ${activeFolderId === "unfiled" ? "text-lime-700" : "text-neutral-500"}`} />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <span className="text-base font-bold text-neutral-900">Inbox</span>
-            <span className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] font-bold text-neutral-700">
+          <span className="text-base font-semibold leading-5 text-neutral-900">Inbox</span>
+          <p className="mt-1 text-xs leading-5 text-neutral-500">New cases start here</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-normal text-neutral-500">
+            <span className="rounded-full border border-neutral-200 bg-white px-2 py-0.5 text-[11px] font-medium text-neutral-700">
               {getFolderCaseCount("unfiled")} case{getFolderCaseCount("unfiled") === 1 ? "" : "s"}
             </span>
+            <span>Last activity: {formatFolderLastActivity("unfiled")}</span>
           </div>
-          <p className="mt-1 text-xs text-neutral-500">New cases start here</p>
-          <p className="mt-1 text-xs font-medium text-neutral-500">Last activity: {formatFolderLastActivity("unfiled")}</p>
         </div>
       </button>
 
@@ -3247,47 +3247,42 @@ const handleRecordFiles = async (event) => {
                 toggleFolderView(folder.id);
               }
             }}
-            className={`case-folder-card min-w-0 rounded-xl border p-4 text-left transition-colors ${
+            className={`case-folder-card min-w-0 rounded-xl border p-3.5 text-left transition-colors ${
               isActive
                 ? "case-folder-card-active"
                 : "border-neutral-200 bg-neutral-50 hover:border-neutral-300 hover:bg-white"
             }`}
           >
-            <div className="flex min-w-0 items-start gap-3">
+            <div className="flex min-w-0 items-start gap-2.5">
               <FolderIcon
-                className={`mt-0.5 h-8 w-8 shrink-0 ${isActive ? "text-lime-700" : "text-neutral-500"}`}
+                className={`mt-0.5 h-5 w-5 shrink-0 ${isActive ? "text-lime-700" : "text-neutral-500"}`}
                 style={folder.color ? { color: `color-mix(in srgb, ${folder.color} 58%, var(--case-muted))` } : undefined}
               />
               <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-start justify-between gap-2">
-                  <div className="truncate text-base font-bold text-neutral-900">{folder.name}</div>
-                  <span className="shrink-0 rounded-full border border-neutral-200 bg-white px-2 py-0.5 text-[11px] font-bold text-neutral-700">
-                    {folder.count}
-                  </span>
-                </div>
-                <div className="mt-1 text-xs font-semibold text-neutral-500">
-                  {folder.count} case{folder.count === 1 ? "" : "s"}
-                </div>
-                <div className="mt-1 text-xs font-medium text-neutral-500">
-                  Last activity: {folder.lastActivity}
-                </div>
+                <div className="truncate text-base font-semibold leading-5 text-neutral-900">{folder.name}</div>
                 {folder.description ? (
                   <p className="mt-1 line-clamp-2 text-xs leading-5 text-neutral-500">{folder.description}</p>
                 ) : null}
-                <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-normal text-neutral-500">
+                  <span className="rounded-full border border-neutral-200 bg-white px-2 py-0.5 text-[11px] font-medium text-neutral-700">
+                    {folder.count} case{folder.count === 1 ? "" : "s"}
+                  </span>
+                  <span>Last activity: {folder.lastActivity}</span>
+                </div>
+                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                   <button
                     type="button"
                     onClick={(event) => {
                       event.stopPropagation();
                       renameFolderFromDashboard(folder);
                     }}
-                    className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 hover:bg-neutral-100"
+                    className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-[11px] font-medium text-neutral-700 hover:bg-neutral-100"
                   >
                     Rename
                   </button>
                   <label
                     onClick={(event) => event.stopPropagation()}
-                    className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 py-1 text-[11px] font-bold text-neutral-700 hover:bg-neutral-100"
+                    className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 py-1 text-[11px] font-medium text-neutral-700 hover:bg-neutral-100"
                   >
                     Color
                     <input
@@ -3303,7 +3298,7 @@ const handleRecordFiles = async (event) => {
                       event.stopPropagation();
                       deleteFolder(folder.id);
                     }}
-                    className="rounded-md border border-red-100 bg-white px-2 py-1 text-[11px] font-bold text-red-700 hover:bg-red-50"
+                    className="rounded-md border border-red-100 bg-white px-2 py-1 text-[11px] font-medium text-red-700 hover:bg-red-50"
                   >
                     Delete
                   </button>
@@ -3448,7 +3443,7 @@ const handleRecordFiles = async (event) => {
               <div
                 key={c.id}
                 onClick={() => openCase(c.id)}
-                className={`case-management-card flex flex-col gap-4 rounded-2xl border bg-white p-5 shadow-sm cursor-pointer transition-colors hover:border-neutral-300 lg:flex-row lg:items-start lg:justify-between ${
+                className={`case-management-card flex flex-col gap-3 rounded-2xl border bg-white p-4 shadow-sm cursor-pointer transition-colors hover:border-neutral-300 lg:flex-row lg:items-start lg:justify-between ${
                   isMostRecent && !activeCustomFolder
                     ? "border-lime-300 bg-lime-50/30 shadow-[0_0_0_1px_rgba(163,230,53,0.35)]"
                     : "border-neutral-200"
@@ -3456,8 +3451,14 @@ const handleRecordFiles = async (event) => {
                 style={activeCustomFolder && isFocusedCaseCard ? selectedFolderCaseHighlightStyle : undefined}
               >
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-start gap-2">
-                    <div className="min-w-0 break-words text-lg font-bold leading-snug text-neutral-900">{caseIsLocked ? "Locked Case" : c.name}</div>
+                  <div className="min-w-0 break-words text-lg font-semibold leading-snug text-neutral-900">{caseIsLocked ? "Locked Case" : c.name}</div>
+                  {!caseIsLocked && (
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-normal text-neutral-500">
+                      <span className="text-neutral-600">{c.category || "Uncategorized"}</span>
+                      <span>Folder: {getCaseFolderName(c)}</span>
+                    </div>
+                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     {!caseIsLocked && isMostRecent && (
                       <span
                         className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
@@ -3480,29 +3481,25 @@ const handleRecordFiles = async (event) => {
                     </span>
                   </div>
                   {!caseIsLocked && (
-                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500">
-                      <span className="font-semibold text-neutral-600">{c.category || "Uncategorized"}</span>
-                      <span>Last updated {formatCaseLastUpdated(c)}</span>
-                      {createdLabel ? <span>Created {createdLabel}</span> : null}
-                    </div>
-                  )}
-                  {!caseIsLocked && (
-                    <div className="mt-4 flex flex-wrap gap-1.5">
-                      <span className="case-metadata-chip rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
-                        Folder: {getCaseFolderName(c)}
-                      </span>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
                       {caseMetadata.map((item) => (
-                        <span key={item} className="case-metadata-chip rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] font-semibold text-neutral-600">
+                        <span key={item} className="case-metadata-chip rounded-full border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[11px] font-medium text-neutral-600">
                           {item}
                         </span>
                       ))}
                     </div>
                   )}
-                  <div className="mt-4">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                  {!caseIsLocked && (
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-normal text-neutral-500">
+                      <span>Last updated {formatCaseLastUpdated(c)}</span>
+                      {createdLabel ? <span>Created {createdLabel}</span> : null}
+                    </div>
+                  )}
+                  <div className="mt-2.5">
+                    <div className="text-xs font-medium text-neutral-500">
                       {caseIsLocked ? "Privacy" : "Current Focus"}
                     </div>
-                    <div className="mt-1 line-clamp-2 text-sm leading-6 text-neutral-700">
+                    <div className="mt-0.5 line-clamp-2 text-sm leading-5 text-neutral-700">
                       {focusText}
                     </div>
                   </div>
