@@ -3557,6 +3557,13 @@ ${ungroupedSequenceText}
             >
               {isPinLocked ? "Manage PIN" : "Set PIN"}
             </button>
+            <button
+              type="button"
+              onClick={openSequenceGroupManager}
+              className="rounded-lg border border-neutral-200 bg-white px-2.5 py-1 text-xs font-semibold text-neutral-600 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
+            >
+              Open Sequence Group Manager
+            </button>
           </div>
           <p className="mt-1 text-sm font-medium text-neutral-500">{caseHeaderSubtitle}</p>
           {caseHeaderMetadata.length > 0 && (
