@@ -16,3 +16,12 @@ test("document cards use semantic verification and type badges", () => {
   assert.match(source, /variant="type"/);
   assert.doesNotMatch(source, /getDocumentStatusClasses/);
 });
+
+test("document cards preserve ordered actions through RecordActions", () => {
+  assert.match(source, /import RecordActions from "\.\.\/shared\/RecordActions\.jsx"/);
+  assert.match(source, /key: "open", label: "Open Document", variant: "primary", onClick: \(\) => onOpenDocument\(doc\)/);
+  assert.match(source, /key: "edit", label: "Edit", onClick: \(\) => onOpenDocument\(doc\)/);
+  assert.match(source, /key: "convert", label: "Convert", variant: "secondary", onClick: \(\) => onConvertDocument\?\.\(doc\)/);
+  assert.match(source, /key: "delete", label: "Delete", variant: "danger", onClick: \(\) => onDeleteDocument\(doc\)/);
+  assert.match(source, /flex-wrap items-center gap-2 sm:flex-nowrap/);
+});

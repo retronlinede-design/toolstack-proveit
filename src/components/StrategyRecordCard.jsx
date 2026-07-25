@@ -4,6 +4,7 @@ import { getRecordDisplayMeta } from "../domain/linkingResolvers.js";
 import AttachmentPreview from "./AttachmentPreview";
 import LinkedChip from "./LinkedChip";
 import { resolveStrategyOwner } from "./caseDetail/strategyWorkspaceHelpers.js";
+import RecordActions from "./shared/RecordActions.jsx";
 import RecordBadge from "./shared/RecordBadge.jsx";
 
 function getPriorityBadgeVariant(priority) {
@@ -151,26 +152,14 @@ export default function StrategyRecordCard({
             </h3>
           </div>
 
-          <div className="grid shrink-0 grid-cols-3 gap-1.5 sm:grid-cols-2">
-            <button
-              onClick={() => openEditRecordModal("strategy", item)}
-              className="rounded-md border border-neutral-200 bg-neutral-100 px-2.5 py-1.5 text-[10px] font-semibold text-neutral-700 transition-all hover:bg-neutral-200 active:scale-95"
-            >
-              Open
-            </button>
-            <button
-              onClick={() => onConvertRecord?.("strategy", item)}
-              className="rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-[10px] font-semibold text-blue-700 transition-all hover:border-blue-200 hover:bg-blue-50 active:scale-95"
-            >
-              Convert
-            </button>
-            <button
-              onClick={() => deleteRecord("strategy", item.id)}
-              className="rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-[10px] font-semibold text-red-600 transition-all hover:border-red-200 hover:bg-red-50 active:scale-95 sm:col-start-2"
-            >
-              Delete
-            </button>
-          </div>
+          <RecordActions
+            className="grid shrink-0 grid-cols-3 gap-2 sm:grid-cols-2"
+            actions={[
+              { key: "open", label: "Open", variant: "primary", onClick: () => openEditRecordModal("strategy", item) },
+              { key: "convert", label: "Convert", variant: "secondary", onClick: () => onConvertRecord?.("strategy", item) },
+              { key: "delete", label: "Delete", variant: "danger", onClick: () => deleteRecord("strategy", item.id) },
+            ]}
+          />
         </div>
       </div>
 

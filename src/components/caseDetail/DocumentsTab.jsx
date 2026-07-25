@@ -2,6 +2,7 @@ import { Tags } from "lucide-react";
 import AttachmentPreview from "../AttachmentPreview";
 import { getLinkChipClasses } from "../linkChipStyles";
 import LinkedChip from "../LinkedChip";
+import RecordActions from "../shared/RecordActions.jsx";
 import RecordBadge from "../shared/RecordBadge.jsx";
 import PartyLinksRow from "./PartyLinksRow";
 import { getDocumentTextStatus } from "./trackingRecordHelpers";
@@ -122,32 +123,15 @@ export default function DocumentsTab({
                       {doc.source && <span>Source: {doc.source}</span>}
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <button
-                      onClick={() => onOpenDocument(doc)}
-                      className="rounded-lg border border-lime-500 bg-lime-50 px-2 py-0.5 text-[10px] font-bold text-lime-800 shadow-sm hover:bg-lime-100 transition-colors"
-                    >
-                      Open Document
-                    </button>
-                    <button
-                      onClick={() => onOpenDocument(doc)}
-                      className="rounded-lg border border-neutral-300 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => onConvertDocument?.(doc)}
-                      className="rounded-lg border border-blue-300 bg-white px-2 py-0.5 text-[10px] font-bold text-blue-700 shadow-sm hover:bg-blue-50 transition-colors"
-                    >
-                      Convert
-                    </button>
-                    <button
-                      onClick={() => onDeleteDocument(doc)}
-                      className="rounded-lg border border-red-300 bg-white px-2 py-0.5 text-[10px] font-bold text-red-700 shadow-sm hover:bg-red-50 transition-colors"
-                    >
-                      Delete
-                    </button>
-                  </div>
+                  <RecordActions
+                    className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-nowrap"
+                    actions={[
+                      { key: "open", label: "Open Document", variant: "primary", onClick: () => onOpenDocument(doc) },
+                      { key: "edit", label: "Edit", onClick: () => onOpenDocument(doc) },
+                      { key: "convert", label: "Convert", variant: "secondary", onClick: () => onConvertDocument?.(doc) },
+                      { key: "delete", label: "Delete", variant: "danger", onClick: () => onDeleteDocument(doc) },
+                    ]}
+                  />
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">

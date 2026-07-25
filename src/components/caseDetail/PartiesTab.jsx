@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Search, UserPlus } from "lucide-react";
+import RecordActions from "../shared/RecordActions.jsx";
 import RecordBadge from "../shared/RecordBadge.jsx";
 import {
   PARTY_ENTITY_TYPES,
@@ -403,10 +404,13 @@ export default function PartiesTab({
                     <p className="mt-1 truncate text-sm text-neutral-500">{party.legalName}</p>
                   )}
                 </div>
-                <div className="flex shrink-0 gap-2">
-                  <button type="button" onClick={() => openEditModal(party)} className="rounded-lg border border-neutral-300 bg-white px-2 py-1 text-xs font-bold text-neutral-700 hover:bg-neutral-50">Edit</button>
-                  <button type="button" onClick={() => deleteParty(party)} className="rounded-lg border border-red-200 bg-white px-2 py-1 text-xs font-bold text-red-700 hover:bg-red-50">Delete</button>
-                </div>
+                <RecordActions
+                  className="flex shrink-0 gap-2"
+                  actions={[
+                    { key: "edit", label: "Edit", onClick: () => openEditModal(party) },
+                    { key: "delete", label: "Delete", variant: "danger", onClick: () => deleteParty(party) },
+                  ]}
+                />
               </div>
 
               <div className="mt-3 flex flex-wrap gap-2">

@@ -15,6 +15,10 @@ test("strategy card exposes operational metadata and preserves record actions", 
   assert.match(source, /openEditRecordModal\("strategy", item\)/);
   assert.match(source, /onConvertRecord\?\.\("strategy", item\)/);
   assert.match(source, /deleteRecord\("strategy", item\.id\)/);
+  assert.match(source, /import RecordActions from "\.\/shared\/RecordActions\.jsx"/);
+  assert.match(source, /key: "open", label: "Open", variant: "primary"/);
+  assert.match(source, /key: "convert", label: "Convert", variant: "secondary"/);
+  assert.match(source, /key: "delete", label: "Delete", variant: "danger"/);
 });
 
 test("strategy card omits optional sections when their fields are empty", () => {
