@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Search, UserPlus } from "lucide-react";
+import RecordBadge from "../shared/RecordBadge.jsx";
 import {
   PARTY_ENTITY_TYPES,
   PARTY_ROLES,
@@ -22,10 +23,7 @@ import {
 function Chip({ children, tone = "neutral" }) {
   const classes = {
     neutral: "border-neutral-200 bg-neutral-50 text-neutral-600",
-    entity: "border-blue-200 bg-blue-50 text-blue-700",
     role: "border-lime-200 bg-lime-50 text-lime-700",
-    status: "border-amber-200 bg-amber-50 text-amber-700",
-    restricted: "border-red-200 bg-red-50 text-red-700",
   };
 
   return (
@@ -33,6 +31,10 @@ function Chip({ children, tone = "neutral" }) {
       <span className="truncate">{children}</span>
     </span>
   );
+}
+
+function getPartyStatusBadgeVariant(status) {
+  return status === "active" ? "status-positive" : "status-neutral";
 }
 
 function PartyModal({
@@ -408,10 +410,10 @@ export default function PartiesTab({
               </div>
 
               <div className="mt-3 flex flex-wrap gap-2">
-                <Chip tone="entity">{getPartyEntityTypeLabel(party.entityType)}</Chip>
-                <Chip tone="status">{getPartyStatusLabel(party.status)}</Chip>
+                <RecordBadge variant="type" className="uppercase tracking-wider">{getPartyEntityTypeLabel(party.entityType)}</RecordBadge>
+                <RecordBadge variant={getPartyStatusBadgeVariant(party.status)} className="uppercase tracking-wider">{getPartyStatusLabel(party.status)}</RecordBadge>
                 {party.confidentiality && party.confidentiality !== "normal" && (
-                  <Chip tone="restricted">{getPartyConfidentialityLabel(party.confidentiality)}</Chip>
+                  <RecordBadge variant="restricted" className="uppercase tracking-wider">{getPartyConfidentialityLabel(party.confidentiality)}</RecordBadge>
                 )}
                 {(party.roles || []).map((role) => (
                   <Chip key={role} tone="role">{getPartyRoleLabel(role)}</Chip>

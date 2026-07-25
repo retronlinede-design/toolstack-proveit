@@ -2,11 +2,15 @@ import { Tags } from "lucide-react";
 import AttachmentPreview from "../AttachmentPreview";
 import { getLinkChipClasses } from "../linkChipStyles";
 import LinkedChip from "../LinkedChip";
+import RecordBadge from "../shared/RecordBadge.jsx";
 import PartyLinksRow from "./PartyLinksRow";
-import {
-  getDocumentStatusClasses,
-  getDocumentTextStatus,
-} from "./trackingRecordHelpers";
+import { getDocumentTextStatus } from "./trackingRecordHelpers";
+
+function getDocumentStatusBadgeVariant(tone) {
+  if (tone === "green") return "verification-verified";
+  if (tone === "amber") return "verification-partial";
+  return "verification-unverified";
+}
 
 function renderCompactLinkRow(label, items, renderChip) {
   if (!items || items.length === 0) return null;
@@ -107,14 +111,14 @@ export default function DocumentsTab({
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <h4 className="min-w-0 flex-1 truncate font-semibold text-neutral-900">{doc.title || "Untitled Document"}</h4>
-                      <span className={`shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${getDocumentStatusClasses(textStatus.tone)}`}>
+                      <RecordBadge variant={getDocumentStatusBadgeVariant(textStatus.tone)} className="shrink-0 uppercase tracking-wider">
                         {textStatus.label}
-                      </span>
+                      </RecordBadge>
                       {renderSequenceGroupChip(doc.sequenceGroup)}
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                       <span className="text-neutral-600">{doc.documentDate || "No date"}</span>
-                      <span className="rounded border border-neutral-200 bg-neutral-100 px-1.5 py-0.5">{doc.category || "other"}</span>
+                      <RecordBadge variant="type" className="uppercase tracking-wider">{doc.category || "other"}</RecordBadge>
                       {doc.source && <span>Source: {doc.source}</span>}
                     </div>
                   </div>

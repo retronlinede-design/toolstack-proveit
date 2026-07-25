@@ -39,3 +39,11 @@ test("strategy card renders structured planning, ownership, and operational fiel
   assert.match(source, /Review:/);
   assert.match(source, /Additional Context/);
 });
+
+test("strategy card maps type, priority, status, and decision badges semantically", () => {
+  assert.match(source, /import RecordBadge from "\.\/shared\/RecordBadge\.jsx"/);
+  assert.match(source, /variant="type"/);
+  assert.match(source, /getPriorityBadgeVariant\(item\.priority\)/);
+  assert.match(source, /getStrategyStatusBadgeVariant\(item\.status\)/);
+  assert.match(source, /getDecisionStatusBadgeVariant\(item\.decisionStatus\)/);
+});

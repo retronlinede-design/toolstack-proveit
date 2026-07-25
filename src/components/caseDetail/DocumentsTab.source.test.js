@@ -9,3 +9,10 @@ test("document cards render linked party chips", () => {
   assert.match(source, /parties = \[\]/);
   assert.match(source, /<PartyLinksRow linkedPartyIds=\{doc\.linkedPartyIds\} parties=\{parties\} \/>/);
 });
+
+test("document cards use semantic verification and type badges", () => {
+  assert.match(source, /import RecordBadge from "\.\.\/shared\/RecordBadge\.jsx"/);
+  assert.match(source, /getDocumentStatusBadgeVariant\(textStatus\.tone\)/);
+  assert.match(source, /variant="type"/);
+  assert.doesNotMatch(source, /getDocumentStatusClasses/);
+});

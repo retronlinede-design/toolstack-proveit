@@ -4,6 +4,30 @@ import { getRecordDisplayMeta } from "../domain/linkingResolvers.js";
 import AttachmentPreview from "./AttachmentPreview";
 import LinkedChip from "./LinkedChip";
 import { resolveStrategyOwner } from "./caseDetail/strategyWorkspaceHelpers.js";
+import RecordBadge from "./shared/RecordBadge.jsx";
+
+function getPriorityBadgeVariant(priority) {
+  switch (priority) {
+    case "critical": return "priority-critical";
+    case "high": return "priority-high";
+    case "medium": return "priority-medium";
+    default: return "priority-low";
+  }
+}
+
+function getStrategyStatusBadgeVariant(status) {
+  if (["open", "active", "completed", "approved"].includes(status)) return "status-positive";
+  if (["pending", "planned", "in_review", "needs_review"].includes(status)) return "status-warning";
+  if (["blocked", "rejected", "failed"].includes(status)) return "status-critical";
+  return "status-neutral";
+}
+
+function getDecisionStatusBadgeVariant(status) {
+  if (["approved", "accepted", "decided", "completed"].includes(status)) return "status-positive";
+  if (["proposed", "pending", "under_review", "provisional"].includes(status)) return "status-warning";
+  if (["rejected", "blocked"].includes(status)) return "status-critical";
+  return "status-neutral";
+}
 
 function formatStatus(value) {
   return typeof value === "string" && value.trim()
@@ -101,18 +125,14 @@ export default function StrategyRecordCard({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1 sm:pr-3">
             <div className="flex flex-wrap items-center gap-2">
-              {strategyType && <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-violet-700">{strategyType}</span>}
-              {priority && <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${item.priority === "critical" ? "border-red-200 bg-red-50 text-red-700" : item.priority === "high" ? "border-amber-200 bg-amber-50 text-amber-700" : "border-neutral-200 bg-white text-neutral-600"}`}>{priority} priority</span>}
+              {strategyType && <RecordBadge variant="type" className="uppercase tracking-wider">{strategyType}</RecordBadge>}
+              {priority && <RecordBadge variant={getPriorityBadgeVariant(item.priority)} className="uppercase tracking-wider">{priority} priority</RecordBadge>}
               {status && (
-                <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
-                  item.status === "archived"
-                    ? "border-neutral-300 bg-neutral-100 text-neutral-600"
-                    : "border-blue-200 bg-blue-50 text-blue-700"
-                }`}>
+                <RecordBadge variant={getStrategyStatusBadgeVariant(item.status)} className="uppercase tracking-wider">
                   {status}
-                </span>
+                </RecordBadge>
               )}
-              {decisionStatus && <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-cyan-700">{decisionStatus}</span>}
+              {decisionStatus && <RecordBadge variant={getDecisionStatusBadgeVariant(item.decisionStatus)} className="uppercase tracking-wider">{decisionStatus}</RecordBadge>}
               {eventDate && (
                 <span className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-600">
                   <CalendarDays className="h-3.5 w-3.5 text-neutral-400" aria-hidden="true" />
