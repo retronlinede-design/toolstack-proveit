@@ -3514,7 +3514,7 @@ ${ungroupedSequenceText}
             {showExportMenu && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
-                <div className="absolute right-0 z-50 mt-2 max-h-[75vh] w-80 overflow-y-auto rounded-xl border border-neutral-200 bg-white p-2 shadow-xl animate-in fade-in zoom-in duration-100">
+                <div className="absolute bottom-full left-0 right-auto z-50 mb-2 max-h-[50vh] w-[calc(100vw-2rem)] max-w-80 overflow-y-auto rounded-xl border border-neutral-200 bg-white p-2 shadow-xl animate-in fade-in zoom-in duration-100 lg:bottom-auto lg:left-auto lg:right-0 lg:mb-0 lg:mt-2 lg:max-h-[75vh]">
                   <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                     Backup & Restore
                   </div>
