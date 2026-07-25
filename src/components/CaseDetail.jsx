@@ -37,6 +37,7 @@ import {
   exportGptProtocolPackMarkdown,
 } from "../export/gptProtocolPack.js";
 import { buildCaseReasoningExportPayload } from "../export/caseExport.js";
+import { downloadSplitReasoningPackage } from "../export/splitReasoningPackage.js";
 import {
   buildCaseSliceMarkdownPrompt,
   buildCaseSlicePack,
@@ -1208,6 +1209,20 @@ export default function CaseDetail({
       console.error("Failed to copy AI specialist prompt", error);
       setAiToolsFeedback(error.message || "Could not copy AI specialist prompt.");
       setSequenceGroupFeedback("Could not copy AI specialist prompt.");
+    }
+  }
+
+  async function handleDownloadSplitReasoningPackage() {
+    if (!selectedCase) return;
+    setAiToolsFeedback("Creating split reasoning package…");
+    try {
+      await downloadSplitReasoningPackage(selectedCase, {
+        sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
+      });
+      setAiToolsFeedback("Split reasoning package downloaded.");
+    } catch (error) {
+      console.error("Failed to export split reasoning package", error);
+      setAiToolsFeedback("Could not create the split reasoning package.");
     }
   }
 
@@ -7256,6 +7271,15 @@ ${ungroupedSequenceText}
                         className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
                       >
                         Copy Recommended GPT JSON
+                      </button>
+                    )}
+                    {activeAiTaskActionKind === "split-reasoning-package" && (
+                      <button
+                        type="button"
+                        onClick={handleDownloadSplitReasoningPackage}
+                        className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
+                      >
+                        Download ZIP
                       </button>
                     )}
                     {activeAiTaskActionKind === "ai-tool" && (

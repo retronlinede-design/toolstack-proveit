@@ -97,6 +97,18 @@ export const AI_WORKSPACE_SECTIONS = [
     description: "Start with the whole investigation.",
     tasks: [
       {
+        id: "download-split-reasoning-package",
+        title: "Reasoning Package — Split Case Files",
+        technicalTool: "Split Reasoning Package ZIP",
+        actionKind: "split-reasoning-package",
+        purpose: "Downloads the complete case as a ZIP of smaller JSON files for separate upload to ChatGPT. Attachment files are not included.",
+        useThisWhen: "Use this when a Specialist GPT needs the complete case but the case is too large or unwieldy for one JSON file.",
+        bestGpt: ["Legal Specialist", "Management Specialist", "General ChatGPT", "Investigation Review GPT"],
+        contains: ["Complete case context", "All records", "Chronology", "Relationships", "Sequence Groups"],
+        doesNotInclude: ["Attachment files", "Binary data", "Import capability"],
+        safety: ["Read Only", "Not importable", "Does not change case data"],
+      },
+      {
         id: "review-entire-investigation",
         title: "Review My Entire Investigation",
         technicalTool: "AI Reasoning Snapshot JSON",
@@ -290,6 +302,23 @@ export const AI_WORKSPACE_SECTIONS = [
 ];
 
 export const AI_TASK_GUIDANCE = {
+  "download-split-reasoning-package": {
+    workflow: [
+      "Download the ZIP and extract it.",
+      "Open the Specialist GPT you want to use.",
+      "Upload every JSON file listed in 00-READ-ME.json.",
+      "Wait until every file is supplied before asking the GPT to assess the complete case.",
+      "Check the response against the source records in ProveIt.",
+    ],
+    recommendedGpt: "Workplace Investigation Specialist",
+    alsoSuitableFor: ["General ChatGPT", "Legal Specialist", "Management Specialist"],
+    exampleQuestions: [
+      "Review the complete case for evidential gaps.",
+      "Assess the strongest and weakest parts of the case.",
+      "Identify unresolved factual and strategic risks.",
+      "Review the chronology for inconsistencies.",
+    ],
+  },
   "review-entire-investigation": {
     workflow: [
       "Copy the recommended GPT JSON.",
