@@ -4,11 +4,13 @@ import assert from "node:assert/strict";
 import {
   SEQUENCE_GROUP_META_STORAGE_KEY,
   clearSequenceGroupDescription,
+  deleteSequenceGroupMeta,
   getSequenceGroupDescription,
   mergeSequenceGroupMeta,
   mergeSequenceGroupMetaStoreToStorage,
   readSequenceGroupMetaStore,
   renameSequenceGroupMeta,
+  saveSequenceGroupMeta,
   saveSequenceGroupDescription,
 } from "./sequenceGroupMeta.js";
 
@@ -29,6 +31,15 @@ test("sequence group metadata saves, loads, and clears descriptions", () => {
 
   clearSequenceGroupDescription("case-1", "Notice chain", storage);
   assert.equal(getSequenceGroupDescription("case-1", "Notice chain", storage), "");
+});
+
+test("sequence group metadata preserves an explicitly created group with a blank description", () => {
+  const storage = createStorage();
+  saveSequenceGroupMeta("case-1", "Empty group", { description: "" }, storage);
+  assert.equal(readSequenceGroupMetaStore(storage)["case-1"]["Empty group"].description, "");
+
+  deleteSequenceGroupMeta("case-1", "Empty group", storage);
+  assert.equal(readSequenceGroupMetaStore(storage)["case-1"], undefined);
 });
 
 test("sequence group metadata rename carries description to new label", () => {

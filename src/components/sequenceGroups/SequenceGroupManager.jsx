@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Tags } from "lucide-react";
+import RecordActions from "../shared/RecordActions.jsx";
+import RecordBadge from "../shared/RecordBadge.jsx";
 import {
   getCaseSequenceGroupRelationshipMap,
   getCaseSequenceGroupTimeline,
@@ -11,28 +12,26 @@ import {
   getRelationshipWarningLabel,
   getSequenceRecordKey,
   getSequenceGroupStatus,
-  getSequenceGroupStatusClasses,
   getTimelineTypeClasses,
   safeSequenceText,
   sequenceRecordMatchesSearch,
   summarizeSequenceGroups,
 } from "./sequenceGroupUiHelpers.js";
 import {
-  clearSequenceGroupDescription,
   getSequenceGroupDescription,
+  getSequenceGroupMetaForCase,
+  readSequenceGroupMetaStore,
+  saveSequenceGroupMeta,
   saveSequenceGroupDescription,
 } from "../../sequenceGroupMeta.js";
+import SequenceGroupDescription from "./SequenceGroupDescription.jsx";
+import SequenceGroupForm from "./SequenceGroupForm.jsx";
+import { mergeManagedSequenceGroupDetails } from "./sequenceGroupManagement.js";
 
-function SequenceGroupChip({ value }) {
-  const sequenceGroup = typeof value === "string" ? value.trim() : "";
-  if (!sequenceGroup) return null;
-
-  return (
-    <span className="inline-flex max-w-full items-center gap-1 rounded border border-neutral-200 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-600">
-      <Tags className="h-3 w-3 shrink-0 text-neutral-400" aria-hidden="true" />
-      <span className="truncate">{sequenceGroup}</span>
-    </span>
-  );
+function getGroupBadgeVariant(status) {
+  if (status === "ready") return "status-positive";
+  if (status === "weak proof" || status === "needs review") return "status-warning";
+  return "status-neutral";
 }
 
 function SequenceGroupDeltaPreview({ result }) {
@@ -125,6 +124,8 @@ export default function SequenceGroupManager({
   onCopyFullChainGptPackJson,
   onCopyFullChainGptPackMarkdown,
   onCopyReviewPackage,
+  onCreateGroup,
+  onDeleteGroup,
   onDownloadGroupIndexJson,
   onDownloadGroupIndexMarkdown,
   onMergeGroup,
@@ -136,6 +137,7 @@ export default function SequenceGroupManager({
   onRemoveGroup,
   onRenameGroup,
   onTimelineItemSelect,
+  onUpdateGroup,
   onValidateDelta,
   search,
   selectedCase,
@@ -162,7 +164,13 @@ export default function SequenceGroupManager({
 }) {
   const [sequenceDescriptionDraftState, setSequenceDescriptionDraftState] = useState({ key: "", value: "" });
   const [selectedSection, setSelectedSection] = useState("overview");
-  const activeDescriptionGroupName = selectedGroupName || sequenceGroupDetails?.groups?.[0]?.name || "";
+  const [groupForm, setGroupForm] = useState(null);
+  const sequenceGroupMeta = selectedCase?.id
+    ? getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore())
+    : {};
+  const managedSequenceGroupDetails = mergeManagedSequenceGroupDetails(sequenceGroupDetails, sequenceGroupMeta);
+  const selectedGroup = managedSequenceGroupDetails.groups.find((group) => group.name === selectedGroupName) || managedSequenceGroupDetails.groups[0] || null;
+  const activeDescriptionGroupName = selectedGroup?.name || "";
   const sequenceDescriptionDraftKey = selectedCase?.id && activeDescriptionGroupName
     ? `${selectedCase.id}:${activeDescriptionGroupName}`
     : "";
@@ -176,7 +184,6 @@ export default function SequenceGroupManager({
   if (!selectedCase) return null;
 
   const normalizedSearch = safeSequenceText(search).trim().toLowerCase();
-  const selectedGroup = sequenceGroupDetails.groups.find((group) => group.name === selectedGroupName) || sequenceGroupDetails.groups[0] || null;
   const activeGroupName = selectedGroup?.name || "";
   const selectedGroupTimeline = activeGroupName
     ? getCaseSequenceGroupTimeline(selectedCase, activeGroupName, { sortDirection: sequenceTimelineSort })
@@ -184,8 +191,8 @@ export default function SequenceGroupManager({
   const selectedGroupRelationshipMap = activeGroupName
     ? getCaseSequenceGroupRelationshipMap(selectedCase, activeGroupName)
     : { nodes: [], edges: [], weakNodes: [], isolatedNodes: [], proofChains: [] };
-  const groupOptions = sequenceGroupDetails.groups.map((group) => group.name);
-  const groupWeakLinkCounts = new Map(sequenceGroupDetails.groups.map((group) => [
+  const groupOptions = managedSequenceGroupDetails.groups.map((group) => group.name);
+  const groupWeakLinkCounts = new Map(managedSequenceGroupDetails.groups.map((group) => [
     group.name,
     getCaseSequenceGroupRelationshipMap(selectedCase, group.name).weakNodes.length,
   ]));
@@ -204,7 +211,7 @@ export default function SequenceGroupManager({
   const ungroupedCount = Object.values(sequenceGroupDetails.ungroupedRecords)
     .reduce((sum, records) => sum + records.length, 0);
   const managerSummary = summarizeSequenceGroups(
-    sequenceGroupDetails.groups.map((group) => ({ ...group, weakLinkCount: groupWeakLinkCounts.get(group.name) || 0 })),
+    managedSequenceGroupDetails.groups.map((group) => ({ ...group, weakLinkCount: groupWeakLinkCounts.get(group.name) || 0 })),
     ungroupedCount,
     totalWeakLinks
   );
@@ -216,8 +223,36 @@ export default function SequenceGroupManager({
     ["Assigned Evidence", selectedGroup.counts.evidence],
     ["Linked Evidence", selectedGroup.counts.evidence],
     ["Documents", selectedGroup.counts.documents],
+    ["To Watch", selectedGroup.counts.watchItems || 0],
     ["Weak / Unlinked Records", selectedGroupRelationshipMap.weakNodes.length],
   ] : [];
+  const selectedGroupDates = selectedGroupTimeline.items.map((item) => item.date).filter(Boolean).sort();
+  const selectedGroupDateRange = selectedGroupDates.length === 0
+    ? "No dated records"
+    : selectedGroupDates[0] === selectedGroupDates[selectedGroupDates.length - 1]
+      ? selectedGroupDates[0]
+      : `${selectedGroupDates[0]}–${selectedGroupDates[selectedGroupDates.length - 1]}`;
+
+  const openCreateGroupForm = () => setGroupForm({ mode: "create", initialValue: null });
+  const openEditGroupForm = () => {
+    if (!selectedGroup) return;
+    setGroupForm({
+      mode: "edit",
+      initialValue: {
+        name: selectedGroup.name,
+        description: getSequenceGroupDescription(selectedCase.id, selectedGroup.name),
+      },
+    });
+  };
+  const saveGroupForm = async (value) => {
+    if (groupForm?.mode === "edit") {
+      await onUpdateGroup?.(groupForm.initialValue.name, value);
+    } else {
+      await onCreateGroup?.(value);
+    }
+    setSelectedSection("overview");
+    setGroupForm(null);
+  };
   const saveSelectedGroupDescription = () => {
     if (!activeGroupName) return;
     saveSequenceGroupDescription(selectedCase.id, activeGroupName, sequenceDescriptionDraft);
@@ -226,7 +261,7 @@ export default function SequenceGroupManager({
 
   const clearSelectedGroupDescription = () => {
     if (!activeGroupName) return;
-    clearSequenceGroupDescription(selectedCase.id, activeGroupName);
+    saveSequenceGroupMeta(selectedCase.id, activeGroupName, { description: "" });
     setSequenceDescriptionDraftState({ key: sequenceDescriptionDraftKey, value: "" });
     setSequenceGroupFeedback(`Cleared description for "${activeGroupName}".`);
   };
@@ -418,18 +453,18 @@ export default function SequenceGroupManager({
       <div className="flex max-h-[92vh] w-full max-w-7xl flex-col rounded-2xl bg-white shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b border-neutral-100 p-5">
           <div>
-            <h3 className="text-lg font-semibold text-neutral-900">Sequence Groups</h3>
+            <h3 className="text-lg font-semibold text-neutral-900">Sequence Group Manager</h3>
             <p className="mt-1 text-xs text-neutral-500">
               Scan chains, review records, and keep exports or cleanup actions in their own sections.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md border border-neutral-200 px-2 py-1 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
-          >
-            Close
-          </button>
+          <RecordActions
+            className="flex flex-wrap justify-end gap-2"
+            actions={[
+              { key: "new", label: "New Sequence Group", variant: "primary", onClick: openCreateGroupForm },
+              { key: "close", label: "Close", onClick: onClose },
+            ]}
+          />
         </div>
 
         <div id="sequence-group-manager-scroll" className="flex-1 overflow-y-auto p-5">
@@ -463,11 +498,15 @@ export default function SequenceGroupManager({
               />
               <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
                 <div className="mb-2 text-xs font-bold uppercase tracking-wider text-neutral-500">Groups</div>
-                {sequenceGroupDetails.groups.length === 0 ? (
-                  <p className="text-sm text-neutral-500">No sequence groups are used in this case.</p>
+                {managedSequenceGroupDetails.groups.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-neutral-300 bg-white p-4 text-center">
+                    <h4 className="text-sm font-semibold text-neutral-900">No sequence groups yet</h4>
+                    <p className="mt-1 text-xs leading-5 text-neutral-500">Create a group, then assign investigation records to it.</p>
+                    <RecordActions className="mt-3 flex justify-center" actions={[{ key: "create", label: "Create Sequence Group", variant: "primary", onClick: openCreateGroupForm }]} />
+                  </div>
                 ) : (
                   <div className="space-y-2">
-                    {sequenceGroupDetails.groups.map((group) => {
+                    {managedSequenceGroupDetails.groups.map((group) => {
                       const weakLinkCount = groupWeakLinkCounts.get(group.name) || 0;
                       const status = getSequenceGroupStatus(group, weakLinkCount);
                       const description = getSequenceGroupDescription(selectedCase.id, group.name);
@@ -494,9 +533,9 @@ export default function SequenceGroupManager({
                                 <p className="mt-1 text-xs italic text-neutral-400">No description.</p>
                               )}
                             </button>
-                            <span className={`shrink-0 rounded border px-2 py-0.5 text-[10px] font-bold uppercase ${getSequenceGroupStatusClasses(status)}`}>
+                            <RecordBadge variant={getGroupBadgeVariant(status)} className="shrink-0 uppercase tracking-wider">
                               {status}
-                            </span>
+                            </RecordBadge>
                           </div>
                           <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
                             <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5">I {group.counts.incidents}</span>
@@ -545,23 +584,28 @@ export default function SequenceGroupManager({
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <SequenceGroupChip value={selectedGroup.name} />
-                          <span className={`rounded border px-2 py-0.5 text-[10px] font-bold uppercase ${getSequenceGroupStatusClasses(selectedGroupStatus)}`}>{selectedGroupStatus}</span>
+                          <h3 className="break-words text-xl font-semibold text-neutral-950">{selectedGroup.name}</h3>
+                          <RecordBadge variant={getGroupBadgeVariant(selectedGroupStatus)} className="uppercase tracking-wider">{selectedGroupStatus}</RecordBadge>
+                        </div>
+                        <div className="mt-2 max-w-3xl">
+                          <SequenceGroupDescription description={savedSequenceDescription} />
                         </div>
                         <div className="mt-2 flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
                           <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5">Incidents {selectedGroup.counts.incidents}</span>
                           <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5">Evidence {selectedGroup.counts.evidence}</span>
                           <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5">Docs {selectedGroup.counts.documents}</span>
                           <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5">Records {selectedGroup.totalCount}</span>
+                          <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5">{selectedGroupDateRange}</span>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => onCopyFullChainGptPackMarkdown?.(selectedGroup.name)}
-                        className="w-fit rounded-md border border-lime-500 bg-lime-400/20 px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
-                      >
-                        Copy Full Chain Markdown
-                      </button>
+                      <RecordActions
+                        className="flex flex-wrap gap-2 xl:justify-end"
+                        actions={[
+                          { key: "edit", label: "Edit Group", variant: "primary", onClick: openEditGroupForm },
+                          { key: "delete", label: "Delete Group", variant: "danger", onClick: () => onDeleteGroup?.(selectedGroup) },
+                          { key: "copy", label: "Copy Full Chain Markdown", onClick: () => onCopyFullChainGptPackMarkdown?.(selectedGroup.name) },
+                        ]}
+                      />
                     </div>
 
                     <div className="mt-5 flex flex-wrap gap-2 border-b border-neutral-100 pb-3">
@@ -585,9 +629,7 @@ export default function SequenceGroupManager({
                       <div className="mt-5 space-y-4">
                         <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
                           <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Overview</h4>
-                          <p className="mt-2 text-sm leading-6 text-neutral-700">
-                            {sequenceDescriptionDraft.trim() || "No description has been saved for this sequence group."}
-                          </p>
+                          <div className="mt-2"><SequenceGroupDescription description={sequenceDescriptionDraft} /></div>
                           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                             {selectedGroupSummaryCards.map(([label, count]) => (
                               <div key={label} className="rounded-lg border border-neutral-200 bg-white px-3 py-2">
@@ -902,8 +944,10 @@ export default function SequenceGroupManager({
                     )}
                   </>
                 ) : (
-                  <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-500">
-                    Select a group to review its records and links, or create a group by moving an ungrouped record.
+                  <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-5 text-center">
+                    <h4 className="text-sm font-semibold text-neutral-900">Create your first sequence group</h4>
+                    <p className="mt-1 text-sm text-neutral-500">Groups organise related records into a reviewable investigation chain.</p>
+                    <RecordActions className="mt-4 flex justify-center" actions={[{ key: "create", label: "Create Sequence Group", variant: "primary", onClick: openCreateGroupForm }]} />
                   </div>
                 )}
               </section>
@@ -996,6 +1040,15 @@ export default function SequenceGroupManager({
           </div>
         </div>
       </div>
+      {groupForm && (
+        <SequenceGroupForm
+          mode={groupForm.mode}
+          initialValue={groupForm.initialValue}
+          existingNames={groupOptions}
+          onSave={saveGroupForm}
+          onCancel={() => setGroupForm(null)}
+        />
+      )}
     </div>
   );
 }

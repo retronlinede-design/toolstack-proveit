@@ -12,7 +12,6 @@ import {
   convertRecordTypeInCase,
   mergeCaseSequenceGroups,
   moveRecordToSequenceGroup,
-  removeCaseSequenceGroup,
   renameCaseSequenceGroup,
 } from "../domain/caseDomain.js";
 import { getRecordDisplayMeta, resolveRecordById } from "../domain/linkingResolvers.js";
@@ -69,6 +68,11 @@ import GeneratedClientReportArticle from "./reports/GeneratedClientReportArticle
 import LedgerPackReportArticle from "./reports/LedgerPackReportArticle";
 import ThreadIssueReportArticle from "./reports/ThreadIssueReportArticle";
 import SequenceGroupManager from "./sequenceGroups/SequenceGroupManager";
+import {
+  createManagedSequenceGroup,
+  deleteManagedSequenceGroup,
+  updateManagedSequenceGroup,
+} from "./sequenceGroups/sequenceGroupManagement.js";
 import {
   actionSummaryToForm,
   applyActionSummaryPatch,
@@ -889,10 +893,10 @@ export default function CaseDetail({
   function handleRemoveSequenceGroup(group) {
     if (!selectedCase || !group) return;
 
-    const confirmed = window.confirm(`Remove "${group.name}" from ${group.totalCount} record${group.totalCount === 1 ? "" : "s"}?`);
+    const confirmed = window.confirm(`Clear "${group.name}" from ${group.totalCount} record${group.totalCount === 1 ? "" : "s"}? The records will be kept and become ungrouped.`);
     if (!confirmed) return;
 
-    onUpdateCase(removeCaseSequenceGroup(selectedCase, group.name));
+    onUpdateCase(deleteManagedSequenceGroup(selectedCase, group.name));
     setSelectedSequenceGroupName(sequenceGroups.find((item) => item.name !== group.name)?.name || "");
     setSequenceGroupFeedback(`Removed "${group.name}" from ${group.totalCount} record${group.totalCount === 1 ? "" : "s"}.`);
   }
@@ -1181,6 +1185,45 @@ export default function CaseDetail({
       setAiToolsFeedback(error.message || "Could not copy AI specialist prompt.");
       setSequenceGroupFeedback("Could not copy AI specialist prompt.");
     }
+  }
+
+  function handleCreateManagedSequenceGroup(value) {
+    if (!selectedCase) return;
+    const group = createManagedSequenceGroup(selectedCase.id, value);
+    setSelectedSequenceGroupName(group.name);
+    setSequenceGroupFeedback(`Created sequence group "${group.name}".`);
+  }
+
+  async function handleUpdateManagedSequenceGroup(currentName, value) {
+    if (!selectedCase) return;
+    const result = updateManagedSequenceGroup(selectedCase, currentName, value);
+    if (result.caseItem !== selectedCase) {
+      const saved = await onUpdateCase(result.caseItem);
+      if (!saved) return;
+    }
+    setSelectedSequenceGroupName(result.group.name);
+    setSequenceGroupFeedback(`Updated sequence group "${result.group.name}".`);
+  }
+
+  async function handleDeleteManagedSequenceGroup(group) {
+    if (!selectedCase || !group) return;
+    const confirmed = window.confirm(
+      `Delete "${group.name}"? ${group.totalCount} assigned record${group.totalCount === 1 ? "" : "s"} will be kept and their sequence-group reference will be cleared.`
+    );
+    if (!confirmed) return;
+
+    const sequenceGroupMeta = getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore());
+    const remainingNames = [...new Set([
+      ...sequenceGroups.map((item) => item.name),
+      ...Object.keys(sequenceGroupMeta),
+    ])].filter((name) => name !== group.name).sort((a, b) => a.localeCompare(b));
+    const updatedCase = deleteManagedSequenceGroup(selectedCase, group.name);
+    if (updatedCase !== selectedCase) {
+      const saved = await onUpdateCase(updatedCase);
+      if (!saved) return;
+    }
+    setSelectedSequenceGroupName(remainingNames[0] || "");
+    setSequenceGroupFeedback(`Deleted sequence group "${group.name}". Its records were kept and are now ungrouped.`);
   }
 
   async function handleDownloadSplitReasoningPackage() {
@@ -7541,6 +7584,8 @@ ${ungroupedSequenceText}
           onCopyReviewPackage={handleCopySequenceGroupReviewPackage}
           onDownloadGroupIndexJson={handleDownloadSequenceGroupsIndexJson}
           onDownloadGroupIndexMarkdown={handleDownloadSequenceGroupsIndexMarkdown}
+          onCreateGroup={handleCreateManagedSequenceGroup}
+          onDeleteGroup={handleDeleteManagedSequenceGroup}
           onMergeGroup={handleMergeSequenceGroup}
           onMoveRecordToExisting={handleMoveSequenceRecordToExisting}
           onMoveRecordToNew={handleMoveSequenceRecordToNew}
@@ -7550,6 +7595,7 @@ ${ungroupedSequenceText}
           onRemoveGroup={handleRemoveSequenceGroup}
           onRenameGroup={handleRenameSequenceGroup}
           onTimelineItemSelect={handleSelectSequenceTimelineItem}
+          onUpdateGroup={handleUpdateManagedSequenceGroup}
           onValidateDelta={handleValidateSequenceGroupDelta}
           search={sequenceGroupSearch}
           selectedCase={selectedCase}

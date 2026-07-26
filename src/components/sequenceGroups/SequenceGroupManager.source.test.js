@@ -24,7 +24,24 @@ test("SequenceGroupManager keeps grouped sections and required actions available
     "Rename",
     "Merge",
     "Clear group label",
+    "New Sequence Group",
+    "Create Sequence Group",
+    "Edit Group",
+    "Delete Group",
+    "No dated records",
   ]) {
     assert.equal(source.includes(label), true, `${label} should remain visible in the manager UI`);
   }
+});
+
+test("SequenceGroupManager uses the shared group form and management callbacks", () => {
+  assert.match(source, /<SequenceGroupForm/);
+  assert.match(source, /mode=\{groupForm\.mode\}/);
+  assert.match(source, /onCreateGroup/);
+  assert.match(source, /onUpdateGroup/);
+  assert.match(source, /onDeleteGroup/);
+  assert.match(source, /mergeManagedSequenceGroupDetails/);
+  assert.match(source, /SequenceGroupDescription/);
+  assert.match(source, /RecordActions/);
+  assert.match(source, /RecordBadge/);
 });

@@ -999,6 +999,7 @@ export function getCaseSequenceGroupDetails(caseItem) {
     evidence: [],
     documents: [],
     strategy: [],
+    watchItems: [],
   };
 
   SEQUENCE_GROUP_RECORD_TYPES.forEach((recordType) => {
@@ -1016,13 +1017,13 @@ export function getCaseSequenceGroupDetails(caseItem) {
           name: groupName,
           totalCount: 0,
           counts: { incidents: 0, evidence: 0, documents: 0, strategy: 0 },
-          records: { incidents: [], evidence: [], documents: [], strategy: [] },
+          records: { incidents: [], evidence: [], documents: [], strategy: [], watchItems: [] },
           warnings: { noIncidents: false, incidentsWithoutEvidence: false },
         });
       }
       const group = groups.get(groupName);
       group.totalCount += 1;
-      group.counts[recordType] += 1;
+      group.counts[recordType] = (group.counts[recordType] || 0) + 1;
       group.records[recordType].push(item);
     });
   });

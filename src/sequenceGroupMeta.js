@@ -96,6 +96,33 @@ export function saveSequenceGroupDescription(caseId, groupName, description, sto
   return writeSequenceGroupMetaStore(store, storage);
 }
 
+export function saveSequenceGroupMeta(caseId, groupName, value = {}, storage) {
+  const cleanCaseId = text(caseId);
+  const cleanGroupName = text(groupName);
+  if (!cleanCaseId || !cleanGroupName) return readSequenceGroupMetaStore(storage);
+
+  const store = readSequenceGroupMetaStore(storage);
+  store[cleanCaseId] = {
+    ...(store[cleanCaseId] || {}),
+    [cleanGroupName]: {
+      description: typeof value.description === "string" ? value.description.trim() : "",
+      updatedAt: new Date().toISOString(),
+    },
+  };
+  return writeSequenceGroupMetaStore(store, storage);
+}
+
+export function deleteSequenceGroupMeta(caseId, groupName, storage) {
+  const cleanCaseId = text(caseId);
+  const cleanGroupName = text(groupName);
+  const store = readSequenceGroupMetaStore(storage);
+  if (!cleanCaseId || !cleanGroupName || !store[cleanCaseId]?.[cleanGroupName]) return store;
+
+  delete store[cleanCaseId][cleanGroupName];
+  if (Object.keys(store[cleanCaseId]).length === 0) delete store[cleanCaseId];
+  return writeSequenceGroupMetaStore(store, storage);
+}
+
 export function clearSequenceGroupDescription(caseId, groupName, storage) {
   const cleanCaseId = text(caseId);
   const cleanGroupName = text(groupName);
