@@ -66,7 +66,9 @@ import {
   buildWeakLinksAuditMarkdownPrompt,
   buildWeakLinksAuditPack,
 } from "../export/gptAuditPacks.js";
-import { buildCaseBundleReport, buildDocumentPackReport, buildEvidencePackReport, buildExecutiveSummaryNarrativePolishPrompt, buildExecutiveSummaryReport, buildLedgerPackReport, buildStrategyReportItem, buildThreadIssueReport, getCurrentWatchItems } from "../report/reportBuilder.js";
+import { buildCaseBundleReport, buildDocumentPackReport, buildEvidencePackReport, buildExecutiveSummaryNarrativePolishPrompt, buildExecutiveSummaryReport, buildLedgerPackReport, buildThreadIssueReport } from "../report/reportBuilder.js";
+import { buildActionPlanReport } from "../report/actionPlanReport.js";
+import { normaliseReportScope } from "../report/reportScopes.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import LinkedChip from "./LinkedChip";
 import RecordCard from "./RecordCard";
@@ -77,6 +79,7 @@ import ExecutiveSummaryReportArticle from "./reports/ExecutiveSummaryReportArtic
 import GeneratedClientReportArticle from "./reports/GeneratedClientReportArticle";
 import LedgerPackReportArticle from "./reports/LedgerPackReportArticle";
 import ThreadIssueReportArticle from "./reports/ThreadIssueReportArticle";
+import ReportCentreControls, { ReportCentrePreviewSummary } from "./reports/ReportCentreControls";
 import SequenceGroupManager from "./sequenceGroups/SequenceGroupManager";
 import {
   createManagedSequenceGroup,
@@ -89,7 +92,6 @@ import {
   emptyActionSummaryForm,
   formToActionSummary,
   getActionText,
-  getActiveNextActions,
   normalizeActionSummary,
 } from "./caseDetail/actionSummaryHelpers";
 import ActionSummaryModal from "./caseDetail/ActionSummaryModal";
@@ -429,10 +431,11 @@ export default function CaseDetail({
     if (!selectedCase) return null;
     return buildExecutiveSummaryReport(selectedCase);
   }, [selectedCase]);
+  const normalisedReportCentreScopeType = normaliseReportScope(reportCentreType, reportCentreScopeType);
   const reportCentreScope = useMemo(() => ({
-    scopeType: reportCentreScopeType,
-    sequenceGroup: reportCentreScopeType === "sequenceGroup" ? selectedReportCentreSequenceGroup : "",
-  }), [reportCentreScopeType, selectedReportCentreSequenceGroup]);
+    scopeType: normalisedReportCentreScopeType,
+    sequenceGroup: normalisedReportCentreScopeType === "sequenceGroup" ? selectedReportCentreSequenceGroup : "",
+  }), [normalisedReportCentreScopeType, selectedReportCentreSequenceGroup]);
   const reportCentreEvidencePackReport = useMemo(() => {
     if (!selectedCase) return null;
     return buildEvidencePackReport(selectedCase, reportCentreScope);
@@ -463,70 +466,14 @@ export default function CaseDetail({
   }, [selectedCase, reportCentreScope]);
   const reportCentreActionPlan = useMemo(() => {
     if (!selectedCase) return null;
-    const diagnostics = analyzeCaseDiagnostics(selectedCase);
-    const normalizedActionSummary = normalizeActionSummary(selectedCase.actionSummary || {});
-    const scopeLabel = reportCentreScope.scopeType === "sequenceGroup"
-      ? `sequenceGroup: ${reportCentreScope.sequenceGroup || "-"}`
-      : "Whole case";
-    const weakRecords = diagnostics.integrity?.weaklyLinkedRecords || [];
-    const orphanRecords = diagnostics.integrity?.orphanRecords || [];
-    const unsupportedIncidents = diagnostics.evidenceCoverage?.incidentsNeedingEvidence || [];
-    const chronologyGaps = diagnostics.chronology?.missingDateRecords || [];
-    const strategyRecords = (selectedCase.strategy || [])
-      .filter((item) => item?.id && !["done", "closed", "archived"].includes(item.status));
-    const watchItems = getCurrentWatchItems(selectedCase);
-    const openTasks = (selectedCase.tasks || [])
-      .filter((item) => item?.id && !["done", "closed", "archived"].includes(item.status));
-    const sequenceGroup = reportCentreScope.sequenceGroup;
-    const mentionsScope = (value) => (
-      reportCentreScope.scopeType !== "sequenceGroup" ||
-      safeText(value).toLowerCase().includes(sequenceGroup.toLowerCase())
-    );
-
-    return {
-      title: reportCentreScope.scopeType === "sequenceGroup"
-        ? `Action Plan: ${sequenceGroup || "Unselected sequenceGroup"}`
-        : "Action Plan: Whole Case",
-      sourceCaseId: selectedCase.id || "",
-      generatedAt: new Date().toISOString(),
-      scopeLabel,
-      caseOverview: {
-        name: selectedCase.name || "",
-        category: selectedCase.category || "",
-        status: selectedCase.status || "",
-      },
-      currentFocus: normalizedActionSummary.currentFocus || "",
-      nextActions: getActiveNextActions(normalizedActionSummary.nextActions)
-        .map(getActionText)
-        .filter(mentionsScope),
-      importantReminders: normalizedActionSummary.importantReminders.filter(mentionsScope),
-      strategyFocus: normalizedActionSummary.strategyFocus.filter(mentionsScope),
-      criticalDeadlines: normalizedActionSummary.criticalDeadlines.filter(mentionsScope),
-      openStrategyRecords: strategyRecords.filter((item) => mentionsScope(`${item.title} ${item.objective} ${item.description} ${item.notes} ${item.sequenceGroup}`)).map((item) => buildStrategyReportItem(selectedCase, item)),
-      watchItems: watchItems.filter((item) => mentionsScope(`${item.title} ${item.watchFor} ${item.rationale} ${item.sequenceGroup}`)),
-      openTasks: openTasks.filter((item) => mentionsScope(`${item.title} ${item.description} ${item.notes} ${item.sequenceGroup}`)),
-      risks: [
-        ...unsupportedIncidents.map((item) => ({ id: `unsupported-${item.id}`, label: "Unsupported incident", text: item.title })),
-        ...weakRecords.slice(0, 8).map((item) => ({ id: `weak-${item.type}-${item.id}`, label: "Weak link", text: item.title })),
-        ...orphanRecords.slice(0, 8).map((item) => ({ id: `orphan-${item.type}-${item.id}`, label: "Unlinked record", text: item.title })),
-        ...chronologyGaps.slice(0, 8).map((item) => ({ id: `date-${item.type}-${item.id}`, label: "Chronology gap", text: item.title })),
-      ],
-      recommendedFixes: [
-        ...(unsupportedIncidents.length > 0 ? ["Link evidence to unsupported incidents before escalation."] : []),
-        ...(weakRecords.length > 0 || orphanRecords.length > 0 ? ["Review weak or unlinked records and connect them to the relevant incidents, evidence, documents, or ledger entries."] : []),
-        ...(chronologyGaps.length > 0 ? ["Add missing dates or ordering information to strengthen chronology."] : []),
-        ...(getActiveNextActions(normalizedActionSummary.nextActions).length === 0 ? ["Add explicit next actions to the case action summary."] : []),
-      ],
-      counts: {
-        nextActions: getActiveNextActions(normalizedActionSummary.nextActions).length,
-        reminders: normalizedActionSummary.importantReminders.length,
-        deadlines: normalizedActionSummary.criticalDeadlines.length,
-        openStrategy: strategyRecords.length,
-        openTasks: openTasks.length,
-        risks: unsupportedIncidents.length + weakRecords.length + orphanRecords.length + chronologyGaps.length,
-      },
-    };
+    return buildActionPlanReport(selectedCase, reportCentreScope);
   }, [selectedCase, reportCentreScope]);
+
+  useEffect(() => {
+    if (reportCentreScopeType !== normalisedReportCentreScopeType) {
+      setReportCentreScopeType(normalisedReportCentreScopeType);
+    }
+  }, [normalisedReportCentreScopeType, reportCentreScopeType]);
 
   useEffect(() => {
     if (!aiToolsOpen) return undefined;
@@ -3433,6 +3380,10 @@ ${ungroupedSequenceText}
   const reportCentreScopeLabel = reportCentreScope.scopeType === "sequenceGroup"
     ? `sequenceGroup: ${selectedReportCentreSequenceGroup || "-"}`
     : "Whole case";
+  const handleReportCentreTypeChange = (nextReportType) => {
+    setReportCentreType(nextReportType);
+    setReportCentreScopeType((currentScope) => normaliseReportScope(nextReportType, currentScope));
+  };
   const handleCopyReportCentreMarkdown = async () => {
     if (!reportCentreMarkdown) return;
     await copySequenceGroupText(reportCentreMarkdown);
@@ -3475,6 +3426,12 @@ ${ungroupedSequenceText}
             This report is generated from the local ProveIt case file. Review before sharing with management, HR, legal reviewers, or third parties.
           </p>
         </header>
+
+        {report.isEmptyScope && (
+          <div className="mt-6 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+            No Action Plan records are assigned to this sequence group.
+          </div>
+        )}
 
         <section className="border-b border-neutral-200 py-6 print:py-5">
           <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Current Focus</h2>
@@ -4950,140 +4907,28 @@ ${ungroupedSequenceText}
                   </div>
                 </div>
 
-                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden">
-                  <div className="grid gap-5 lg:grid-cols-[0.8fr_1fr_0.7fr]">
-                    <div>
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Scope</h4>
-                      <div className="mt-2 grid grid-cols-2 gap-2">
-                        {[
-                          ["case", "Whole Case"],
-                          ["sequenceGroup", "Sequence Group"],
-                        ].map(([value, label]) => (
-                          <button
-                            key={value}
-                            type="button"
-                            onClick={() => setReportCentreScopeType(value)}
-                            className={`rounded-lg border px-3 py-2 text-sm font-bold ${
-                              reportCentreScopeType === value
-                                ? "border-lime-400 bg-lime-400/30 text-neutral-950"
-                                : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                      {reportCentreScopeType === "sequenceGroup" && (
-                        <div className="mt-3">
-                          <label className="text-xs font-bold uppercase tracking-wider text-neutral-500" htmlFor="report-centre-sequence-group">
-                            sequenceGroup
-                          </label>
-                          {threadIssueReportSequenceOptions.length > 0 ? (
-                            <select
-                              id="report-centre-sequence-group"
-                              value={selectedReportCentreSequenceGroup}
-                              onChange={(event) => setReportCentreSequenceGroup(event.target.value)}
-                              className="mt-2 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
-                            >
-                              {threadIssueReportSequenceOptions.map((groupName) => (
-                                <option key={groupName} value={groupName}>{groupName}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            <p className="mt-2 text-sm text-neutral-600">No sequence groups exist in this case yet.</p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Report Type</h4>
-                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                        {[
-                          ["management", "Management Report", "Concise professional report for managers, HR, and executives."],
-                          ["investigation", "Investigation Report", "Detailed factual report for legal, specialist, or internal review."],
-                          ["evidence", "Evidence Pack", "Evidence matrix and supporting material."],
-                          ["document", "Document Pack", "Source document matrix, linked records, and attachment metadata."],
-                          ["ledger", "Ledger Pack", "Financial, payment, and measurable record review."],
-                          ["client", "Client Report", "GPT-assisted client-facing report drafting and rendering."],
-                          ["action", "Action Plan", "Outstanding issues, next steps, risks, and recommendations."],
-                        ].map(([value, label, description]) => (
-                          <button
-                            key={value}
-                            type="button"
-                            onClick={() => setReportCentreType(value)}
-                            className={`rounded-lg border p-3 text-left ${
-                              reportCentreType === value
-                                ? "border-lime-400 bg-lime-400/20 text-neutral-950"
-                                : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"
-                            }`}
-                          >
-                            <div className="text-sm font-bold">{label}</div>
-                            <div className="mt-1 text-xs leading-5 text-neutral-500">{description}</div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Output</h4>
-                      <div className="mt-2 grid gap-2">
-                        <div className="rounded-lg border border-lime-300 bg-lime-50 px-3 py-2 text-sm font-bold text-lime-900">
-                          Preview
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => window.print()}
-                          disabled={reportCentreScopeType === "sequenceGroup" && !selectedReportCentreSequenceGroup}
-                          className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400"
-                        >
-                          Print / Save PDF
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleCopyReportCentreMarkdown}
-                          disabled={!reportCentreMarkdown}
-                          className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-bold text-neutral-700 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:text-neutral-400"
-                        >
-                          Copy Markdown
-                        </button>
-                        <button
-                          type="button"
-                          onClick={openSequenceGroupAuditExport}
-                          className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-bold text-neutral-700 transition-colors hover:bg-neutral-50"
-                        >
-                          Open Sequence Group Audit
-                        </button>
-                      </div>
-                      <p className="mt-3 text-xs leading-5 text-neutral-500">
-                        JSON is reserved for sequence group audit exports. DOCX and encrypted reports are not enabled in Phase 1.
-                      </p>
-                    </div>
-                  </div>
-                </section>
+                <ReportCentreControls
+                  reportType={reportCentreType}
+                  scopeType={normalisedReportCentreScopeType}
+                  sequenceGroups={threadIssueReportSequenceOptions}
+                  selectedSequenceGroup={selectedReportCentreSequenceGroup}
+                  markdownAvailable={Boolean(reportCentreMarkdown)}
+                  onReportTypeChange={handleReportCentreTypeChange}
+                  onScopeTypeChange={setReportCentreScopeType}
+                  onSequenceGroupChange={setReportCentreSequenceGroup}
+                  onPrint={() => window.print()}
+                  onCopyMarkdown={handleCopyReportCentreMarkdown}
+                  onOpenSequenceGroupAudit={openSequenceGroupAuditExport}
+                />
 
                 <section className="space-y-4">
-                  <div className="flex flex-col gap-2 border-b border-neutral-200 pb-3 print:hidden sm:flex-row sm:items-end sm:justify-between">
-                    <div>
-                      <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Preview</h4>
-                      <p className="mt-1 text-sm text-neutral-600">
-                        {reportCentreType === "management" && "Manager-ready report focused on findings, risks, awareness items, outstanding issues, and actions."}
-                        {reportCentreType === "investigation" && (reportCentreScopeType === "sequenceGroup"
-                          ? "Uses the existing Thread / Issue Report builder for the selected sequence group."
-                          : "Uses the existing Case Bundle builder for whole-case investigation scope.")}
-                        {reportCentreType === "evidence" && "Uses the existing Evidence Pack builder."}
-                        {reportCentreType === "document" && "Uses the existing Document Pack builder."}
-                        {reportCentreType === "ledger" && "Uses the existing Ledger Pack builder."}
-                        {reportCentreType === "client" && "Uses the existing GPT-generated Client Report workflow and renderer."}
-                        {reportCentreType === "action" && "Uses a deterministic Phase 1 action-plan placeholder from action summary and diagnostics."}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs font-semibold text-neutral-600">
-                      Scope: {reportCentreScopeLabel}
-                    </div>
-                  </div>
+                  <ReportCentrePreviewSummary
+                    reportType={reportCentreType}
+                    scopeType={normalisedReportCentreScopeType}
+                    scopeLabel={reportCentreScopeLabel}
+                  />
 
-                  {reportCentreScopeType === "sequenceGroup" && !selectedReportCentreSequenceGroup ? (
+                  {normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreSequenceGroup ? (
                     <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
                       Assign records to a sequenceGroup before previewing a sequence group report.
                     </div>
@@ -5096,18 +4941,23 @@ ${ungroupedSequenceText}
                           className="mx-auto max-w-5xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
                         />
                       )}
-                      {reportCentreType === "investigation" && reportCentreScopeType === "sequenceGroup" && (
+                      {reportCentreType === "investigation" && normalisedReportCentreScopeType === "sequenceGroup" && (
                         <ThreadIssueReportArticle
                           report={reportCentreInvestigationReport}
                           visibility={threadIssueReportVisibility}
                           className="mx-auto max-w-5xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
                         />
                       )}
-                      {reportCentreType === "investigation" && reportCentreScopeType === "case" && (
-                        <CaseBundleReportArticle
-                          report={reportCentreInvestigationReport}
-                          className="mx-auto max-w-6xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
-                        />
+                      {reportCentreType === "investigation" && normalisedReportCentreScopeType === "case" && (
+                        <div className="space-y-3">
+                          <div className="mx-auto max-w-6xl rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
+                            <span className="font-semibold">Bounded investigation overview.</span> This preview does not include a complete incident schedule and displays at most 12 evidence records and 12 documents. Use the dedicated packs for fuller schedules.
+                          </div>
+                          <CaseBundleReportArticle
+                            report={reportCentreInvestigationReport}
+                            className="mx-auto max-w-6xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
+                          />
+                        </div>
                       )}
                       {reportCentreType === "evidence" && (
                         <EvidencePackReportArticle
@@ -5942,8 +5792,9 @@ ${ungroupedSequenceText}
                 <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden">
                   <button
                     type="button"
-                    onClick={() => setInternalReportGeneratorOpen((open) => !open)}
-                    className="flex items-center gap-2 text-left"
+                    disabled
+                    aria-disabled="true"
+                    className="flex cursor-not-allowed items-center gap-2 text-left opacity-70"
                   >
                     {internalReportGeneratorOpen ? (
                       <ChevronDown className="h-4 w-4 text-neutral-400" />
@@ -5951,9 +5802,12 @@ ${ungroupedSequenceText}
                       <ChevronRight className="h-4 w-4 text-neutral-400" />
                     )}
                     <span className="text-sm font-bold uppercase tracking-wider text-neutral-500">
-                      Internal Report (Coming Soon)
+                      Internal Report — Unavailable
                     </span>
                   </button>
+                  <p className="mt-2 text-sm text-neutral-500">
+                    This future destination is not selectable. The existing Internal View remains available in Print Pack.
+                  </p>
                   {internalReportGeneratorOpen && (
                     <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600">
                       Internal report output is available in the Print Pack internal view.
@@ -6588,18 +6442,21 @@ ${ungroupedSequenceText}
                 <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 print:hidden">
                   <div className="inline-flex rounded-lg border border-neutral-200 bg-white p-1 shadow-sm">
                     {[
-                      { id: "internal", label: "Internal View" },
-                      { id: "client", label: "Client Report" },
-                      { id: "lawyer", label: "Lawyer Pack" },
+                      { id: "internal", label: "Internal View", available: true },
+                      { id: "client", label: "Client Report", available: true },
+                      { id: "lawyer", label: "Lawyer Pack — Unavailable", available: false },
                     ].map((mode) => (
                       <button
                         key={mode.id}
                         type="button"
-                        onClick={() => setReportMode(mode.id)}
+                        disabled={!mode.available}
+                        aria-disabled={!mode.available}
+                        aria-pressed={reportMode === mode.id}
+                        onClick={() => mode.available && setReportMode(mode.id)}
                         className={`rounded-md px-3 py-1.5 text-sm font-semibold transition-colors ${
                           reportMode === mode.id
                             ? "bg-lime-500 text-white shadow-sm"
-                            : "text-neutral-600 hover:bg-neutral-50"
+                            : "text-neutral-600 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:text-neutral-400 disabled:hover:bg-transparent"
                         }`}
                       >
                         {mode.label}
