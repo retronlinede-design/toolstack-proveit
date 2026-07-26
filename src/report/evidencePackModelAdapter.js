@@ -2,7 +2,7 @@ import { EVIDENCE_PACK_REPORT } from "./reportBuilder.js";
 
 function linkedDisplay(recordByReference, link) {
   const target = [...recordByReference.values()].find((record) => record.id === link.targetId);
-  if (!target) return null;
+  if (!target) return { id: link.targetId, recordType: "unknown", title: link.targetId, status: "missing" };
   return {
     id: target.id,
     recordType: target.type,
@@ -43,8 +43,18 @@ function buildEvidenceItem(record, recordByReference) {
 
 export function buildEvidencePackReportFromModel(model, options = {}) {
   const safeModel = model && typeof model === "object" ? model : {};
-  const evidenceRecords = safeModel.records?.byType?.evidence || [];
   const allRecords = safeModel.records?.all || [];
+  const primaryRecords = safeModel.records?.primaryScopedRecords || [];
+  const primaryThreadRecords = primaryRecords.filter((record) => record.type !== "ledger");
+  const primaryIds = new Set(primaryThreadRecords.map((record) => record.id));
+  const directlyLinkedIds = new Set(primaryThreadRecords.flatMap((record) => record.linkedRecordIds || []));
+  const evidenceRecords = safeModel.scope?.type === "sequenceGroup"
+    ? allRecords.filter((record) => record.type === "evidence" && (
+      primaryIds.has(record.id)
+      || directlyLinkedIds.has(record.id)
+      || (record.linkedRecordIds || []).some((id) => primaryIds.has(id))
+    ))
+    : safeModel.records?.byType?.evidence || [];
   const recordByReference = new Map(allRecords.map((record) => [`${record.type}:${record.id}`, record]));
   const evidenceMatrix = evidenceRecords.map((record) => buildEvidenceItem(record, recordByReference));
   const linkedEvidence = evidenceMatrix.filter((item) => item.linkedIncidents.length > 0);

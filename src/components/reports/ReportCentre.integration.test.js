@@ -10,9 +10,11 @@ import { transformWithOxc } from "vite";
 const componentUrl = new URL("./ReportCentreControls.jsx", import.meta.url);
 const caseDetailSource = await readFile(new URL("../CaseDetail.jsx", import.meta.url), "utf8");
 const scopeUrl = new URL("../../report/reportScopes.js", import.meta.url).href;
+const definitionsUrl = new URL("../../report/reportDefinitions.js", import.meta.url).href;
 const configUrl = new URL("./reportCentreConfig.js", import.meta.url);
 const configSource = (await readFile(configUrl, "utf8"))
-  .replace('from "../../report/reportScopes.js"', `from "${scopeUrl}"`);
+  .replace('from "../../report/reportScopes.js"', `from "${scopeUrl}"`)
+  .replace('from "../../report/reportDefinitions.js"', `from "${definitionsUrl}"`);
 const importableConfigUrl = `data:text/javascript;base64,${Buffer.from(configSource).toString("base64")}`;
 const transformed = await transformWithOxc(await readFile(componentUrl, "utf8"), componentUrl.pathname);
 const runtimeUrl = import.meta.resolve("react/jsx-runtime");
@@ -66,7 +68,7 @@ test("changing report type changes the rendered preview description", () => {
   const evidence = renderPreview("evidence", "case", "Whole case");
   const action = renderPreview("action", "sequenceGroup", "sequenceGroup: Alpha");
 
-  assert.match(evidence, /existing Evidence Pack builder/);
+  assert.match(evidence, /complete Evidence Schedule report document/);
   assert.doesNotMatch(evidence, /structured case and sequence-group assignments/);
   assert.match(action, /structured case and sequence-group assignments/);
   assert.match(action, /Scope: sequenceGroup: Alpha/);
@@ -128,6 +130,13 @@ test("optional control values do not prevent the Report Centre from rendering", 
 test("the active CaseDetail Report Centre uses the rendered control boundary", () => {
   assert.match(caseDetailSource, /<ReportCentreControls/);
   assert.match(caseDetailSource, /<ReportCentrePreviewSummary/);
+});
+
+test("the active Evidence Pack follows model document and unchanged renderer path", () => {
+  assert.match(caseDetailSource, /buildCaseReportModel\(selectedCase/);
+  assert.match(caseDetailSource, /buildEvidenceScheduleDocument\(reportModel, definition\)/);
+  assert.match(caseDetailSource, /projectEvidenceDocumentToLegacyViewModel\(reportDocument\)/);
+  assert.match(caseDetailSource, /<EvidencePackReportArticle/);
 });
 
 test("Internal Report and Lawyer Pack cannot be selected as working destinations", () => {

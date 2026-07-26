@@ -1,25 +1,24 @@
-export const REPORT_SCOPE_SUPPORT = Object.freeze({
-  management: Object.freeze(["case"]),
-  investigation: Object.freeze(["case", "sequenceGroup"]),
-  evidence: Object.freeze(["case", "sequenceGroup"]),
-  document: Object.freeze(["case", "sequenceGroup"]),
-  ledger: Object.freeze(["case", "sequenceGroup"]),
-  client: Object.freeze(["case"]),
-  action: Object.freeze(["case", "sequenceGroup"]),
-});
+import {
+  getActiveReportDefinitions,
+  getReportDefinition,
+  normaliseReportScopeFromDefinition,
+  reportSupportsScope as definitionSupportsScope,
+} from "./reportDefinitions.js";
 
-const WHOLE_CASE_ONLY = Object.freeze(["case"]);
+export const REPORT_SCOPE_SUPPORT = Object.freeze(Object.fromEntries(
+  getActiveReportDefinitions().map((definition) => [definition.id, definition.supportedScopes])
+));
 
 export function getSupportedReportScopes(reportType) {
-  return REPORT_SCOPE_SUPPORT[reportType] || WHOLE_CASE_ONLY;
+  return getReportDefinition(reportType).supportedScopes;
 }
 
 export function reportSupportsScope(reportType, scope) {
-  return getSupportedReportScopes(reportType).includes(scope);
+  return definitionSupportsScope(reportType, scope);
 }
 
 export function normaliseReportScope(reportType, requestedScope) {
-  return reportSupportsScope(reportType, requestedScope) ? requestedScope : "case";
+  return normaliseReportScopeFromDefinition(reportType, requestedScope);
 }
 
 export const normalizeReportScope = normaliseReportScope;

@@ -69,6 +69,9 @@ import {
 import { buildCaseBundleReport, buildDocumentPackReport, buildEvidencePackReport, buildExecutiveSummaryNarrativePolishPrompt, buildExecutiveSummaryReport, buildLedgerPackReport, buildThreadIssueReport } from "../report/reportBuilder.js";
 import { buildActionPlanReport } from "../report/actionPlanReport.js";
 import { normaliseReportScope } from "../report/reportScopes.js";
+import { getReportDefinition } from "../report/reportDefinitions.js";
+import { buildCaseReportModel } from "../report/reportModel.js";
+import { buildEvidenceScheduleDocument, projectEvidenceDocumentToLegacyViewModel } from "../report/evidenceScheduleDocument.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import LinkedChip from "./LinkedChip";
 import RecordCard from "./RecordCard";
@@ -438,7 +441,16 @@ export default function CaseDetail({
   }), [normalisedReportCentreScopeType, selectedReportCentreSequenceGroup]);
   const reportCentreEvidencePackReport = useMemo(() => {
     if (!selectedCase) return null;
-    return buildEvidencePackReport(selectedCase, reportCentreScope);
+    const definition = getReportDefinition("evidence");
+    const reportModel = buildCaseReportModel(selectedCase, {
+      scope: reportCentreScope.scopeType,
+      sequenceGroupName: reportCentreScope.sequenceGroup,
+      includeArchived: definition.includeArchived,
+      includeDiagnostics: true,
+      sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
+    });
+    const reportDocument = buildEvidenceScheduleDocument(reportModel, definition);
+    return projectEvidenceDocumentToLegacyViewModel(reportDocument);
   }, [selectedCase, reportCentreScope]);
   const reportCentreDocumentPackReport = useMemo(() => {
     if (!selectedCase) return null;
