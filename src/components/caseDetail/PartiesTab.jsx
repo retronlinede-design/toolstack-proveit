@@ -4,6 +4,7 @@ import RecordActions from "../shared/RecordActions.jsx";
 import RecordBadge from "../shared/RecordBadge.jsx";
 import RecordMetadataRow from "../shared/RecordMetadataRow.jsx";
 import RecordLinksRow from "../shared/RecordLinksRow.jsx";
+import RecordCardShell from "../shared/RecordCardShell.jsx";
 import {
   PARTY_ENTITY_TYPES,
   PARTY_ROLES,
@@ -398,24 +399,19 @@ export default function PartiesTab({
       ) : (
         <div className="grid gap-3 xl:grid-cols-2">
           {filteredParties.map((party) => (
-            <article key={party.id} className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <h4 className="truncate text-base font-semibold text-neutral-950">{party.displayName || "Untitled Party"}</h4>
-                  {party.legalName && party.legalName !== party.displayName && (
-                    <p className="mt-1 truncate text-sm text-neutral-500">{party.legalName}</p>
-                  )}
-                </div>
-                <RecordActions
+            <RecordCardShell
+              key={party.id}
+              headingLevel={4}
+              title={party.displayName || "Untitled Party"}
+              subtitle={party.legalName && party.legalName !== party.displayName ? party.legalName : undefined}
+              actions={<RecordActions
                   className="flex shrink-0 gap-2"
                   actions={[
                     { key: "edit", label: "Edit", onClick: () => openEditModal(party) },
                     { key: "delete", label: "Delete", variant: "danger", onClick: () => deleteParty(party) },
                   ]}
-                />
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-2">
+                />}
+              badges={<>
                 <RecordBadge variant="type" className="uppercase tracking-wider">{getPartyEntityTypeLabel(party.entityType)}</RecordBadge>
                 <RecordBadge variant={getPartyStatusBadgeVariant(party.status)} className="uppercase tracking-wider">{getPartyStatusLabel(party.status)}</RecordBadge>
                 {party.confidentiality && party.confidentiality !== "normal" && (
@@ -424,7 +420,8 @@ export default function PartiesTab({
                 {(party.roles || []).map((role) => (
                   <Chip key={role} tone="role">{getPartyRoleLabel(role)}</Chip>
                 ))}
-              </div>
+              </>}
+            >
 
               {(party.organisationName || party.jobTitle || party.department) && (
                 <RecordMetadataRow className="mt-3 text-sm" items={[
@@ -448,7 +445,7 @@ export default function PartiesTab({
                   {party.tags.map((tag) => <Chip key={tag}>{tag}</Chip>)}
                 </div>
               )}
-            </article>
+            </RecordCardShell>
           ))}
         </div>
       )}

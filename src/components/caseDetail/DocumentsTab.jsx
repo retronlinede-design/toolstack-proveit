@@ -4,6 +4,7 @@ import RecordActions from "../shared/RecordActions.jsx";
 import RecordBadge from "../shared/RecordBadge.jsx";
 import RecordMetadataRow from "../shared/RecordMetadataRow.jsx";
 import RecordLinksRow from "../shared/RecordLinksRow.jsx";
+import RecordCardShell from "../shared/RecordCardShell.jsx";
 import { getDocumentTextStatus } from "./trackingRecordHelpers";
 
 function getDocumentStatusBadgeVariant(tone) {
@@ -91,23 +92,17 @@ export default function DocumentsTab({
               if (missingPartyLinkCount > 0) partyLinkItems.push({ key: "missing-parties", label: `${missingPartyLinkCount} missing part${missingPartyLinkCount === 1 ? "y" : "ies"}`, variant: "missing", title: "Related parties that could not be resolved" });
 
               return (
-              <div key={doc.id} className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h4 className="min-w-0 flex-1 truncate font-semibold text-neutral-900">{doc.title || "Untitled Document"}</h4>
-                      <RecordBadge variant={getDocumentStatusBadgeVariant(textStatus.tone)} className="shrink-0 uppercase tracking-wider">
-                        {textStatus.label}
-                      </RecordBadge>
-                      {renderSequenceGroupChip(doc.sequenceGroup)}
-                    </div>
-                    <RecordMetadataRow className="mt-2 uppercase tracking-wider" items={[
-                      { key: "document-date", value: doc.documentDate || "No date", emphasis: true },
-                      { key: "document-type", render: <RecordBadge variant="type" className="uppercase tracking-wider">{doc.category || "other"}</RecordBadge> },
-                      { key: "source", label: "Source", value: doc.source },
-                    ]} />
-                  </div>
-                  <RecordActions
+              <RecordCardShell
+                key={doc.id}
+                headingLevel={4}
+                title={doc.title || "Untitled Document"}
+                badges={<><RecordBadge variant={getDocumentStatusBadgeVariant(textStatus.tone)} className="shrink-0 uppercase tracking-wider">{textStatus.label}</RecordBadge>{renderSequenceGroupChip(doc.sequenceGroup)}</>}
+                metadata={<RecordMetadataRow className="uppercase tracking-wider" items={[
+                  { key: "document-date", value: doc.documentDate || "No date", emphasis: true },
+                  { key: "document-type", render: <RecordBadge variant="type" className="uppercase tracking-wider">{doc.category || "other"}</RecordBadge> },
+                  { key: "source", label: "Source", value: doc.source },
+                ]} />}
+                actions={<RecordActions
                     className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-nowrap"
                     actions={[
                       { key: "open", label: "Open Document", variant: "primary", onClick: () => onOpenDocument(doc) },
@@ -115,8 +110,8 @@ export default function DocumentsTab({
                       { key: "convert", label: "Convert", variant: "secondary", onClick: () => onConvertDocument?.(doc) },
                       { key: "delete", label: "Delete", variant: "danger", onClick: () => onDeleteDocument(doc) },
                     ]}
-                  />
-                </div>
+                  />}
+              >
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <div className="hidden">
@@ -168,7 +163,7 @@ export default function DocumentsTab({
                 </div>
               )}
               <RecordLinksRow className="mt-1" groups={[{ key: "linked-parties", label: "Linked Parties", items: partyLinkItems }]} />
-            </div>
+            </RecordCardShell>
               );
             })}
           </div>

@@ -7,6 +7,7 @@ import RecordActions from "./shared/RecordActions.jsx";
 import RecordBadge from "./shared/RecordBadge.jsx";
 import RecordMetadataRow from "./shared/RecordMetadataRow.jsx";
 import RecordLinksRow from "./shared/RecordLinksRow.jsx";
+import RecordCardShell from "./shared/RecordCardShell.jsx";
 
 function getPriorityBadgeVariant(priority) {
   switch (priority) {
@@ -128,11 +129,11 @@ export default function StrategyRecordCard({
   const hasRationale = hasText(item?.rationale);
 
   return (
-    <article id={`record-${item.id}`} className="relative overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-      <div className="border-b border-neutral-200 bg-neutral-50/80 p-4 sm:p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 flex-1 sm:pr-3">
-            <div className="flex flex-wrap items-center gap-2">
+    <RecordCardShell
+      id={`record-${item.id}`}
+      title={item?.title || "Untitled Strategy"}
+      expanded
+      badges={<>
               {strategyType && <RecordBadge variant="type" className="uppercase tracking-wider">{strategyType}</RecordBadge>}
               {priority && <RecordBadge variant={getPriorityBadgeVariant(item.priority)} className="uppercase tracking-wider">{priority} priority</RecordBadge>}
               {status && (
@@ -147,24 +148,17 @@ export default function StrategyRecordCard({
               {sequenceGroup && (
                 <RecordLinksRow groups={[{ key: "sequence-group", items: [{ key: "sequence", label: sequenceGroup, icon: <Tags />, variant: "sequence" }] }]} />
               )}
-            </div>
-            <h3 className="mt-3 break-words text-lg font-semibold leading-snug text-neutral-950 sm:text-xl">
-              {item?.title || "Untitled Strategy"}
-            </h3>
-          </div>
-
-          <RecordActions
+      </>}
+      actions={<RecordActions
             className="grid shrink-0 grid-cols-3 gap-2 sm:grid-cols-2"
             actions={[
               { key: "open", label: "Open", variant: "primary", onClick: () => openEditRecordModal("strategy", item) },
               { key: "convert", label: "Convert", variant: "secondary", onClick: () => onConvertRecord?.("strategy", item) },
               { key: "delete", label: "Delete", variant: "danger", onClick: () => deleteRecord("strategy", item.id) },
             ]}
-          />
-        </div>
-      </div>
-
-      <div className="space-y-4 p-4 sm:p-5">
+          />}
+    >
+      <div className="space-y-4">
         {hasObjective && (
           <section className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
             <div className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Objective</div>
@@ -246,6 +240,6 @@ export default function StrategyRecordCard({
           <RecordMetadataRow className="border-t border-neutral-100 pt-3 dark:border-neutral-800" items={[{ key: "last-updated", label: "Last updated", value: updatedAt, icon: <Clock3 className="h-3.5 w-3.5" /> }]} />
         )}
       </div>
-    </article>
+    </RecordCardShell>
   );
 }
