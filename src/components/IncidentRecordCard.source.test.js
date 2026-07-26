@@ -5,13 +5,13 @@ import test from "node:test";
 const source = readFileSync(new URL("./IncidentRecordCard.jsx", import.meta.url), "utf8");
 const recordCard = readFileSync(new URL("./RecordCard.jsx", import.meta.url), "utf8");
 
-test("Incident uses every shared record-card primitive while Evidence keeps its existing path", () => {
+test("Incident uses every shared record-card primitive through the shared dispatcher", () => {
   for (const component of ["RecordCardShell", "RecordBadge", "RecordActions", "RecordMetadataRow", "RecordLinksRow"]) {
     assert.match(source, new RegExp(`import ${component}`));
     assert.match(source, new RegExp(`<${component}`));
   }
-  assert.match(recordCard, /if \(isIncident\) \{[\s\S]*<IncidentRecordCard/);
-  assert.match(recordCard, /const isEvidence = recordType === "evidence"/);
+  assert.match(recordCard, /recordType === "incidents"\) return <IncidentRecordCard/);
+  assert.match(recordCard, /recordType === "evidence"\) return <EvidenceRecordCard/);
   assert.doesNotMatch(source, /<article|rounded-2xl border p-4/);
 });
 

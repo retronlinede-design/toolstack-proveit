@@ -7,6 +7,7 @@ const watch = readFileSync(new URL("../caseDetail/WatchItemCard.jsx", import.met
 const documents = readFileSync(new URL("../caseDetail/DocumentsTab.jsx", import.meta.url), "utf8");
 const parties = readFileSync(new URL("../caseDetail/PartiesTab.jsx", import.meta.url), "utf8");
 const incident = readFileSync(new URL("../IncidentRecordCard.jsx", import.meta.url), "utf8");
+const evidence = readFileSync(new URL("../EvidenceRecordCard.jsx", import.meta.url), "utf8");
 
 test("the four initial modules remain on the shared card shell", () => {
   for (const source of [strategy, watch, documents, parties]) {
@@ -20,13 +21,15 @@ test("the four initial modules remain on the shared card shell", () => {
   }
 });
 
-test("Incident is the only newly approved card-shell migration", () => {
-  assert.match(incident, /import RecordCardShell/);
-  assert.match(incident, /<RecordCardShell/);
-  assert.match(incident, /RecordBadge/);
-  assert.match(incident, /RecordActions/);
-  assert.match(incident, /RecordMetadataRow/);
-  assert.match(incident, /RecordLinksRow/);
+test("Incident and Evidence use every shared card primitive", () => {
+  for (const source of [incident, evidence]) {
+    assert.match(source, /import RecordCardShell/);
+    assert.match(source, /<RecordCardShell/);
+    assert.match(source, /RecordBadge/);
+    assert.match(source, /RecordActions/);
+    assert.match(source, /RecordMetadataRow/);
+    assert.match(source, /RecordLinksRow/);
+  }
 });
 
 test("Strategy retains actions relationships attachment preview and details disclosure", () => {
