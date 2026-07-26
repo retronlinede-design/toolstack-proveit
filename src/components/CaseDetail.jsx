@@ -3794,7 +3794,7 @@ ${ungroupedSequenceText}
 
       <div className="grid gap-6 lg:grid-cols-12">
         <div className={`${reviewQueueSection ? "lg:col-span-8" : "lg:col-span-12"} space-y-6`}>
-          <div className="case-workspace-tabs border-b border-neutral-200 bg-white print:hidden">
+          <div className="case-workspace-tabs border-b border-neutral-200 bg-white print:hidden dark:border-neutral-700 dark:bg-neutral-950">
             {(() => {
               const workspaceTabs = tabs
                 .flatMap((tab) => tab.id === "documents" ? [tab, { id: "records", label: "Records" }] : [tab])
@@ -3806,12 +3806,12 @@ ${ungroupedSequenceText}
 
               return (
                 <>
-                  <label className="block pb-3 text-xs font-semibold uppercase tracking-wider text-neutral-500 md:hidden">
+                  <label className="block pb-3 text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 md:hidden">
                     Workspace View
                     <select
                       value={activeTab}
                       onChange={(event) => setActiveTab(event.target.value)}
-                      className="mt-2 block w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-500/20"
+                      className="mt-2 block w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-500/20 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
                     >
                       {workspaceTabs.map((tab) => (
                         <option key={tab.id} value={tab.id}>{tab.label}</option>
@@ -3828,10 +3828,10 @@ ${ungroupedSequenceText}
                           aria-current={isActive ? "page" : undefined}
                           className={`relative min-w-0 border-r border-neutral-100 px-1.5 py-2 text-center text-[11px] font-semibold leading-tight transition-colors duration-200 last:border-r-0 hover:rounded-md hover:bg-lime-500/30 focus:outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1 lg:px-2 lg:text-xs xl:px-3 xl:text-sm ${
                             isActive
-                              ? "text-neutral-950"
+                              ? "text-neutral-950 dark:text-neutral-100"
                               : tab.secondary
-                                ? "text-neutral-500 hover:text-neutral-700"
-                                : "text-neutral-700 hover:text-neutral-950"
+                                ? "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+                                : "text-neutral-700 hover:text-neutral-950 dark:text-neutral-300 dark:hover:text-white"
                           }`}
                         >
                           <span className="block truncate">{tab.label}</span>
@@ -3845,7 +3845,7 @@ ${ungroupedSequenceText}
             })()}
           </div>
 
-          <div className="w-full rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <div className="w-full min-w-0 rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-700 dark:bg-neutral-950 sm:p-5">
             {/* Tab content logic... */}
             {activeTab === "overview" && (
               <div className="space-y-6">
@@ -4405,7 +4405,7 @@ ${ungroupedSequenceText}
                         Search Evidence
                       </label>
                       <div className="mt-2 flex items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2">
-                        <Search className="h-4 w-4 shrink-0 text-neutral-400" />
+                        <Search className="h-4 w-4 shrink-0 text-neutral-400" aria-hidden="true" />
                         <input
                           id="evidence-search"
                           ref={evidenceSearchInputRef}
@@ -4632,7 +4632,7 @@ ${ungroupedSequenceText}
                         Search Incidents
                       </label>
                       <div className="mt-2 flex items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2">
-                        <Search className="h-4 w-4 shrink-0 text-neutral-400" />
+                        <Search className="h-4 w-4 shrink-0 text-neutral-400" aria-hidden="true" />
                         <input
                           id="incident-search"
                           ref={incidentSearchInputRef}
@@ -6387,6 +6387,7 @@ ${ungroupedSequenceText}
                       <button
                         key={filter.id}
                         onClick={() => setTimelineView(filter.id)}
+                        aria-pressed={timelineView === filter.id}
                         className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
                           timelineView === filter.id
                             ? "border-lime-500 bg-lime-50 text-lime-800"
@@ -6399,6 +6400,7 @@ ${ungroupedSequenceText}
                     <button
                       type="button"
                       onClick={() => setTimelineMilestonesOnly((value) => !value)}
+                      aria-pressed={timelineMilestonesOnly}
                       className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
                         timelineMilestonesOnly
                           ? "border-amber-400 bg-amber-50 text-amber-800"
@@ -6410,6 +6412,7 @@ ${ungroupedSequenceText}
                     {sequenceGroups.length > 0 && (
                       <div className="flex items-center gap-2">
                         <select
+                          aria-label="Filter timeline by sequence group"
                           value={timelineSequenceGroupFilter}
                           onChange={(event) => setTimelineSequenceGroupFilter(event.target.value)}
                           className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-600 outline-none transition-colors hover:bg-neutral-50 focus:border-lime-500"
