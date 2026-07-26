@@ -38,11 +38,11 @@ test("Strategy retains actions relationships attachment preview and details disc
   assert.match(strategy, /expanded/);
 });
 
-test("Watch retains badge action and body ordering", () => {
+test("Watch retains badges and actions while using the shell region order", () => {
   assert.match(watch, /title=\{item\.title \|\| "Untitled watch item"\}/);
   for (const handler of [/onEdit\(item\)/, /onConvert\(item, "incidents"\)/, /onConvert\(item, "strategy"\)/, /onDelete\(item\)/]) assert.match(watch, handler);
-  assert.ok(watch.indexOf("What is being monitored") < watch.indexOf("<RecordMetadataRow"));
-  assert.ok(watch.indexOf("<RecordMetadataRow") < watch.lastIndexOf("<RecordLinksRow"));
+  assert.ok(watch.indexOf("<RecordMetadataRow") < watch.indexOf("<RecordLinksRow"));
+  assert.ok(watch.indexOf("<RecordLinksRow") < watch.indexOf("What is being monitored"));
 });
 
 test("Documents retains four ordered actions metadata links and attachment preview", () => {
