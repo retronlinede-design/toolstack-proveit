@@ -3,6 +3,7 @@ import { Search, UserPlus } from "lucide-react";
 import RecordActions from "../shared/RecordActions.jsx";
 import RecordBadge from "../shared/RecordBadge.jsx";
 import RecordMetadataRow from "../shared/RecordMetadataRow.jsx";
+import RecordLinksRow from "../shared/RecordLinksRow.jsx";
 import {
   PARTY_ENTITY_TYPES,
   PARTY_ROLES,
@@ -433,7 +434,7 @@ export default function PartiesTab({
                 ]} />
               )}
               {party.relationshipToCase && (
-                <p className="mt-2 line-clamp-2 text-sm leading-5 text-neutral-700">{party.relationshipToCase}</p>
+                <RecordLinksRow className="mt-2" groups={[{ key: "relationship-to-case", items: [{ key: "relationship", label: party.relationshipToCase, variant: "party", className: "line-clamp-2 text-sm leading-5" }] }]} />
               )}
               {(party.contact?.email || party.contact?.phone || party.contact?.website) && (
                 <RecordMetadataRow className="mt-2 font-medium" items={[

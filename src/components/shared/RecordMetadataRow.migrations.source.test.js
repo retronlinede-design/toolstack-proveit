@@ -23,13 +23,13 @@ test("Strategy preserves event owner review and update metadata order", () => {
   assert.match(strategy, /value: reviewDate/);
 });
 
-test("Watch preserves all existing metadata values in order", () => {
-  const keys = ["date-added", "review-date", "sequence-group", "last-updated", "observations", "linked-records", "related-people", "tags", "attachments"];
+test("Watch preserves general metadata values in order while relationships use RecordLinksRow", () => {
+  const keys = ["date-added", "review-date", "last-updated", "observations", "tags"];
   keys.forEach((key, index) => {
     assert.match(watch, new RegExp(`key: "${key}"`));
     if (index) assert.ok(watch.indexOf(`key: "${keys[index - 1]}"`) < watch.indexOf(`key: "${key}"`));
   });
-  assert.match(watch, /item\.linkedRecordIds\.length - links\.length/);
+  assert.match(watch, /<RecordLinksRow/);
 });
 
 test("Documents preserves date category source and count metadata", () => {

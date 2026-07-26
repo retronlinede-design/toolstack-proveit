@@ -1,11 +1,9 @@
 import { Tags } from "lucide-react";
 import AttachmentPreview from "../AttachmentPreview";
-import { getLinkChipClasses } from "../linkChipStyles";
-import LinkedChip from "../LinkedChip";
 import RecordActions from "../shared/RecordActions.jsx";
 import RecordBadge from "../shared/RecordBadge.jsx";
 import RecordMetadataRow from "../shared/RecordMetadataRow.jsx";
-import PartyLinksRow from "./PartyLinksRow";
+import RecordLinksRow from "../shared/RecordLinksRow.jsx";
 import { getDocumentTextStatus } from "./trackingRecordHelpers";
 
 function getDocumentStatusBadgeVariant(tone) {
@@ -14,44 +12,12 @@ function getDocumentStatusBadgeVariant(tone) {
   return "verification-unverified";
 }
 
-function renderCompactLinkRow(label, items, renderChip) {
-  if (!items || items.length === 0) return null;
-  const renderedChips = items.map(renderChip).filter(Boolean);
-  const visibleChips = renderedChips.slice(0, 4);
-  const remainingCount = renderedChips.length - visibleChips.length;
-  const missingCount = items.length - renderedChips.length;
-
-  if (renderedChips.length === 0 && missingCount === 0) return null;
-
-  return (
-    <div className="mt-1 flex items-start gap-2">
-      <div className="w-24 shrink-0 pt-0.5 text-[11px] text-neutral-500">{label}</div>
-      <div className="flex flex-wrap gap-1">
-        {visibleChips}
-        {remainingCount > 0 && (
-          <span className={getLinkChipClasses("neutral")}>
-            +{remainingCount}
-          </span>
-        )}
-        {missingCount > 0 && (
-          <span className={getLinkChipClasses("neutral", "cursor-default opacity-70")}>
-            {missingCount} missing link{missingCount === 1 ? "" : "s"}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function renderSequenceGroupChip(value) {
   const sequenceGroup = typeof value === "string" ? value.trim() : "";
   if (!sequenceGroup) return null;
 
   return (
-    <span className="inline-flex max-w-full items-center gap-1 rounded border border-neutral-200 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-600">
-      <Tags className="h-3 w-3 shrink-0 text-neutral-400" aria-hidden="true" />
-      <span className="truncate">{sequenceGroup}</span>
-    </span>
+    <RecordLinksRow groups={[{ key: "sequence-group", items: [{ key: "sequence", label: sequenceGroup, icon: <Tags />, variant: "sequence" }] }]} />
   );
 }
 
@@ -106,6 +72,23 @@ export default function DocumentsTab({
               const textStatus = getDocumentTextStatus(doc);
               const attachmentCount = Array.isArray(doc.attachments) ? doc.attachments.length : 0;
               const linkedCount = Array.isArray(doc.linkedRecordIds) ? doc.linkedRecordIds.length : 0;
+              const resolvedRecordLinks = (doc.linkedRecordIds || []).map((id) => ({ id, record: getLinkedRecordMeta(id) })).filter((item) => item.record);
+              const missingRecordLinkCount = linkedCount - resolvedRecordLinks.length;
+              const linkedRecordItems = resolvedRecordLinks.slice(0, 4).map(({ id, record }) => ({
+                key: id,
+                label: `${record.typeLabel} · ${record.title || "Untitled record"}`,
+                title: record.title || "Untitled record",
+                variant: "linked",
+                onClick: () => onOpenLinkedRecord(id),
+              }));
+              if (resolvedRecordLinks.length > 4) linkedRecordItems.push({ key: "remaining-records", label: `+${resolvedRecordLinks.length - 4}`, variant: "neutral" });
+              if (missingRecordLinkCount > 0) linkedRecordItems.push({ key: "missing-records", label: `${missingRecordLinkCount} missing link${missingRecordLinkCount === 1 ? "" : "s"}`, variant: "missing", title: "Linked records that could not be resolved" });
+              const partyById = new Map(parties.map((party) => [party.id, party]));
+              const resolvedPartyLinks = (doc.linkedPartyIds || []).map((id) => partyById.get(id)).filter(Boolean);
+              const missingPartyLinkCount = (doc.linkedPartyIds || []).length - resolvedPartyLinks.length;
+              const partyLinkItems = resolvedPartyLinks.slice(0, 4).map((party) => ({ key: party.id, label: `Party · ${party.displayName || "Untitled Party"}`, title: party.displayName || "Untitled Party", variant: "party" }));
+              if (resolvedPartyLinks.length > 4) partyLinkItems.push({ key: "remaining-parties", label: `+${resolvedPartyLinks.length - 4}`, variant: "neutral" });
+              if (missingPartyLinkCount > 0) partyLinkItems.push({ key: "missing-parties", label: `${missingPartyLinkCount} missing part${missingPartyLinkCount === 1 ? "y" : "ies"}`, variant: "missing", title: "Related parties that could not be resolved" });
 
               return (
               <div key={doc.id} className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
@@ -139,16 +122,10 @@ export default function DocumentsTab({
                   <div className="hidden">
                     {textStatus.label}
                   </div>
-                  <RecordMetadataRow className="rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 dark:border-neutral-700 dark:bg-neutral-800/60" items={[{ key: "attachment-link-counts", render: (
-                    <div>
-                    <div>
-                      {attachmentCount} attachment{attachmentCount === 1 ? "" : "s"} Â· {linkedCount} linked record{linkedCount === 1 ? "" : "s"}
-                    </div>
-                    <div className="hidden">
-                      {attachmentCount > 0 && textStatus.charCount === 0 ? "Attachments need captured text for reasoning." : "Links and files support the document context."}
-                    </div>
-                    </div>
-                  ) }]} />
+                  <RecordLinksRow groups={[{ key: "relationship-counts", items: [
+                    { key: "attachment-count", label: `${attachmentCount} attachment${attachmentCount === 1 ? "" : "s"}`, variant: "attachment" },
+                    { key: "linked-count", label: `${linkedCount} linked record${linkedCount === 1 ? "" : "s"}`, variant: "linked" },
+                  ] }]} />
                 </div>
 
                 {doc.summary && (
@@ -181,37 +158,16 @@ export default function DocumentsTab({
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Attachments</div>
                   </div>
-                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50/50 p-4">
-                    <AttachmentPreview
-                      attachments={doc.attachments || []}
-                      imageCache={imageCache}
-                      onPreview={onPreviewFile}
-                    />
-                  </div>
+                  <RecordLinksRow groups={[{ key: "attachment-preview", className: "rounded-2xl border border-neutral-200 bg-neutral-50/50 p-4 dark:border-neutral-700 dark:bg-neutral-800/50", render: <AttachmentPreview attachments={doc.attachments || []} imageCache={imageCache} onPreview={onPreviewFile} /> }]} />
                 </div>
               )}
 
               {doc.linkedRecordIds && doc.linkedRecordIds.length > 0 && (
                 <div className="mt-1 border-t border-neutral-100 pt-1">
-                  {renderCompactLinkRow("Linked Case Items", doc.linkedRecordIds, (rid) => {
-                    const linkedRecord = getLinkedRecordMeta(rid);
-                    if (!linkedRecord) return null;
-                    return (
-                      <LinkedChip
-                        key={rid}
-                        onClick={() => onOpenLinkedRecord(rid)}
-                        titleText={linkedRecord.title || "Untitled record"}
-                        variant="record"
-                        className="flex items-center gap-1 text-left transition-colors"
-                        leading={<span className="opacity-50 font-bold uppercase">{linkedRecord.typeLabel}</span>}
-                      >
-                        {linkedRecord.title || "Untitled record"}
-                      </LinkedChip>
-                    );
-                  })}
+                  <RecordLinksRow groups={[{ key: "linked-case-items", label: "Linked Case Items", items: linkedRecordItems }]} />
                 </div>
               )}
-              <PartyLinksRow linkedPartyIds={doc.linkedPartyIds} parties={parties} />
+              <RecordLinksRow className="mt-1" groups={[{ key: "linked-parties", label: "Linked Parties", items: partyLinkItems }]} />
             </div>
               );
             })}

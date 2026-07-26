@@ -2,6 +2,7 @@ import { getRecordDisplayMeta } from "../../domain/linkingResolvers.js";
 import RecordActions from "../shared/RecordActions.jsx";
 import RecordBadge from "../shared/RecordBadge.jsx";
 import RecordMetadataRow from "../shared/RecordMetadataRow.jsx";
+import RecordLinksRow from "../shared/RecordLinksRow.jsx";
 
 const label = (value) => String(value || "").replaceAll("_", " ");
 
@@ -34,13 +35,18 @@ export default function WatchItemCard({ item, caseItem, onEdit, onDelete, onConv
     <RecordMetadataRow className="mt-4" items={[
       { key: "date-added", label: "Date added", value: item.date },
       { key: "review-date", label: "Review date", value: item.reviewDate },
-      { key: "sequence-group", label: "Sequence group", value: item.sequenceGroup },
       { key: "last-updated", label: "Last updated", value: item.updatedAt },
       { key: "observations", label: "Observations", value: item.observations?.length || 0, hidden: !item.observations?.length },
-      { key: "linked-records", label: "Linked records", value: `${links.length}${item.linkedRecordIds?.length > links.length ? ` (${item.linkedRecordIds.length - links.length} missing)` : ""}` },
-      { key: "related-people", label: "Related people", value: parties.map((p) => p.displayName || p.legalName).join(", ") },
       { key: "tags", label: "Tags", value: item.tags?.join(", ") },
-      { key: "attachments", label: "Attachments", value: item.attachments?.length || 0, hidden: !item.attachments?.length },
+    ]} />
+    <RecordLinksRow className="mt-3" aria-label="Watch item relationships" groups={[
+      { key: "sequence-group", label: "Sequence group", items: [{ key: "sequence", label: item.sequenceGroup, variant: "sequence", hidden: !item.sequenceGroup }] },
+      { key: "linked-records", label: "Linked records", items: [
+        { key: "resolved-links", label: `${links.length} linked record${links.length === 1 ? "" : "s"}`, variant: "linked" },
+        { key: "missing-links", label: `${(item.linkedRecordIds?.length || 0) - links.length} missing link${(item.linkedRecordIds?.length || 0) - links.length === 1 ? "" : "s"}`, variant: "missing", title: "Linked records that could not be resolved", hidden: !item.linkedRecordIds || item.linkedRecordIds.length === links.length },
+      ] },
+      { key: "related-people", label: "Related people", items: parties.map((party) => ({ key: party.id, label: party.displayName || party.legalName, variant: "party" })) },
+      { key: "attachments", label: "Attachments", items: [{ key: "attachment-count", label: `${item.attachments?.length || 0} attachment${item.attachments?.length === 1 ? "" : "s"}`, variant: "attachment", hidden: !item.attachments?.length }] },
     ]} />
   </article>;
 }

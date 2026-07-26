@@ -4,10 +4,12 @@ import { readFileSync } from "node:fs";
 
 const source = readFileSync("src/components/caseDetail/DocumentsTab.jsx", "utf8");
 
-test("document cards render linked party chips", () => {
-  assert.match(source, /import PartyLinksRow from "\.\/PartyLinksRow"/);
+test("document cards render linked party relationships", () => {
+  assert.match(source, /import RecordLinksRow from "\.\.\/shared\/RecordLinksRow\.jsx"/);
   assert.match(source, /parties = \[\]/);
-  assert.match(source, /<PartyLinksRow linkedPartyIds=\{doc\.linkedPartyIds\} parties=\{parties\} \/>/);
+  assert.match(source, /key: "linked-parties"/);
+  assert.match(source, /partyLinkItems/);
+  assert.match(source, /missingPartyLinkCount/);
 });
 
 test("document cards use semantic verification and type badges", () => {

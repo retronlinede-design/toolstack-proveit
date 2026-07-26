@@ -2,11 +2,11 @@ import { CalendarDays, Clock3, Paperclip, Tags } from "lucide-react";
 
 import { getRecordDisplayMeta } from "../domain/linkingResolvers.js";
 import AttachmentPreview from "./AttachmentPreview";
-import LinkedChip from "./LinkedChip";
 import { resolveStrategyOwner } from "./caseDetail/strategyWorkspaceHelpers.js";
 import RecordActions from "./shared/RecordActions.jsx";
 import RecordBadge from "./shared/RecordBadge.jsx";
 import RecordMetadataRow from "./shared/RecordMetadataRow.jsx";
+import RecordLinksRow from "./shared/RecordLinksRow.jsx";
 
 function getPriorityBadgeVariant(priority) {
   switch (priority) {
@@ -94,6 +94,12 @@ export default function StrategyRecordCard({
   openLinkedRecord,
 }) {
   const linkedRecords = getLinkedRecords(item, selectedCase);
+  const linkedReferenceCount = new Set([
+    ...(Array.isArray(item?.linkedRecordIds) ? item.linkedRecordIds : []),
+    ...(Array.isArray(item?.linkedIncidentIds) ? item.linkedIncidentIds : []),
+    ...(Array.isArray(item?.linkedEvidenceIds) ? item.linkedEvidenceIds : []),
+  ]).size;
+  const missingLinkedRecordCount = linkedReferenceCount - linkedRecords.length;
   const linkedCounts = linkedRecords.reduce((counts, record) => {
     if (record.recordType === "incident") counts.incidents += 1;
     if (record.recordType === "evidence") counts.evidence += 1;
@@ -139,10 +145,7 @@ export default function StrategyRecordCard({
                 <RecordMetadataRow items={[{ key: "event-date", value: eventDate, icon: <CalendarDays className="h-3.5 w-3.5" />, emphasis: true }]} />
               )}
               {sequenceGroup && (
-                <span className="inline-flex max-w-full items-center gap-1 rounded border border-neutral-200 bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-600">
-                  <Tags className="h-3 w-3 shrink-0 text-neutral-400" aria-hidden="true" />
-                  <span className="truncate">{sequenceGroup}</span>
-                </span>
+                <RecordLinksRow groups={[{ key: "sequence-group", items: [{ key: "sequence", label: sequenceGroup, icon: <Tags />, variant: "sequence" }] }]} />
               )}
             </div>
             <h3 className="mt-3 break-words text-lg font-semibold leading-snug text-neutral-950 sm:text-xl">
@@ -208,20 +211,15 @@ export default function StrategyRecordCard({
           </section>
         )}
 
-        {(countBadges.length > 0 || attachmentCount > 0) && (
-          <div className="flex flex-wrap items-center gap-2">
-            {countBadges.map(([label, count]) => (
-              <span key={label} className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs font-semibold text-neutral-700">
-                {label} {count}
-              </span>
-            ))}
-            {attachmentCount > 0 && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs font-semibold text-neutral-700">
-                <Paperclip className="h-3.5 w-3.5 text-neutral-400" aria-hidden="true" />
-                {attachmentCount} attachment{attachmentCount === 1 ? "" : "s"}
-              </span>
-            )}
-          </div>
+        {(countBadges.length > 0 || attachmentCount > 0 || missingLinkedRecordCount > 0) && (
+          <RecordLinksRow groups={[{
+            key: "relationship-counts",
+            items: [
+              ...countBadges.map(([label, count]) => ({ key: label, label, count })),
+              { key: "missing-links", label: `${missingLinkedRecordCount} missing link${missingLinkedRecordCount === 1 ? "" : "s"}`, variant: "missing", title: "Linked records that could not be resolved", hidden: missingLinkedRecordCount === 0 },
+              { key: "attachments", label: `${attachmentCount} attachment${attachmentCount === 1 ? "" : "s"}`, icon: <Paperclip />, variant: "attachment", hidden: attachmentCount === 0 },
+            ],
+          }]} />
         )}
 
         {linkedRecords.length > 0 && (
@@ -229,19 +227,7 @@ export default function StrategyRecordCard({
             <summary className="cursor-pointer text-xs font-semibold text-neutral-700">
               View linked records ({linkedRecords.length})
             </summary>
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {linkedRecords.map((record) => (
-                <LinkedChip
-                  key={record.id}
-                  onClick={() => openLinkedRecord?.(record.id)}
-                  titleText={record.title || "Untitled record"}
-                  variant="record"
-                  leading={<span className="font-bold uppercase opacity-50">{record.typeLabel}</span>}
-                >
-                  {record.title || "Untitled record"}
-                </LinkedChip>
-              ))}
-            </div>
+            <RecordLinksRow className="mt-3" groups={[{ key: "linked-records", items: linkedRecords.map((record) => ({ key: record.id, label: `${record.typeLabel} · ${record.title || "Untitled record"}`, title: record.title || "Untitled record", variant: "linked", onClick: () => openLinkedRecord?.(record.id) })) }]} />
           </details>
         )}
 
@@ -253,11 +239,7 @@ export default function StrategyRecordCard({
         )}
 
         {attachmentCount > 0 && (
-          <AttachmentPreview
-            attachments={item.attachments}
-            imageCache={imageCache}
-            onPreview={onPreviewFile}
-          />
+          <RecordLinksRow groups={[{ key: "attachment-preview", render: <AttachmentPreview attachments={item.attachments} imageCache={imageCache} onPreview={onPreviewFile} /> }]} />
         )}
 
         {updatedAt && (
