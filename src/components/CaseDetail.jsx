@@ -11,8 +11,12 @@ import {
   clearRecordSequenceGroup,
   convertRecordTypeInCase,
   mergeCaseSequenceGroups,
+  mergeCaseSequenceGroupsWithStats,
+  moveCaseSequenceGroupRecords,
   moveRecordToSequenceGroup,
+  removeCaseSequenceGroupRecords,
   renameCaseSequenceGroup,
+  splitCaseSequenceGroup,
 } from "../domain/caseDomain.js";
 import { getRecordDisplayMeta, resolveRecordById } from "../domain/linkingResolvers.js";
 import { buildNarrativeSections } from "../lib/narrativeBuilder.js";
@@ -114,9 +118,12 @@ import { buildFloatingToolActions } from "./caseDetail/workspaceToolActions.js";
 import { shouldShowFloatingWorkspaceMenu } from "./caseDetail/workspaceMenuVisibility.js";
 import {
   getSequenceGroupMetaForCase,
+  deleteSequenceGroupMeta,
   mergeSequenceGroupMeta,
   readSequenceGroupMetaStore,
   renameSequenceGroupMeta,
+  resolveSequenceGroupMergeDescription,
+  saveSequenceGroupMeta,
 } from "../sequenceGroupMeta.js";
 
 const ENABLE_SUPABASE_REMOTE = false;
@@ -1196,34 +1203,101 @@ export default function CaseDetail({
 
   async function handleUpdateManagedSequenceGroup(currentName, value) {
     if (!selectedCase) return;
-    const result = updateManagedSequenceGroup(selectedCase, currentName, value);
+    const result = updateManagedSequenceGroup(selectedCase, currentName, value, undefined, false);
     if (result.caseItem !== selectedCase) {
       const saved = await onUpdateCase(result.caseItem);
       if (!saved) return;
     }
+    if (result.group.name !== currentName) renameSequenceGroupMeta(selectedCase.id, currentName, result.group.name);
+    saveSequenceGroupMeta(selectedCase.id, result.group.name, { description: result.group.description });
     setSelectedSequenceGroupName(result.group.name);
     setSequenceGroupFeedback(`Updated sequence group "${result.group.name}".`);
   }
 
   async function handleDeleteManagedSequenceGroup(group) {
-    if (!selectedCase || !group) return;
+    if (!selectedCase || !group) return false;
     const confirmed = window.confirm(
       `Delete "${group.name}"? ${group.totalCount} assigned record${group.totalCount === 1 ? "" : "s"} will be kept and their sequence-group reference will be cleared.`
     );
-    if (!confirmed) return;
+    if (!confirmed) return false;
 
     const sequenceGroupMeta = getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore());
     const remainingNames = [...new Set([
       ...sequenceGroups.map((item) => item.name),
       ...Object.keys(sequenceGroupMeta),
     ])].filter((name) => name !== group.name).sort((a, b) => a.localeCompare(b));
-    const updatedCase = deleteManagedSequenceGroup(selectedCase, group.name);
+    const updatedCase = deleteManagedSequenceGroup(selectedCase, group.name, undefined, false);
     if (updatedCase !== selectedCase) {
       const saved = await onUpdateCase(updatedCase);
-      if (!saved) return;
+      if (!saved) return false;
     }
+    deleteSequenceGroupMeta(selectedCase.id, group.name);
     setSelectedSequenceGroupName(remainingNames[0] || "");
     setSequenceGroupFeedback(`Deleted sequence group "${group.name}". Its records were kept and are now ungrouped.`);
+    return true;
+  }
+
+  async function handleManagedSequenceGroupOperation(operation) {
+    if (!selectedCase || !operation?.type) return false;
+    const sourceGroup = safeText(operation.sourceGroup).trim();
+    const destinationGroup = safeText(operation.destinationGroup).trim();
+    const affected = Array.isArray(operation.recordRefs) ? operation.recordRefs.length : 0;
+    let result;
+    let confirmation = "";
+
+    if (operation.type === "move-records") {
+      result = moveCaseSequenceGroupRecords({ caseData: selectedCase, sourceGroup, destinationGroup, recordRefs: operation.recordRefs });
+      confirmation = `Operation: Move selected records\nSource: ${sourceGroup}\nDestination: ${destinationGroup}\nRecords affected: ${affected}\n\nThe records remain in the case. Their content, links, and attachments will not change.`;
+    } else if (operation.type === "split-records") {
+      result = splitCaseSequenceGroup({ caseData: selectedCase, sourceGroup, destinationGroup, recordRefs: operation.recordRefs });
+      confirmation = `Operation: Split records into a new group\nSource: ${sourceGroup}\nDestination: ${destinationGroup}\nRecords affected: ${affected}\n\nUnselected records remain in the source group.`;
+    } else if (operation.type === "remove-records") {
+      result = removeCaseSequenceGroupRecords({ caseData: selectedCase, groupName: sourceGroup, recordRefs: operation.recordRefs });
+      confirmation = `Operation: Remove selected records from group\nSource: ${sourceGroup}\nRecords affected: ${affected}\n\nThe records will remain in the case but will no longer belong to a sequence group.`;
+    } else if (operation.type === "merge-groups") {
+      result = mergeCaseSequenceGroupsWithStats({ caseData: selectedCase, sourceGroup, destinationGroup });
+      confirmation = `Operation: Merge entire group\nSource: ${sourceGroup}\nDestination: ${destinationGroup}\nRecords affected: ${result.affectedCount}\n\nDestination metadata remains primary. Source metadata is removed after the records are saved.`;
+    } else if (operation.type === "rename-entire-group") {
+      result = mergeCaseSequenceGroupsWithStats({ caseData: selectedCase, sourceGroup, destinationGroup });
+      confirmation = `Operation: Move entire group to a new label\nSource: ${sourceGroup}\nDestination: ${destinationGroup}\nRecords affected: ${result.affectedCount}\n\nThe current group label will no longer exist.`;
+    } else if (operation.type === "delete-group") {
+      const group = sequenceGroupDetails.groups.find((item) => item.name === sourceGroup);
+      return handleDeleteManagedSequenceGroup(group || { name: sourceGroup, totalCount: 0 });
+    }
+
+    if (!result?.success) {
+      setSequenceGroupFeedback(result?.errors?.join(" ") || "The sequence-group operation could not be completed.");
+      return false;
+    }
+    if (!window.confirm(confirmation)) return false;
+
+    if (result.caseItem !== selectedCase) {
+      const saved = await onUpdateCase(result.caseItem);
+      if (!saved) {
+        setSequenceGroupFeedback("The case could not be saved. No sequence-group metadata was changed.");
+        return false;
+      }
+    }
+
+    if (operation.type === "split-records") {
+      saveSequenceGroupMeta(selectedCase.id, destinationGroup, { description: operation.destinationDescription });
+      saveSequenceGroupMeta(selectedCase.id, sourceGroup, { description: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore())[sourceGroup]?.description || "" });
+      setSelectedSequenceGroupName(destinationGroup);
+    } else if (operation.type === "remove-records") {
+      saveSequenceGroupMeta(selectedCase.id, sourceGroup, { description: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore())[sourceGroup]?.description || "" });
+    } else if (operation.type === "merge-groups") {
+      const meta = getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore());
+      const description = resolveSequenceGroupMergeDescription(meta[destinationGroup]?.description, meta[sourceGroup]?.description, operation.descriptionMode, operation.combinedDescription);
+      saveSequenceGroupMeta(selectedCase.id, destinationGroup, { description });
+      deleteSequenceGroupMeta(selectedCase.id, sourceGroup);
+      setSelectedSequenceGroupName(destinationGroup);
+    } else if (operation.type === "rename-entire-group") {
+      saveSequenceGroupMeta(selectedCase.id, destinationGroup, { description: operation.destinationDescription });
+      deleteSequenceGroupMeta(selectedCase.id, sourceGroup);
+      setSelectedSequenceGroupName(destinationGroup);
+    }
+    setSequenceGroupFeedback(`${result.affectedCount} record${result.affectedCount === 1 ? "" : "s"} updated successfully.`);
+    return true;
   }
 
   async function handleDownloadSplitReasoningPackage() {
@@ -7587,6 +7661,7 @@ ${ungroupedSequenceText}
           onCreateGroup={handleCreateManagedSequenceGroup}
           onDeleteGroup={handleDeleteManagedSequenceGroup}
           onMergeGroup={handleMergeSequenceGroup}
+          onManageGroupOperation={handleManagedSequenceGroupOperation}
           onMoveRecordToExisting={handleMoveSequenceRecordToExisting}
           onMoveRecordToNew={handleMoveSequenceRecordToNew}
           onOpenRecordEdit={handleOpenSequenceRecordEdit}

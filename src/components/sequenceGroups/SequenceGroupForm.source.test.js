@@ -14,11 +14,12 @@ test("SequenceGroupForm shares create and edit fields and validates before savin
   assert.match(source, /onSave\(result\.value\)/);
 });
 
-test("create and edit cancellation closes the shared form without saving", () => {
+test("create and management cancellation close their modal without saving", () => {
   assert.match(source, /key: "cancel", label: "Cancel", onClick: onCancel/);
   assert.match(managerSource, /onCancel=\{\(\) => setGroupForm\(null\)\}/);
   assert.match(managerSource, /setGroupForm\(\{ mode: "create", initialValue: null \}\)/);
-  assert.match(managerSource, /mode: "edit"/);
+  assert.match(managerSource, /mode: "manage"/);
+  assert.match(managerSource, /<SequenceGroupManagementModal/);
 });
 
 test("manager callbacks select created and edited groups and confirm destructive deletion", () => {

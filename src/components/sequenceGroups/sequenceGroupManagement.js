@@ -31,22 +31,22 @@ export function createManagedSequenceGroup(caseId, value, storage) {
   return normalized;
 }
 
-export function updateManagedSequenceGroup(caseItem, currentName, value, storage) {
+export function updateManagedSequenceGroup(caseItem, currentName, value, storage, persistMeta = true) {
   const normalized = normalizeSequenceGroupInput(value);
   const renamedCase = normalized.name === currentName
     ? caseItem
     : renameCaseSequenceGroup(caseItem, currentName, normalized.name);
 
-  if (normalized.name !== currentName) {
+  if (persistMeta && normalized.name !== currentName) {
     renameSequenceGroupMeta(caseItem.id, currentName, normalized.name, storage);
   }
-  saveSequenceGroupMeta(caseItem.id, normalized.name, { description: normalized.description }, storage);
+  if (persistMeta) saveSequenceGroupMeta(caseItem.id, normalized.name, { description: normalized.description }, storage);
   return { caseItem: renamedCase, group: normalized };
 }
 
-export function deleteManagedSequenceGroup(caseItem, groupName, storage) {
+export function deleteManagedSequenceGroup(caseItem, groupName, storage, persistMeta = true) {
   const updatedCase = removeCaseSequenceGroup(caseItem, groupName);
-  deleteSequenceGroupMeta(caseItem.id, groupName, storage);
+  if (persistMeta) deleteSequenceGroupMeta(caseItem.id, groupName, storage);
   return updatedCase;
 }
 

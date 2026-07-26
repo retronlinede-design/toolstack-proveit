@@ -4,6 +4,7 @@ export const SEQUENCE_GROUP_TYPE_LABELS = {
   documents: "Documents",
   ledger: "Ledger",
   strategy: "Strategy",
+  watchItems: "To Watch",
 };
 
 export const SEQUENCE_RELATIONSHIP_FILTER_LABELS = {

@@ -1127,6 +1127,87 @@ export function removeCaseSequenceGroup(caseItem, groupName) {
   return updateCaseSequenceGroup(caseItem, groupName, "");
 }
 
+function normalizeSequenceGroupRecordRefs(recordRefs) {
+  const seen = new Set();
+  return (Array.isArray(recordRefs) ? recordRefs : []).reduce((refs, ref) => {
+    const recordType = typeof ref?.recordType === "string" ? ref.recordType : "";
+    const recordId = typeof ref?.recordId === "string" ? ref.recordId : "";
+    const key = `${recordType}:${recordId}`;
+    if (!SEQUENCE_GROUP_RECORD_TYPES.includes(recordType) || !recordId || seen.has(key)) return refs;
+    seen.add(key);
+    refs.push({ recordType, recordId });
+    return refs;
+  }, []);
+}
+
+function updateCaseSequenceGroupRecordRefs(caseItem, sourceGroup, destinationGroup, recordRefs) {
+  const source = getSequenceGroupValue(sourceGroup);
+  const destination = destinationGroup == null ? "" : getSequenceGroupValue(destinationGroup);
+  const refs = normalizeSequenceGroupRecordRefs(recordRefs);
+  const errors = [];
+
+  if (!caseItem || !source || refs.length === 0) {
+    return { success: false, caseItem, affectedCount: 0, skippedCount: refs.length, errors: ["No valid records were selected."] };
+  }
+  if (destination && destination === source) {
+    return { success: false, caseItem, affectedCount: 0, skippedCount: refs.length, errors: ["The destination group must differ from the source group."] };
+  }
+
+  refs.forEach(({ recordType, recordId }) => {
+    const record = (Array.isArray(caseItem[recordType]) ? caseItem[recordType] : []).find((item) => item?.id === recordId);
+    if (!record) errors.push(`${recordType}:${recordId} was not found.`);
+    else if (getSequenceGroupValue(record.sequenceGroup) !== source) errors.push(`${recordType}:${recordId} no longer belongs to ${source}.`);
+  });
+  if (errors.length > 0) {
+    return { success: false, caseItem, affectedCount: 0, skippedCount: errors.length, errors };
+  }
+
+  const refKeys = new Set(refs.map(({ recordType, recordId }) => `${recordType}:${recordId}`));
+  const updatedAt = new Date().toISOString();
+  const updatedCase = { ...caseItem, updatedAt };
+  SEQUENCE_GROUP_RECORD_TYPES.forEach((recordType) => {
+    const records = Array.isArray(caseItem[recordType]) ? caseItem[recordType] : [];
+    updatedCase[recordType] = records.map((record) => refKeys.has(`${recordType}:${record.id}`)
+      ? { ...record, sequenceGroup: destination, updatedAt }
+      : record);
+  });
+  return { success: true, caseItem: updatedCase, affectedCount: refs.length, skippedCount: 0, errors: [] };
+}
+
+export function moveCaseSequenceGroupRecords({ caseData, sourceGroup, destinationGroup, recordRefs }) {
+  const destination = getSequenceGroupValue(destinationGroup);
+  if (!destination) {
+    return { success: false, caseItem: caseData, affectedCount: 0, skippedCount: 0, errors: ["A destination group is required."] };
+  }
+  return updateCaseSequenceGroupRecordRefs(caseData, sourceGroup, destination, recordRefs);
+}
+
+export function removeCaseSequenceGroupRecords({ caseData, groupName, recordRefs }) {
+  return updateCaseSequenceGroupRecordRefs(caseData, groupName, "", recordRefs);
+}
+
+export function splitCaseSequenceGroup({ caseData, sourceGroup, destinationGroup, recordRefs }) {
+  return moveCaseSequenceGroupRecords({ caseData, sourceGroup, destinationGroup, recordRefs });
+}
+
+export function mergeCaseSequenceGroupsWithStats({ caseData, sourceGroup, destinationGroup }) {
+  const source = getSequenceGroupValue(sourceGroup);
+  const refs = [];
+  SEQUENCE_GROUP_RECORD_TYPES.forEach((recordType) => {
+    (Array.isArray(caseData?.[recordType]) ? caseData[recordType] : []).forEach((record) => {
+      if (record?.id && getSequenceGroupValue(record.sequenceGroup) === source) refs.push({ recordType, recordId: record.id });
+    });
+  });
+  if (refs.length === 0) {
+    const destination = getSequenceGroupValue(destinationGroup);
+    if (!source || !destination || source === destination) {
+      return { success: false, caseItem: caseData, affectedCount: 0, skippedCount: 0, errors: ["Choose a different destination group."] };
+    }
+    return { success: true, caseItem: caseData, affectedCount: 0, skippedCount: 0, errors: [] };
+  }
+  return moveCaseSequenceGroupRecords({ caseData, sourceGroup: source, destinationGroup, recordRefs: refs });
+}
+
 function normalizeAuditLog(value) {
   if (!Array.isArray(value)) return [];
   return value

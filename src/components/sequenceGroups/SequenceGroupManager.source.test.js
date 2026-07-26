@@ -26,7 +26,7 @@ test("SequenceGroupManager keeps grouped sections and required actions available
     "Clear group label",
     "New Sequence Group",
     "Create Sequence Group",
-    "Edit Group",
+    "Manage Group",
     "Delete Group",
     "No dated records",
   ]) {
@@ -36,6 +36,7 @@ test("SequenceGroupManager keeps grouped sections and required actions available
 
 test("SequenceGroupManager uses the shared group form and management callbacks", () => {
   assert.match(source, /<SequenceGroupForm/);
+  assert.match(source, /<SequenceGroupManagementModal/);
   assert.match(source, /mode=\{groupForm\.mode\}/);
   assert.match(source, /onCreateGroup/);
   assert.match(source, /onUpdateGroup/);

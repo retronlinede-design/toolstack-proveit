@@ -10,9 +10,18 @@ import {
   mergeSequenceGroupMetaStoreToStorage,
   readSequenceGroupMetaStore,
   renameSequenceGroupMeta,
+  resolveSequenceGroupMergeDescription,
   saveSequenceGroupMeta,
   saveSequenceGroupDescription,
 } from "./sequenceGroupMeta.js";
+
+test("merge description modes are explicit and avoid duplicate appends", () => {
+  assert.equal(resolveSequenceGroupMergeDescription("Destination", "Source", "keep"), "Destination");
+  assert.equal(resolveSequenceGroupMergeDescription("Destination", "Source", "replace"), "Source");
+  assert.equal(resolveSequenceGroupMergeDescription("Destination", "Source", "append"), "Destination\n\n---\n\nSource");
+  assert.equal(resolveSequenceGroupMergeDescription("Same", "Same", "append"), "Same");
+  assert.equal(resolveSequenceGroupMergeDescription("Destination", "Source", "edit", " Combined "), "Combined");
+});
 
 function createStorage(initial = {}) {
   const values = new Map(Object.entries(initial));

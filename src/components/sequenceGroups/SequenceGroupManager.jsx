@@ -26,6 +26,7 @@ import {
 } from "../../sequenceGroupMeta.js";
 import SequenceGroupDescription from "./SequenceGroupDescription.jsx";
 import SequenceGroupForm from "./SequenceGroupForm.jsx";
+import SequenceGroupManagementModal from "./SequenceGroupManagementModal.jsx";
 import { mergeManagedSequenceGroupDetails } from "./sequenceGroupManagement.js";
 
 function getGroupBadgeVariant(status) {
@@ -129,6 +130,7 @@ export default function SequenceGroupManager({
   onDownloadGroupIndexJson,
   onDownloadGroupIndexMarkdown,
   onMergeGroup,
+  onManageGroupOperation,
   onMoveRecordToExisting,
   onMoveRecordToNew,
   onOpenAuditExport,
@@ -236,20 +238,10 @@ export default function SequenceGroupManager({
   const openCreateGroupForm = () => setGroupForm({ mode: "create", initialValue: null });
   const openEditGroupForm = () => {
     if (!selectedGroup) return;
-    setGroupForm({
-      mode: "edit",
-      initialValue: {
-        name: selectedGroup.name,
-        description: getSequenceGroupDescription(selectedCase.id, selectedGroup.name),
-      },
-    });
+    setGroupForm({ mode: "manage" });
   };
   const saveGroupForm = async (value) => {
-    if (groupForm?.mode === "edit") {
-      await onUpdateGroup?.(groupForm.initialValue.name, value);
-    } else {
-      await onCreateGroup?.(value);
-    }
+    await onCreateGroup?.(value);
     setSelectedSection("overview");
     setGroupForm(null);
   };
@@ -601,7 +593,7 @@ export default function SequenceGroupManager({
                       <RecordActions
                         className="flex flex-wrap gap-2 xl:justify-end"
                         actions={[
-                          { key: "edit", label: "Edit Group", variant: "primary", onClick: openEditGroupForm },
+                          { key: "edit", label: "Manage Group", variant: "primary", onClick: openEditGroupForm },
                           { key: "delete", label: "Delete Group", variant: "danger", onClick: () => onDeleteGroup?.(selectedGroup) },
                           { key: "copy", label: "Copy Full Chain Markdown", onClick: () => onCopyFullChainGptPackMarkdown?.(selectedGroup.name) },
                         ]}
@@ -1040,13 +1032,26 @@ export default function SequenceGroupManager({
           </div>
         </div>
       </div>
-      {groupForm && (
+      {groupForm?.mode === "create" && (
         <SequenceGroupForm
           mode={groupForm.mode}
           initialValue={groupForm.initialValue}
           existingNames={groupOptions}
           onSave={saveGroupForm}
           onCancel={() => setGroupForm(null)}
+        />
+      )}
+      {groupForm?.mode === "manage" && selectedGroup && (
+        <SequenceGroupManagementModal
+          group={selectedGroup}
+          groups={managedSequenceGroupDetails.groups}
+          description={getSequenceGroupDescription(selectedCase.id, selectedGroup.name)}
+          status={selectedGroupStatus}
+          timelineItems={selectedGroupTimeline.items}
+          onClose={() => setGroupForm(null)}
+          onSaveDetails={(value) => onUpdateGroup?.(selectedGroup.name, value)}
+          onOpenRecord={onOpenRecordEdit}
+          onOperation={onManageGroupOperation}
         />
       )}
     </div>

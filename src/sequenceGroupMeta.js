@@ -142,6 +142,15 @@ function mergeDescriptions(targetDescription, sourceDescription) {
   return `${target}\n\n---\n\n${source}`;
 }
 
+export function resolveSequenceGroupMergeDescription(targetDescription, sourceDescription, mode = "keep", combinedDescription = "") {
+  const target = text(targetDescription);
+  const source = text(sourceDescription);
+  if (mode === "replace") return source;
+  if (mode === "append") return mergeDescriptions(target, source);
+  if (mode === "edit") return typeof combinedDescription === "string" ? combinedDescription.trim() : "";
+  return target;
+}
+
 export function renameSequenceGroupMeta(caseId, oldName, newName, storage) {
   const cleanCaseId = text(caseId);
   const cleanOldName = text(oldName);
