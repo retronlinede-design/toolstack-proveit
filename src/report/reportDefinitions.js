@@ -46,14 +46,14 @@ export const REPORT_DEFINITIONS = Object.freeze({
     recordTypes: Object.freeze(["incident", "evidence", "document", "ledger", "strategy", "watch"]), completeness: "complete", includeArchived: true, aiPolicy: "none", status: PLANNED,
   }),
   incidentSchedule: Object.freeze({
-    id: "incidentSchedule", label: "Incident Schedule", description: "Planned complete incident schedule.", audience: "investigation",
+    id: "incidentSchedule", label: "Incident Schedule", description: "Complete incident schedule with structured evidence coverage and quality findings.", audience: "investigation",
     supportedScopes: Object.freeze(["case", "sequenceGroup"]), supportedOutputs: Object.freeze(["preview", "print", "markdown", "json"]),
-    recordTypes: Object.freeze(["incident", "evidence", "party"]), completeness: "complete", includeArchived: true, aiPolicy: "none", status: PLANNED,
+    recordTypes: Object.freeze(["incident", "evidence", "document", "strategy", "watch", "ledger"]), completeness: "complete", includeArchived: true, aiPolicy: "none", status: ACTIVE,
   }),
-  chronology: Object.freeze({
-    id: "chronology", label: "Chronology Report", description: "Planned canonical chronology report.", audience: "investigation",
+  chronologyReport: Object.freeze({
+    id: "chronologyReport", label: "Chronology Report", description: "Complete canonical chronology across all supported record types.", audience: "investigation",
     supportedScopes: Object.freeze(["case", "sequenceGroup"]), supportedOutputs: Object.freeze(["preview", "print", "markdown", "json"]),
-    recordTypes: Object.freeze(["incident", "evidence", "document", "ledger", "strategy", "watch"]), completeness: "complete", includeArchived: true, aiPolicy: "none", status: PLANNED,
+    recordTypes: Object.freeze(["incident", "evidence", "document", "ledger", "strategy", "watch"]), completeness: "complete", includeArchived: true, aiPolicy: "none", status: ACTIVE,
   }),
 });
 

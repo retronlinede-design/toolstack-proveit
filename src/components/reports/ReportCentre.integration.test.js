@@ -120,8 +120,8 @@ test("Copy Markdown is available only for reports with real Markdown output", ()
   assert.doesNotMatch(renderControls({ reportType: "evidence", markdownAvailable: false }), />Copy Markdown</);
 });
 
-test("migrated factual packs expose shared Markdown and JSON actions only when a document exists", () => {
-  for (const reportType of ["evidence", "document", "ledger"]) {
+test("migrated factual reports expose shared Markdown and JSON actions only when a document exists", () => {
+  for (const reportType of ["evidence", "document", "ledger", "incidentSchedule", "chronologyReport"]) {
     const html = renderControls({ reportType, markdownAvailable: true, documentOutputAvailable: true });
     assert.match(html, /Copy Markdown/);
     assert.match(html, /Download Markdown/);
@@ -129,6 +129,15 @@ test("migrated factual packs expose shared Markdown and JSON actions only when a
   }
   assert.doesNotMatch(renderControls({ reportType: "action", markdownAvailable: true }), /Download JSON/);
   assert.doesNotMatch(renderControls({ reportType: "management", documentOutputAvailable: true }), /Download Markdown/);
+});
+
+test("Incident Schedule and Chronology Report expose complete scoped previews", () => {
+  for (const reportType of ["incidentSchedule", "chronologyReport"]) {
+    const controls = renderControls({ reportType, scopeType: "sequenceGroup", markdownAvailable: true, documentOutputAvailable: true });
+    assert.match(controls, /Whole Case/); assert.match(controls, /Sequence Group/); assert.match(controls, /Copy Markdown/); assert.match(controls, /Download Markdown/); assert.match(controls, /Download JSON/); assert.match(controls, /Print \/ Save PDF/);
+    assert.match(renderPreview(reportType, "sequenceGroup", "Sequence Group: Alpha"), /Scope: Sequence Group: Alpha/);
+  }
+  assert.match(caseDetailSource, /<IncidentScheduleReportArticle/); assert.match(caseDetailSource, /<ChronologyReportArticle/); assert.match(caseDetailSource, /reportCentreIncidentDocument/); assert.match(caseDetailSource, /reportCentreChronologyDocument/);
 });
 
 test("bounded whole-case investigation output is explicit", () => {

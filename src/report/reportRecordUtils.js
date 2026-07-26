@@ -19,7 +19,7 @@ const DATE_FIELDS = {
 };
 
 const DETAIL_FIELDS = {
-  incident: ["importance", "evidenceStatus", "outcome", "location", "source", "referenceNumber", "isMilestone", "verificationStatus", "verificationNotes"],
+  incident: ["category", "incidentType", "type", "description", "functionSummary", "importance", "evidenceStatus", "outcome", "location", "source", "referenceNumber", "isMilestone", "verificationStatus", "verificationNotes"],
   evidence: ["evidenceType", "evidenceRole", "proofStatus", "functionSummary", "source", "capturedAt", "verificationStatus", "verificationNotes", "chainOfCustody", "acquisitionNotes", "authenticityNotes"],
   document: ["category", "documentType", "source", "author", "summary", "textContent", "functionSummary", "documentDate", "date", "createdAt", "updatedAt"],
   ledger: ["amount", "expectedAmount", "paidAmount", "currency", "type", "category", "subType", "description", "counterparty", "paymentDate", "dueDate", "period", "createdAt", "method", "reference", "proofType", "proofStatus", "batchLabel", "statusNote", "isStatusNote"],

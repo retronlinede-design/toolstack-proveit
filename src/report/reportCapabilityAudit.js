@@ -1,6 +1,6 @@
 const OUTPUTS = ["preview", "print", "markdown", "json"];
 
-export function auditReportCapabilities({ definitions = {}, centreConfig = [], runtimeDocuments = {}, renderedActions = {}, previewRenderers = {} } = {}) {
+export function auditReportCapabilities({ definitions = {}, centreConfig = [], runtimeDocuments = {}, renderedActions = {}, previewRenderers = {}, runtimeFormatters = null } = {}) {
   const errors = [];
   const warnings = [];
   const reports = (Array.isArray(centreConfig) ? centreConfig : []).map((entry) => {
@@ -20,6 +20,7 @@ export function auditReportCapabilities({ definitions = {}, centreConfig = [], r
       if (output === "preview" || output === "print") continue;
       if (!rendered.includes(output)) warnings.push(`${id} declares ${output} but no matching UI action is rendered.`);
       if (["markdown", "json"].includes(output) && !runtimeDocuments[id]) warnings.push(`${id} declares ${output} but has no runtime report document.`);
+      if (runtimeFormatters && ["markdown", "json"].includes(output) && !runtimeFormatters[id]?.includes(output)) warnings.push(`${id} declares ${output} but has no registered runtime formatter.`);
     }
     return { id, status: definition?.status || "undefined", scopes: definition?.supportedScopes || [], declaredOutputs: definition?.supportedOutputs || [], renderedOutputs: rendered, hasDocument: Boolean(runtimeDocuments[id]), hasPreview: Boolean(previewRenderers[id]), completeness: definition?.completeness || "unknown" };
   });

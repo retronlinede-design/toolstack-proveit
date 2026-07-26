@@ -24,10 +24,10 @@ test("all report definitions have unique stable IDs and explicit policies", () =
 });
 
 test("active definitions preserve Report Centre scope behaviour", () => {
-  assert.deepEqual(getActiveReportDefinitions().map((item) => item.id), ["management", "investigation", "evidence", "document", "ledger", "client", "action"]);
+  assert.deepEqual(getActiveReportDefinitions().map((item) => item.id), ["management", "investigation", "evidence", "document", "ledger", "client", "action", "incidentSchedule", "chronologyReport"]);
   assert.deepEqual(getSupportedReportScopes("management"), ["case"]);
   assert.deepEqual(getSupportedReportScopes("client"), ["case"]);
-  for (const id of ["investigation", "evidence", "document", "ledger", "action"]) {
+  for (const id of ["investigation", "evidence", "document", "ledger", "action", "incidentSchedule", "chronologyReport"]) {
     assert.deepEqual(getSupportedReportScopes(id), ["case", "sequenceGroup"]);
   }
 });
@@ -56,10 +56,9 @@ test("Document and Ledger packs declare complete shared outputs without AI conte
   }
 });
 
-test("Investigation remains bounded and planned reports cannot enter active selectors", () => {
+test("Investigation remains bounded while schedules are active and Case Audit stays planned", () => {
   assert.equal(getReportDefinition("investigation").completeness, "bounded");
-  for (const id of ["caseAudit", "incidentSchedule", "chronology"]) {
-    assert.equal(getReportDefinition(id).status, "planned");
-    assert.equal(getActiveReportDefinitions().some((item) => item.id === id), false);
-  }
+  for (const id of ["incidentSchedule", "chronologyReport"]) { const definition = getReportDefinition(id); assert.equal(definition.status, "active"); assert.equal(definition.completeness, "complete"); assert.equal(definition.aiPolicy, "none"); for (const output of ["preview", "print", "markdown", "json"]) assert.equal(reportSupportsOutput(id, output), true); }
+  assert.equal(getReportDefinition("caseAudit").status, "planned");
+  assert.equal(getActiveReportDefinitions().some((item) => item.id === "caseAudit"), false);
 });

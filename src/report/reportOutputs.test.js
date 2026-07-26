@@ -12,3 +12,10 @@ test("shared output preparation returns deterministic safe Markdown and JSON fil
 });
 
 test("shared output preparation rejects unsupported formats", () => assert.throws(() => buildReportOutput(document, "pdf"), /Unsupported/));
+
+test("schedule filenames include report type scope and deterministic date", () => {
+  for (const id of ["incidentSchedule", "chronologyReport"]) {
+    const next = { ...document, report: { ...document.report, id, title: id }, sections: id === "incidentSchedule" ? [{ id: "incident-schedule", rows: [] }, { id: "evidence-coverage", rows: [] }, { id: "incident-quality-findings", items: [] }, { id: "unresolved-references", items: [] }] : [{ id: "record-type-totals", metadata: {} }, { id: "chronology", groups: [] }] };
+    const output = buildReportOutput(next, "json"); assert.match(output.filename, new RegExp(`${id.toLowerCase()}-issue-1-2026-07-26\\.json$`)); assert.equal(output.mimeType, "application/json;charset=utf-8");
+  }
+});
