@@ -114,6 +114,17 @@ test("Copy Markdown is available only for reports with real Markdown output", ()
   assert.doesNotMatch(renderControls({ reportType: "evidence", markdownAvailable: false }), />Copy Markdown</);
 });
 
+test("migrated factual packs expose shared Markdown and JSON actions only when a document exists", () => {
+  for (const reportType of ["evidence", "document", "ledger"]) {
+    const html = renderControls({ reportType, markdownAvailable: true, documentOutputAvailable: true });
+    assert.match(html, /Copy Markdown/);
+    assert.match(html, /Download Markdown/);
+    assert.match(html, /Download JSON/);
+  }
+  assert.doesNotMatch(renderControls({ reportType: "action", markdownAvailable: true }), /Download JSON/);
+  assert.doesNotMatch(renderControls({ reportType: "management", documentOutputAvailable: true }), /Download Markdown/);
+});
+
 test("bounded whole-case investigation output is explicit", () => {
   const wholeCase = renderPreview("investigation", "case", "Whole case");
   const group = renderPreview("investigation", "sequenceGroup", "sequenceGroup: Alpha");
@@ -134,9 +145,18 @@ test("the active CaseDetail Report Centre uses the rendered control boundary", (
 
 test("the active Evidence Pack follows model document and unchanged renderer path", () => {
   assert.match(caseDetailSource, /buildCaseReportModel\(selectedCase/);
-  assert.match(caseDetailSource, /buildEvidenceScheduleDocument\(reportModel, definition\)/);
-  assert.match(caseDetailSource, /projectEvidenceDocumentToLegacyViewModel\(reportDocument\)/);
+  assert.match(caseDetailSource, /buildEvidenceScheduleDocument\(reportCentreModel, getReportDefinition\("evidence"\)\)/);
+  assert.match(caseDetailSource, /projectEvidenceDocumentToLegacyViewModel\(reportCentreEvidenceDocument\)/);
   assert.match(caseDetailSource, /<EvidencePackReportArticle/);
+});
+
+test("Document and Ledger packs share one factual model and retain their existing renderers", () => {
+  assert.match(caseDetailSource, /buildDocumentScheduleDocument\(reportCentreModel, getReportDefinition\("document"\)\)/);
+  assert.match(caseDetailSource, /projectDocumentDocumentToLegacyViewModel\(reportCentreDocumentDocument\)/);
+  assert.match(caseDetailSource, /buildLedgerScheduleDocument\(reportCentreModel, getReportDefinition\("ledger"\)\)/);
+  assert.match(caseDetailSource, /projectLedgerDocumentToLegacyViewModel\(reportCentreLedgerDocument\)/);
+  assert.match(caseDetailSource, /<DocumentPackReportArticle/);
+  assert.match(caseDetailSource, /<LedgerPackReportArticle/);
 });
 
 test("Internal Report and Lawyer Pack cannot be selected as working destinations", () => {

@@ -47,6 +47,15 @@ test("Evidence Pack declares complete shared outputs without AI content", () => 
   for (const output of ["preview", "print", "markdown", "json"]) assert.equal(reportSupportsOutput("evidence", output), true);
 });
 
+test("Document and Ledger packs declare complete shared outputs without AI content", () => {
+  for (const id of ["document", "ledger"]) {
+    const definition = getReportDefinition(id);
+    assert.equal(definition.completeness, "complete");
+    assert.equal(definition.aiPolicy, "none");
+    for (const output of ["preview", "print", "markdown", "json"]) assert.equal(reportSupportsOutput(id, output), true);
+  }
+});
+
 test("Investigation remains bounded and planned reports cannot enter active selectors", () => {
   assert.equal(getReportDefinition("investigation").completeness, "bounded");
   for (const id of ["caseAudit", "incidentSchedule", "chronology"]) {

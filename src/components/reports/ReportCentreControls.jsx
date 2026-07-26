@@ -1,4 +1,4 @@
-import { getSupportedReportScopes, normaliseReportScope } from "../../report/reportScopes.js";
+import { getSupportedReportScopes, normaliseReportScope, reportSupportsOutput } from "../../report/reportScopes.js";
 import { getReportCentrePreviewDescription, REPORT_CENTRE_TYPES } from "./reportCentreConfig.js";
 
 const SCOPE_LABELS = {
@@ -28,17 +28,23 @@ export default function ReportCentreControls({
   sequenceGroups = [],
   selectedSequenceGroup = "",
   markdownAvailable = false,
+  documentOutputAvailable = false,
+  outputFeedback = "",
   onReportTypeChange,
   onScopeTypeChange,
   onSequenceGroupChange,
   onPrint,
   onCopyMarkdown,
+  onDownloadMarkdown,
+  onDownloadJson,
   onOpenSequenceGroupAudit,
 }) {
   const supportedScopes = getSupportedReportScopes(reportType);
   const activeScope = normaliseReportScope(reportType, scopeType);
   const hasOneScope = supportedScopes.length === 1;
   const reportUnavailable = activeScope === "sequenceGroup" && !selectedSequenceGroup;
+  const supportsMarkdown = reportSupportsOutput(reportType, "markdown");
+  const supportsJson = reportSupportsOutput(reportType, "json");
 
   return (
     <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden dark:border-neutral-700 dark:bg-neutral-900">
@@ -136,6 +142,16 @@ export default function ReportCentreControls({
                 Copy Markdown
               </button>
             )}
+            {documentOutputAvailable && supportsMarkdown && (
+              <button type="button" onClick={onDownloadMarkdown} disabled={reportUnavailable} className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-bold text-neutral-700 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:text-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800">
+                Download Markdown
+              </button>
+            )}
+            {documentOutputAvailable && supportsJson && (
+              <button type="button" onClick={onDownloadJson} disabled={reportUnavailable} className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-bold text-neutral-700 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:text-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800">
+                Download JSON
+              </button>
+            )}
             <button
               type="button"
               onClick={onOpenSequenceGroupAudit}
@@ -145,8 +161,9 @@ export default function ReportCentreControls({
             </button>
           </div>
           <p className="mt-3 text-xs leading-5 text-neutral-500 dark:text-neutral-400">
-            Markdown is available for Action Plan. JSON remains available through Sequence Group Audit exports.
+            Evidence, Document, and Ledger packs support shared Markdown and JSON outputs. Action Plan retains its existing Markdown copy.
           </p>
+          {outputFeedback ? <p role="status" className="mt-2 text-xs font-medium text-neutral-600 dark:text-neutral-300">{outputFeedback}</p> : null}
         </div>
       </div>
     </section>

@@ -3,6 +3,7 @@ import {
   getReportDefinition,
   normaliseReportScopeFromDefinition,
   reportSupportsScope as definitionSupportsScope,
+  reportSupportsOutput as definitionSupportsOutput,
 } from "./reportDefinitions.js";
 
 export const REPORT_SCOPE_SUPPORT = Object.freeze(Object.fromEntries(
@@ -15,6 +16,10 @@ export function getSupportedReportScopes(reportType) {
 
 export function reportSupportsScope(reportType, scope) {
   return definitionSupportsScope(reportType, scope);
+}
+
+export function reportSupportsOutput(reportType, output) {
+  return definitionSupportsOutput(reportType, output);
 }
 
 export function normaliseReportScope(reportType, requestedScope) {

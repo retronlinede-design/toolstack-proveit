@@ -17,8 +17,8 @@ export function getReportCentrePreviewDescription(reportType, scopeType) {
       : "Bounded investigation overview. It does not include a complete incident schedule and previews at most 12 evidence records and 12 documents.";
   }
   if (reportType === "evidence") return "Uses the complete Evidence Schedule report document.";
-  if (reportType === "document") return "Uses the existing Document Pack builder.";
-  if (reportType === "ledger") return "Uses the existing Ledger Pack builder.";
+  if (reportType === "document") return "Uses the complete Document Schedule report document.";
+  if (reportType === "ledger") return "Uses the complete Ledger Schedule report document.";
   if (reportType === "client") return "Whole-case GPT-generated Client Report workflow and renderer.";
   if (reportType === "action") return "Deterministic action plan assembled from structured case and sequence-group assignments.";
   return "Whole-case report preview.";

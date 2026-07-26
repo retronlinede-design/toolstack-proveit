@@ -21,12 +21,12 @@ export const REPORT_DEFINITIONS = Object.freeze({
   }),
   document: Object.freeze({
     id: "document", label: "Document Pack", description: "Source document matrix, linked records, and attachment metadata.", audience: "investigation",
-    supportedScopes: Object.freeze(["case", "sequenceGroup"]), supportedOutputs: Object.freeze(["preview", "print"]),
+    supportedScopes: Object.freeze(["case", "sequenceGroup"]), supportedOutputs: Object.freeze(["preview", "print", "markdown", "json"]),
     recordTypes: Object.freeze(["document", "incident", "evidence", "strategy"]), completeness: "complete", includeArchived: true, aiPolicy: "none", status: ACTIVE,
   }),
   ledger: Object.freeze({
     id: "ledger", label: "Ledger Pack", description: "Financial, payment, and measurable record review.", audience: "investigation",
-    supportedScopes: Object.freeze(["case", "sequenceGroup"]), supportedOutputs: Object.freeze(["preview", "print"]),
+    supportedScopes: Object.freeze(["case", "sequenceGroup"]), supportedOutputs: Object.freeze(["preview", "print", "markdown", "json"]),
     recordTypes: Object.freeze(["ledger", "evidence", "document"]), completeness: "complete", includeArchived: true, aiPolicy: "none", status: ACTIVE,
   }),
   client: Object.freeze({

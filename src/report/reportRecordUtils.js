@@ -21,8 +21,8 @@ const DATE_FIELDS = {
 const DETAIL_FIELDS = {
   incident: ["importance", "evidenceStatus", "outcome", "location", "source", "referenceNumber", "isMilestone", "verificationStatus", "verificationNotes"],
   evidence: ["evidenceType", "evidenceRole", "proofStatus", "functionSummary", "source", "capturedAt", "verificationStatus", "verificationNotes", "chainOfCustody", "acquisitionNotes", "authenticityNotes"],
-  document: ["category", "documentType", "source", "author", "textContent", "functionSummary"],
-  ledger: ["amount", "currency", "category", "counterparty", "paymentDate", "period", "proofStatus"],
+  document: ["category", "documentType", "source", "author", "summary", "textContent", "functionSummary", "documentDate", "date", "createdAt", "updatedAt"],
+  ledger: ["amount", "expectedAmount", "paidAmount", "currency", "type", "category", "subType", "description", "counterparty", "paymentDate", "dueDate", "period", "createdAt", "method", "reference", "proofType", "proofStatus", "batchLabel", "statusNote", "isStatusNote"],
   strategy: ["objective", "rationale", "desiredOutcome", "strategyType", "priority", "decisionStatus", "reviewDate", "assumptions", "risks", "nextSteps", "ownerPartyId"],
   watch: ["category", "priority", "watchFor", "rationale", "triggerConditions", "latestObservation", "nextCheck", "outcome", "reviewDate", "observations"],
 };

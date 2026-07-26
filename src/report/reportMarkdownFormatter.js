@@ -2,62 +2,40 @@ import { getReportDocumentSection } from "./reportDocument.js";
 
 function safeText(value) {
   if (value == null) return "";
-  if (["string", "number", "boolean"].includes(typeof value)) {
-    return String(value).replace(/data:[^\s)]+/gi, "[binary content omitted]");
-  }
+  if (["string", "number", "boolean"].includes(typeof value)) return String(value).replace(/data:[^\s)]+/gi, "[binary content omitted]");
   return JSON.stringify(value).replace(/data:[^\s)"}]+/gi, "[binary content omitted]");
 }
-
-function inline(value) {
-  return safeText(value).replace(/\|/g, "\\|").replace(/\r?\n/g, "<br>").trim() || "-";
+function inline(value) { return safeText(value).replace(/\|/g, "\\|").replace(/\r?\n/g, "<br>").trim() || "-"; }
+function list(items, render) { return items?.length ? items.map((item) => `- ${render(item)}`) : ["- None"]; }
+function base(document) {
+  const source = document.source || {}; const summary = document.summary || {};
+  return [`# ${inline(document.report?.title || "Report")}`, "", "## Case Details", "", `- Case: ${inline(source.caseName || source.caseId)}`, `- Case ID: ${inline(source.caseId)}`, `- Status: ${inline(summary.caseOverview?.status)}`, `- Category: ${inline(summary.caseOverview?.category)}`, `- Generated: ${inline(document.report?.generatedAt)}`, `- Source revision: ${inline(source.sourceRevision?.fingerprint)}`, "", "## Report Scope", "", `- Scope: ${inline(source.scope?.type === "sequenceGroup" ? `Sequence Group: ${source.scope.sequenceGroupName || "-"}` : "Whole case")}`, `- Completeness: ${inline(document.report?.completeness)}`];
 }
+function appendNotices(lines, document) { lines.push("", "## Notices", "", ...list(document.notices || [], (item) => `${inline(item.code)}: ${inline(item.message)}`), ""); }
 
-function listLines(items, render) {
-  return items.length ? items.map((item) => `- ${render(item)}`) : ["- None"];
+function evidence(document) {
+  const lines = base(document); const rows = getReportDocumentSection(document, "evidence-schedule")?.rows || [];
+  lines.push(`- Evidence records: ${inline(document.summary?.includedEvidenceCount ?? 0)}`, `- Incidents in primary scope: ${inline(document.summary?.scopedIncidentCount ?? 0)}`, `- Archived records: ${inline(document.summary?.archivedPolicy)}`, "", "## Evidence Schedule", "");
+  if (!rows.length) lines.push("No evidence is included in this scope."); else { lines.push("| Evidence ID | Title | Date | Status | Verification | Role / Type | Function summary | Linked incidents | Attachments | Archived |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"); rows.forEach((row) => lines.push(`| ${inline(row.evidenceId)} | ${inline(row.title)} | ${inline(row.date)} | ${inline(row.status)} | ${inline(row.verificationState)} | ${inline(row.evidenceRole || row.evidenceType)} | ${inline(row.functionSummary)} | ${inline((row.linkedIncidentTitles || []).join(", "))} | ${inline((row.attachmentFilenames || []).join(", "))} | ${inline(row.archived ? "Yes" : "No")} |`)); }
+  const incidents = getReportDocumentSection(document, "supported-incidents")?.items || []; const weak = getReportDocumentSection(document, "weak-unlinked-evidence")?.diagnostics || {}; const unresolved = getReportDocumentSection(document, "unresolved-references")?.items || [];
+  lines.push("", "## Supported Incidents", "", ...list(incidents, (item) => `${inline(item.id)} — ${inline(item.title)} — evidence: ${inline((item.supportingEvidenceIds || []).join(", "))}`), "", "## Weak or Unlinked Evidence", "", "### Not linked to incidents", ...list(weak.unlinkedEvidence, (item) => `${inline(item.id)} — ${inline(item.title)}`), "", "### Missing function summary", ...list(weak.evidenceMissingFunctionSummary, (item) => `${inline(item.id)} — ${inline(item.title)}`), "", "### No attachments", ...list(weak.evidenceWithoutAttachments, (item) => `${inline(item.id)} — ${inline(item.title)}`), "", "## Unresolved References", "", ...list(unresolved, (item) => `${inline(item.sourceRecordType)} ${inline(item.sourceRecordId)} — ${inline(item.message)} — technical reference: ${inline(item.targetId)}`)); appendNotices(lines, document); lines.push("Attachments are metadata-only; attachment content is not embedded.", ""); return lines.join("\n");
+}
+function documents(document) {
+  const lines = base(document); const rows = getReportDocumentSection(document, "document-schedule")?.rows || []; const context = getReportDocumentSection(document, "linked-incident-context"); const weak = getReportDocumentSection(document, "weak-incomplete-documents")?.diagnostics || {}; const unresolved = getReportDocumentSection(document, "unresolved-references")?.items || [];
+  lines.push(`- Documents: ${inline(document.summary?.includedDocumentCount ?? 0)}`, `- Archived documents: ${inline(document.summary?.archivedDocumentCount ?? 0)}`, "", "## Document Schedule", "");
+  if (!rows.length) lines.push("No documents are included in this scope."); else { lines.push("| Document ID | Title | Date | Type | Status | Summary | Source / Author | Sequence Group | Linked incidents | Linked evidence | Attachments | Archived |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"); rows.forEach((row) => lines.push(`| ${inline(row.documentId)} | ${inline(row.title)} | ${inline(row.documentDate || row.date)} | ${inline(row.documentType || row.category)} | ${inline(row.status)} | ${inline(row.summary || row.notes || row.functionSummary)} | ${inline([row.source, row.author].filter(Boolean).join(" / "))} | ${inline(row.sequenceGroup)} | ${inline((row.linkedIncidents || []).map((item) => item.title).join(", "))} | ${inline((row.linkedEvidence || []).map((item) => item.title).join(", "))} | ${inline((row.attachmentNames || []).join(", "))} | ${inline(row.archived ? "Yes" : "No")} |`)); }
+  lines.push("", "## Linked Incident Context", "", ...list(context?.items, (item) => `${inline(item.id)} — ${inline(item.title)} — documents: ${inline((item.documents || []).map((doc) => doc.title).join(", "))}`), "", "## Weak or Incomplete Documents", "", "### Unlinked", ...list(weak.unlinkedDocuments, (item) => `${inline(item.id)} — ${inline(item.title)}`), "", "### Missing summary", ...list(weak.documentsMissingSummary, (item) => `${inline(item.id)} — ${inline(item.title)}`), "", "## Unresolved References", "", ...list(unresolved, (item) => `${inline(item.sourceRecordType)} ${inline(item.sourceRecordId)} — ${inline(item.message)}`)); appendNotices(lines, document); return lines.join("\n");
+}
+function ledger(document) {
+  const lines = base(document); const rows = getReportDocumentSection(document, "ledger-schedule")?.rows || []; const totals = getReportDocumentSection(document, "totals-exclusions"); const weak = getReportDocumentSection(document, "weak-incomplete-ledger")?.diagnostics || {}; const unresolved = getReportDocumentSection(document, "unresolved-references")?.items || [];
+  lines.push(`- Ledger entries: ${inline(document.summary?.includedLedgerCount ?? 0)}`, `- Monetary entries: ${inline(document.summary?.monetaryEntryCount ?? 0)}`, `- Excluded status notes: ${inline(document.summary?.excludedStatusNoteCount ?? 0)}`, "", "## Ledger Summary", "", ...list(document.summary?.totalsByCurrency, (item) => `${inline(item.currency)}: total ${inline(item.total)}, credits ${inline(item.credit)}, debits ${inline(item.debit)}, disputed ${inline(item.disputed)}, pending ${inline(item.pending)}, waived ${inline(item.waived)}`), "", "## Ledger Schedule", "");
+  if (!rows.length) lines.push("No ledger entries are included in this scope."); else { lines.push("| Ledger ID | Title | Date | Type | Status | Amount | Currency | Sequence Group | Proof | Linked records | Archived |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"); rows.forEach((row) => lines.push(`| ${inline(row.ledgerId)} | ${inline(row.title)} | ${inline(row.date)} | ${inline([row.type, row.subType].filter(Boolean).join(" / "))} | ${inline(row.status)} | ${inline(row.amount)} | ${inline(row.currency)} | ${inline(row.sequenceGroup)} | ${inline(row.proofType || row.proofStatus)} | ${inline((row.linkedRecords || []).map((item) => item.title).join(", "))} | ${inline(row.archived ? "Yes" : "No")} |`)); }
+  lines.push("", "## Totals and Exclusions", "", ...list(totals?.items, (item) => `${inline(item.currency)} — total ${inline(item.total)} (no currency conversion)`), "", "## Weak or Incomplete Ledger Entries", "", "### Missing amount", ...list(weak.missingAmount, (item) => `${inline(item.id || item.ledgerId)} — ${inline(item.title)}`), "", "### Missing proof", ...list(weak.entriesWithMissingProof, (item) => `${inline(item.id || item.ledgerId)} — ${inline(item.title)}`), "", "## Unresolved References", "", ...list(unresolved, (item) => `${inline(item.sourceRecordType)} ${inline(item.sourceRecordId)} — ${inline(item.message)}`)); appendNotices(lines, document); return lines.join("\n");
 }
 
 export function formatReportDocumentAsMarkdown(reportDocument = {}) {
-  const summary = reportDocument.summary || {};
-  const source = reportDocument.source || {};
-  const schedule = getReportDocumentSection(reportDocument, "evidence-schedule")?.rows || [];
-  const incidents = getReportDocumentSection(reportDocument, "supported-incidents")?.items || [];
-  const weak = getReportDocumentSection(reportDocument, "weak-unlinked-evidence")?.diagnostics || {};
-  const unresolved = getReportDocumentSection(reportDocument, "unresolved-references")?.items || [];
-  const notices = reportDocument.notices || [];
-  const scope = source.scope?.type === "sequenceGroup" ? `Sequence Group: ${source.scope.sequenceGroupName || "-"}` : "Whole case";
-  const lines = [
-    `# ${inline(reportDocument.report?.title || "Evidence Pack")}`,
-    "",
-    "## Case Details",
-    "",
-    `- Case: ${inline(source.caseName || source.caseId)}`,
-    `- Case ID: ${inline(source.caseId)}`,
-    `- Status: ${inline(summary.caseOverview?.status)}`,
-    `- Category: ${inline(summary.caseOverview?.category)}`,
-    `- Generated: ${inline(reportDocument.report?.generatedAt)}`,
-    `- Source revision: ${inline(source.sourceRevision?.fingerprint)}`,
-    "",
-    "## Report Scope",
-    "",
-    `- Scope: ${inline(scope)}`,
-    `- Completeness: ${inline(reportDocument.report?.completeness)}`,
-    `- Evidence records: ${inline(summary.includedEvidenceCount ?? 0)}`,
-    `- Incidents in primary scope: ${inline(summary.scopedIncidentCount ?? 0)}`,
-    `- Archived records: ${inline(summary.archivedPolicy)}`,
-    "",
-    "## Evidence Schedule",
-    "",
-  ];
-  if (schedule.length === 0) lines.push("No evidence is included in this scope.");
-  else {
-    lines.push("| Evidence ID | Title | Date | Status | Verification | Role / Type | Function summary | Linked incidents | Attachments | Archived |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
-    schedule.forEach((row) => lines.push(`| ${inline(row.evidenceId)} | ${inline(row.title)} | ${inline(row.date)} | ${inline(row.status)} | ${inline(row.verificationState)} | ${inline(row.evidenceRole || row.evidenceType)} | ${inline(row.functionSummary)} | ${inline((row.linkedIncidentTitles || []).join(", "))} | ${inline((row.attachmentFilenames || []).join(", "))} | ${inline(row.archived ? "Yes" : "No")} |`));
-  }
-  lines.push("", "## Supported Incidents", "", ...listLines(incidents, (incident) => `${inline(incident.id)} — ${inline(incident.title)} — evidence: ${inline((incident.supportingEvidenceIds || []).join(", "))}`));
-  lines.push("", "## Weak or Unlinked Evidence", "", "### Not linked to incidents", ...listLines(weak.unlinkedEvidence || [], (item) => `${inline(item.id)} — ${inline(item.title)}`));
-  lines.push("", "### Missing function summary", ...listLines(weak.evidenceMissingFunctionSummary || [], (item) => `${inline(item.id)} — ${inline(item.title)}`));
-  lines.push("", "### No attachments", ...listLines(weak.evidenceWithoutAttachments || [], (item) => `${inline(item.id)} — ${inline(item.title)}`));
-  lines.push("", "## Unresolved References", "", ...listLines(unresolved, (item) => `${inline(item.sourceRecordType)} ${inline(item.sourceRecordId)} — ${inline(item.message)} — technical reference: ${inline(item.targetId)}`));
-  lines.push("", "## Notices", "", ...listLines(notices, (notice) => `${inline(notice.code)}: ${inline(notice.message)}`), "", "Attachments are metadata-only; attachment content is not embedded.", "");
-  return lines.join("\n");
+  if (reportDocument.report?.id === "evidence") return evidence(reportDocument);
+  if (reportDocument.report?.id === "document") return documents(reportDocument);
+  if (reportDocument.report?.id === "ledger") return ledger(reportDocument);
+  throw new Error(`Markdown output is not supported for report "${reportDocument.report?.id || "unknown"}".`);
 }

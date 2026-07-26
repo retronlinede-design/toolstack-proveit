@@ -72,6 +72,9 @@ import { normaliseReportScope } from "../report/reportScopes.js";
 import { getReportDefinition } from "../report/reportDefinitions.js";
 import { buildCaseReportModel } from "../report/reportModel.js";
 import { buildEvidenceScheduleDocument, projectEvidenceDocumentToLegacyViewModel } from "../report/evidenceScheduleDocument.js";
+import { buildDocumentScheduleDocument, projectDocumentDocumentToLegacyViewModel } from "../report/documentScheduleDocument.js";
+import { buildLedgerScheduleDocument, projectLedgerDocumentToLegacyViewModel } from "../report/ledgerScheduleDocument.js";
+import { buildReportOutput } from "../report/reportOutputs.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import LinkedChip from "./LinkedChip";
 import RecordCard from "./RecordCard";
@@ -278,6 +281,7 @@ export default function CaseDetail({
   const [reportCentreScopeType, setReportCentreScopeType] = useState("case");
   const [reportCentreSequenceGroup, setReportCentreSequenceGroup] = useState("");
   const [reportCentreType, setReportCentreType] = useState("management");
+  const [reportCentreOutputFeedback, setReportCentreOutputFeedback] = useState("");
   const [caseStructureReportOpen, setCaseStructureReportOpen] = useState(false);
   const [clientReportGeneratorOpen, setClientReportGeneratorOpen] = useState(false);
   const [threadIssueReportOpen, setThreadIssueReportOpen] = useState(false);
@@ -439,27 +443,22 @@ export default function CaseDetail({
     scopeType: normalisedReportCentreScopeType,
     sequenceGroup: normalisedReportCentreScopeType === "sequenceGroup" ? selectedReportCentreSequenceGroup : "",
   }), [normalisedReportCentreScopeType, selectedReportCentreSequenceGroup]);
-  const reportCentreEvidencePackReport = useMemo(() => {
+  const reportCentreModel = useMemo(() => {
     if (!selectedCase) return null;
-    const definition = getReportDefinition("evidence");
-    const reportModel = buildCaseReportModel(selectedCase, {
+    return buildCaseReportModel(selectedCase, {
       scope: reportCentreScope.scopeType,
       sequenceGroupName: reportCentreScope.sequenceGroup,
-      includeArchived: definition.includeArchived,
+      includeArchived: true,
       includeDiagnostics: true,
       sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
     });
-    const reportDocument = buildEvidenceScheduleDocument(reportModel, definition);
-    return projectEvidenceDocumentToLegacyViewModel(reportDocument);
   }, [selectedCase, reportCentreScope]);
-  const reportCentreDocumentPackReport = useMemo(() => {
-    if (!selectedCase) return null;
-    return buildDocumentPackReport(selectedCase, reportCentreScope);
-  }, [selectedCase, reportCentreScope]);
-  const reportCentreLedgerPackReport = useMemo(() => {
-    if (!selectedCase) return null;
-    return buildLedgerPackReport(selectedCase, reportCentreScope);
-  }, [selectedCase, reportCentreScope]);
+  const reportCentreEvidenceDocument = useMemo(() => reportCentreModel ? buildEvidenceScheduleDocument(reportCentreModel, getReportDefinition("evidence")) : null, [reportCentreModel]);
+  const reportCentreDocumentDocument = useMemo(() => reportCentreModel ? buildDocumentScheduleDocument(reportCentreModel, getReportDefinition("document")) : null, [reportCentreModel]);
+  const reportCentreLedgerDocument = useMemo(() => reportCentreModel ? buildLedgerScheduleDocument(reportCentreModel, getReportDefinition("ledger")) : null, [reportCentreModel]);
+  const reportCentreEvidencePackReport = useMemo(() => reportCentreEvidenceDocument ? projectEvidenceDocumentToLegacyViewModel(reportCentreEvidenceDocument) : null, [reportCentreEvidenceDocument]);
+  const reportCentreDocumentPackReport = useMemo(() => reportCentreDocumentDocument ? projectDocumentDocumentToLegacyViewModel(reportCentreDocumentDocument) : null, [reportCentreDocumentDocument]);
+  const reportCentreLedgerPackReport = useMemo(() => reportCentreLedgerDocument ? projectLedgerDocumentToLegacyViewModel(reportCentreLedgerDocument) : null, [reportCentreLedgerDocument]);
   const reportCentreInvestigationReport = useMemo(() => {
     if (!selectedCase) return null;
     if (reportCentreScope.scopeType === "sequenceGroup") {
@@ -3074,6 +3073,10 @@ ${milestoneBlock}`;
     selectedCase?.caseState?.mainProblem,
   ]);
   const reportCentreMarkdown = useMemo(() => {
+    const document = reportCentreType === "evidence" ? reportCentreEvidenceDocument
+      : reportCentreType === "document" ? reportCentreDocumentDocument
+        : reportCentreType === "ledger" ? reportCentreLedgerDocument : null;
+    if (document) return buildReportOutput(document, "markdown").content;
     if (reportCentreType !== "action" || !reportCentreActionPlan) return "";
     const listLines = (items = [], getText = (item) => item) =>
       items.length > 0 ? items.map((item) => `- ${getText(item)}`).join("\n") : "- None";
@@ -3099,7 +3102,7 @@ ${listLines(reportCentreActionPlan.risks, (item) => `${item.label}: ${item.text}
 
 ## Recommended Fixes
 ${listLines(reportCentreActionPlan.recommendedFixes)}`;
-  }, [reportCentreActionPlan, reportCentreType]);
+  }, [reportCentreActionPlan, reportCentreDocumentDocument, reportCentreEvidenceDocument, reportCentreLedgerDocument, reportCentreType]);
 
   if (!selectedCase) return renderCaseList();
 
@@ -3395,10 +3398,31 @@ ${ungroupedSequenceText}
   const handleReportCentreTypeChange = (nextReportType) => {
     setReportCentreType(nextReportType);
     setReportCentreScopeType((currentScope) => normaliseReportScope(nextReportType, currentScope));
+    setReportCentreOutputFeedback("");
   };
   const handleCopyReportCentreMarkdown = async () => {
     if (!reportCentreMarkdown) return;
-    await copySequenceGroupText(reportCentreMarkdown);
+    try {
+      await copySequenceGroupText(reportCentreMarkdown);
+      setReportCentreOutputFeedback("Markdown copied.");
+    } catch {
+      setReportCentreOutputFeedback("Could not copy Markdown.");
+    }
+  };
+  const getActiveReportCentreDocument = () => reportCentreType === "evidence" ? reportCentreEvidenceDocument
+    : reportCentreType === "document" ? reportCentreDocumentDocument
+      : reportCentreType === "ledger" ? reportCentreLedgerDocument : null;
+  const handleDownloadReportCentreOutput = (format) => {
+    try {
+      const document = getActiveReportCentreDocument();
+      if (!document) throw new Error("No report document is available.");
+      const output = buildReportOutput(document, format);
+      downloadTextFile(output.content, output.filename, output.mimeType);
+      setReportCentreOutputFeedback(`${format === "json" ? "JSON" : "Markdown"} downloaded.`);
+    } catch (error) {
+      console.error("Failed to prepare report output", error);
+      setReportCentreOutputFeedback("Could not prepare this report output.");
+    }
   };
   const renderActionPlanList = (items = [], renderItem = (item) => item, emptyText = "None recorded.") => (
     items.length === 0 ? (
@@ -4925,11 +4949,15 @@ ${ungroupedSequenceText}
                   sequenceGroups={threadIssueReportSequenceOptions}
                   selectedSequenceGroup={selectedReportCentreSequenceGroup}
                   markdownAvailable={Boolean(reportCentreMarkdown)}
+                  documentOutputAvailable={Boolean(getActiveReportCentreDocument())}
+                  outputFeedback={reportCentreOutputFeedback}
                   onReportTypeChange={handleReportCentreTypeChange}
                   onScopeTypeChange={setReportCentreScopeType}
                   onSequenceGroupChange={setReportCentreSequenceGroup}
                   onPrint={() => window.print()}
                   onCopyMarkdown={handleCopyReportCentreMarkdown}
+                  onDownloadMarkdown={() => handleDownloadReportCentreOutput("markdown")}
+                  onDownloadJson={() => handleDownloadReportCentreOutput("json")}
                   onOpenSequenceGroupAudit={openSequenceGroupAuditExport}
                 />
 
