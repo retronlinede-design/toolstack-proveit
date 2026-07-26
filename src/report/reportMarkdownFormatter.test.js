@@ -7,6 +7,7 @@ import { formatReportDocumentAsMarkdown } from "./reportMarkdownFormatter.js";
 import { buildCaseReportModel } from "./reportModel.js";
 import { buildIncidentScheduleDocument } from "./incidentScheduleDocument.js";
 import { buildChronologyReportDocument } from "./chronologyReportDocument.js";
+import { buildCaseAuditDocument } from "./caseAuditDocument.js";
 
 function markdownFor(caseData) {
   const model = buildCaseReportModel(caseData, { generatedAt: "2026-07-26T00:00:00.000Z" });
@@ -49,4 +50,11 @@ test("Markdown formatter supports canonical Chronology groups and provenance", (
   const markdown = formatReportDocumentAsMarkdown(buildChronologyReportDocument(model, getReportDefinition("chronologyReport")));
   for (const heading of ["# Chronology Report", "## Record Type Totals", "## Chronology", "### July 2026", "### Malformed Dates", "### Missing Dates", "## Notices", "## Source Revision"]) assert.match(markdown, new RegExp(heading));
   assert.match(markdown, /watch: 1/); assert.doesNotMatch(markdown, /\[object Object\]/);
+});
+
+test("Markdown formatter supports Case Audit categories findings and notices", () => {
+  const model = buildCaseReportModel({ id: "case", name: "Case | Audit", incidents: [{ id: "i1", title: "Incident", eventDate: "bad", linkedRecordIds: ["missing"] }], documents: [{ id: "d1", title: "Doc", attachments: [{ name: "file.pdf", dataUrl: "data:application/pdf;base64,abc" }] }] }, { generatedAt: "2026-07-26T00:00:00Z" });
+  const markdown = formatReportDocumentAsMarkdown(buildCaseAuditDocument(model, getReportDefinition("caseAudit"), { generatedAt: model.generatedAt }));
+  for (const heading of ["# Case Audit Report", "## Audit Status", "## Summary", "## Critical Findings", "## Warnings", "## Informational Findings", "## Findings by Category", "### Record Completeness", "### Date Quality", "### Link Integrity", "### Party Integrity", "### Attachment and Proof Metadata", "### Sequence Group Coverage", "### Ledger Integrity", "### Strategy Completeness", "### Archive Visibility", "### Case-level Metadata", "## Unresolved References", "## Notices", "## Source Revision"]) assert.match(markdown, new RegExp(heading));
+  assert.match(markdown, /RECORD_MALFORMED_PRIMARY_DATE/); assert.match(markdown, /i1/); assert.match(markdown, /Case \\| Audit/); assert.doesNotMatch(markdown, /base64|data:application|\[object Object\]/);
 });

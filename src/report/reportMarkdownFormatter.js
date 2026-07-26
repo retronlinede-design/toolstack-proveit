@@ -48,11 +48,20 @@ function chronology(document) {
   appendNotices(lines, document); lines.push("## Source Revision", "", inline(document.source?.sourceRevision?.fingerprint), ""); return lines.join("\n");
 }
 
+function caseAudit(document) {
+  const lines = base(document); const summary = document.summary || {}; const findings = getReportDocumentSection(document, "findings-by-severity")?.items || []; const categories = getReportDocumentSection(document, "findings-by-category")?.categories || []; const unresolved = getReportDocumentSection(document, "unresolved-references")?.items || [];
+  lines.push("", "## Audit Status", "", inline(summary.auditStatus), "", "This status reflects deterministic structured data-quality rules and is not a legal or factual conclusion.", "", "## Summary", "", `- Total findings: ${inline(summary.totalFindings || 0)}`, `- Critical: ${inline(summary.critical || 0)}`, `- Warnings: ${inline(summary.warning || 0)}`, `- Information: ${inline(summary.information || 0)}`, `- Affected records: ${inline(summary.affectedRecordCount || 0)}`, `- Unaffected records: ${inline(summary.unaffectedRecordCount || 0)}`, `- Unresolved references: ${inline(summary.unresolvedReferenceCount || 0)}`);
+  for (const [severity, heading] of [["critical", "Critical Findings"], ["warning", "Warnings"], ["information", "Informational Findings"]]) lines.push("", `## ${heading}`, "", ...list(findings.filter((item) => item.severity === severity), (item) => `${inline(item.code)} — ${inline(item.recordType)} ${inline(item.recordId)} — ${inline(item.message)}`));
+  lines.push("", "## Findings by Category", ""); categories.forEach((category) => lines.push(`### ${inline(category.label)}`, "", ...list(category.findings, (item) => `${inline(item.severity)} — ${inline(item.code)} — ${inline(item.recordType)} ${inline(item.recordId)} — ${inline(item.message)}`), ""));
+  lines.push("## Unresolved References", "", ...list(unresolved, (item) => `${inline(item.sourceRecordType)} ${inline(item.sourceRecordId)} — ${inline(item.message)} — technical reference: ${inline(item.targetId)}`)); appendNotices(lines, document); lines.push("## Source Revision", "", inline(document.source?.sourceRevision?.fingerprint), ""); return lines.join("\n");
+}
+
 export function formatReportDocumentAsMarkdown(reportDocument = {}) {
   if (reportDocument.report?.id === "evidence") return evidence(reportDocument);
   if (reportDocument.report?.id === "document") return documents(reportDocument);
   if (reportDocument.report?.id === "ledger") return ledger(reportDocument);
   if (reportDocument.report?.id === "incidentSchedule") return incidentSchedule(reportDocument);
   if (reportDocument.report?.id === "chronologyReport") return chronology(reportDocument);
+  if (reportDocument.report?.id === "caseAudit") return caseAudit(reportDocument);
   throw new Error(`Markdown output is not supported for report "${reportDocument.report?.id || "unknown"}".`);
 }

@@ -1,4 +1,5 @@
 import { buildChronologyReportDocument } from "./chronologyReportDocument.js";
+import { buildCaseAuditDocument } from "./caseAuditDocument.js";
 import { buildDocumentScheduleDocument } from "./documentScheduleDocument.js";
 import { buildEvidenceScheduleDocument } from "./evidenceScheduleDocument.js";
 import { buildIncidentScheduleDocument } from "./incidentScheduleDocument.js";
@@ -10,6 +11,7 @@ const BUILDERS = {
   ledger: buildLedgerScheduleDocument,
   incidentSchedule: buildIncidentScheduleDocument,
   chronologyReport: buildChronologyReportDocument,
+  caseAudit: buildCaseAuditDocument,
 };
 
 export function buildActiveReportDocument({ reportId, reportModel, definition, generatedAt } = {}) {

@@ -27,15 +27,15 @@ test("capability audit warns when declared structured outputs lack documents or 
 });
 
 test("active Report Centre capability matrix has no declared-to-rendered mismatch", () => {
-  const ids = ["management", "investigation", "incidentSchedule", "chronologyReport", "evidence", "document", "ledger", "client", "action"];
+  const ids = ["management", "investigation", "caseAudit", "incidentSchedule", "chronologyReport", "evidence", "document", "ledger", "client", "action"];
   const renderedActions = Object.fromEntries(ids.map((id) => [id, REPORT_DEFINITIONS[id].supportedOutputs]));
   const result = auditReportCapabilities({
     definitions: REPORT_DEFINITIONS,
     centreConfig: ids.map((value) => ({ value, supportedScopes: REPORT_DEFINITIONS[value].supportedScopes })),
-    runtimeDocuments: { evidence: {}, document: {}, ledger: {}, incidentSchedule: {}, chronologyReport: {}, action: { legacyMarkdown: true } },
+    runtimeDocuments: { evidence: {}, document: {}, ledger: {}, caseAudit: {}, incidentSchedule: {}, chronologyReport: {}, action: { legacyMarkdown: true } },
     renderedActions,
     previewRenderers: Object.fromEntries(ids.map((id) => [id, true])),
-    runtimeFormatters: { evidence: ["markdown", "json"], document: ["markdown", "json"], ledger: ["markdown", "json"], incidentSchedule: ["markdown", "json"], chronologyReport: ["markdown", "json"], action: ["markdown"] },
+    runtimeFormatters: { evidence: ["markdown", "json"], document: ["markdown", "json"], ledger: ["markdown", "json"], caseAudit: ["markdown", "json"], incidentSchedule: ["markdown", "json"], chronologyReport: ["markdown", "json"], action: ["markdown"] },
   });
   assert.equal(result.valid, true);
   assert.deepEqual(result.warnings, []);

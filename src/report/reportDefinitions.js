@@ -41,9 +41,9 @@ export const REPORT_DEFINITIONS = Object.freeze({
     recordTypes: Object.freeze(["incident", "evidence", "document", "strategy", "watch"]), completeness: "summary", includeArchived: false, aiPolicy: "none", status: ACTIVE,
   }),
   caseAudit: Object.freeze({
-    id: "caseAudit", label: "Case Audit Report", description: "Planned deterministic case diagnostics report.", audience: "internal",
+    id: "caseAudit", label: "Case Audit Report", description: "Internal deterministic audit of case data quality, structure, and recorded relationships.", audience: "internal",
     supportedScopes: Object.freeze(["case", "sequenceGroup"]), supportedOutputs: Object.freeze(["preview", "print", "markdown", "json"]),
-    recordTypes: Object.freeze(["incident", "evidence", "document", "ledger", "strategy", "watch"]), completeness: "complete", includeArchived: true, aiPolicy: "none", status: PLANNED,
+    recordTypes: Object.freeze(["incident", "evidence", "document", "ledger", "strategy", "watch"]), completeness: "complete", includeArchived: true, aiPolicy: "none", status: ACTIVE,
   }),
   incidentSchedule: Object.freeze({
     id: "incidentSchedule", label: "Incident Schedule", description: "Complete incident schedule with structured evidence coverage and quality findings.", audience: "investigation",

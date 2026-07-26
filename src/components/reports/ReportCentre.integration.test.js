@@ -121,7 +121,7 @@ test("Copy Markdown is available only for reports with real Markdown output", ()
 });
 
 test("migrated factual reports expose shared Markdown and JSON actions only when a document exists", () => {
-  for (const reportType of ["evidence", "document", "ledger", "incidentSchedule", "chronologyReport"]) {
+  for (const reportType of ["evidence", "document", "ledger", "caseAudit", "incidentSchedule", "chronologyReport"]) {
     const html = renderControls({ reportType, markdownAvailable: true, documentOutputAvailable: true });
     assert.match(html, /Copy Markdown/);
     assert.match(html, /Download Markdown/);
@@ -138,6 +138,14 @@ test("Incident Schedule and Chronology Report expose complete scoped previews", 
     assert.match(renderPreview(reportType, "sequenceGroup", "Sequence Group: Alpha"), /Scope: Sequence Group: Alpha/);
   }
   assert.match(caseDetailSource, /<IncidentScheduleReportArticle/); assert.match(caseDetailSource, /<ChronologyReportArticle/); assert.match(caseDetailSource, /reportCentreIncidentDocument/); assert.match(caseDetailSource, /reportCentreChronologyDocument/);
+});
+
+test("Case Audit Report is ordered before schedules and exposes the complete shared runtime", () => {
+  const ids = REPORT_CENTRE_TYPES.map((item) => item.value); assert.ok(ids.indexOf("caseAudit") > ids.indexOf("investigation")); assert.ok(ids.indexOf("caseAudit") < ids.indexOf("incidentSchedule"));
+  const controls = renderControls({ reportType: "caseAudit", scopeType: "sequenceGroup", markdownAvailable: true, documentOutputAvailable: true });
+  assert.match(controls, /Whole Case/); assert.match(controls, /Sequence Group/); assert.match(controls, /Copy Markdown/); assert.match(controls, /Download Markdown/); assert.match(controls, /Download JSON/); assert.match(controls, /Print \/ Save PDF/);
+  assert.match(renderPreview("caseAudit", "sequenceGroup", "Sequence Group: Alpha"), /internal deterministic audit/i);
+  assert.match(caseDetailSource, /<CaseAuditReportArticle/); assert.match(caseDetailSource, /reportCentreCaseAuditDocument/); assert.match(caseDetailSource, /This Sequence Group contains no directly assigned records to audit/);
 });
 
 test("bounded whole-case investigation output is explicit", () => {

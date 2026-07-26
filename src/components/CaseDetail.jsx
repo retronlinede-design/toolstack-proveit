@@ -87,6 +87,7 @@ import GeneratedClientReportArticle from "./reports/GeneratedClientReportArticle
 import LedgerPackReportArticle from "./reports/LedgerPackReportArticle";
 import IncidentScheduleReportArticle from "./reports/IncidentScheduleReportArticle.jsx";
 import ChronologyReportArticle from "./reports/ChronologyReportArticle.jsx";
+import CaseAuditReportArticle from "./reports/CaseAuditReportArticle.jsx";
 import ThreadIssueReportArticle from "./reports/ThreadIssueReportArticle";
 import ReportCentreControls, { ReportCentrePreviewSummary } from "./reports/ReportCentreControls";
 import ReportContextHeader from "./reports/ReportContextHeader.jsx";
@@ -462,6 +463,7 @@ export default function CaseDetail({
   const reportCentreLedgerDocument = useMemo(() => reportCentreModel ? buildLedgerScheduleDocument(reportCentreModel, getReportDefinition("ledger")) : null, [reportCentreModel]);
   const reportCentreIncidentDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "incidentSchedule", reportModel: reportCentreModel, definition: getReportDefinition("incidentSchedule") }).reportDocument : null, [reportCentreModel]);
   const reportCentreChronologyDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "chronologyReport", reportModel: reportCentreModel, definition: getReportDefinition("chronologyReport") }).reportDocument : null, [reportCentreModel]);
+  const reportCentreCaseAuditDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "caseAudit", reportModel: reportCentreModel, definition: getReportDefinition("caseAudit") }).reportDocument : null, [reportCentreModel]);
   const reportCentreEvidencePackReport = useMemo(() => reportCentreEvidenceDocument ? projectEvidenceDocumentToLegacyViewModel(reportCentreEvidenceDocument) : null, [reportCentreEvidenceDocument]);
   const reportCentreDocumentPackReport = useMemo(() => reportCentreDocumentDocument ? projectDocumentDocumentToLegacyViewModel(reportCentreDocumentDocument) : null, [reportCentreDocumentDocument]);
   const reportCentreLedgerPackReport = useMemo(() => reportCentreLedgerDocument ? projectLedgerDocumentToLegacyViewModel(reportCentreLedgerDocument) : null, [reportCentreLedgerDocument]);
@@ -469,15 +471,17 @@ export default function CaseDetail({
     : reportCentreType === "document" ? reportCentreDocumentDocument
       : reportCentreType === "ledger" ? reportCentreLedgerDocument
         : reportCentreType === "incidentSchedule" ? reportCentreIncidentDocument
-          : reportCentreType === "chronologyReport" ? reportCentreChronologyDocument : null;
+          : reportCentreType === "chronologyReport" ? reportCentreChronologyDocument
+            : reportCentreType === "caseAudit" ? reportCentreCaseAuditDocument : null;
   const reportCentreCountLabel = useMemo(() => {
     if (reportCentreType === "evidence") return `${reportCentreEvidenceDocument?.summary?.includedEvidenceCount || 0} evidence records`;
     if (reportCentreType === "document") return `${reportCentreDocumentDocument?.summary?.includedDocumentCount || 0} documents`;
     if (reportCentreType === "ledger") return `${reportCentreLedgerDocument?.summary?.includedLedgerCount || 0} ledger entries`;
     if (reportCentreType === "incidentSchedule") return `${reportCentreIncidentDocument?.summary?.scopedIncidentCount || 0} incidents`;
     if (reportCentreType === "chronologyReport") return `${reportCentreChronologyDocument?.summary?.totalChronologyEntries || 0} chronology entries`;
+    if (reportCentreType === "caseAudit") return `${reportCentreCaseAuditDocument?.summary?.totalFindings || 0} audit findings`;
     return "";
-  }, [reportCentreChronologyDocument, reportCentreDocumentDocument, reportCentreEvidenceDocument, reportCentreIncidentDocument, reportCentreLedgerDocument, reportCentreType]);
+  }, [reportCentreCaseAuditDocument, reportCentreChronologyDocument, reportCentreDocumentDocument, reportCentreEvidenceDocument, reportCentreIncidentDocument, reportCentreLedgerDocument, reportCentreType]);
   const reportCentreInvestigationReport = useMemo(() => {
     if (!selectedCase) return null;
     if (reportCentreScope.scopeType === "sequenceGroup") {
@@ -5000,10 +5004,17 @@ ${ungroupedSequenceText}
                     scopeLabel={reportCentreScopeLabel}
                   />
 
-                  {normalisedReportCentreScopeType === "sequenceGroup" && reportCentreActiveDocument && reportCentreCountLabel.startsWith("0 ") ? (
+                  {normalisedReportCentreScopeType === "sequenceGroup" && reportCentreActiveDocument && reportCentreType !== "caseAudit" && reportCentreCountLabel.startsWith("0 ") ? (
                     <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm leading-6 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
                       <p className="font-semibold text-neutral-900 dark:text-neutral-100">No matching records appear in this {getReportDefinition(reportCentreType).label}.</p>
                       <p className="mt-1">The Sequence Group exists, but contains no {reportCentreType === "incidentSchedule" ? "directly assigned incidents" : reportCentreType === "chronologyReport" ? "directly assigned records for its chronology" : `directly assigned or permitted linked ${reportCentreType === "evidence" ? "evidence records" : reportCentreType === "document" ? "documents" : "ledger entries"}`}. Check the group assignment and selected scope.</p>
+                    </div>
+                  ) : null}
+
+                  {normalisedReportCentreScopeType === "sequenceGroup" && reportCentreType === "caseAudit" && reportCentreCaseAuditDocument?.summary?.scopedRecordCount === 0 ? (
+                    <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm leading-6 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+                      <p className="font-semibold text-neutral-900 dark:text-neutral-100">This Sequence Group contains no directly assigned records to audit.</p>
+                      <p className="mt-1">{reportCentreCaseAuditDocument?.source?.scope?.isValid ? "The selected group exists as metadata or is currently empty." : "The selected Sequence Group could not be resolved from the current case structure."}</p>
                     </div>
                   ) : null}
 
@@ -7252,6 +7263,12 @@ ${ungroupedSequenceText}
                         <ChronologyReportArticle
                           reportDocument={reportCentreChronologyDocument}
                           className="mx-auto max-w-5xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm dark:border-neutral-700 dark:bg-neutral-900 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
+                        />
+                      )}
+                      {reportCentreType === "caseAudit" && (
+                        <CaseAuditReportArticle
+                          reportDocument={reportCentreCaseAuditDocument}
+                          className="mx-auto max-w-6xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm dark:border-neutral-700 dark:bg-neutral-900 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
                         />
                       )}
                     </div>
