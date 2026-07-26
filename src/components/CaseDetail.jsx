@@ -36,6 +36,12 @@ import {
   exportSequenceGroupsIndexMarkdown,
 } from "../export/sequenceGroupsIndexExport.js";
 import {
+  buildAllSequenceGroupAuditsExport,
+  buildCaseBySequenceGroupsExport,
+  exportAllSequenceGroupAuditsMarkdown,
+  exportCaseBySequenceGroupsMarkdown,
+} from "../export/sequenceGroupConsolidatedExport.js";
+import {
   exportGptProtocolPackJson,
   exportGptProtocolPackMarkdown,
 } from "../export/gptProtocolPack.js";
@@ -316,6 +322,7 @@ export default function CaseDetail({
   const [highlightedSequenceRecordKey, setHighlightedSequenceRecordKey] = useState("");
   const [sequenceRelationshipFilter, setSequenceRelationshipFilter] = useState("all");
   const [sequenceGroupAuditExportOpen, setSequenceGroupAuditExportOpen] = useState(false);
+  const [sequenceGroupAuditScope, setSequenceGroupAuditScope] = useState("selected");
   const [sequenceGroupAuditGroup, setSequenceGroupAuditGroup] = useState("");
   const [sequenceGroupAuditFormat, setSequenceGroupAuditFormat] = useState("json");
   const [sequenceGroupAuditFeedback, setSequenceGroupAuditFeedback] = useState("");
@@ -689,6 +696,7 @@ export default function CaseDetail({
       ? requestedGroup
       : sequenceGroups[0]?.name || "";
     setSequenceGroupAuditGroup(nextGroup);
+    setSequenceGroupAuditScope("selected");
     setSequenceGroupAuditFormat("json");
     setSequenceGroupAuditFeedback("");
     setSequenceGroupAuditExportOpen(true);
@@ -766,6 +774,12 @@ export default function CaseDetail({
     return `proveit-sequence-group-audit-${casePart}-${groupPart}-${datePart}.${extension}`;
   }
 
+  function getConsolidatedSequenceGroupFilename(scope, extension) {
+    const casePart = (selectedCase?.name || selectedCase?.id || "case").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "case";
+    const suffix = scope === "all" ? "all-sequence-group-audits" : "full-case-by-sequence-groups";
+    return `proveit-${casePart}-${suffix}.${extension}`;
+  }
+
   function getSequenceGroupsIndexFilename(extension) {
     const casePart = (selectedCase?.id || selectedCase?.name || "case").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "case";
     const datePart = new Date().toISOString().slice(0, 10);
@@ -819,26 +833,43 @@ export default function CaseDetail({
 
   function handleRunSequenceGroupAuditExport() {
     if (!selectedCase) return;
-    if (!selectedSequenceGroupAuditGroup) {
+    if (sequenceGroupAuditScope === "selected" && !selectedSequenceGroupAuditGroup) {
       setSequenceGroupAuditFeedback("No sequence groups exist for this case.");
       return;
     }
 
     try {
+      const exportOptions = {
+        sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
+      };
+      if (sequenceGroupAuditScope === "all") {
+        if (sequenceGroupAuditFormat === "json") {
+          const payload = buildAllSequenceGroupAuditsExport(selectedCase, exportOptions);
+          downloadTextFile(JSON.stringify(payload, null, 2), getConsolidatedSequenceGroupFilename("all", "json"), "application/json");
+        } else {
+          downloadTextFile(exportAllSequenceGroupAuditsMarkdown(selectedCase, exportOptions), getConsolidatedSequenceGroupFilename("all", "md"), "text/markdown");
+        }
+        setSequenceGroupAuditFeedback("All Sequence Group Audits export created.");
+        return;
+      }
+      if (sequenceGroupAuditScope === "full") {
+        if (sequenceGroupAuditFormat === "json") {
+          const payload = buildCaseBySequenceGroupsExport(selectedCase, exportOptions);
+          downloadTextFile(JSON.stringify(payload, null, 2), getConsolidatedSequenceGroupFilename("full", "json"), "application/json");
+        } else {
+          downloadTextFile(exportCaseBySequenceGroupsMarkdown(selectedCase, exportOptions), getConsolidatedSequenceGroupFilename("full", "md"), "text/markdown");
+        }
+        setSequenceGroupAuditFeedback("Full Case by Sequence Groups export created.");
+        return;
+      }
       if (sequenceGroupAuditFormat === "json") {
-        const payload = exportSequenceGroupAuditJson(selectedCase, selectedSequenceGroupAuditGroup, {
-          sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
-        });
+        const payload = exportSequenceGroupAuditJson(selectedCase, selectedSequenceGroupAuditGroup, exportOptions);
         downloadTextFile(JSON.stringify(payload, null, 2), getAuditExportFilename("json"), "application/json");
       } else if (sequenceGroupAuditFormat === "markdown") {
-        const markdown = exportSequenceGroupAuditMarkdown(selectedCase, selectedSequenceGroupAuditGroup, {
-          sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
-        });
+        const markdown = exportSequenceGroupAuditMarkdown(selectedCase, selectedSequenceGroupAuditGroup, exportOptions);
         downloadTextFile(markdown, getAuditExportFilename("md"), "text/markdown");
       } else if (sequenceGroupAuditFormat === "pdf") {
-        const opened = printSequenceGroupAuditPdf(selectedCase, selectedSequenceGroupAuditGroup, {
-          sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
-        });
+        const opened = printSequenceGroupAuditPdf(selectedCase, selectedSequenceGroupAuditGroup, exportOptions);
         if (!opened) {
           setSequenceGroupAuditFeedback("Could not open the print view. Check popup settings and try JSON or Markdown.");
           return;
@@ -7415,9 +7446,9 @@ ${ungroupedSequenceText}
           <div className="w-full max-w-xl rounded-2xl bg-white shadow-xl">
             <div className="flex items-start justify-between gap-4 border-b border-neutral-100 p-5">
               <div>
-                <h3 className="text-lg font-semibold text-neutral-900">Sequence Group Audit Pack</h3>
+                <h3 className="text-lg font-semibold text-neutral-900">Sequence Group Audit Exports</h3>
                 <p className="mt-1 text-xs text-neutral-500">
-                  Export one sequence group with linked evidence, document metadata, external linked incidents, diagnostics, and a GPT audit prompt.
+                  Download the selected audit, a consolidated audit overview, or the complete case arranged by sequence group.
                 </p>
               </div>
               <button
@@ -7449,29 +7480,61 @@ ${ungroupedSequenceText}
                 </select>
               </label>
 
-              {sequenceGroups.length === 0 ? (
+              <fieldset>
+                <legend className="text-xs font-bold uppercase tracking-wider text-neutral-500">Export scope</legend>
+                <div className="mt-2 space-y-2">
+                  {[
+                    ["selected", "Export Selected Group", "Current group only."],
+                    ["all", "Export All Group Audits", "Consolidated overview of every sequence group."],
+                    ["full", "Export Full Case by Sequence Groups", "Complete case content arranged by group, including ungrouped records."],
+                  ].map(([value, label, description]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-pressed={sequenceGroupAuditScope === value}
+                      onClick={() => {
+                        setSequenceGroupAuditScope(value);
+                        if (value !== "selected" && sequenceGroupAuditFormat === "pdf") setSequenceGroupAuditFormat("markdown");
+                        setSequenceGroupAuditFeedback("");
+                      }}
+                      className={`block w-full rounded-lg border px-3 py-2 text-left ${
+                        sequenceGroupAuditScope === value
+                          ? "border-lime-500 bg-lime-50"
+                          : "border-neutral-200 bg-white hover:bg-neutral-50"
+                      }`}
+                    >
+                      <span className="block text-sm font-semibold text-neutral-900">{label}</span>
+                      <span className="mt-0.5 block text-xs text-neutral-500">{description}</span>
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+
+              {sequenceGroupAuditScope === "selected" && sequenceGroups.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-500">
                   No sequence groups exist in this case. Assign records to a sequenceGroup before creating this audit export.
                 </div>
               ) : (
                 <>
-                  <label className="block">
-                    <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Sequence group</span>
-                    <select
-                      value={selectedSequenceGroupAuditGroup}
-                      onChange={(event) => {
-                        setSequenceGroupAuditGroup(event.target.value);
-                        setSequenceGroupAuditFeedback("");
-                      }}
-                      className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
-                    >
-                      {sequenceGroups.map((group) => (
-                        <option key={group.name} value={group.name}>
-                          {group.name} ({group.totalCount} records)
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  {sequenceGroupAuditScope === "selected" && (
+                    <label className="block">
+                      <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Sequence group</span>
+                      <select
+                        value={selectedSequenceGroupAuditGroup}
+                        onChange={(event) => {
+                          setSequenceGroupAuditGroup(event.target.value);
+                          setSequenceGroupAuditFeedback("");
+                        }}
+                        className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
+                      >
+                        {sequenceGroups.map((group) => (
+                          <option key={group.name} value={group.name}>
+                            {group.name} ({group.totalCount} records)
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
 
                   <fieldset>
                     <legend className="text-xs font-bold uppercase tracking-wider text-neutral-500">Output format</legend>
@@ -7479,7 +7542,7 @@ ${ungroupedSequenceText}
                       {[
                         ["json", "JSON"],
                         ["markdown", "Markdown"],
-                        ["pdf", "PDF / print"],
+                        ...(sequenceGroupAuditScope === "selected" ? [["pdf", "PDF / print"]] : []),
                       ].map(([value, label]) => (
                         <button
                           key={value}
@@ -7518,7 +7581,7 @@ ${ungroupedSequenceText}
               <button
                 type="button"
                 onClick={handleRunSequenceGroupAuditExport}
-                disabled={sequenceGroups.length === 0}
+                disabled={sequenceGroupAuditScope === "selected" && sequenceGroups.length === 0}
                 className="rounded-md border border-lime-500 bg-lime-400/20 px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {sequenceGroupAuditFormat === "pdf" ? "Print / Save PDF" : "Download"}
