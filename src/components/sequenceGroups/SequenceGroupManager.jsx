@@ -236,9 +236,9 @@ export default function SequenceGroupManager({
       : `${selectedGroupDates[0]}–${selectedGroupDates[selectedGroupDates.length - 1]}`;
 
   const openCreateGroupForm = () => setGroupForm({ mode: "create", initialValue: null });
-  const openEditGroupForm = () => {
+  const openEditGroupForm = (initialSection = "details") => {
     if (!selectedGroup) return;
-    setGroupForm({ mode: "manage" });
+    setGroupForm({ mode: "manage", initialSection });
   };
   const saveGroupForm = async (value) => {
     await onCreateGroup?.(value);
@@ -315,10 +315,11 @@ export default function SequenceGroupManager({
     <div
       key={`${record.recordType}-${record.id}`}
       id={`sequence-record-${record.recordType}-${record.id}`}
-      className={`rounded-lg border bg-white p-3 transition-colors ${
+      data-selected-record={highlightedRecordKey === `${record.recordType}:${record.id}` ? "true" : "false"}
+      className={`rounded-lg border bg-white p-3 transition-colors dark:bg-neutral-900 ${
         highlightedRecordKey === `${record.recordType}:${record.id}`
-          ? "border-lime-400 ring-2 ring-lime-200"
-          : "border-neutral-200"
+          ? "border-[#7a263a] bg-[#7a263a]/5 ring-2 ring-[#7a263a]/15 dark:border-[#d17a91] dark:bg-[#d17a91]/10 dark:ring-[#d17a91]/20"
+          : "border-neutral-200 dark:border-neutral-700"
       }`}
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -441,12 +442,13 @@ export default function SequenceGroupManager({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 print:hidden">
-      <div className="flex max-h-[92vh] w-full max-w-7xl flex-col rounded-2xl bg-white shadow-xl">
-        <div className="flex items-start justify-between gap-4 border-b border-neutral-100 p-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-2 print:hidden sm:p-4">
+      <div className="flex max-h-[calc(100vh-1rem)] w-full max-w-[90rem] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-950 sm:max-h-[92vh]">
+        <div className="flex items-start justify-between gap-4 border-b border-neutral-200 p-4 dark:border-neutral-700 sm:p-5">
           <div>
-            <h3 className="text-lg font-semibold text-neutral-900">Sequence Group Manager</h3>
-            <p className="mt-1 text-xs text-neutral-500">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Investigation Structure</div>
+            <h3 className="mt-1 text-xl font-semibold text-neutral-950 dark:text-neutral-100">Sequence Group Manager</h3>
+            <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
               Scan chains, review records, and keep exports or cleanup actions in their own sections.
             </p>
           </div>
@@ -459,7 +461,7 @@ export default function SequenceGroupManager({
           />
         </div>
 
-        <div id="sequence-group-manager-scroll" className="flex-1 overflow-y-auto p-5">
+        <div id="sequence-group-manager-scroll" className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-5">
           {sequenceGroupFeedback && (
             <div className="mb-4 rounded-md border border-lime-200 bg-lime-50 p-3 text-sm font-medium text-lime-800">
               {sequenceGroupFeedback}
@@ -473,23 +475,27 @@ export default function SequenceGroupManager({
               ["Ungrouped", managerSummary.ungroupedRecords],
               ["Weak links / gaps", managerSummary.weakLinks],
             ].map(([label, value]) => (
-              <div key={label} className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{label}</div>
-                <div className="mt-0.5 text-lg font-semibold text-neutral-950">{value}</div>
+              <div key={label} className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">{label}</div>
+                <div className="mt-0.5 text-lg font-semibold text-neutral-950 dark:text-neutral-100">{value}</div>
               </div>
             ))}
           </div>
 
-          <div className="grid gap-5 lg:grid-cols-[23rem_1fr]">
+          <div className="grid min-w-0 gap-5 lg:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[18rem_minmax(0,1fr)_15rem]">
             <aside className="space-y-3">
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search records"
-                className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-lime-500"
+                aria-label="Search sequence-group records"
+                className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-lime-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
               />
-              <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-                <div className="mb-2 text-xs font-bold uppercase tracking-wider text-neutral-500">Groups</div>
+              <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-700 dark:bg-neutral-900">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Sequence Groups</div>
+                  <button type="button" onClick={openCreateGroupForm} className="rounded-md border border-lime-500 bg-white px-2 py-1 text-xs font-semibold text-neutral-800 hover:bg-lime-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7a263a] dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-lime-950/30">New Group</button>
+                </div>
                 {managedSequenceGroupDetails.groups.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-neutral-300 bg-white p-4 text-center">
                     <h4 className="text-sm font-semibold text-neutral-900">No sequence groups yet</h4>
@@ -505,20 +511,21 @@ export default function SequenceGroupManager({
                       return (
                         <div
                           key={group.name}
-                          className={`rounded-lg border bg-white p-3 transition-colors ${
-                            group.name === activeGroupName ? "border-lime-400 shadow-sm" : "border-neutral-200"
+                          className={`rounded-lg border bg-white p-3 transition-[border-color,box-shadow,background-color] dark:bg-neutral-950 ${
+                            group.name === activeGroupName ? "border-[#7a263a] bg-[#7a263a]/5 ring-2 ring-[#7a263a]/15 dark:border-[#d17a91] dark:bg-[#d17a91]/10 dark:ring-[#d17a91]/20" : "border-neutral-200 hover:border-neutral-300 dark:border-neutral-700 dark:hover:border-neutral-600"
                           }`}
                         >
                           <div className="flex items-start justify-between gap-3">
                             <button
                               type="button"
+                              aria-current={group.name === activeGroupName ? "true" : undefined}
                               onClick={() => {
                                 setSelectedGroupName(group.name);
                                 setSelectedSection("overview");
                               }}
                               className="min-w-0 flex-1 text-left"
                             >
-                              <div className="truncate text-sm font-semibold text-neutral-950">{group.name}</div>
+                              <div className="break-words text-sm font-semibold text-neutral-950 dark:text-neutral-100">{group.name}</div>
                               {description ? (
                                 <p className="mt-1 line-clamp-2 text-xs leading-5 text-neutral-500">{description}</p>
                               ) : (
@@ -529,10 +536,8 @@ export default function SequenceGroupManager({
                               {status}
                             </RecordBadge>
                           </div>
-                          <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                            <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5">I {group.counts.incidents}</span>
-                            <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5">E {group.counts.evidence}</span>
-                            <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5">Records {group.totalCount}</span>
+                          <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+                            <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5 dark:border-neutral-700 dark:bg-neutral-900">{group.totalCount} record{group.totalCount === 1 ? "" : "s"}</span>
                             {weakLinkCount > 0 && (
                               <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-700">Gaps {weakLinkCount}</span>
                             )}
@@ -570,7 +575,7 @@ export default function SequenceGroupManager({
             </aside>
 
             <div className="space-y-5">
-              <section className="rounded-xl border border-neutral-200 bg-white p-4">
+              <section className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900">
                 {selectedGroup ? (
                   <>
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -590,14 +595,6 @@ export default function SequenceGroupManager({
                           <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5">{selectedGroupDateRange}</span>
                         </div>
                       </div>
-                      <RecordActions
-                        className="flex flex-wrap gap-2 xl:justify-end"
-                        actions={[
-                          { key: "edit", label: "Manage Group", variant: "primary", onClick: openEditGroupForm },
-                          { key: "delete", label: "Delete Group", variant: "danger", onClick: () => onDeleteGroup?.(selectedGroup) },
-                          { key: "copy", label: "Copy Full Chain Markdown", onClick: () => onCopyFullChainGptPackMarkdown?.(selectedGroup.name) },
-                        ]}
-                      />
                     </div>
 
                     <div className="mt-5 flex flex-wrap gap-2 border-b border-neutral-100 pb-3">
@@ -1029,6 +1026,36 @@ export default function SequenceGroupManager({
                 </div>
               </details>
             </div>
+
+            <aside className="space-y-3 lg:col-start-2 xl:col-start-auto" aria-label="Sequence group actions">
+              <section className="rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-700 dark:bg-neutral-900">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Organisation</h4>
+                <RecordActions className="mt-3 grid gap-2" actions={[
+                  { key: "details", label: "Manage Group Details", onClick: () => openEditGroupForm("details"), disabled: !selectedGroup },
+                ]} />
+              </section>
+              <section className="rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-700 dark:bg-neutral-900">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Record Management</h4>
+                <p className="mt-2 text-xs leading-5 text-neutral-500 dark:text-neutral-400">Select, move, remove, or split records without changing their content.</p>
+                <RecordActions className="mt-3 grid gap-2" actions={[
+                  { key: "records", label: "Manage Records", variant: "primary", onClick: () => openEditGroupForm("records"), disabled: !selectedGroup },
+                ]} />
+              </section>
+              <section className="rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-700 dark:bg-neutral-900">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Group Management</h4>
+                <RecordActions className="mt-3 grid gap-2" actions={[
+                  { key: "merge", label: "Move / Merge Group", variant: "secondary", onClick: () => openEditGroupForm("merge"), disabled: !selectedGroup },
+                  { key: "copy", label: "Copy Full Chain", onClick: () => onCopyFullChainGptPackMarkdown?.(selectedGroup?.name), disabled: !selectedGroup },
+                ]} />
+              </section>
+              <section className="rounded-xl border border-red-200 bg-red-50/50 p-3 dark:border-red-900 dark:bg-red-950/20">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-red-700 dark:text-red-300">Danger Zone</h4>
+                <p className="mt-2 text-xs leading-5 text-red-700/80 dark:text-red-300/80">Records survive group deletion and become ungrouped.</p>
+                <RecordActions className="mt-3 grid gap-2" actions={[
+                  { key: "delete", label: "Delete Group", variant: "danger", onClick: () => onDeleteGroup?.(selectedGroup), disabled: !selectedGroup },
+                ]} />
+              </section>
+            </aside>
           </div>
         </div>
       </div>
@@ -1048,6 +1075,7 @@ export default function SequenceGroupManager({
           description={getSequenceGroupDescription(selectedCase.id, selectedGroup.name)}
           status={selectedGroupStatus}
           timelineItems={selectedGroupTimeline.items}
+          initialSection={groupForm.initialSection}
           onClose={() => setGroupForm(null)}
           onSaveDetails={(value) => onUpdateGroup?.(selectedGroup.name, value)}
           onOpenRecord={onOpenRecordEdit}

@@ -7,9 +7,9 @@ import { validateSequenceGroupInput } from "./sequenceGroupManagement.js";
 
 const SECTIONS = [["details", "Details"], ["records", "Records"], ["merge", "Move / Merge"], ["delete", "Delete"]];
 
-export default function SequenceGroupManagementModal({ group, groups, description, status, timelineItems, onClose, onSaveDetails, onOpenRecord, onOperation }) {
+export default function SequenceGroupManagementModal({ group, groups, description, status, timelineItems, initialSection = "details", onClose, onSaveDetails, onOpenRecord, onOperation }) {
   const dialogRef = useRef(null);
-  const [section, setSection] = useState("details");
+  const [section, setSection] = useState(SECTIONS.some(([key]) => key === initialSection) ? initialSection : "details");
   const [destination, setDestination] = useState("");
   const [descriptionMode, setDescriptionMode] = useState("keep");
   const [combinedDescription, setCombinedDescription] = useState("");
