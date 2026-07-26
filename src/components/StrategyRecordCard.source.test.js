@@ -40,7 +40,7 @@ test("strategy card renders structured planning, ownership, and operational fiel
   assert.match(source, /title="Risks"/);
   assert.match(source, /title="Assumptions"/);
   assert.match(source, /resolveStrategyOwner/);
-  assert.match(source, /Review:/);
+  assert.match(source, /label: "Review"/);
   assert.match(source, /Additional Context/);
 });
 

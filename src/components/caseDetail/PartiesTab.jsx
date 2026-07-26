@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Search, UserPlus } from "lucide-react";
 import RecordActions from "../shared/RecordActions.jsx";
 import RecordBadge from "../shared/RecordBadge.jsx";
+import RecordMetadataRow from "../shared/RecordMetadataRow.jsx";
 import {
   PARTY_ENTITY_TYPES,
   PARTY_ROLES,
@@ -425,17 +426,21 @@ export default function PartiesTab({
               </div>
 
               {(party.organisationName || party.jobTitle || party.department) && (
-                <p className="mt-3 text-sm text-neutral-600">
-                  {[party.jobTitle, party.department, party.organisationName].filter(Boolean).join(" | ")}
-                </p>
+                <RecordMetadataRow className="mt-3 text-sm" items={[
+                  { key: "job-title", value: party.jobTitle },
+                  { key: "department", value: party.department },
+                  { key: "organisation", value: party.organisationName },
+                ]} />
               )}
               {party.relationshipToCase && (
                 <p className="mt-2 line-clamp-2 text-sm leading-5 text-neutral-700">{party.relationshipToCase}</p>
               )}
               {(party.contact?.email || party.contact?.phone || party.contact?.website) && (
-                <p className="mt-2 truncate text-xs font-medium text-neutral-500">
-                  {[party.contact?.email, party.contact?.phone, party.contact?.website].filter(Boolean).join(" | ")}
-                </p>
+                <RecordMetadataRow className="mt-2 font-medium" items={[
+                  { key: "email", value: party.contact?.email },
+                  { key: "phone", value: party.contact?.phone },
+                  { key: "website", value: party.contact?.website },
+                ]} />
               )}
               {party.tags?.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-1">

@@ -6,6 +6,7 @@ import LinkedChip from "./LinkedChip";
 import { resolveStrategyOwner } from "./caseDetail/strategyWorkspaceHelpers.js";
 import RecordActions from "./shared/RecordActions.jsx";
 import RecordBadge from "./shared/RecordBadge.jsx";
+import RecordMetadataRow from "./shared/RecordMetadataRow.jsx";
 
 function getPriorityBadgeVariant(priority) {
   switch (priority) {
@@ -135,10 +136,7 @@ export default function StrategyRecordCard({
               )}
               {decisionStatus && <RecordBadge variant={getDecisionStatusBadgeVariant(item.decisionStatus)} className="uppercase tracking-wider">{decisionStatus}</RecordBadge>}
               {eventDate && (
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-600">
-                  <CalendarDays className="h-3.5 w-3.5 text-neutral-400" aria-hidden="true" />
-                  {eventDate}
-                </span>
+                <RecordMetadataRow items={[{ key: "event-date", value: eventDate, icon: <CalendarDays className="h-3.5 w-3.5" />, emphasis: true }]} />
               )}
               {sequenceGroup && (
                 <span className="inline-flex max-w-full items-center gap-1 rounded border border-neutral-200 bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-600">
@@ -194,10 +192,13 @@ export default function StrategyRecordCard({
         )}
 
         {(owner || reviewDate) && (
-          <div className="flex flex-wrap gap-x-5 gap-y-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-600">
-            {owner && <span><span className="font-semibold text-neutral-800">Owner:</span> {owner.name}</span>}
-            {reviewDate && <span><span className="font-semibold text-neutral-800">Review:</span> {reviewDate}</span>}
-          </div>
+          <RecordMetadataRow
+            className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-800/60"
+            items={[
+              { key: "owner", label: "Owner", value: owner?.name },
+              { key: "review-date", label: "Review", value: reviewDate },
+            ]}
+          />
         )}
 
         {item?.description && (
@@ -260,10 +261,7 @@ export default function StrategyRecordCard({
         )}
 
         {updatedAt && (
-          <div className="flex items-center gap-1.5 border-t border-neutral-100 pt-3 text-xs text-neutral-500">
-            <Clock3 className="h-3.5 w-3.5 text-neutral-400" aria-hidden="true" />
-            Last updated {updatedAt}
-          </div>
+          <RecordMetadataRow className="border-t border-neutral-100 pt-3 dark:border-neutral-800" items={[{ key: "last-updated", label: "Last updated", value: updatedAt, icon: <Clock3 className="h-3.5 w-3.5" /> }]} />
         )}
       </div>
     </article>

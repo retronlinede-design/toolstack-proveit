@@ -4,6 +4,7 @@ import { getLinkChipClasses } from "../linkChipStyles";
 import LinkedChip from "../LinkedChip";
 import RecordActions from "../shared/RecordActions.jsx";
 import RecordBadge from "../shared/RecordBadge.jsx";
+import RecordMetadataRow from "../shared/RecordMetadataRow.jsx";
 import PartyLinksRow from "./PartyLinksRow";
 import { getDocumentTextStatus } from "./trackingRecordHelpers";
 
@@ -117,11 +118,11 @@ export default function DocumentsTab({
                       </RecordBadge>
                       {renderSequenceGroupChip(doc.sequenceGroup)}
                     </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                      <span className="text-neutral-600">{doc.documentDate || "No date"}</span>
-                      <RecordBadge variant="type" className="uppercase tracking-wider">{doc.category || "other"}</RecordBadge>
-                      {doc.source && <span>Source: {doc.source}</span>}
-                    </div>
+                    <RecordMetadataRow className="mt-2 uppercase tracking-wider" items={[
+                      { key: "document-date", value: doc.documentDate || "No date", emphasis: true },
+                      { key: "document-type", render: <RecordBadge variant="type" className="uppercase tracking-wider">{doc.category || "other"}</RecordBadge> },
+                      { key: "source", label: "Source", value: doc.source },
+                    ]} />
                   </div>
                   <RecordActions
                     className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-nowrap"
@@ -138,14 +139,16 @@ export default function DocumentsTab({
                   <div className="hidden">
                     {textStatus.label}
                   </div>
-                  <div className="rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-medium text-neutral-600">
+                  <RecordMetadataRow className="rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 dark:border-neutral-700 dark:bg-neutral-800/60" items={[{ key: "attachment-link-counts", render: (
+                    <div>
                     <div>
                       {attachmentCount} attachment{attachmentCount === 1 ? "" : "s"} Â· {linkedCount} linked record{linkedCount === 1 ? "" : "s"}
                     </div>
                     <div className="hidden">
                       {attachmentCount > 0 && textStatus.charCount === 0 ? "Attachments need captured text for reasoning." : "Links and files support the document context."}
                     </div>
-                  </div>
+                    </div>
+                  ) }]} />
                 </div>
 
                 {doc.summary && (
