@@ -6,8 +6,9 @@ const strategy = readFileSync(new URL("../StrategyRecordCard.jsx", import.meta.u
 const watch = readFileSync(new URL("../caseDetail/WatchItemCard.jsx", import.meta.url), "utf8");
 const documents = readFileSync(new URL("../caseDetail/DocumentsTab.jsx", import.meta.url), "utf8");
 const parties = readFileSync(new URL("../caseDetail/PartiesTab.jsx", import.meta.url), "utf8");
+const incident = readFileSync(new URL("../IncidentRecordCard.jsx", import.meta.url), "utf8");
 
-test("only the four approved modules use the shared card shell", () => {
+test("the four initial modules remain on the shared card shell", () => {
   for (const source of [strategy, watch, documents, parties]) {
     assert.match(source, /import RecordCardShell/);
     assert.match(source, /<RecordCardShell/);
@@ -17,6 +18,15 @@ test("only the four approved modules use the shared card shell", () => {
     assert.match(source, /RecordLinksRow/);
     assert.doesNotMatch(source, /<article[^>]+rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm/);
   }
+});
+
+test("Incident is the only newly approved card-shell migration", () => {
+  assert.match(incident, /import RecordCardShell/);
+  assert.match(incident, /<RecordCardShell/);
+  assert.match(incident, /RecordBadge/);
+  assert.match(incident, /RecordActions/);
+  assert.match(incident, /RecordMetadataRow/);
+  assert.match(incident, /RecordLinksRow/);
 });
 
 test("Strategy retains actions relationships attachment preview and details disclosure", () => {

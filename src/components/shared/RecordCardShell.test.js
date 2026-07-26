@@ -11,7 +11,7 @@ const source = await readFile(sourceUrl, "utf8");
 const transformed = await transformWithOxc(source, sourceUrl.pathname);
 const runtime = import.meta.resolve("react/jsx-runtime");
 const code = transformed.code.replaceAll('from "react/jsx-runtime"', `from "${runtime}"`);
-const { default: RecordCardShell } = await import(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`);
+const { default: RecordCardShell, DEFAULT_VARIANT, VARIANT_CLASSES } = await import(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`);
 const render = (props, children) => renderToStaticMarkup(React.createElement(RecordCardShell, props, children));
 
 test("renders semantic article title subtitle and leading content", () => {
@@ -83,4 +83,12 @@ test("central shell includes hover responsive and explicit dark-mode styling", (
 test("expanded content receives a dark-compatible divider", () => {
   const html = render({ title: "Expanded", expanded: true }, React.createElement("p", null, "Details"));
   assert.match(html, /border-t border-neutral-200 pt-4 dark:border-neutral-700/);
+});
+
+test("supports incident milestone and new surfaces with safe fallback", () => {
+  assert.deepEqual(Object.keys(VARIANT_CLASSES), ["default", "milestone", "new"]);
+  assert.equal(DEFAULT_VARIANT, "default");
+  assert.match(render({ title: "Milestone", variant: "milestone" }), /data-record-card-variant="milestone"/);
+  assert.match(render({ title: "New", variant: "new" }), /data-record-card-variant="new"/);
+  assert.match(render({ title: "Fallback", variant: "unknown" }), /data-record-card-variant="default"/);
 });

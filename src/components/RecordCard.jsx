@@ -3,6 +3,7 @@ import { getLinkChipClasses } from "./linkChipStyles";
 import LinkedChip from "./LinkedChip";
 import PartyLinksRow from "./caseDetail/PartyLinksRow";
 import StrategyRecordCard from "./StrategyRecordCard";
+import IncidentRecordCard from "./IncidentRecordCard.jsx";
 import { getIncidentLinkGroups } from "../domain/caseDomain.js";
 import { getEvidenceDisplayMeta, getIncidentDisplayMeta, getRecordDisplayMeta } from "../domain/linkingResolvers.js";
 import { Tags } from "lucide-react";
@@ -73,6 +74,25 @@ export default function RecordCard({
         onConvertRecord={onConvertRecord}
         deleteRecord={deleteRecord}
         openLinkedRecord={openLinkedRecord}
+      />
+    );
+  }
+
+  if (isIncident) {
+    return (
+      <IncidentRecordCard
+        item={item}
+        selectedCase={selectedCase}
+        imageCache={imageCache}
+        onPreviewFile={onPreviewFile}
+        openEditRecordModal={openEditRecordModal}
+        onConvertRecord={onConvertRecord}
+        deleteRecord={deleteRecord}
+        openLinkedRecord={openLinkedRecord}
+        showTypeBadge={showTypeBadge}
+        isTimeline={isTimeline}
+        isMilestone={isMilestone}
+        isActionItem={isActionItem}
       />
     );
   }

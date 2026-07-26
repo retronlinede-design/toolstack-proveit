@@ -1,3 +1,10 @@
+const VARIANT_CLASSES = {
+  default: "border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-900",
+  milestone: "border-amber-300 border-l-4 bg-amber-50/50 dark:border-amber-700 dark:bg-amber-950/25",
+  new: "border-lime-400 bg-lime-50/40 dark:border-lime-700 dark:bg-lime-950/20",
+};
+const DEFAULT_VARIANT = "default";
+
 export default function RecordCardShell({
   title,
   subtitle,
@@ -10,17 +17,20 @@ export default function RecordCardShell({
   selected = false,
   expanded = false,
   headingLevel = 3,
+  variant = DEFAULT_VARIANT,
   className = "",
   children,
   ...articleProps
 }) {
   const Heading = headingLevel === 4 ? "h4" : "h3";
+  const resolvedVariant = Object.hasOwn(VARIANT_CLASSES, variant) ? variant : DEFAULT_VARIANT;
   return (
     <article
       {...articleProps}
       data-record-card-shell="true"
+      data-record-card-variant={resolvedVariant}
       data-selected={selected ? "true" : "false"}
-      className={`relative min-w-0 rounded-xl border bg-white p-4 shadow-sm transition-[border-color,box-shadow,background-color] duration-150 hover:border-neutral-300 hover:shadow-md dark:bg-neutral-900 dark:hover:border-neutral-600 ${selected ? "border-[#7a263a] ring-2 ring-[#7a263a]/20 dark:border-[#d17a91] dark:ring-[#d17a91]/25" : "border-neutral-200 dark:border-neutral-700"} ${className}`.trim()}
+      className={`relative min-w-0 rounded-xl border p-4 shadow-sm transition-[border-color,box-shadow,background-color] duration-150 hover:border-neutral-300 hover:shadow-md dark:hover:border-neutral-600 ${selected ? "border-[#7a263a] ring-2 ring-[#7a263a]/20 dark:border-[#d17a91] dark:ring-[#d17a91]/25" : VARIANT_CLASSES[resolvedVariant]} ${className}`.trim()}
     >
       {selected && <span className="absolute inset-y-3 left-0 w-1 rounded-r bg-[#7a263a] dark:bg-[#d17a91]" aria-hidden="true" />}
       {selected && <span className="sr-only">Selected record</span>}
@@ -42,3 +52,5 @@ export default function RecordCardShell({
     </article>
   );
 }
+
+export { DEFAULT_VARIANT, VARIANT_CLASSES };
