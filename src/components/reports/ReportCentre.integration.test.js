@@ -16,11 +16,17 @@ const configSource = (await readFile(configUrl, "utf8"))
   .replace('from "../../report/reportScopes.js"', `from "${scopeUrl}"`)
   .replace('from "../../report/reportDefinitions.js"', `from "${definitionsUrl}"`);
 const importableConfigUrl = `data:text/javascript;base64,${Buffer.from(configSource).toString("base64")}`;
+const outputUrl = new URL("./ReportOutputActions.jsx", import.meta.url);
+const outputTransformed = await transformWithOxc(await readFile(outputUrl, "utf8"), outputUrl.pathname);
+const importableOutputUrl = `data:text/javascript;base64,${Buffer.from(outputTransformed.code
+  .replaceAll('from "react/jsx-runtime"', `from "${import.meta.resolve("react/jsx-runtime")}"`)
+  .replaceAll('from "../../report/reportScopes.js"', `from "${scopeUrl}"`)).toString("base64")}`;
 const transformed = await transformWithOxc(await readFile(componentUrl, "utf8"), componentUrl.pathname);
 const runtimeUrl = import.meta.resolve("react/jsx-runtime");
 const importableCode = transformed.code
   .replaceAll('from "react/jsx-runtime"', `from "${runtimeUrl}"`)
   .replaceAll('from "../../report/reportScopes.js"', `from "${scopeUrl}"`)
+  .replaceAll('from "./ReportOutputActions.jsx"', `from "${importableOutputUrl}"`)
   .replaceAll('from "./reportCentreConfig.js"', `from "${importableConfigUrl}"`);
 const module = await import(`data:text/javascript;base64,${Buffer.from(importableCode).toString("base64")}`);
 const configModule = await import(importableConfigUrl);
@@ -80,7 +86,7 @@ test("Management and Client reports are rendered as whole-case only", () => {
     assert.match(html, /Whole Case/);
     assert.doesNotMatch(html, />Sequence Group</);
     assert.match(html, /aria-pressed="true" disabled=""/);
-    assert.match(html, /currently uses the complete case/);
+    assert.match(html, /Whole case only/);
   }
   assert.match(renderPreview("management", "case", "Whole case"), /timeline is currently limited to five entries/);
 });
@@ -140,7 +146,9 @@ test("optional control values do not prevent the Report Centre from rendering", 
 
 test("the active CaseDetail Report Centre uses the rendered control boundary", () => {
   assert.match(caseDetailSource, /<ReportCentreControls/);
+  assert.match(caseDetailSource, /<ReportContextHeader/);
   assert.match(caseDetailSource, /<ReportCentrePreviewSummary/);
+  assert.match(caseDetailSource, /reportDocument={reportCentreActiveDocument}/);
 });
 
 test("the active Evidence Pack follows model document and unchanged renderer path", () => {

@@ -86,6 +86,7 @@ import GeneratedClientReportArticle from "./reports/GeneratedClientReportArticle
 import LedgerPackReportArticle from "./reports/LedgerPackReportArticle";
 import ThreadIssueReportArticle from "./reports/ThreadIssueReportArticle";
 import ReportCentreControls, { ReportCentrePreviewSummary } from "./reports/ReportCentreControls";
+import ReportContextHeader from "./reports/ReportContextHeader.jsx";
 import SequenceGroupManager from "./sequenceGroups/SequenceGroupManager";
 import {
   createManagedSequenceGroup,
@@ -459,6 +460,15 @@ export default function CaseDetail({
   const reportCentreEvidencePackReport = useMemo(() => reportCentreEvidenceDocument ? projectEvidenceDocumentToLegacyViewModel(reportCentreEvidenceDocument) : null, [reportCentreEvidenceDocument]);
   const reportCentreDocumentPackReport = useMemo(() => reportCentreDocumentDocument ? projectDocumentDocumentToLegacyViewModel(reportCentreDocumentDocument) : null, [reportCentreDocumentDocument]);
   const reportCentreLedgerPackReport = useMemo(() => reportCentreLedgerDocument ? projectLedgerDocumentToLegacyViewModel(reportCentreLedgerDocument) : null, [reportCentreLedgerDocument]);
+  const reportCentreActiveDocument = reportCentreType === "evidence" ? reportCentreEvidenceDocument
+    : reportCentreType === "document" ? reportCentreDocumentDocument
+      : reportCentreType === "ledger" ? reportCentreLedgerDocument : null;
+  const reportCentreCountLabel = useMemo(() => {
+    if (reportCentreType === "evidence") return `${reportCentreEvidenceDocument?.summary?.includedEvidenceCount || 0} evidence records`;
+    if (reportCentreType === "document") return `${reportCentreDocumentDocument?.summary?.includedDocumentCount || 0} documents`;
+    if (reportCentreType === "ledger") return `${reportCentreLedgerDocument?.summary?.includedLedgerCount || 0} ledger entries`;
+    return "";
+  }, [reportCentreDocumentDocument, reportCentreEvidenceDocument, reportCentreLedgerDocument, reportCentreType]);
   const reportCentreInvestigationReport = useMemo(() => {
     if (!selectedCase) return null;
     if (reportCentreScope.scopeType === "sequenceGroup") {
@@ -3409,20 +3419,29 @@ ${ungroupedSequenceText}
       setReportCentreOutputFeedback("Could not copy Markdown.");
     }
   };
-  const getActiveReportCentreDocument = () => reportCentreType === "evidence" ? reportCentreEvidenceDocument
-    : reportCentreType === "document" ? reportCentreDocumentDocument
-      : reportCentreType === "ledger" ? reportCentreLedgerDocument : null;
   const handleDownloadReportCentreOutput = (format) => {
     try {
-      const document = getActiveReportCentreDocument();
+      const document = reportCentreActiveDocument;
       if (!document) throw new Error("No report document is available.");
       const output = buildReportOutput(document, format);
       downloadTextFile(output.content, output.filename, output.mimeType);
-      setReportCentreOutputFeedback(`${format === "json" ? "JSON" : "Markdown"} downloaded.`);
+      setReportCentreOutputFeedback(`${getReportDefinition(reportCentreType).label} ${format === "json" ? "JSON" : "Markdown"} downloaded.`);
     } catch (error) {
       console.error("Failed to prepare report output", error);
       setReportCentreOutputFeedback("Could not prepare this report output.");
     }
+  };
+  const handleReportCentreScopeChange = (scope) => {
+    setReportCentreOutputFeedback("");
+    setReportCentreScopeType(scope);
+  };
+  const handleReportCentreSequenceGroupChange = (group) => {
+    setReportCentreOutputFeedback("");
+    setReportCentreSequenceGroup(group);
+  };
+  const handleReportCentrePrint = () => {
+    setReportCentreOutputFeedback(`${getReportDefinition(reportCentreType).label} print dialog opened.`);
+    window.print();
   };
   const renderActionPlanList = (items = [], renderItem = (item) => item, emptyText = "None recorded.") => (
     items.length === 0 ? (
@@ -4949,12 +4968,12 @@ ${ungroupedSequenceText}
                   sequenceGroups={threadIssueReportSequenceOptions}
                   selectedSequenceGroup={selectedReportCentreSequenceGroup}
                   markdownAvailable={Boolean(reportCentreMarkdown)}
-                  documentOutputAvailable={Boolean(getActiveReportCentreDocument())}
+                  documentOutputAvailable={Boolean(reportCentreActiveDocument)}
                   outputFeedback={reportCentreOutputFeedback}
                   onReportTypeChange={handleReportCentreTypeChange}
-                  onScopeTypeChange={setReportCentreScopeType}
-                  onSequenceGroupChange={setReportCentreSequenceGroup}
-                  onPrint={() => window.print()}
+                  onScopeTypeChange={handleReportCentreScopeChange}
+                  onSequenceGroupChange={handleReportCentreSequenceGroupChange}
+                  onPrint={handleReportCentrePrint}
                   onCopyMarkdown={handleCopyReportCentreMarkdown}
                   onDownloadMarkdown={() => handleDownloadReportCentreOutput("markdown")}
                   onDownloadJson={() => handleDownloadReportCentreOutput("json")}
@@ -4962,15 +4981,29 @@ ${ungroupedSequenceText}
                 />
 
                 <section className="space-y-4">
+                  <ReportContextHeader
+                    definition={getReportDefinition(reportCentreType)}
+                    scopeLabel={normalisedReportCentreScopeType === "sequenceGroup" ? `Sequence Group: ${selectedReportCentreSequenceGroup || "Not selected"}` : getReportDefinition(reportCentreType).supportedScopes.length === 1 ? "Whole case only" : "Whole case"}
+                    countLabel={reportCentreCountLabel}
+                    reportDocument={reportCentreActiveDocument}
+                  />
                   <ReportCentrePreviewSummary
                     reportType={reportCentreType}
                     scopeType={normalisedReportCentreScopeType}
                     scopeLabel={reportCentreScopeLabel}
                   />
 
+                  {normalisedReportCentreScopeType === "sequenceGroup" && reportCentreActiveDocument && reportCentreCountLabel.startsWith("0 ") ? (
+                    <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm leading-6 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+                      <p className="font-semibold text-neutral-900 dark:text-neutral-100">No matching records appear in this {getReportDefinition(reportCentreType).label}.</p>
+                      <p className="mt-1">The Sequence Group exists, but contains no directly assigned or permitted linked {reportCentreType === "evidence" ? "evidence records" : reportCentreType === "document" ? "documents" : "ledger entries"}. Check the group assignment and linked-record context.</p>
+                    </div>
+                  ) : null}
+
                   {normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreSequenceGroup ? (
                     <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-                      Assign records to a sequenceGroup before previewing a sequence group report.
+                      <p className="font-semibold text-neutral-900">No Sequence Group is selected for {getReportDefinition(reportCentreType).label}.</p>
+                      <p className="mt-1">Create or assign records to a Sequence Group, then select it here to build the scoped preview.</p>
                     </div>
                   ) : (
                     <>

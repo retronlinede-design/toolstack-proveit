@@ -1,5 +1,6 @@
-import { getSupportedReportScopes, normaliseReportScope, reportSupportsOutput } from "../../report/reportScopes.js";
+import { getSupportedReportScopes, normaliseReportScope } from "../../report/reportScopes.js";
 import { getReportCentrePreviewDescription, REPORT_CENTRE_TYPES } from "./reportCentreConfig.js";
+import ReportOutputActions from "./ReportOutputActions.jsx";
 
 const SCOPE_LABELS = {
   case: "Whole Case",
@@ -43,8 +44,6 @@ export default function ReportCentreControls({
   const activeScope = normaliseReportScope(reportType, scopeType);
   const hasOneScope = supportedScopes.length === 1;
   const reportUnavailable = activeScope === "sequenceGroup" && !selectedSequenceGroup;
-  const supportsMarkdown = reportSupportsOutput(reportType, "markdown");
-  const supportsJson = reportSupportsOutput(reportType, "json");
 
   return (
     <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden dark:border-neutral-700 dark:bg-neutral-900">
@@ -70,8 +69,8 @@ export default function ReportCentreControls({
             ))}
           </div>
           {hasOneScope && (
-            <p className="mt-2 text-xs leading-5 text-neutral-500 dark:text-neutral-400">
-              This report currently uses the complete case.
+            <p className="mt-2 inline-flex rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs font-semibold text-neutral-600 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-300">
+              Whole case only
             </p>
           )}
           {activeScope === "sequenceGroup" && (
@@ -112,7 +111,7 @@ export default function ReportCentreControls({
                     : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
                 }`}
               >
-                <div className="text-sm font-bold">{label}</div>
+                <div className="flex items-center justify-between gap-2 text-sm font-bold"><span>{label}</span>{reportType === value ? <span className="rounded-full bg-lime-100 px-2 py-0.5 text-[10px] uppercase tracking-wider text-lime-900 dark:bg-lime-950 dark:text-lime-200">Selected</span> : null}</div>
                 <div className="mt-1 text-xs leading-5 text-neutral-500 dark:text-neutral-400">{description}</div>
               </button>
             ))}
@@ -125,33 +124,7 @@ export default function ReportCentreControls({
             <div className="rounded-lg border border-lime-300 bg-lime-50 px-3 py-2 text-sm font-bold text-lime-900 dark:border-lime-700 dark:bg-lime-950/30 dark:text-lime-200">
               Preview
             </div>
-            <button
-              type="button"
-              onClick={onPrint}
-              disabled={reportUnavailable}
-              className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 dark:bg-neutral-900 dark:text-neutral-100"
-            >
-              Print / Save PDF
-            </button>
-            {markdownAvailable && (
-              <button
-                type="button"
-                onClick={onCopyMarkdown}
-                className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-bold text-neutral-700 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
-              >
-                Copy Markdown
-              </button>
-            )}
-            {documentOutputAvailable && supportsMarkdown && (
-              <button type="button" onClick={onDownloadMarkdown} disabled={reportUnavailable} className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-bold text-neutral-700 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:text-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800">
-                Download Markdown
-              </button>
-            )}
-            {documentOutputAvailable && supportsJson && (
-              <button type="button" onClick={onDownloadJson} disabled={reportUnavailable} className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-bold text-neutral-700 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:text-neutral-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800">
-                Download JSON
-              </button>
-            )}
+            <ReportOutputActions reportType={reportType} markdownAvailable={markdownAvailable} documentOutputAvailable={documentOutputAvailable} disabled={reportUnavailable} feedback={outputFeedback} onCopyMarkdown={onCopyMarkdown} onDownloadMarkdown={onDownloadMarkdown} onDownloadJson={onDownloadJson} onPrint={onPrint} />
             <button
               type="button"
               onClick={onOpenSequenceGroupAudit}
@@ -163,7 +136,6 @@ export default function ReportCentreControls({
           <p className="mt-3 text-xs leading-5 text-neutral-500 dark:text-neutral-400">
             Evidence, Document, and Ledger packs support shared Markdown and JSON outputs. Action Plan retains its existing Markdown copy.
           </p>
-          {outputFeedback ? <p role="status" className="mt-2 text-xs font-medium text-neutral-600 dark:text-neutral-300">{outputFeedback}</p> : null}
         </div>
       </div>
     </section>
