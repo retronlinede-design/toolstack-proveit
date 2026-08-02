@@ -100,3 +100,11 @@ test("stable Issue metadata drives human labels, owner display, ordering, and re
   assert.equal(model.issues[0].currentPosition, "Awaiting landlord");
   assert.ok(model.nextActions.some((action) => action.title === "Review ISS-001 — Heating" && action.dueState === "overdue"));
 });
+
+test("Next Actions expose stable source routing metadata", () => {
+  const model = build({ actionSummary: { nextActions: [{ text: "Briefing action" }] }, strategy: [{ id: "s1", nextSteps: ["Strategy action"] }], watchItems: [{ id: "w1", nextCheck: "Watch action" }], issues: [{ id: "issue-1", reference: "ISS-001", name: "Issue", status: "open", reviewDate: "2026-08-03" }] });
+  assert.ok(model.nextActions.some((item) => item.sourceType === "case_briefing" && item.sourceRecordId === "actionSummary"));
+  assert.ok(model.nextActions.some((item) => item.sourceType === "strategy" && item.sourceRecordId === "s1"));
+  assert.ok(model.nextActions.some((item) => item.sourceType === "watch" && item.sourceRecordId === "w1"));
+  assert.ok(model.nextActions.some((item) => item.sourceType === "issue_review" && item.sourceRecordId === "issue-1"));
+});

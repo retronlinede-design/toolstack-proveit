@@ -29,6 +29,10 @@ function flattenDiagnostics(diagnostics) {
     title: item.title || group.category || "Case finding",
     reason: item.detail || "Review this case-quality finding.",
     record: item.record || null,
+    sourceType: "diagnostic",
+    sourceRecordId: item.record?.id || item.recordId || "",
+    affectedRecordType: item.type || "case",
+    affectedRecordId: item.record?.id || item.recordId || "",
     tab: item.tab || "overview",
   })));
 }
@@ -46,29 +50,29 @@ function buildActions(caseData, currentFocus, now) {
   const summary = caseData?.actionSummary || {};
   list(summary.nextActions).filter((item) => !item?.completed).forEach((item, index) => {
     const label = actionText(item);
-    if (label) actions.push({ id: `briefing-action:${index}`, title: label, source: "Case Briefing", dueDate: day(item?.dueDate), recordType: "overview", tab: "overview" });
+    if (label) actions.push({ id: `briefing-action:${index}`, title: label, source: "Case Briefing", sourceType: "case_briefing", sourceRecordId: "actionSummary", dueDate: day(item?.dueDate), recordType: "overview" });
   });
   list(summary.importantReminders).forEach((item, index) => {
     const label = actionText(item);
-    if (label) actions.push({ id: `briefing-reminder:${index}`, title: label, source: "Case Briefing reminder", dueDate: day(item?.dueDate), recordType: "overview", tab: "overview" });
+    if (label) actions.push({ id: `briefing-reminder:${index}`, title: label, source: "Case Briefing reminder", sourceType: "case_briefing", sourceRecordId: "actionSummary", dueDate: day(item?.dueDate), recordType: "overview" });
   });
   list(summary.criticalDeadlines).forEach((item, index) => {
     const label = actionText(item);
-    if (label) actions.push({ id: `briefing-deadline:${index}`, title: label, source: "Case Briefing deadline", dueDate: day(item?.date || item?.dueDate), recordType: "overview", tab: "overview" });
+    if (label) actions.push({ id: `briefing-deadline:${index}`, title: label, source: "Case Briefing deadline", sourceType: "case_briefing", sourceRecordId: "actionSummary", dueDate: day(item?.date || item?.dueDate), recordType: "overview" });
   });
   list(caseData?.strategy).filter((record) => !isArchived(record)).forEach((record) => {
     list(record.nextSteps).forEach((step, index) => {
       const label = actionText(step);
-      if (label) actions.push({ id: `strategy-step:${record.id}:${index}`, title: label, source: "Strategy", dueDate: day(step?.dueDate), owner: text(record.owner) || text(record.ownerName), issue: groupName(record), recordType: "strategy", record });
+      if (label) actions.push({ id: `strategy-step:${record.id}:${index}`, title: label, source: "Strategy", sourceType: "strategy", sourceRecordId: record.id, dueDate: day(step?.dueDate), owner: text(record.owner) || text(record.ownerName), issue: groupName(record), recordType: "strategy", record });
     });
-    if (day(record.reviewDate)) actions.push({ id: `strategy-review:${record.id}`, title: `Review ${title(record, "Strategy")}`, source: "Strategy review", dueDate: day(record.reviewDate), owner: text(record.owner) || text(record.ownerName), issue: groupName(record), recordType: "strategy", record });
+    if (day(record.reviewDate)) actions.push({ id: `strategy-review:${record.id}`, title: `Review ${title(record, "Strategy")}`, source: "Strategy review", sourceType: "strategy", sourceRecordId: record.id, dueDate: day(record.reviewDate), owner: text(record.owner) || text(record.ownerName), issue: groupName(record), recordType: "strategy", record });
   });
   list(caseData?.watchItems).filter((record) => !isArchived(record)).forEach((record) => {
-    if (day(record.reviewDate)) actions.push({ id: `watch-review:${record.id}`, title: `Review ${title(record, "Watch item")}`, source: "To Watch review", dueDate: day(record.reviewDate), issue: groupName(record), recordType: "watchItems", record });
+    if (day(record.reviewDate)) actions.push({ id: `watch-review:${record.id}`, title: `Review ${title(record, "Watch item")}`, source: "To Watch review", sourceType: "watch", sourceRecordId: record.id, dueDate: day(record.reviewDate), issue: groupName(record), recordType: "watchItems", record });
     const nextCheck = text(record.nextCheck);
-    if (nextCheck) actions.push({ id: `watch-check:${record.id}`, title: nextCheck, source: "To Watch", dueDate: "", issue: groupName(record), recordType: "watchItems", record });
+    if (nextCheck) actions.push({ id: `watch-check:${record.id}`, title: nextCheck, source: "To Watch", sourceType: "watch", sourceRecordId: record.id, dueDate: "", issue: groupName(record), recordType: "watchItems", record });
   });
-  list(caseData?.issues).filter((issue) => issue.status !== "archived" && issue.reviewDate).forEach((issue) => actions.push({ id: `issue-review:${issue.id}`, title: `Review ${issueLabel(issue)}`, source: "Issue review", dueDate: day(issue.reviewDate), issue: issueLabel(issue), recordType: "issue", issueId: issue.id, issueName: issue.name, action: "issue-manager" }));
+  list(caseData?.issues).filter((issue) => issue.status !== "archived" && issue.reviewDate).forEach((issue) => actions.push({ id: `issue-review:${issue.id}`, title: `Review ${issueLabel(issue)}`, source: "Issue review", sourceType: "issue_review", sourceRecordId: issue.id, dueDate: day(issue.reviewDate), issue: issueLabel(issue), recordType: "issue", issueId: issue.id, issueName: issue.name, action: "issue-manager" }));
   const seen = new Set();
   return actions.filter((item) => {
     const key = item.title.toLowerCase().replace(/\s+/g, " ");

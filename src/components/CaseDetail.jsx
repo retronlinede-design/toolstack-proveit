@@ -673,6 +673,8 @@ export default function CaseDetail({
   }
 
   function openSequenceGroupManager(preferredGroup = "") {
+    const preferredIssue = resolveCaseIssue(selectedCase, { issueId: preferredGroup }) || resolveCaseIssue(selectedCase, { issueName: preferredGroup });
+    const preferredName = preferredIssue?.name || preferredGroup;
     setSequenceRenameInputs({});
     setSequenceMoveInputs({});
     setSequenceNewGroupInputs({});
@@ -682,7 +684,7 @@ export default function CaseDetail({
     setHighlightedSequenceRecordKey("");
     setSequenceRelationshipFilter("all");
     setSequenceGroupSearch("");
-    setSelectedSequenceGroupName(sequenceGroups.some((group) => group.name === preferredGroup) ? preferredGroup : sequenceGroups[0]?.name || preferredGroup || "");
+    setSelectedSequenceGroupName(sequenceGroups.some((group) => group.name === preferredName) ? preferredName : sequenceGroups[0]?.name || preferredName || "");
     setSequenceGroupFeedback("");
     setSequenceGroupManagerOpen(true);
   }
@@ -1974,30 +1976,31 @@ ${strategyFocus.join("\n") || "—"}`;
 
   const openBriefingItem = (item) => {
     if (!item) return;
-    if (item.action === "issue-manager") {
-      openSequenceGroupManager(item.issue || "");
+    const launch = getOverviewRecordLaunch(item, selectedCase);
+    if (!launch.handled) return;
+    if (launch.targetType === "case_briefing") {
+      openActionSummaryEdit();
       return;
     }
-    const launch = getOverviewRecordLaunch(item);
-    if (launch?.kind === "watch") {
+    if (launch.targetType === "issue") {
+      openSequenceGroupManager(launch.targetId || launch.targetName);
+      return;
+    }
+    if (launch.targetType === "watch") {
       setOverviewWatchItem(launch.record);
       return;
     }
-    if (launch?.kind === "document") {
+    if (launch.targetType === "document") {
       openDocumentModal(launch.record, launch.record.id, isTrackingRecord(launch.record) ? "record" : "document");
       return;
     }
-    if (launch?.kind === "ledger") {
+    if (launch.targetType === "ledger") {
       openLedgerModal(launch.record, launch.record.id);
       return;
     }
-    if (launch?.kind === "record") {
-      handleOpenIssue({ ...item, type: item.recordType, tab: undefined });
-      return;
+    if (["incidents", "evidence", "strategy"].includes(launch.targetType)) {
+      handleOpenIssue({ ...item, record: launch.record, type: launch.targetType, tab: undefined });
     }
-    if (item.tab) setActiveTab(item.tab);
-    else if (item.recordType && item.recordType !== "overview" && item.recordType !== "case") setActiveTab(item.recordType);
-    else document.getElementById("case-action-summary")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
   const saveOverviewWatchItem = (savedItem) => {
     const currentItems = selectedCase?.watchItems || [];
@@ -3895,7 +3898,8 @@ ${ungroupedSequenceText}
                 <CaseBriefingDashboard
                   model={caseBriefingModel}
                   onOpenIssue={openSequenceGroupManager}
-                  onOpenItem={openBriefingItem}
+                onOpenItem={openBriefingItem}
+                getItemLaunch={(item) => getOverviewRecordLaunch(item, selectedCase)}
                   onOpenTab={setActiveTab}
                   onAddIncident={() => openRecordModal("incidents")}
                   onAddEvidence={() => openRecordModal("evidence")}

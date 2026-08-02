@@ -3,20 +3,37 @@ import test from "node:test";
 
 import { getOverviewRecordLaunch } from "./overviewRecordLaunch.js";
 
-test("Overview record launches resolve directly to existing modal families", () => {
-  const record = { id: "record-1" };
-  assert.deepEqual(getOverviewRecordLaunch({ recordType: "incidents", record }), { kind: "record", editorType: "incidents", record });
-  assert.deepEqual(getOverviewRecordLaunch({ recordType: "evidence", record }), { kind: "record", editorType: "evidence", record });
-  assert.deepEqual(getOverviewRecordLaunch({ recordType: "strategy", record }), { kind: "record", editorType: "strategy", record });
-  assert.deepEqual(getOverviewRecordLaunch({ recordType: "documents", record }), { kind: "document", record });
-  assert.deepEqual(getOverviewRecordLaunch({ recordType: "ledger", record }), { kind: "ledger", record });
-  assert.deepEqual(getOverviewRecordLaunch({ recordType: "watchItems", record }), { kind: "watch", record });
+const records = {
+  incidents: [{ id: "incident-1" }], evidence: [{ id: "evidence-1" }], documents: [{ id: "document-1" }],
+  ledger: [{ id: "ledger-1" }], strategy: [{ id: "strategy-1" }], watchItems: [{ id: "watch-1" }],
+};
+
+test("routes Next Actions by stable source type and source ID", () => {
+  assert.equal(getOverviewRecordLaunch({ sourceType: "strategy", sourceRecordId: "strategy-1" }, records).targetType, "strategy");
+  assert.equal(getOverviewRecordLaunch({ sourceType: "watch", sourceRecordId: "watch-1" }, records).targetType, "watch");
+  assert.deepEqual(getOverviewRecordLaunch({ sourceType: "case_briefing" }, records), { handled: true, targetType: "case_briefing", targetId: "actionSummary" });
+  assert.deepEqual(getOverviewRecordLaunch({ sourceType: "issue_review", issueId: "issue-1", issueName: "Issue" }, records), { handled: true, targetType: "issue", targetId: "issue-1", targetName: "Issue" });
 });
 
-test("Overview launch resolution never returns workspace navigation", () => {
-  for (const recordType of ["incidents", "evidence", "strategy", "documents", "ledger", "watchItems"]) {
-    const launch = getOverviewRecordLaunch({ recordType, record: { id: recordType } });
-    assert.equal(Object.hasOwn(launch, "tab"), false);
+test("routes attention and activity records through the same modal boundary", () => {
+  for (const [recordType, targetType] of [["incidents", "incidents"], ["evidence", "evidence"], ["documents", "document"], ["ledger", "ledger"], ["strategy", "strategy"], ["watchItems", "watch"]]) {
+    const collection = recordType;
+    const record = records[collection][0];
+    const launch = getOverviewRecordLaunch({ recordType, record }, records);
+    assert.equal(launch.handled, true);
+    assert.equal(launch.targetType, targetType);
+    assert.equal(launch.targetId, record.id);
   }
-  assert.equal(getOverviewRecordLaunch({ recordType: "case" }), null);
+});
+
+test("diagnostic corrections resolve affected records by ID rather than visible text", () => {
+  const launch = getOverviewRecordLaunch({ sourceType: "diagnostic", affectedRecordType: "incidents", affectedRecordId: "incident-1", title: "Unrelated visible text" }, records);
+  assert.equal(launch.targetId, "incident-1");
+  assert.equal(launch.record, records.incidents[0]);
+});
+
+test("unsupported and stale sources return an explicit non-navigation result", () => {
+  for (const item of [{ sourceType: "legacy_task", title: "Legacy" }, { sourceType: "strategy", sourceRecordId: "missing" }, null]) {
+    assert.deepEqual(getOverviewRecordLaunch(item, records), { handled: false, reason: "No direct record available" });
+  }
 });
