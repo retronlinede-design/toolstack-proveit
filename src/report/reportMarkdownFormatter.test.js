@@ -9,6 +9,7 @@ import { buildIncidentScheduleDocument } from "./incidentScheduleDocument.js";
 import { buildChronologyReportDocument } from "./chronologyReportDocument.js";
 import { buildCaseAuditDocument } from "./caseAuditDocument.js";
 import { buildInvestigationReportDocument } from "./investigationReportDocument.js";
+import { buildManagementReportDocument } from "./managementReportDocument.js";
 
 function markdownFor(caseData) {
   const model = buildCaseReportModel(caseData, { generatedAt: "2026-07-26T00:00:00.000Z" });
@@ -65,4 +66,11 @@ test("Markdown formatter supports the complete Investigation document and append
   const markdown = formatReportDocumentAsMarkdown(buildInvestigationReportDocument(model, getReportDefinition("investigation"), { generatedAt: model.generatedAt }));
   for (const heading of ["# Investigation Report", "## Document Control", "## Executive Summary", "## Current Position", "## Investigation Snapshot", "## Key Findings", "## Narrative Chronology", "## Evidence Overview", "## Supporting Documents", "## People Involved", "## Outstanding Matters", "## Next Actions", "## Appendices", "### Appendix A", "### Appendix B", "### Appendix C"]) assert.match(markdown, new RegExp(heading));
   assert.match(markdown, /Incident \(i1\)/); assert.match(markdown, /Evidence \(e1\)/); assert.match(markdown, /AI assistance: None/); assert.doesNotMatch(markdown, /base64|data:image|\[object Object\]|GPT prompt/);
+});
+
+test("Markdown formatter supports the executive Management document", () => {
+  const model = buildCaseReportModel({ id: "management-md", name: "Management Case", status: "open", issues: [{ id: "issue-1", reference: "ISS-001", name: "Primary Issue", status: "open", priority: "high", currentPosition: "A response remains outstanding.", createdAt: "2026-01-01", updatedAt: "2026-07-26" }], incidents: [{ id: "i1", title: "Incident", eventDate: "2026-07-20", sequenceGroupId: "issue-1", sequenceGroup: "Primary Issue" }], evidence: [], documents: [], ledger: [], strategy: [], watchItems: [] }, { generatedAt: "2026-07-26T00:00:00.000Z", includeDiagnostics: true });
+  const markdown = formatReportDocumentAsMarkdown(buildManagementReportDocument(model, getReportDefinition("management"), { generatedAt: model.generatedAt }));
+  for (const heading of ["# Management Report", "## Document Control", "## Executive Summary", "## Current Position", "## Management Snapshot", "## Major Issues", "## Current Risks", "## Progress Since Previous Review", "## Outstanding Matters", "## Management Decisions Required", "## Next Actions", "## Appendices"]) assert.match(markdown, new RegExp(heading));
+  assert.match(markdown, /ISS-001 — Primary Issue/); assert.doesNotMatch(markdown, /issue-1 — Primary Issue|GPT prompt|\[object Object\]/);
 });

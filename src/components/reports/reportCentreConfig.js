@@ -18,7 +18,7 @@ export const REPORT_CENTRE_TYPES = Object.freeze([
 
 export function getReportCentrePreviewDescription(reportType, scopeType) {
   const scope = normaliseReportScope(reportType, scopeType);
-  if (reportType === "management") return "Whole-case management summary focused on findings, risks, awareness items, outstanding issues, and actions. Its key timeline is currently limited to five entries.";
+  if (reportType === "management") return "Whole-case executive briefing focused on the current position, priority Issues, risks, decisions, and next actions.";
   if (reportType === "investigation") {
     return scope === "sequenceGroup"
       ? "Complete professional investigation document for the selected Issue's declared structured scope."

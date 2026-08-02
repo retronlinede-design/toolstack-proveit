@@ -47,6 +47,14 @@ test("Evidence Pack declares complete shared outputs without AI content", () => 
   for (const output of ["preview", "print", "markdown", "json"]) assert.equal(reportSupportsOutput("evidence", output), true);
 });
 
+test("Management declares whole-case shared executive outputs without AI prose", () => {
+  const management = getReportDefinition("management");
+  assert.equal(management.completeness, "summary");
+  assert.equal(management.aiPolicy, "none");
+  assert.deepEqual(management.supportedScopes, ["case"]);
+  for (const output of ["preview", "print", "markdown", "json"]) assert.equal(reportSupportsOutput("management", output), true);
+});
+
 test("Document and Ledger packs declare complete shared outputs without AI content", () => {
   for (const id of ["document", "ledger"]) {
     const definition = getReportDefinition(id);

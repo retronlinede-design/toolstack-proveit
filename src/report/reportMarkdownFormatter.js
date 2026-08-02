@@ -76,7 +76,19 @@ function investigation(document) {
   appendNotices(lines, document); return lines.join("\n");
 }
 
+function management(document) {
+  const lines = [`# ${inline(document.report?.title || "Management Report")}`, "", "## Document Control", ""]; const presentation = document.presentation || {};
+  for (const [label, value] of [["Case", document.source?.caseName || document.source?.caseId], ["Purpose", presentation.purpose], ["Audience", presentation.audience], ["Scope", presentation.scope], ["Completeness", presentation.completeness], ["Generated", document.report?.generatedAt], ["Source revision", document.source?.sourceRevision?.fingerprint], ["Version", presentation.version], ["Document status", presentation.documentStatus], ["Confidentiality", presentation.confidentiality], ["AI assistance", presentation.aiAssistance]]) if (value) lines.push(`- ${label}: ${inline(value)}`);
+  const value = (id) => getReportDocumentSection(document, id) || {};
+  lines.push("", "## Executive Summary", "", safeText(value("executive-summary").text), "", "## Current Position", "", `- Case status: ${inline(value("current-position").metadata?.caseStatus)}`, "", "User-authored Issue positions:", "", ...list(value("current-position").items, (item) => `${inline(item.displayLabel)} — ${inline(item.currentPosition || item.purpose)} — status: ${inline(item.status)} — priority: ${inline(item.priority)}`), "", "## Management Snapshot", "", ...Object.entries(value("management-snapshot").metadata || {}).map(([key, item]) => `- ${inline(key)}: ${inline(item)}`), "", "## Major Issues", "", ...list(value("major-issues").items, (item) => `${inline(item.displayLabel)} — ${inline(item.priority)} / ${inline(item.status)} — owner: ${inline(item.owner)} — review: ${inline(item.reviewDate)} — ${inline(item.currentPosition || item.purpose)}`), "", "## Current Risks", "", ...list(value("current-risks").items, (item) => `${inline(item.message)} — ${inline(item.title || item.recordId)}${item.recordId ? ` (${inline(item.recordId)})` : ""}`), "", "## Progress Since Previous Review", "", safeText(value("progress").metadata?.limitation), "", ...list(value("progress").items, (item) => `${inline(item.loggedDate)} — ${inline(item.type)}: ${inline(item.title)}`), "", "## Outstanding Matters", "");
+  (value("outstanding-matters").groups || []).forEach((group) => lines.push(`### ${inline(group.label)}`, "", ...list(group.items, (item) => `${inline(item.message || item.action)}${item.dueDate ? ` — due ${inline(item.dueDate)}` : ""}`), ""));
+  lines.push("## Management Decisions Required", "", ...list(value("management-decisions").items, (item) => `${inline(item.decision)}${item.dueDate ? ` — due ${inline(item.dueDate)}` : ""}`), "", "## Next Actions", "");
+  (value("next-actions").groups || []).forEach((group) => lines.push(`### ${inline(group.label)}`, "", ...list(group.items, (item) => `${inline(item.action)} — ${inline(item.source)}${item.owner ? ` — owner: ${inline(item.owner)}` : ""}${item.dueDate ? ` — due: ${inline(item.dueDate)}` : ""}`), ""));
+  lines.push("## Appendices", ""); (document.appendices || []).forEach((appendix) => lines.push(`### ${inline(appendix.label)} — ${inline(appendix.title)}`, "", ...list(appendix.items || [], (item) => `${inline(item.displayLabel || item.message || item.title)}${item.recordId ? ` (${inline(item.recordId)})` : ""}`), "")); appendNotices(lines, document); return lines.join("\n");
+}
+
 export function formatReportDocumentAsMarkdown(reportDocument = {}) {
+  if (reportDocument.report?.id === "management") return management(reportDocument);
   if (reportDocument.report?.id === "investigation") return investigation(reportDocument);
   if (reportDocument.report?.id === "evidence") return evidence(reportDocument);
   if (reportDocument.report?.id === "document") return documents(reportDocument);

@@ -5,8 +5,10 @@ import { buildEvidenceScheduleDocument } from "./evidenceScheduleDocument.js";
 import { buildIncidentScheduleDocument } from "./incidentScheduleDocument.js";
 import { buildInvestigationReportDocument } from "./investigationReportDocument.js";
 import { buildLedgerScheduleDocument } from "./ledgerScheduleDocument.js";
+import { buildManagementReportDocument } from "./managementReportDocument.js";
 
 const BUILDERS = {
+  management: buildManagementReportDocument,
   investigation: buildInvestigationReportDocument,
   evidence: buildEvidenceScheduleDocument,
   document: buildDocumentScheduleDocument,

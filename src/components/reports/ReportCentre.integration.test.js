@@ -90,7 +90,7 @@ test("Management and Client reports are rendered as whole-case only", () => {
     assert.match(html, /aria-pressed="true" disabled=""/);
     assert.match(html, /whole case only/i);
   }
-  assert.match(renderPreview("management", "case", "Whole case"), /timeline is currently limited to five entries/);
+  assert.match(renderPreview("management", "case", "Whole case"), /executive briefing focused on the current position/);
 });
 
 test("sequence-group-capable reports render honest scope controls and labels", () => {
@@ -123,14 +123,13 @@ test("Copy Markdown is available only for reports with real Markdown output", ()
 });
 
 test("migrated factual reports expose shared Markdown and JSON actions only when a document exists", () => {
-  for (const reportType of ["evidence", "document", "ledger", "caseAudit", "incidentSchedule", "chronologyReport"]) {
+  for (const reportType of ["management", "evidence", "document", "ledger", "caseAudit", "incidentSchedule", "chronologyReport"]) {
     const html = renderControls({ reportType, markdownAvailable: true, documentOutputAvailable: true });
     assert.match(html, /Copy Markdown/);
     assert.match(html, /Download Markdown/);
     assert.match(html, /Download JSON/);
   }
   assert.doesNotMatch(renderControls({ reportType: "action", markdownAvailable: true }), /Download JSON/);
-  assert.doesNotMatch(renderControls({ reportType: "management", documentOutputAvailable: true }), /Download Markdown/);
 });
 
 test("Incident Schedule and Chronology Report expose complete scoped previews", () => {

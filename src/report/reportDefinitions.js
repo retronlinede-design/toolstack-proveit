@@ -3,10 +3,10 @@ const PLANNED = "planned";
 
 export const REPORT_DEFINITIONS = Object.freeze({
   management: Object.freeze({
-    id: "management", label: "Management Report", description: "Concise professional report for managers, HR, and executives.", audience: "management",
-    supportedScopes: Object.freeze(["case"]), supportedOutputs: Object.freeze(["preview", "print"]),
+    id: "management", label: "Management Report", description: "Executive briefing on the current case position, priority Issues, risks, decisions, and actions.", audience: "management",
+    supportedScopes: Object.freeze(["case"]), supportedOutputs: Object.freeze(["preview", "print", "markdown", "json"]),
     recordTypes: Object.freeze(["incident", "evidence", "document", "ledger", "strategy", "watch"]),
-    completeness: "summary", includeArchived: true, aiPolicy: "optional-narrative-polish", status: ACTIVE,
+    completeness: "summary", includeArchived: true, aiPolicy: "none", status: ACTIVE,
   }),
   investigation: Object.freeze({
     id: "investigation", label: "Investigation Report", description: "Explain the investigation and its current position.", audience: "investigation",

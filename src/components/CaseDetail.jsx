@@ -89,6 +89,7 @@ import IncidentScheduleReportArticle from "./reports/IncidentScheduleReportArtic
 import ChronologyReportArticle from "./reports/ChronologyReportArticle.jsx";
 import CaseAuditReportArticle from "./reports/CaseAuditReportArticle.jsx";
 import InvestigationReportArticle from "./reports/InvestigationReportArticle.jsx";
+import ManagementReportArticle from "./reports/ManagementReportArticle.jsx";
 import ThreadIssueReportArticle from "./reports/ThreadIssueReportArticle";
 import ReportCentreControls, { ReportCentrePreviewSummary } from "./reports/ReportCentreControls";
 import ReportContextHeader from "./reports/ReportContextHeader.jsx";
@@ -472,10 +473,12 @@ export default function CaseDetail({
   const reportCentreChronologyDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "chronologyReport", reportModel: reportCentreModel, definition: getReportDefinition("chronologyReport") }).reportDocument : null, [reportCentreModel]);
   const reportCentreCaseAuditDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "caseAudit", reportModel: reportCentreModel, definition: getReportDefinition("caseAudit") }).reportDocument : null, [reportCentreModel]);
   const reportCentreInvestigationDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "investigation", reportModel: reportCentreModel, definition: getReportDefinition("investigation") }).reportDocument : null, [reportCentreModel]);
+  const reportCentreManagementDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "management", reportModel: reportCentreModel, definition: getReportDefinition("management") }).reportDocument : null, [reportCentreModel]);
   const reportCentreEvidencePackReport = useMemo(() => reportCentreEvidenceDocument ? projectEvidenceDocumentToLegacyViewModel(reportCentreEvidenceDocument) : null, [reportCentreEvidenceDocument]);
   const reportCentreDocumentPackReport = useMemo(() => reportCentreDocumentDocument ? projectDocumentDocumentToLegacyViewModel(reportCentreDocumentDocument) : null, [reportCentreDocumentDocument]);
   const reportCentreLedgerPackReport = useMemo(() => reportCentreLedgerDocument ? projectLedgerDocumentToLegacyViewModel(reportCentreLedgerDocument) : null, [reportCentreLedgerDocument]);
-  const reportCentreActiveDocument = reportCentreType === "investigation" ? reportCentreInvestigationDocument
+  const reportCentreActiveDocument = reportCentreType === "management" ? reportCentreManagementDocument
+    : reportCentreType === "investigation" ? reportCentreInvestigationDocument
     : reportCentreType === "evidence" ? reportCentreEvidenceDocument
     : reportCentreType === "document" ? reportCentreDocumentDocument
       : reportCentreType === "ledger" ? reportCentreLedgerDocument
@@ -483,6 +486,7 @@ export default function CaseDetail({
           : reportCentreType === "chronologyReport" ? reportCentreChronologyDocument
             : reportCentreType === "caseAudit" ? reportCentreCaseAuditDocument : null;
   const reportCentreCountLabel = useMemo(() => {
+    if (reportCentreType === "management") return `${reportCentreManagementDocument?.summary?.openIssueCount || 0} active Issues`;
     if (reportCentreType === "investigation") return `${reportCentreInvestigationDocument?.summary?.directRecordCount || 0} investigation records`;
     if (reportCentreType === "evidence") return `${reportCentreEvidenceDocument?.summary?.includedEvidenceCount || 0} evidence records`;
     if (reportCentreType === "document") return `${reportCentreDocumentDocument?.summary?.includedDocumentCount || 0} documents`;
@@ -491,7 +495,7 @@ export default function CaseDetail({
     if (reportCentreType === "chronologyReport") return `${reportCentreChronologyDocument?.summary?.totalChronologyEntries || 0} chronology entries`;
     if (reportCentreType === "caseAudit") return `${reportCentreCaseAuditDocument?.summary?.totalFindings || 0} audit findings`;
     return "";
-  }, [reportCentreCaseAuditDocument, reportCentreChronologyDocument, reportCentreDocumentDocument, reportCentreEvidenceDocument, reportCentreIncidentDocument, reportCentreInvestigationDocument, reportCentreLedgerDocument, reportCentreType]);
+  }, [reportCentreCaseAuditDocument, reportCentreChronologyDocument, reportCentreDocumentDocument, reportCentreEvidenceDocument, reportCentreIncidentDocument, reportCentreInvestigationDocument, reportCentreLedgerDocument, reportCentreManagementDocument, reportCentreType]);
   const reportCentreActionPlan = useMemo(() => {
     if (!selectedCase) return null;
     return buildActionPlanReport(selectedCase, reportCentreScope);
@@ -5069,13 +5073,7 @@ ${ungroupedSequenceText}
                     </div>
                   ) : (
                     <>
-                      {reportCentreType === "management" && (
-                        <ExecutiveSummaryReportArticle
-                          report={executiveSummaryReport}
-                          polishedMarkdown={executiveSummaryPolishDraft}
-                          className="mx-auto max-w-5xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
-                        />
-                      )}
+                      {reportCentreType === "management" && <ManagementReportArticle reportDocument={reportCentreManagementDocument} />}
                       {reportCentreType === "investigation" && <InvestigationReportArticle reportDocument={reportCentreInvestigationDocument} />}
                       {reportCentreType === "evidence" && (
                         <EvidencePackReportArticle
