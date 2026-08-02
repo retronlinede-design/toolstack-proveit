@@ -123,7 +123,7 @@ test("Copy Markdown is available only for reports with real Markdown output", ()
 });
 
 test("migrated factual reports expose shared Markdown and JSON actions only when a document exists", () => {
-  for (const reportType of ["management", "evidence", "document", "ledger", "caseAudit", "incidentSchedule", "chronologyReport"]) {
+  for (const reportType of ["client", "management", "evidence", "document", "ledger", "caseAudit", "incidentSchedule", "chronologyReport"]) {
     const html = renderControls({ reportType, markdownAvailable: true, documentOutputAvailable: true });
     assert.match(html, /Copy Markdown/);
     assert.match(html, /Download Markdown/);

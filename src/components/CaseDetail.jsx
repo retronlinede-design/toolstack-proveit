@@ -21,6 +21,7 @@ import {
 import { getRecordDisplayMeta, resolveRecordById } from "../domain/linkingResolvers.js";
 import { buildNarrativeSections } from "../lib/narrativeBuilder.js";
 import { PROVEIT_REPORT_PROMPT_V1, parseProveItReportV1 } from "../lib/proveitReportFormat.js";
+import { CLIENT_REPORT_PROMPT_REVISION, validateClientReportNarrative } from "../report/clientReportValidation.js";
 import { DEFAULT_REPORT_DISPLAY_LANGUAGE, REPORT_DISPLAY_LANGUAGES, getReportHeadingLabel } from "../lib/reportHeadingLabels.js";
 import { analyzeCaseDiagnostics, runAttachmentIntegrityCheck } from "../diagnostics/caseDiagnostics.js";
 import { runOperationalIntegrityCheck } from "../diagnostics/operationalIntegrity.js";
@@ -90,6 +91,7 @@ import ChronologyReportArticle from "./reports/ChronologyReportArticle.jsx";
 import CaseAuditReportArticle from "./reports/CaseAuditReportArticle.jsx";
 import InvestigationReportArticle from "./reports/InvestigationReportArticle.jsx";
 import ManagementReportArticle from "./reports/ManagementReportArticle.jsx";
+import ClientReportArticle from "./reports/ClientReportArticle.jsx";
 import ThreadIssueReportArticle from "./reports/ThreadIssueReportArticle";
 import ReportCentreControls, { ReportCentrePreviewSummary } from "./reports/ReportCentreControls";
 import ReportContextHeader from "./reports/ReportContextHeader.jsx";
@@ -286,6 +288,8 @@ export default function CaseDetail({
   const [reportDisplayLanguage, setReportDisplayLanguage] = useState(DEFAULT_REPORT_DISPLAY_LANGUAGE);
   const [generatedReportDraft, setGeneratedReportDraft] = useState("");
   const [renderedReportText, setRenderedReportText] = useState("");
+  const [clientNarrativeMeta, setClientNarrativeMeta] = useState({});
+  const clientNarrativeCaseIdRef = useRef("");
   const [reportPromptFeedback, setReportPromptFeedback] = useState("");
   const [reportCentreScopeType, setReportCentreScopeType] = useState("case");
   const [reportCentreSequenceGroup, setReportCentreSequenceGroup] = useState("");
@@ -474,10 +478,13 @@ export default function CaseDetail({
   const reportCentreCaseAuditDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "caseAudit", reportModel: reportCentreModel, definition: getReportDefinition("caseAudit") }).reportDocument : null, [reportCentreModel]);
   const reportCentreInvestigationDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "investigation", reportModel: reportCentreModel, definition: getReportDefinition("investigation") }).reportDocument : null, [reportCentreModel]);
   const reportCentreManagementDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "management", reportModel: reportCentreModel, definition: getReportDefinition("management") }).reportDocument : null, [reportCentreModel]);
+  const reportCentreClientValidation = useMemo(() => validateClientReportNarrative(renderedReportText, { sourceRevision: clientNarrativeMeta.sourceRevision, currentSourceRevision: reportCentreModel?.sourceRevision?.fingerprint }), [clientNarrativeMeta.sourceRevision, renderedReportText, reportCentreModel?.sourceRevision?.fingerprint]);
+  const reportCentreClientDocument = useMemo(() => reportCentreModel && renderedReportText.trim() && reportCentreClientValidation.valid ? buildActiveReportDocument({ reportId: "client", reportModel: reportCentreModel, definition: getReportDefinition("client"), options: { generatedNarrative: parseProveItReportV1(renderedReportText), generatedNarrativeMeta: clientNarrativeMeta } }).reportDocument : null, [clientNarrativeMeta, renderedReportText, reportCentreClientValidation.valid, reportCentreModel]);
   const reportCentreEvidencePackReport = useMemo(() => reportCentreEvidenceDocument ? projectEvidenceDocumentToLegacyViewModel(reportCentreEvidenceDocument) : null, [reportCentreEvidenceDocument]);
   const reportCentreDocumentPackReport = useMemo(() => reportCentreDocumentDocument ? projectDocumentDocumentToLegacyViewModel(reportCentreDocumentDocument) : null, [reportCentreDocumentDocument]);
   const reportCentreLedgerPackReport = useMemo(() => reportCentreLedgerDocument ? projectLedgerDocumentToLegacyViewModel(reportCentreLedgerDocument) : null, [reportCentreLedgerDocument]);
   const reportCentreActiveDocument = reportCentreType === "management" ? reportCentreManagementDocument
+    : reportCentreType === "client" ? reportCentreClientDocument
     : reportCentreType === "investigation" ? reportCentreInvestigationDocument
     : reportCentreType === "evidence" ? reportCentreEvidenceDocument
     : reportCentreType === "document" ? reportCentreDocumentDocument
@@ -487,6 +494,7 @@ export default function CaseDetail({
             : reportCentreType === "caseAudit" ? reportCentreCaseAuditDocument : null;
   const reportCentreCountLabel = useMemo(() => {
     if (reportCentreType === "management") return `${reportCentreManagementDocument?.summary?.openIssueCount || 0} active Issues`;
+    if (reportCentreType === "client") return reportCentreClientDocument ? `${reportCentreClientDocument.summary?.activeIssueCount || 0} active Issues` : "Draft not validated";
     if (reportCentreType === "investigation") return `${reportCentreInvestigationDocument?.summary?.directRecordCount || 0} investigation records`;
     if (reportCentreType === "evidence") return `${reportCentreEvidenceDocument?.summary?.includedEvidenceCount || 0} evidence records`;
     if (reportCentreType === "document") return `${reportCentreDocumentDocument?.summary?.includedDocumentCount || 0} documents`;
@@ -495,7 +503,7 @@ export default function CaseDetail({
     if (reportCentreType === "chronologyReport") return `${reportCentreChronologyDocument?.summary?.totalChronologyEntries || 0} chronology entries`;
     if (reportCentreType === "caseAudit") return `${reportCentreCaseAuditDocument?.summary?.totalFindings || 0} audit findings`;
     return "";
-  }, [reportCentreCaseAuditDocument, reportCentreChronologyDocument, reportCentreDocumentDocument, reportCentreEvidenceDocument, reportCentreIncidentDocument, reportCentreInvestigationDocument, reportCentreLedgerDocument, reportCentreManagementDocument, reportCentreType]);
+  }, [reportCentreCaseAuditDocument, reportCentreChronologyDocument, reportCentreClientDocument, reportCentreDocumentDocument, reportCentreEvidenceDocument, reportCentreIncidentDocument, reportCentreInvestigationDocument, reportCentreLedgerDocument, reportCentreManagementDocument, reportCentreType]);
   const reportCentreActionPlan = useMemo(() => {
     if (!selectedCase) return null;
     return buildActionPlanReport(selectedCase, reportCentreScope);
@@ -571,6 +579,10 @@ export default function CaseDetail({
       setReportDisplayLanguage(activeGeneratedReportLanguage);
       setGeneratedReportDraft(nextText);
       setRenderedReportText(nextText);
+      if (clientNarrativeCaseIdRef.current !== selectedCase?.id) {
+        clientNarrativeCaseIdRef.current = selectedCase?.id || "";
+        setClientNarrativeMeta({});
+      }
       setReportPromptFeedback("");
     }, 0);
 
@@ -2879,6 +2891,7 @@ ${strategyFocus.join("\n") || "—"}`;
       /ProveIt Report Format v1:/i.test(text)
     );
   }, [generatedReportDraft]);
+  const generatedReportValidation = useMemo(() => validateClientReportNarrative(generatedReportDraft, { sourceRevision: clientNarrativeMeta.sourceRevision, currentSourceRevision: reportCentreModel?.sourceRevision?.fingerprint }), [clientNarrativeMeta.sourceRevision, generatedReportDraft, reportCentreModel?.sourceRevision?.fingerprint]);
   const generatedReportHasVisibleContent = useMemo(() => {
     return Boolean(
       parsedGeneratedReport.reportTitle ||
@@ -3055,7 +3068,14 @@ ${strategyFocus.join("\n") || "—"}`;
             .join("\n")
         : "None";
 
-    return `[REPORT INSTRUCTIONS]
+    return `[REPORT PROVENANCE]
+PROMPT_REVISION: ${CLIENT_REPORT_PROMPT_REVISION}
+SOURCE_REVISION: ${reportCentreModel?.sourceRevision?.fingerprint || "unknown"}
+Use human Issue labels such as ISS-003 — Heating Failure. Never use a bare internal UUID in prose.
+Distinguish recorded facts from explanatory commentary. Cite readable record type and title for material factual statements.
+Do not claim allegations are proven, provide legal conclusions, or invent missing facts. State uncertainty clearly.
+
+[REPORT INSTRUCTIONS]
 ${PROVEIT_REPORT_PROMPT_V1}
 
 [PROVEIT DATA NOTES]
@@ -3127,6 +3147,7 @@ ${milestoneBlock}`;
     selectedCase?.name,
     selectedCase?.status,
     selectedCase?.caseState?.mainProblem,
+    reportCentreModel?.sourceRevision?.fingerprint,
   ]);
   const reportCentreMarkdown = useMemo(() => {
     const document = reportCentreActiveDocument;
@@ -3194,6 +3215,7 @@ Rules:
         document.execCommand("copy");
         document.body.removeChild(textarea);
       }
+      setClientNarrativeMeta({ sourceRevision: reportCentreModel?.sourceRevision?.fingerprint || "", promptRevision: CLIENT_REPORT_PROMPT_REVISION, generatedAt: "", reviewed: false, approved: false });
       setReportPromptFeedback("Prompt copied.");
     } catch (error) {
       console.error("Failed to copy report prompt", error);
@@ -3400,7 +3422,13 @@ ${ungroupedSequenceText}
   const handleRenderGeneratedReport = async () => {
     const lang = activeGeneratedReportLanguage;
     const nextText = safeText(generatedReportDraft);
+    const validation = validateClientReportNarrative(nextText, { sourceRevision: clientNarrativeMeta.sourceRevision, currentSourceRevision: reportCentreModel?.sourceRevision?.fingerprint });
+    if (!validation.valid) {
+      setReportPromptFeedback(validation.errors[0]?.message || "The Client Report draft could not be validated.");
+      return;
+    }
     setRenderedReportText(nextText);
+    setClientNarrativeMeta((current) => ({ ...current, generatedAt: new Date().toISOString(), promptRevision: current.promptRevision || CLIENT_REPORT_PROMPT_REVISION, reviewed: false, approved: false }));
 
     const existingVersions = {
       en: safeText(selectedCase?.generatedReportVersions?.en),
@@ -3420,7 +3448,6 @@ ${ungroupedSequenceText}
         [lang]: nextText,
       },
       activeGeneratedReportLanguage: lang,
-      updatedAt: new Date().toISOString(),
     });
   };
   const handleGeneratedReportLanguageChange = async (language) => {
@@ -5095,6 +5122,9 @@ ${ungroupedSequenceText}
                       )}
                       {reportCentreType === "client" && (
                         <div className="mx-auto max-w-5xl space-y-5">
+                          <ol aria-label="Client Report authoring stages" className="grid gap-2 text-xs font-semibold print:hidden sm:grid-cols-3 lg:grid-cols-6">
+                            {["1. Prepare source", "2. Generate draft", "3. Paste and validate", "4. Review", "5. Preview", "6. Export"].map((stage) => <li key={stage} className="rounded-lg border border-neutral-300 bg-neutral-50 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900">{stage}</li>)}
+                          </ol>
                           <div className="flex flex-col items-start gap-2 print:hidden">
                             <div className="flex flex-wrap justify-start gap-2">
                               <button
@@ -5156,6 +5186,11 @@ ${ungroupedSequenceText}
                                 This looks like the GPT prompt, not the generated report output. Paste the report that GPT returned, starting with `# REPORT_TITLE`.
                               </div>
                             )}
+                            {(generatedReportValidation.errors.length > 0 || generatedReportValidation.warnings.length > 0) && generatedReportDraft.trim() ? (
+                              <div role="alert" className="mt-4 space-y-2 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
+                                {[...generatedReportValidation.errors, ...generatedReportValidation.warnings].map((item) => <p key={`${item.code}:${item.message}`}><strong>{item.severity === "warning" ? "Warning" : "Validation"}:</strong> {item.message}</p>)}
+                              </div>
+                            ) : null}
                             <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                               <p className="text-xs text-neutral-500">
                                 The parser reads only the known ProveIt Report Format v1 sections and ignores everything else.
@@ -5163,6 +5198,7 @@ ${ungroupedSequenceText}
                               <button
                                 type="button"
                                 onClick={handleRenderGeneratedReport}
+                                disabled={!generatedReportValidation.valid}
                                 className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] transition-colors hover:bg-lime-400/30"
                               >
                                 Save & Render {activeGeneratedReportLanguage.toUpperCase()} Report
@@ -5194,20 +5230,12 @@ ${ungroupedSequenceText}
                               </div>
                             </div>
 
-                            {!generatedReportHasVisibleContent ? (
+                            {!reportCentreClientDocument ? (
                               <div className="mt-4 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-                                No report content is rendered yet. Paste a ProveIt Report Format v1 response and use Render Report.
+                                No validated Client Report draft is available. Prepare the source, copy the prompt, paste the generated response, and resolve validation errors before preview or export.
                               </div>
                             ) : (
-                              <GeneratedClientReportArticle
-                                className="mt-4 mx-auto max-w-4xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
-                                displayLanguage={reportDisplayLanguage}
-                                headerLogo={proveItHeaderLogo}
-                                parsedReport={parsedGeneratedReport}
-                                reportCoverSubtitle={reportCoverSubtitle}
-                                reportHeaderMeta={reportHeaderMeta}
-                                selectedCase={selectedCase}
-                              />
+                              <ClientReportArticle reportDocument={reportCentreClientDocument} />
                             )}
                           </section>
                         </div>

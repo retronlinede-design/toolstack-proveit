@@ -6,8 +6,10 @@ import { buildIncidentScheduleDocument } from "./incidentScheduleDocument.js";
 import { buildInvestigationReportDocument } from "./investigationReportDocument.js";
 import { buildLedgerScheduleDocument } from "./ledgerScheduleDocument.js";
 import { buildManagementReportDocument } from "./managementReportDocument.js";
+import { buildClientReportDocument } from "./clientReportDocument.js";
 
 const BUILDERS = {
+  client: buildClientReportDocument,
   management: buildManagementReportDocument,
   investigation: buildInvestigationReportDocument,
   evidence: buildEvidenceScheduleDocument,
@@ -18,10 +20,10 @@ const BUILDERS = {
   caseAudit: buildCaseAuditDocument,
 };
 
-export function buildActiveReportDocument({ reportId, reportModel, definition, generatedAt } = {}) {
+export function buildActiveReportDocument({ reportId, reportModel, definition, generatedAt, options = {} } = {}) {
   const builder = BUILDERS[reportId];
   if (!builder) return { supported: false, reportDocument: null, error: `Report "${reportId || "unknown"}" does not use the shared report-document runtime.` };
-  return { supported: true, reportDocument: builder(reportModel, definition, { generatedAt }), error: "" };
+  return { supported: true, reportDocument: builder(reportModel, definition, { ...options, generatedAt }), error: "" };
 }
 
 export function reportHasDocumentBuilder(reportId) { return Boolean(BUILDERS[reportId]); }

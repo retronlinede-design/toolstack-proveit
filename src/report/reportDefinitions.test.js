@@ -55,6 +55,14 @@ test("Management declares whole-case shared executive outputs without AI prose",
   for (const output of ["preview", "print", "markdown", "json"]) assert.equal(reportSupportsOutput("management", output), true);
 });
 
+test("Client declares whole-case AI-assisted shared outputs", () => {
+  const client = getReportDefinition("client");
+  assert.equal(client.completeness, "summary");
+  assert.equal(client.aiPolicy, "generated-narrative");
+  assert.deepEqual(client.supportedScopes, ["case"]);
+  for (const output of ["preview", "print", "markdown", "json"]) assert.equal(reportSupportsOutput("client", output), true);
+});
+
 test("Document and Ledger packs declare complete shared outputs without AI content", () => {
   for (const id of ["document", "ledger"]) {
     const definition = getReportDefinition(id);

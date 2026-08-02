@@ -30,8 +30,8 @@ export const REPORT_DEFINITIONS = Object.freeze({
     recordTypes: Object.freeze(["ledger", "evidence", "document"]), completeness: "complete", includeArchived: true, aiPolicy: "none", status: ACTIVE,
   }),
   client: Object.freeze({
-    id: "client", label: "Client Report", description: "GPT-assisted client-facing report drafting and rendering.", audience: "client",
-    supportedScopes: Object.freeze(["case"]), supportedOutputs: Object.freeze(["preview", "print"]),
+    id: "client", label: "Client Report", description: "AI-assisted client-facing draft with explicit provenance and human-review safeguards.", audience: "client",
+    supportedScopes: Object.freeze(["case"]), supportedOutputs: Object.freeze(["preview", "print", "markdown", "json"]),
     recordTypes: Object.freeze(["incident", "evidence", "document", "ledger", "strategy", "watch"]),
     completeness: "summary", includeArchived: true, aiPolicy: "generated-narrative", status: ACTIVE,
   }),

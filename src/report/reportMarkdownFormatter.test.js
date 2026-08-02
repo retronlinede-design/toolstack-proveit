@@ -10,6 +10,7 @@ import { buildChronologyReportDocument } from "./chronologyReportDocument.js";
 import { buildCaseAuditDocument } from "./caseAuditDocument.js";
 import { buildInvestigationReportDocument } from "./investigationReportDocument.js";
 import { buildManagementReportDocument } from "./managementReportDocument.js";
+import { buildClientReportDocument } from "./clientReportDocument.js";
 
 function markdownFor(caseData) {
   const model = buildCaseReportModel(caseData, { generatedAt: "2026-07-26T00:00:00.000Z" });
@@ -73,4 +74,11 @@ test("Markdown formatter supports the executive Management document", () => {
   const markdown = formatReportDocumentAsMarkdown(buildManagementReportDocument(model, getReportDefinition("management"), { generatedAt: model.generatedAt }));
   for (const heading of ["# Management Report", "## Document Control", "## Executive Summary", "## Current Position", "## Management Snapshot", "## Major Issues", "## Current Risks", "## Progress Since Previous Review", "## Outstanding Matters", "## Management Decisions Required", "## Next Actions", "## Appendices"]) assert.match(markdown, new RegExp(heading));
   assert.match(markdown, /ISS-001 — Primary Issue/); assert.doesNotMatch(markdown, /issue-1 — Primary Issue|GPT prompt|\[object Object\]/);
+});
+
+test("Markdown formatter preserves Client draft provenance and source distinctions", () => {
+  const model = buildCaseReportModel({ id: "client-md", name: "Client Case", status: "open", issues: [{ id: "hidden-id", reference: "ISS-001", name: "Main Issue", status: "open", priority: "high", currentPosition: "A response is outstanding.", createdAt: "2026-01-01", updatedAt: "2026-08-01" }], incidents: [{ id: "i1", title: "Recorded incident", eventDate: "2026-07-01", sequenceGroupId: "hidden-id", sequenceGroup: "Main Issue" }], evidence: [], documents: [], ledger: [], strategy: [], watchItems: [] }, { generatedAt: "2026-08-02T12:00:00Z", includeDiagnostics: true });
+  const document = buildClientReportDocument(model, getReportDefinition("client"), { generatedAt: model.generatedAt, generatedNarrative: { reportTitle: "Client Report", atAGlance: ["One active Issue"], yourSituation: "A plain-language draft.", currentPosition: "Waiting for a response." }, generatedNarrativeMeta: { sourceRevision: model.sourceRevision.fingerprint, promptRevision: "client-report-prompt-v2" } }); const markdown = formatReportDocumentAsMarkdown(document);
+  for (const heading of ["# Client Report", "## Important Notice", "## Document Control", "## At a Glance", "## Your Current Situation", "## Main Issues", "## What Has Happened", "## Evidence and Documents", "## Current Recorded Position", "## Outstanding Matters", "## Next Steps", "## Limitations", "## Appendices"]) assert.match(markdown, new RegExp(heading));
+  assert.match(markdown, /Document status: Draft/); assert.match(markdown, /AI-assisted commentary/); assert.match(markdown, /ISS-001 — Main Issue/); assert.doesNotMatch(markdown, /REPORT INSTRUCTIONS|hidden-id — Main Issue|\[object Object\]/);
 });

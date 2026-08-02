@@ -32,10 +32,10 @@ test("active Report Centre capability matrix has no declared-to-rendered mismatc
   const result = auditReportCapabilities({
     definitions: REPORT_DEFINITIONS,
     centreConfig: ids.map((value) => ({ value, supportedScopes: REPORT_DEFINITIONS[value].supportedScopes })),
-    runtimeDocuments: { management: {}, investigation: {}, evidence: {}, document: {}, ledger: {}, caseAudit: {}, incidentSchedule: {}, chronologyReport: {}, action: { legacyMarkdown: true } },
+    runtimeDocuments: { client: {}, management: {}, investigation: {}, evidence: {}, document: {}, ledger: {}, caseAudit: {}, incidentSchedule: {}, chronologyReport: {}, action: { legacyMarkdown: true } },
     renderedActions,
     previewRenderers: Object.fromEntries(ids.map((id) => [id, true])),
-    runtimeFormatters: { management: ["markdown", "json"], investigation: ["markdown", "json"], evidence: ["markdown", "json"], document: ["markdown", "json"], ledger: ["markdown", "json"], caseAudit: ["markdown", "json"], incidentSchedule: ["markdown", "json"], chronologyReport: ["markdown", "json"], action: ["markdown"] },
+    runtimeFormatters: { client: ["markdown", "json"], management: ["markdown", "json"], investigation: ["markdown", "json"], evidence: ["markdown", "json"], document: ["markdown", "json"], ledger: ["markdown", "json"], caseAudit: ["markdown", "json"], incidentSchedule: ["markdown", "json"], chronologyReport: ["markdown", "json"], action: ["markdown"] },
   });
   assert.equal(result.valid, true);
   assert.deepEqual(result.warnings, []);
