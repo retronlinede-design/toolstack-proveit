@@ -31,6 +31,6 @@ export function getReportCentrePreviewDescription(reportType, scopeType) {
   if (reportType === "document") return "Uses the complete Document Schedule report document.";
   if (reportType === "ledger") return "Uses the complete Ledger Schedule report document.";
   if (reportType === "client") return "Whole-case AI-assisted Client Report workflow with draft validation, provenance, and human-review warnings.";
-  if (reportType === "action") return "Deterministic action plan assembled from structured case and sequence-group assignments.";
+  if (reportType === "action") return "Internal operational plan separating recorded case actions from deterministic data-quality corrections.";
   return "Whole-case report preview.";
 }

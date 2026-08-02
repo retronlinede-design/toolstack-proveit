@@ -36,8 +36,8 @@ export const REPORT_DEFINITIONS = Object.freeze({
     completeness: "summary", includeArchived: true, aiPolicy: "generated-narrative", status: ACTIVE,
   }),
   action: Object.freeze({
-    id: "action", label: "Action Plan", description: "Outstanding issues, next steps, risks, and recommendations.", audience: "internal",
-    supportedScopes: Object.freeze(["case", "sequenceGroup"]), supportedOutputs: Object.freeze(["preview", "print", "markdown"]),
+    id: "action", label: "Action Plan", description: "Internal operational plan separating recorded case actions from data-quality remediation.", audience: "internal",
+    supportedScopes: Object.freeze(["case", "sequenceGroup"]), supportedOutputs: Object.freeze(["preview", "print", "markdown", "json"]),
     recordTypes: Object.freeze(["incident", "evidence", "document", "strategy", "watch"]), completeness: "summary", includeArchived: false, aiPolicy: "none", status: ACTIVE,
   }),
   caseAudit: Object.freeze({

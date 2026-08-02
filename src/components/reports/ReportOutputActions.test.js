@@ -21,9 +21,9 @@ test("migrated packs render ordered shared outputs and live feedback", () => {
   assert.match(html, /role="status"/); assert.match(html, /aria-live="polite"/);
 });
 
-test("Management shared outputs and unsupported Action outputs use native semantics", () => {
+test("Management and Action shared outputs use native semantics", () => {
   const management = renderToStaticMarkup(React.createElement(ReportOutputActions, { reportType: "management", markdownAvailable: true, documentOutputAvailable: true, disabled: true }));
   assert.match(management, /Copy Markdown|Download Markdown/); assert.match(management, /Download JSON/); assert.match(management, /Print \/ Save PDF/); assert.match(management, /disabled=""/);
-  const action = renderToStaticMarkup(React.createElement(ReportOutputActions, { reportType: "action", markdownAvailable: true }));
-  assert.match(action, /Copy Markdown/); assert.doesNotMatch(action, /Download JSON/);
+  const action = renderToStaticMarkup(React.createElement(ReportOutputActions, { reportType: "action", markdownAvailable: true, documentOutputAvailable: true }));
+  assert.match(action, /Copy Markdown/); assert.match(action, /Download Markdown/); assert.match(action, /Download JSON/); assert.match(action, /Print \/ Save PDF/);
 });

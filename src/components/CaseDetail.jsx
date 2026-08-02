@@ -92,6 +92,7 @@ import CaseAuditReportArticle from "./reports/CaseAuditReportArticle.jsx";
 import InvestigationReportArticle from "./reports/InvestigationReportArticle.jsx";
 import ManagementReportArticle from "./reports/ManagementReportArticle.jsx";
 import ClientReportArticle from "./reports/ClientReportArticle.jsx";
+import ActionPlanReportArticle from "./reports/ActionPlanReportArticle.jsx";
 import ThreadIssueReportArticle from "./reports/ThreadIssueReportArticle";
 import ReportCentreControls, { ReportCentrePreviewSummary } from "./reports/ReportCentreControls";
 import ReportContextHeader from "./reports/ReportContextHeader.jsx";
@@ -480,10 +481,12 @@ export default function CaseDetail({
   const reportCentreManagementDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "management", reportModel: reportCentreModel, definition: getReportDefinition("management") }).reportDocument : null, [reportCentreModel]);
   const reportCentreClientValidation = useMemo(() => validateClientReportNarrative(renderedReportText, { sourceRevision: clientNarrativeMeta.sourceRevision, currentSourceRevision: reportCentreModel?.sourceRevision?.fingerprint }), [clientNarrativeMeta.sourceRevision, renderedReportText, reportCentreModel?.sourceRevision?.fingerprint]);
   const reportCentreClientDocument = useMemo(() => reportCentreModel && renderedReportText.trim() && reportCentreClientValidation.valid ? buildActiveReportDocument({ reportId: "client", reportModel: reportCentreModel, definition: getReportDefinition("client"), options: { generatedNarrative: parseProveItReportV1(renderedReportText), generatedNarrativeMeta: clientNarrativeMeta } }).reportDocument : null, [clientNarrativeMeta, renderedReportText, reportCentreClientValidation.valid, reportCentreModel]);
+  const reportCentreActionDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "action", reportModel: reportCentreModel, definition: getReportDefinition("action"), options: { caseBriefing: selectedCase?.actionSummary || {}, legacyTasks: selectedCase?.tasks || [] } }).reportDocument : null, [reportCentreModel, selectedCase?.actionSummary, selectedCase?.tasks]);
   const reportCentreEvidencePackReport = useMemo(() => reportCentreEvidenceDocument ? projectEvidenceDocumentToLegacyViewModel(reportCentreEvidenceDocument) : null, [reportCentreEvidenceDocument]);
   const reportCentreDocumentPackReport = useMemo(() => reportCentreDocumentDocument ? projectDocumentDocumentToLegacyViewModel(reportCentreDocumentDocument) : null, [reportCentreDocumentDocument]);
   const reportCentreLedgerPackReport = useMemo(() => reportCentreLedgerDocument ? projectLedgerDocumentToLegacyViewModel(reportCentreLedgerDocument) : null, [reportCentreLedgerDocument]);
   const reportCentreActiveDocument = reportCentreType === "management" ? reportCentreManagementDocument
+    : reportCentreType === "action" ? reportCentreActionDocument
     : reportCentreType === "client" ? reportCentreClientDocument
     : reportCentreType === "investigation" ? reportCentreInvestigationDocument
     : reportCentreType === "evidence" ? reportCentreEvidenceDocument
@@ -495,6 +498,7 @@ export default function CaseDetail({
   const reportCentreCountLabel = useMemo(() => {
     if (reportCentreType === "management") return `${reportCentreManagementDocument?.summary?.openIssueCount || 0} active Issues`;
     if (reportCentreType === "client") return reportCentreClientDocument ? `${reportCentreClientDocument.summary?.activeIssueCount || 0} active Issues` : "Draft not validated";
+    if (reportCentreType === "action") return `${reportCentreActionDocument?.summary?.activeActionCount || 0} active actions`;
     if (reportCentreType === "investigation") return `${reportCentreInvestigationDocument?.summary?.directRecordCount || 0} investigation records`;
     if (reportCentreType === "evidence") return `${reportCentreEvidenceDocument?.summary?.includedEvidenceCount || 0} evidence records`;
     if (reportCentreType === "document") return `${reportCentreDocumentDocument?.summary?.includedDocumentCount || 0} documents`;
@@ -503,7 +507,7 @@ export default function CaseDetail({
     if (reportCentreType === "chronologyReport") return `${reportCentreChronologyDocument?.summary?.totalChronologyEntries || 0} chronology entries`;
     if (reportCentreType === "caseAudit") return `${reportCentreCaseAuditDocument?.summary?.totalFindings || 0} audit findings`;
     return "";
-  }, [reportCentreCaseAuditDocument, reportCentreChronologyDocument, reportCentreClientDocument, reportCentreDocumentDocument, reportCentreEvidenceDocument, reportCentreIncidentDocument, reportCentreInvestigationDocument, reportCentreLedgerDocument, reportCentreManagementDocument, reportCentreType]);
+  }, [reportCentreActionDocument, reportCentreCaseAuditDocument, reportCentreChronologyDocument, reportCentreClientDocument, reportCentreDocumentDocument, reportCentreEvidenceDocument, reportCentreIncidentDocument, reportCentreInvestigationDocument, reportCentreLedgerDocument, reportCentreManagementDocument, reportCentreType]);
   const reportCentreActionPlan = useMemo(() => {
     if (!selectedCase) return null;
     return buildActionPlanReport(selectedCase, reportCentreScope);
@@ -3514,104 +3518,6 @@ ${ungroupedSequenceText}
     setReportCentreOutputFeedback(`${getReportDefinition(reportCentreType).label} print dialog opened.`);
     window.print();
   };
-  const renderActionPlanList = (items = [], renderItem = (item) => item, emptyText = "None recorded.") => (
-    items.length === 0 ? (
-      <p className="mt-3 text-sm text-neutral-500">{emptyText}</p>
-    ) : (
-      <ul className="mt-4 space-y-2 text-sm leading-6 text-neutral-700">
-        {items.map((item, index) => (
-          <li key={item?.id || `${renderItem(item)}-${index}`} className="break-inside-avoid rounded-lg border border-neutral-200 bg-white p-3 print:break-inside-avoid">
-            {renderItem(item)}
-          </li>
-        ))}
-      </ul>
-    )
-  );
-  const renderActionPlanReport = (report) => {
-    if (!report) return null;
-    const generatedDate = report.generatedAt ? new Date(report.generatedAt).toLocaleDateString("de-DE") : reportDisplayDate;
-    return (
-      <article className="mx-auto max-w-5xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
-        <header className="border-b border-neutral-200 pb-6 print:pb-5">
-          <div className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">ACTION PLAN</div>
-          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold leading-tight text-neutral-950 print:text-[22pt]">{report.title}</h1>
-              <div className="mt-3 grid gap-1 text-sm text-neutral-600">
-                <div><span className="font-semibold text-neutral-950">Case:</span> {report.caseOverview.name || report.sourceCaseId || "Untitled Case"}</div>
-                <div><span className="font-semibold text-neutral-950">Scope:</span> {report.scopeLabel}</div>
-                <div><span className="font-semibold text-neutral-950">Generated:</span> {generatedDate}</div>
-              </div>
-            </div>
-            <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600 print:bg-white">
-              <div><span className="font-semibold text-neutral-900">Confidentiality:</span> Local-first case report</div>
-              <div><span className="font-semibold text-neutral-900">Open risks:</span> {report.counts.risks}</div>
-            </div>
-          </div>
-          <p className="mt-4 text-xs leading-5 text-neutral-500">
-            This report is generated from the local ProveIt case file. Review before sharing with management, HR, legal reviewers, or third parties.
-          </p>
-        </header>
-
-        {report.isEmptyScope && (
-          <div className="mt-6 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
-            No Action Plan records are assigned to this sequence group.
-          </div>
-        )}
-
-        <section className="border-b border-neutral-200 py-6 print:py-5">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Current Focus</h2>
-          <p className="mt-3 rounded-xl border border-lime-200 bg-lime-50 p-4 text-sm leading-6 text-lime-950">
-            {report.currentFocus || "No current focus recorded."}
-          </p>
-        </section>
-
-        <section className="border-b border-neutral-200 py-6 print:py-5">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Next Actions</h2>
-          {renderActionPlanList(report.nextActions)}
-        </section>
-
-        <section className="grid gap-6 border-b border-neutral-200 py-6 print:py-5 lg:grid-cols-2">
-          <div>
-            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Critical Deadlines</h2>
-            {renderActionPlanList(report.criticalDeadlines)}
-          </div>
-          <div>
-            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Strategy Focus</h2>
-            {renderActionPlanList(report.strategyFocus)}
-          </div>
-        </section>
-
-        <section className="grid gap-6 border-b border-neutral-200 py-6 print:py-5 lg:grid-cols-2">
-          <div>
-            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Open Strategy Records</h2>
-            {renderActionPlanList(report.openStrategyRecords, (item) => item.objective || item.title || item.id)}
-          </div>
-          <div>
-            <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Open Tasks</h2>
-            {renderActionPlanList(report.openTasks, (item) => item.title || item.id)}
-          </div>
-        </section>
-
-        {report.watchItems?.length > 0 && <section className="border-b border-neutral-200 py-6 print:py-5"><h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Matters to Watch</h2><p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">Items in this section are monitored concerns or developing matters. They should not be treated as confirmed incidents or established facts unless separately recorded and supported.</p>{renderActionPlanList(report.watchItems, (item) => <><span className="font-semibold">Monitored concern: {item.title}</span>{item.watchFor ? ` — ${item.watchFor}` : ""}{item.reviewDate ? ` (review ${item.reviewDate})` : ""}</>)}</section>}
-
-        <section className="border-b border-neutral-200 py-6 print:py-5">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Risks And Gaps</h2>
-          {renderActionPlanList(report.risks, (item) => (
-            <>
-              <span className="font-semibold text-neutral-950">{item.label}: </span>
-              {item.text || "Untitled item"}
-            </>
-          ), "No major risks are flagged by diagnostics.")}
-        </section>
-
-        <section className="py-6 print:py-5">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Recommended Fixes</h2>
-          {renderActionPlanList(report.recommendedFixes, (item) => item, "No generated fixes are needed from current diagnostics.")}
-        </section>
-      </article>
-    );
-  };
   const toggleThreadIssueReportSection = (section) => {
     setThreadIssueReportVisibility((current) => ({
       ...current,
@@ -5240,7 +5146,7 @@ ${ungroupedSequenceText}
                           </section>
                         </div>
                       )}
-                      {reportCentreType === "action" && renderActionPlanReport(reportCentreActionPlan)}
+                      {reportCentreType === "action" && <ActionPlanReportArticle reportDocument={reportCentreActionDocument} />}
                     </>
                   )}
                 </section>

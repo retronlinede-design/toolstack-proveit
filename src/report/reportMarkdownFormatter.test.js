@@ -11,6 +11,7 @@ import { buildCaseAuditDocument } from "./caseAuditDocument.js";
 import { buildInvestigationReportDocument } from "./investigationReportDocument.js";
 import { buildManagementReportDocument } from "./managementReportDocument.js";
 import { buildClientReportDocument } from "./clientReportDocument.js";
+import { buildActionPlanDocument } from "./actionPlanDocument.js";
 
 function markdownFor(caseData) {
   const model = buildCaseReportModel(caseData, { generatedAt: "2026-07-26T00:00:00.000Z" });
@@ -81,4 +82,11 @@ test("Markdown formatter preserves Client draft provenance and source distinctio
   const document = buildClientReportDocument(model, getReportDefinition("client"), { generatedAt: model.generatedAt, generatedNarrative: { reportTitle: "Client Report", atAGlance: ["One active Issue"], yourSituation: "A plain-language draft.", currentPosition: "Waiting for a response." }, generatedNarrativeMeta: { sourceRevision: model.sourceRevision.fingerprint, promptRevision: "client-report-prompt-v2" } }); const markdown = formatReportDocumentAsMarkdown(document);
   for (const heading of ["# Client Report", "## Important Notice", "## Document Control", "## At a Glance", "## Your Current Situation", "## Main Issues", "## What Has Happened", "## Evidence and Documents", "## Current Recorded Position", "## Outstanding Matters", "## Next Steps", "## Limitations", "## Appendices"]) assert.match(markdown, new RegExp(heading));
   assert.match(markdown, /Document status: Draft/); assert.match(markdown, /AI-assisted commentary/); assert.match(markdown, /ISS-001 — Main Issue/); assert.doesNotMatch(markdown, /REPORT INSTRUCTIONS|hidden-id — Main Issue|\[object Object\]/);
+});
+
+test("Markdown formatter preserves Action Plan categories, human Issue labels, and provenance", () => {
+  const model = buildCaseReportModel({ id: "action-md", name: "Action Case", issues: [{ id: "internal-issue-id", reference: "ISS-001", name: "Heating", status: "open", priority: "high", reviewDate: "2026-08-01", createdAt: "2026-01-01", updatedAt: "2026-07-01" }], incidents: [], evidence: [], documents: [], ledger: [], strategy: [{ id: "s1", title: "Request response", status: "active", sequenceGroupId: "internal-issue-id", sequenceGroup: "Heating", nextSteps: ["Send written reminder"], reviewDate: "2026-08-01" }], watchItems: [] }, { generatedAt: "2026-08-02T12:00:00Z", includeDiagnostics: true });
+  const markdown = formatReportDocumentAsMarkdown(buildActionPlanDocument(model, getReportDefinition("action"), { now: model.generatedAt, generatedAt: model.generatedAt }));
+  for (const heading of ["# Action Plan", "## Document Control", "## Current Focus", "## Action Summary", "## Immediate Attention", "## Upcoming Actions", "## Decisions Required", "## Monitoring and Review", "## Strategy Work", "## Data-Quality Remediation", "## Completed and Deferred Work", "## Risks and Dependencies", "## Action Register", "## Appendices"]) assert.match(markdown, new RegExp(heading));
+  assert.match(markdown, /ISS-001/); assert.match(markdown, /Source revision: fnv1a-/); assert.doesNotMatch(markdown, /\[object Object\]|base64|data:|internal-issue-id/);
 });

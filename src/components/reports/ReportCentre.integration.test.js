@@ -78,7 +78,7 @@ test("changing report type changes the rendered preview description", () => {
 
   assert.match(evidence, /complete Evidence Schedule report document/);
   assert.doesNotMatch(evidence, /structured case and sequence-group assignments/);
-  assert.match(action, /structured case and sequence-group assignments/);
+  assert.match(action, /separating recorded case actions from deterministic data-quality corrections/);
   assert.match(action, /Scope: sequenceGroup: Alpha/);
 });
 
@@ -123,13 +123,12 @@ test("Copy Markdown is available only for reports with real Markdown output", ()
 });
 
 test("migrated factual reports expose shared Markdown and JSON actions only when a document exists", () => {
-  for (const reportType of ["client", "management", "evidence", "document", "ledger", "caseAudit", "incidentSchedule", "chronologyReport"]) {
+  for (const reportType of ["client", "management", "evidence", "document", "ledger", "caseAudit", "incidentSchedule", "chronologyReport", "action"]) {
     const html = renderControls({ reportType, markdownAvailable: true, documentOutputAvailable: true });
     assert.match(html, /Copy Markdown/);
     assert.match(html, /Download Markdown/);
     assert.match(html, /Download JSON/);
   }
-  assert.doesNotMatch(renderControls({ reportType: "action", markdownAvailable: true }), /Download JSON/);
 });
 
 test("Incident Schedule and Chronology Report expose complete scoped previews", () => {
