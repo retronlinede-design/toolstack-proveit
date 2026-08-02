@@ -30,7 +30,7 @@ export default function ActionSummaryPanel({
   ];
 
   return (
-    <section className="case-briefing mb-6 w-full rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5 print:hidden" aria-labelledby="case-briefing-title">
+    <section id="case-action-summary" className="case-briefing mb-6 w-full scroll-mt-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-950 sm:p-5 print:hidden" aria-labelledby="case-briefing-title">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 id="case-briefing-title" className="text-lg font-semibold text-neutral-900">Case Briefing</h3>

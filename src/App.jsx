@@ -4531,6 +4531,7 @@ const handleRecordFiles = async (event) => {
         ) : selectedCase ? (
           <CaseDetail
             selectedCase={selectedCase}
+            caseFolderName={getCaseFolderName(selectedCase)}
             reviewQueue={reviewQueue}
             activeTab={activeTab}
             setActiveTab={setActiveTab}

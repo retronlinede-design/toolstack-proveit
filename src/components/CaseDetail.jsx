@@ -107,6 +107,8 @@ import {
 } from "./caseDetail/actionSummaryHelpers";
 import ActionSummaryModal from "./caseDetail/ActionSummaryModal";
 import ActionSummaryPanel from "./caseDetail/ActionSummaryPanel";
+import CaseBriefingDashboard from "./caseBriefing/CaseBriefingDashboard.jsx";
+import { buildCaseBriefingModel } from "../caseBriefing/buildCaseBriefingModel.js";
 import ActiveLedgerRecordModal from "./caseDetail/ActiveLedgerRecordModal";
 import DocumentsTab from "./caseDetail/DocumentsTab";
 import FloatingWorkspaceMenu from "./caseDetail/FloatingWorkspaceMenu";
@@ -206,6 +208,7 @@ function getGeneratedReportTextForLanguage(caseItem, language) {
 
 export default function CaseDetail({
   selectedCase,
+  caseFolderName = "Inbox",
   activeTab,
   setActiveTab,
   tabs,
@@ -656,7 +659,7 @@ export default function CaseDetail({
     setActionSummaryEditOpen(false);
   }
 
-  function openSequenceGroupManager() {
+  function openSequenceGroupManager(preferredGroup = "") {
     setSequenceRenameInputs({});
     setSequenceMoveInputs({});
     setSequenceNewGroupInputs({});
@@ -666,7 +669,7 @@ export default function CaseDetail({
     setHighlightedSequenceRecordKey("");
     setSequenceRelationshipFilter("all");
     setSequenceGroupSearch("");
-    setSelectedSequenceGroupName(sequenceGroups[0]?.name || "");
+    setSelectedSequenceGroupName(sequenceGroups.some((group) => group.name === preferredGroup) ? preferredGroup : sequenceGroups[0]?.name || preferredGroup || "");
     setSequenceGroupFeedback("");
     setSequenceGroupManagerOpen(true);
   }
@@ -1553,6 +1556,14 @@ export default function CaseDetail({
   const activeNextActions = storedNextActions.filter((action) => !action.completed);
   const completedNextActions = storedNextActions.filter((action) => action.completed);
   const nextActions = activeNextActions.map(getActionText);
+  const sequenceGroupMeta = getSequenceGroupMetaForCase(selectedCase?.id, readSequenceGroupMetaStore());
+  const caseBriefingModel = useMemo(() => buildCaseBriefingModel({
+    caseData: selectedCase,
+    sequenceGroupMeta,
+    diagnostics: health,
+    now: new Date().toISOString(),
+    folderName: caseFolderName,
+  }), [selectedCase, sequenceGroupMeta, health, caseFolderName]);
 
   const copyActionSummaryToClipboard = () => {
     const text = `Focus: ${currentFocus || "—"}
@@ -1938,6 +1949,25 @@ ${strategyFocus.join("\n") || "—"}`;
     window.requestAnimationFrame(() => {
       document.getElementById("evidence-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
+  };
+
+  const openBriefingItem = (item) => {
+    if (!item) return;
+    if (item.action === "issue-manager") {
+      openSequenceGroupManager(item.issue || "");
+      return;
+    }
+    if (item.recordType === "watchItems") {
+      setActiveTab("watch");
+      return;
+    }
+    if (item.record) {
+      handleOpenIssue({ ...item, type: item.recordType, tab: item.tab || item.recordType });
+      return;
+    }
+    if (item.tab) setActiveTab(item.tab);
+    else if (item.recordType && item.recordType !== "overview" && item.recordType !== "case") setActiveTab(item.recordType);
+    else document.getElementById("case-action-summary")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
   const applyEvidenceFilter = (filter) => {
     setEvidenceFilter(filter);
@@ -3902,6 +3932,19 @@ ${ungroupedSequenceText}
           <div className="w-full min-w-0 rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-700 dark:bg-neutral-950 sm:p-5">
             {/* Tab content logic... */}
             {activeTab === "overview" && (
+              <CaseBriefingDashboard
+                model={caseBriefingModel}
+                onOpenIssue={openSequenceGroupManager}
+                onOpenItem={openBriefingItem}
+                onOpenTab={setActiveTab}
+                onAddIncident={() => openRecordModal("incidents")}
+                onAddEvidence={() => openRecordModal("evidence")}
+                onAddDocument={() => openDocumentModal()}
+                onOpenFullBriefing={() => document.getElementById("case-action-summary")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              />
+            )}
+
+            {activeTab === "overview-placeholder-disabled" && (
               <div className="space-y-6">
                 <section className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
