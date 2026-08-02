@@ -88,6 +88,7 @@ import LedgerPackReportArticle from "./reports/LedgerPackReportArticle";
 import IncidentScheduleReportArticle from "./reports/IncidentScheduleReportArticle.jsx";
 import ChronologyReportArticle from "./reports/ChronologyReportArticle.jsx";
 import CaseAuditReportArticle from "./reports/CaseAuditReportArticle.jsx";
+import InvestigationReportArticle from "./reports/InvestigationReportArticle.jsx";
 import ThreadIssueReportArticle from "./reports/ThreadIssueReportArticle";
 import ReportCentreControls, { ReportCentrePreviewSummary } from "./reports/ReportCentreControls";
 import ReportContextHeader from "./reports/ReportContextHeader.jsx";
@@ -452,9 +453,13 @@ export default function CaseDetail({
   }), [normalisedReportCentreScopeType, selectedReportCentreSequenceGroup]);
   const reportCentreModel = useMemo(() => {
     if (!selectedCase) return null;
+    const selectedIssue = reportCentreScope.scopeType === "sequenceGroup"
+      ? (selectedCase.issues || []).find((issue) => String(issue?.name || "").trim().toLocaleLowerCase() === reportCentreScope.sequenceGroup.trim().toLocaleLowerCase())
+      : null;
     return buildCaseReportModel(selectedCase, {
       scope: reportCentreScope.scopeType,
       sequenceGroupName: reportCentreScope.sequenceGroup,
+      issueId: selectedIssue?.id || "",
       includeArchived: true,
       includeDiagnostics: true,
       sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
@@ -466,16 +471,19 @@ export default function CaseDetail({
   const reportCentreIncidentDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "incidentSchedule", reportModel: reportCentreModel, definition: getReportDefinition("incidentSchedule") }).reportDocument : null, [reportCentreModel]);
   const reportCentreChronologyDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "chronologyReport", reportModel: reportCentreModel, definition: getReportDefinition("chronologyReport") }).reportDocument : null, [reportCentreModel]);
   const reportCentreCaseAuditDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "caseAudit", reportModel: reportCentreModel, definition: getReportDefinition("caseAudit") }).reportDocument : null, [reportCentreModel]);
+  const reportCentreInvestigationDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "investigation", reportModel: reportCentreModel, definition: getReportDefinition("investigation") }).reportDocument : null, [reportCentreModel]);
   const reportCentreEvidencePackReport = useMemo(() => reportCentreEvidenceDocument ? projectEvidenceDocumentToLegacyViewModel(reportCentreEvidenceDocument) : null, [reportCentreEvidenceDocument]);
   const reportCentreDocumentPackReport = useMemo(() => reportCentreDocumentDocument ? projectDocumentDocumentToLegacyViewModel(reportCentreDocumentDocument) : null, [reportCentreDocumentDocument]);
   const reportCentreLedgerPackReport = useMemo(() => reportCentreLedgerDocument ? projectLedgerDocumentToLegacyViewModel(reportCentreLedgerDocument) : null, [reportCentreLedgerDocument]);
-  const reportCentreActiveDocument = reportCentreType === "evidence" ? reportCentreEvidenceDocument
+  const reportCentreActiveDocument = reportCentreType === "investigation" ? reportCentreInvestigationDocument
+    : reportCentreType === "evidence" ? reportCentreEvidenceDocument
     : reportCentreType === "document" ? reportCentreDocumentDocument
       : reportCentreType === "ledger" ? reportCentreLedgerDocument
         : reportCentreType === "incidentSchedule" ? reportCentreIncidentDocument
           : reportCentreType === "chronologyReport" ? reportCentreChronologyDocument
             : reportCentreType === "caseAudit" ? reportCentreCaseAuditDocument : null;
   const reportCentreCountLabel = useMemo(() => {
+    if (reportCentreType === "investigation") return `${reportCentreInvestigationDocument?.summary?.directRecordCount || 0} investigation records`;
     if (reportCentreType === "evidence") return `${reportCentreEvidenceDocument?.summary?.includedEvidenceCount || 0} evidence records`;
     if (reportCentreType === "document") return `${reportCentreDocumentDocument?.summary?.includedDocumentCount || 0} documents`;
     if (reportCentreType === "ledger") return `${reportCentreLedgerDocument?.summary?.includedLedgerCount || 0} ledger entries`;
@@ -483,23 +491,7 @@ export default function CaseDetail({
     if (reportCentreType === "chronologyReport") return `${reportCentreChronologyDocument?.summary?.totalChronologyEntries || 0} chronology entries`;
     if (reportCentreType === "caseAudit") return `${reportCentreCaseAuditDocument?.summary?.totalFindings || 0} audit findings`;
     return "";
-  }, [reportCentreCaseAuditDocument, reportCentreChronologyDocument, reportCentreDocumentDocument, reportCentreEvidenceDocument, reportCentreIncidentDocument, reportCentreLedgerDocument, reportCentreType]);
-  const reportCentreInvestigationReport = useMemo(() => {
-    if (!selectedCase) return null;
-    if (reportCentreScope.scopeType === "sequenceGroup") {
-      return buildThreadIssueReport(selectedCase, reportCentreScope.sequenceGroup);
-    }
-    return buildCaseBundleReport(selectedCase, { scopeType: "case" }, {
-      sections: {
-        threadIssue: false,
-        evidencePack: true,
-        documentPack: true,
-        ledgerPack: true,
-        strategyActions: true,
-        diagnosticsSummary: true,
-      },
-    });
-  }, [selectedCase, reportCentreScope]);
+  }, [reportCentreCaseAuditDocument, reportCentreChronologyDocument, reportCentreDocumentDocument, reportCentreEvidenceDocument, reportCentreIncidentDocument, reportCentreInvestigationDocument, reportCentreLedgerDocument, reportCentreType]);
   const reportCentreActionPlan = useMemo(() => {
     if (!selectedCase) return null;
     return buildActionPlanReport(selectedCase, reportCentreScope);
@@ -5056,7 +5048,7 @@ ${ungroupedSequenceText}
                     scopeLabel={reportCentreScopeLabel}
                   />
 
-                  {normalisedReportCentreScopeType === "sequenceGroup" && reportCentreActiveDocument && reportCentreType !== "caseAudit" && reportCentreCountLabel.startsWith("0 ") ? (
+                  {normalisedReportCentreScopeType === "sequenceGroup" && reportCentreActiveDocument && !["caseAudit", "investigation"].includes(reportCentreType) && reportCentreCountLabel.startsWith("0 ") ? (
                     <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm leading-6 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
                       <p className="font-semibold text-neutral-900 dark:text-neutral-100">No matching records appear in this {getReportDefinition(reportCentreType).label}.</p>
                       <p className="mt-1">The Issue exists, but contains no {reportCentreType === "incidentSchedule" ? "directly assigned incidents" : reportCentreType === "chronologyReport" ? "directly assigned records for its chronology" : `directly assigned or permitted linked ${reportCentreType === "evidence" ? "evidence records" : reportCentreType === "document" ? "documents" : "ledger entries"}`}. Check the Issue assignment and selected scope.</p>
@@ -5084,24 +5076,7 @@ ${ungroupedSequenceText}
                           className="mx-auto max-w-5xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
                         />
                       )}
-                      {reportCentreType === "investigation" && normalisedReportCentreScopeType === "sequenceGroup" && (
-                        <ThreadIssueReportArticle
-                          report={reportCentreInvestigationReport}
-                          visibility={threadIssueReportVisibility}
-                          className="mx-auto max-w-5xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
-                        />
-                      )}
-                      {reportCentreType === "investigation" && normalisedReportCentreScopeType === "case" && (
-                        <div className="space-y-3">
-                          <div className="mx-auto max-w-6xl rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
-                            <span className="font-semibold">Bounded investigation overview.</span> This preview does not include a complete incident schedule and displays at most 12 evidence records and 12 documents. Use the dedicated packs for fuller schedules.
-                          </div>
-                          <CaseBundleReportArticle
-                            report={reportCentreInvestigationReport}
-                            className="mx-auto max-w-6xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
-                          />
-                        </div>
-                      )}
+                      {reportCentreType === "investigation" && <InvestigationReportArticle reportDocument={reportCentreInvestigationDocument} />}
                       {reportCentreType === "evidence" && (
                         <EvidencePackReportArticle
                           report={reportCentreEvidencePackReport}

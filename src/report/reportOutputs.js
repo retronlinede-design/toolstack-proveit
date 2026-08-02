@@ -10,7 +10,7 @@ export function getReportOutputFilename(document, format) {
   const extension = format === "markdown" ? "md" : format === "json" ? "json" : "txt";
   const caseName = sanitiseReportFilenamePart(document?.source?.caseName || document?.source?.caseId, "untitled-case");
   const reportId = sanitiseReportFilenamePart(document?.report?.id, "report");
-  const scope = document?.source?.scope?.type === "sequenceGroup" ? `-${sanitiseReportFilenamePart(document.source.scope.sequenceGroupName, "sequence-group")}` : "";
+  const scope = document?.source?.scope?.type === "sequenceGroup" ? `-${sanitiseReportFilenamePart(document.source.scope.issueReference || document.source.scope.sequenceGroupName, "issue")}` : "";
   const date = String(document?.report?.generatedAt || "").slice(0, 10) || "undated";
   return `proveit-${caseName}-${reportId}${scope}-${date}.${extension}`;
 }

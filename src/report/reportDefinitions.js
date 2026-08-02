@@ -9,10 +9,10 @@ export const REPORT_DEFINITIONS = Object.freeze({
     completeness: "summary", includeArchived: true, aiPolicy: "optional-narrative-polish", status: ACTIVE,
   }),
   investigation: Object.freeze({
-    id: "investigation", label: "Investigation Report", description: "A focused thread report or bounded whole-case investigation overview.", audience: "investigation",
-    supportedScopes: Object.freeze(["case", "sequenceGroup"]), supportedOutputs: Object.freeze(["preview", "print"]),
+    id: "investigation", label: "Investigation Report", description: "Explain the investigation and its current position.", audience: "investigation",
+    supportedScopes: Object.freeze(["case", "sequenceGroup"]), supportedOutputs: Object.freeze(["preview", "print", "markdown", "json"]),
     recordTypes: Object.freeze(["incident", "evidence", "document", "ledger", "strategy", "watch"]),
-    completeness: "bounded", includeArchived: true, aiPolicy: "none", status: ACTIVE,
+    completeness: "complete", includeArchived: true, aiPolicy: "none", status: ACTIVE,
   }),
   evidence: Object.freeze({
     id: "evidence", label: "Evidence Pack", description: "Evidence matrix and supporting material.", audience: "investigation",

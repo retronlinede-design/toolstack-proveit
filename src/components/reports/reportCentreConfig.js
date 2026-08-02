@@ -21,8 +21,8 @@ export function getReportCentrePreviewDescription(reportType, scopeType) {
   if (reportType === "management") return "Whole-case management summary focused on findings, risks, awareness items, outstanding issues, and actions. Its key timeline is currently limited to five entries.";
   if (reportType === "investigation") {
     return scope === "sequenceGroup"
-      ? "Focused Thread / Issue Report for the selected sequence group."
-      : "Bounded investigation overview. It does not include a complete incident schedule and previews at most 12 evidence records and 12 documents.";
+      ? "Complete professional investigation document for the selected Issue's declared structured scope."
+      : "Complete professional investigation document for the whole-case structured scope.";
   }
   if (reportType === "caseAudit") return "Internal deterministic audit of structured data quality, relationships, metadata, and coverage. It does not assess legal merit.";
   if (reportType === "incidentSchedule") return "Complete incident schedule with structured evidence associations, linked context, and deterministic quality findings.";

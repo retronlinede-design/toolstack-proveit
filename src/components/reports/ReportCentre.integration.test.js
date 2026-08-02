@@ -150,13 +150,12 @@ test("Case Audit Report is ordered before schedules and exposes the complete sha
   assert.match(caseDetailSource, /<CaseAuditReportArticle/); assert.match(caseDetailSource, /reportCentreCaseAuditDocument/); assert.match(caseDetailSource, /This Issue contains no directly assigned records to audit/);
 });
 
-test("bounded whole-case investigation output is explicit", () => {
+test("complete Investigation document scope is explicit", () => {
   const wholeCase = renderPreview("investigation", "case", "Whole case");
   const group = renderPreview("investigation", "sequenceGroup", "sequenceGroup: Alpha");
-  assert.match(wholeCase, /Bounded investigation overview/);
-  assert.match(wholeCase, /complete incident schedule/);
-  assert.match(wholeCase, /12 evidence records and 12 documents/);
-  assert.match(group, /Focused Thread \/ Issue Report/);
+  assert.match(wholeCase, /Complete professional investigation document/);
+  assert.doesNotMatch(wholeCase, /12 evidence records|bounded/i);
+  assert.match(group, /selected Issue/);
 });
 
 test("optional control values do not prevent the Report Centre from rendering", () => {
@@ -168,6 +167,8 @@ test("the active CaseDetail Report Centre uses the rendered control boundary", (
   assert.match(caseDetailSource, /<ReportContextHeader/);
   assert.match(caseDetailSource, /<ReportCentrePreviewSummary/);
   assert.match(caseDetailSource, /reportDocument={reportCentreActiveDocument}/);
+  assert.match(caseDetailSource, /<InvestigationReportArticle reportDocument={reportCentreInvestigationDocument}/);
+  assert.doesNotMatch(caseDetailSource, /reportCentreType === "investigation"[\s\S]{0,200}<CaseBundleReportArticle/);
 });
 
 test("the active Evidence Pack follows model document and unchanged renderer path", () => {

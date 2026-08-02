@@ -29,7 +29,11 @@ test("shared report documents have a stable versioned serialisable structure", (
 });
 
 test("bounded definitions automatically create an explicit completeness notice", () => {
-  const document = createReportDocument({ definition: getReportDefinition("investigation"), model, generatedAt: model.generatedAt });
+  const document = createReportDocument({
+    definition: { ...getReportDefinition("investigation"), completeness: "bounded" },
+    model,
+    generatedAt: model.generatedAt,
+  });
   assert.equal(document.notices[0].code, "BOUNDED_REPORT");
   assert.match(document.notices[0].message, /bounded overview/);
 });

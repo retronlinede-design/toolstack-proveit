@@ -56,8 +56,8 @@ test("Document and Ledger packs declare complete shared outputs without AI conte
   }
 });
 
-test("Investigation remains bounded while deterministic schedules and Case Audit are active", () => {
-  assert.equal(getReportDefinition("investigation").completeness, "bounded");
+test("Investigation and deterministic schedules use complete shared documents", () => {
+  const investigation = getReportDefinition("investigation"); assert.equal(investigation.completeness, "complete"); assert.equal(investigation.aiPolicy, "none"); for (const output of ["preview", "print", "markdown", "json"]) assert.equal(reportSupportsOutput("investigation", output), true);
   for (const id of ["incidentSchedule", "chronologyReport"]) { const definition = getReportDefinition(id); assert.equal(definition.status, "active"); assert.equal(definition.completeness, "complete"); assert.equal(definition.aiPolicy, "none"); for (const output of ["preview", "print", "markdown", "json"]) assert.equal(reportSupportsOutput(id, output), true); }
   const audit = getReportDefinition("caseAudit"); assert.equal(audit.status, "active"); assert.equal(audit.completeness, "complete"); assert.equal(audit.audience, "internal"); assert.equal(audit.aiPolicy, "none");
 });

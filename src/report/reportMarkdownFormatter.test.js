@@ -8,6 +8,7 @@ import { buildCaseReportModel } from "./reportModel.js";
 import { buildIncidentScheduleDocument } from "./incidentScheduleDocument.js";
 import { buildChronologyReportDocument } from "./chronologyReportDocument.js";
 import { buildCaseAuditDocument } from "./caseAuditDocument.js";
+import { buildInvestigationReportDocument } from "./investigationReportDocument.js";
 
 function markdownFor(caseData) {
   const model = buildCaseReportModel(caseData, { generatedAt: "2026-07-26T00:00:00.000Z" });
@@ -57,4 +58,11 @@ test("Markdown formatter supports Case Audit categories findings and notices", (
   const markdown = formatReportDocumentAsMarkdown(buildCaseAuditDocument(model, getReportDefinition("caseAudit"), { generatedAt: model.generatedAt }));
   for (const heading of ["# Case Audit Report", "## Audit Status", "## Summary", "## Critical Findings", "## Warnings", "## Informational Findings", "## Findings by Category", "### Record Completeness", "### Date Quality", "### Link Integrity", "### Party Integrity", "### Attachment and Proof Metadata", "### Sequence Group Coverage", "### Ledger Integrity", "### Strategy Completeness", "### Archive Visibility", "### Case-level Metadata", "## Unresolved References", "## Notices", "## Source Revision"]) assert.match(markdown, new RegExp(heading));
   assert.match(markdown, /RECORD_MALFORMED_PRIMARY_DATE/); assert.match(markdown, /i1/); assert.match(markdown, /Case \\| Audit/); assert.doesNotMatch(markdown, /base64|data:application|\[object Object\]/);
+});
+
+test("Markdown formatter supports the complete Investigation document and appendices", () => {
+  const model = buildCaseReportModel({ id: "case", name: "Investigation", status: "open", incidents: [{ id: "i1", title: "Incident", eventDate: "2026-01-01", linkedEvidenceIds: ["e1"] }], evidence: [{ id: "e1", title: "Evidence", date: "2026-01-01", linkedIncidentIds: ["i1"], functionSummary: "Records the event", attachments: [{ name: "file.jpg", dataUrl: "data:image/jpeg;base64,secret" }] }] }, { generatedAt: "2026-08-02T00:00:00Z" });
+  const markdown = formatReportDocumentAsMarkdown(buildInvestigationReportDocument(model, getReportDefinition("investigation"), { generatedAt: model.generatedAt }));
+  for (const heading of ["# Investigation Report", "## Document Control", "## Executive Summary", "## Current Position", "## Investigation Snapshot", "## Key Findings", "## Narrative Chronology", "## Evidence Overview", "## Supporting Documents", "## People Involved", "## Outstanding Matters", "## Next Actions", "## Appendices", "### Appendix A", "### Appendix B", "### Appendix C"]) assert.match(markdown, new RegExp(heading));
+  assert.match(markdown, /Incident \(i1\)/); assert.match(markdown, /Evidence \(e1\)/); assert.match(markdown, /AI assistance: None/); assert.doesNotMatch(markdown, /base64|data:image|\[object Object\]|GPT prompt/);
 });

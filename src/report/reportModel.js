@@ -180,6 +180,8 @@ function buildGroups(caseData, records, sequenceGroupMeta, includeDiagnostics) {
         ownerPartyId: definition.issue?.ownerPartyId || null,
         reviewDate: definition.issue?.reviewDate || null,
         currentPosition: text(definition.issue?.currentPosition),
+        createdAt: text(definition.issue?.createdAt),
+        updatedAt: text(definition.issue?.updatedAt),
         order,
         registered: definition.registered,
         inferred: definition.inferred,
@@ -257,6 +259,7 @@ export function buildCaseReportModel(caseData, options = {}) {
     sourceCase,
     records: revisionRecords,
     parties,
+    issues: stableValue(source.issues || []),
     sequenceGroupMeta: stableValue(sequenceGroupMeta),
   };
 
