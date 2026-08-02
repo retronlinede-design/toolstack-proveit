@@ -1,0 +1,42 @@
+@page {
+  size: auto;
+  margin: 18mm 16mm 18mm;
+}
+
+@media print {
+  .proveit-report-document {
+    color: #111;
+    background: #fff;
+    font-size: 10.5pt;
+    line-height: 1.5;
+    print-color-adjust: economy;
+    -webkit-print-color-adjust: economy;
+  }
+
+  .proveit-report-document a {
+    color: #111;
+    text-decoration: underline;
+    overflow-wrap: anywhere;
+  }
+
+  .proveit-report-document thead {
+    display: table-header-group;
+  }
+
+  .proveit-report-document tr,
+  .proveit-report-document aside,
+  .proveit-report-document dl > div {
+    break-inside: avoid;
+  }
+
+  .proveit-report-document .proveit-report-wide-table {
+    font-size: 9pt;
+  }
+}
+
+/* Future reports can opt into this utility after explicit landscape print testing. */
+.proveit-report-landscape-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
