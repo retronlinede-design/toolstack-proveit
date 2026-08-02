@@ -111,6 +111,7 @@ import {
 import ActionSummaryModal from "./caseDetail/ActionSummaryModal";
 import ActionSummaryPanel from "./caseDetail/ActionSummaryPanel";
 import CaseBriefingDashboard from "./caseBriefing/CaseBriefingDashboard.jsx";
+import { getOverviewRecordLaunch } from "./caseBriefing/overviewRecordLaunch.js";
 import { buildCaseBriefingModel } from "../caseBriefing/buildCaseBriefingModel.js";
 import { createCaseIssue, deleteCaseIssue, mergeCaseIssues, normalizeCaseIssues, resolveCaseIssue, updateCaseIssue } from "../domain/issueDomain.js";
 import ActiveLedgerRecordModal from "./caseDetail/ActiveLedgerRecordModal";
@@ -120,7 +121,7 @@ import LedgerTab from "./caseDetail/LedgerTab";
 import PartiesTab from "./caseDetail/PartiesTab";
 import RecordsTab from "./caseDetail/RecordsTab";
 import StrategyWorkspace from "./caseDetail/StrategyWorkspace";
-import WatchWorkspace from "./caseDetail/WatchWorkspace";
+import WatchWorkspace, { WatchEditor } from "./caseDetail/WatchWorkspace";
 import { AI_TASK_GUIDANCE, AI_TOOL_OPTIONS, AI_WORKSPACE_SECTIONS } from "./caseDetail/aiToolsConfig.js";
 import { sortChronological } from "./caseDetail/ledgerViewHelpers";
 import {
@@ -252,6 +253,7 @@ export default function CaseDetail({
   supabaseReasoningExportMessage = "",
 }) {
   const [expandedGroups, setExpandedGroups] = useState({});
+  const [overviewWatchItem, setOverviewWatchItem] = useState(undefined);
   const [ideas, setIdeas] = useState([]);
   const [workspaceActionMenuOpen, setWorkspaceActionMenuOpen] = useState(false);
   const [aiToolsOpen, setAiToolsOpen] = useState(false);
@@ -1976,17 +1978,38 @@ ${strategyFocus.join("\n") || "—"}`;
       openSequenceGroupManager(item.issue || "");
       return;
     }
-    if (item.recordType === "watchItems") {
-      setActiveTab("watch");
+    const launch = getOverviewRecordLaunch(item);
+    if (launch?.kind === "watch") {
+      setOverviewWatchItem(launch.record);
       return;
     }
-    if (item.record) {
-      handleOpenIssue({ ...item, type: item.recordType, tab: item.tab || item.recordType });
+    if (launch?.kind === "document") {
+      openDocumentModal(launch.record, launch.record.id, isTrackingRecord(launch.record) ? "record" : "document");
+      return;
+    }
+    if (launch?.kind === "ledger") {
+      openLedgerModal(launch.record, launch.record.id);
+      return;
+    }
+    if (launch?.kind === "record") {
+      handleOpenIssue({ ...item, type: item.recordType, tab: undefined });
       return;
     }
     if (item.tab) setActiveTab(item.tab);
     else if (item.recordType && item.recordType !== "overview" && item.recordType !== "case") setActiveTab(item.recordType);
     else document.getElementById("case-action-summary")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  const saveOverviewWatchItem = (savedItem) => {
+    const currentItems = selectedCase?.watchItems || [];
+    const exists = currentItems.some((item) => item.id === savedItem.id);
+    onUpdateCase({
+      ...selectedCase,
+      watchItems: exists
+        ? currentItems.map((item) => item.id === savedItem.id ? savedItem : item)
+        : [savedItem, ...currentItems],
+      updatedAt: new Date().toISOString(),
+    });
+    setOverviewWatchItem(undefined);
   };
   const applyEvidenceFilter = (filter) => {
     setEvidenceFilter(filter);
@@ -3868,16 +3891,26 @@ ${ungroupedSequenceText}
           <div className="w-full min-w-0 rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-700 dark:bg-neutral-950 sm:p-5">
             {/* Tab content logic... */}
             {activeTab === "overview" && (
-              <CaseBriefingDashboard
-                model={caseBriefingModel}
-                onOpenIssue={openSequenceGroupManager}
-                onOpenItem={openBriefingItem}
-                onOpenTab={setActiveTab}
-                onAddIncident={() => openRecordModal("incidents")}
-                onAddEvidence={() => openRecordModal("evidence")}
-                onAddDocument={() => openDocumentModal()}
-                onOpenFullBriefing={() => document.getElementById("case-action-summary")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-              />
+              <>
+                <CaseBriefingDashboard
+                  model={caseBriefingModel}
+                  onOpenIssue={openSequenceGroupManager}
+                  onOpenItem={openBriefingItem}
+                  onOpenTab={setActiveTab}
+                  onAddIncident={() => openRecordModal("incidents")}
+                  onAddEvidence={() => openRecordModal("evidence")}
+                  onAddDocument={() => openDocumentModal()}
+                  onOpenFullBriefing={() => document.getElementById("case-action-summary")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                />
+                {overviewWatchItem !== undefined && (
+                  <WatchEditor
+                    item={overviewWatchItem}
+                    caseItem={selectedCase}
+                    onClose={() => setOverviewWatchItem(undefined)}
+                    onSave={saveOverviewWatchItem}
+                  />
+                )}
+              </>
             )}
 
             {activeTab === "overview-placeholder-disabled" && (

@@ -9,7 +9,7 @@ const titleCase = (value) => value.replaceAll("_", " ").replace(/\b\w/g, (c) => 
 const emptyFilters = { search: "", status: "all", category: "all", priority: "all", reviewState: "all", sort: "newest" };
 const textFields = [["watchFor","What to Watch For"],["rationale","Why It Matters"],["latestObservation","Latest Observation"],["nextCheck","Next Check"],["outcome","Outcome"]];
 
-function WatchEditor({ item, caseItem, onClose, onSave }) {
+export function WatchEditor({ item, caseItem, onClose, onSave }) {
   const [form, setForm] = useState(() => prepareWatchItemForm(item));
   const records = ["incidents", "evidence", "documents", "ledger", "strategy"].flatMap((type) => (caseItem[type] || []).map((record) => ({ ...record, recordType: type })));
   const set = (field, value) => setForm((current) => ({ ...current, [field]: value }));
