@@ -4869,7 +4869,7 @@ ${ungroupedSequenceText}
             )}
             {activeTab === "narrative" && (
               <div className="space-y-5">
-                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-900">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <h3 className="text-lg font-semibold text-neutral-900">Narrative</h3>
@@ -5015,9 +5015,9 @@ ${ungroupedSequenceText}
                 <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <h3 className="text-lg font-semibold text-neutral-900">Report Centre</h3>
-                      <p className="mt-1 text-sm text-neutral-600">
-                        Generate professional case reports for management, legal review, evidence review, or action planning.
+                      <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">Reports Centre</h3>
+                      <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">
+                        Select, review, and publish case reports for a clear audience and purpose.
                       </p>
                     </div>
                   </div>
@@ -5039,12 +5039,14 @@ ${ungroupedSequenceText}
                   onDownloadMarkdown={() => handleDownloadReportCentreOutput("markdown")}
                   onDownloadJson={() => handleDownloadReportCentreOutput("json")}
                   onOpenSequenceGroupAudit={openSequenceGroupAuditExport}
+                  onOpenAdvancedReports={() => document.getElementById("advanced-reports")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                  onOpenPrintPack={() => setActiveTab("pack")}
                 />
 
                 <section className="space-y-4">
                   <ReportContextHeader
                     definition={getReportDefinition(reportCentreType)}
-                    scopeLabel={normalisedReportCentreScopeType === "sequenceGroup" ? `Sequence Group: ${selectedReportCentreSequenceGroup || "Not selected"}` : getReportDefinition(reportCentreType).supportedScopes.length === 1 ? "Whole case only" : "Whole case"}
+                    scopeLabel={normalisedReportCentreScopeType === "sequenceGroup" ? `Issue: ${selectedReportCentreSequenceGroup || "Not selected"}` : getReportDefinition(reportCentreType).supportedScopes.length === 1 ? "Whole case only" : "Whole case"}
                     countLabel={reportCentreCountLabel}
                     reportDocument={reportCentreActiveDocument}
                   />
@@ -5057,21 +5059,21 @@ ${ungroupedSequenceText}
                   {normalisedReportCentreScopeType === "sequenceGroup" && reportCentreActiveDocument && reportCentreType !== "caseAudit" && reportCentreCountLabel.startsWith("0 ") ? (
                     <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm leading-6 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
                       <p className="font-semibold text-neutral-900 dark:text-neutral-100">No matching records appear in this {getReportDefinition(reportCentreType).label}.</p>
-                      <p className="mt-1">The Sequence Group exists, but contains no {reportCentreType === "incidentSchedule" ? "directly assigned incidents" : reportCentreType === "chronologyReport" ? "directly assigned records for its chronology" : `directly assigned or permitted linked ${reportCentreType === "evidence" ? "evidence records" : reportCentreType === "document" ? "documents" : "ledger entries"}`}. Check the group assignment and selected scope.</p>
+                      <p className="mt-1">The Issue exists, but contains no {reportCentreType === "incidentSchedule" ? "directly assigned incidents" : reportCentreType === "chronologyReport" ? "directly assigned records for its chronology" : `directly assigned or permitted linked ${reportCentreType === "evidence" ? "evidence records" : reportCentreType === "document" ? "documents" : "ledger entries"}`}. Check the Issue assignment and selected scope.</p>
                     </div>
                   ) : null}
 
                   {normalisedReportCentreScopeType === "sequenceGroup" && reportCentreType === "caseAudit" && reportCentreCaseAuditDocument?.summary?.scopedRecordCount === 0 ? (
                     <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm leading-6 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
-                      <p className="font-semibold text-neutral-900 dark:text-neutral-100">This Sequence Group contains no directly assigned records to audit.</p>
-                      <p className="mt-1">{reportCentreCaseAuditDocument?.source?.scope?.isValid ? "The selected group exists as metadata or is currently empty." : "The selected Sequence Group could not be resolved from the current case structure."}</p>
+                      <p className="font-semibold text-neutral-900 dark:text-neutral-100">This Issue contains no directly assigned records to audit.</p>
+                      <p className="mt-1">{reportCentreCaseAuditDocument?.source?.scope?.isValid ? "The selected Issue exists as metadata or is currently empty." : "The selected Issue could not be resolved from the current case structure."}</p>
                     </div>
                   ) : null}
 
                   {normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreSequenceGroup ? (
-                    <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-                      <p className="font-semibold text-neutral-900">No Sequence Group is selected for {getReportDefinition(reportCentreType).label}.</p>
-                      <p className="mt-1">Create or assign records to a Sequence Group, then select it here to build the scoped preview.</p>
+                    <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+                      <p className="font-semibold text-neutral-900 dark:text-neutral-100">No Issue is selected for {getReportDefinition(reportCentreType).label}.</p>
+                      <p className="mt-1">Create an Issue or assign records to one, then select it here to build the scoped preview.</p>
                     </div>
                   ) : (
                     <>
@@ -5242,9 +5244,9 @@ ${ungroupedSequenceText}
                   )}
                 </section>
 
-                <details className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden">
-                  <summary className="cursor-pointer text-sm font-bold uppercase tracking-wider text-neutral-500">
-                    Advanced Reports
+                <details id="advanced-reports" className="scroll-mt-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden dark:border-neutral-700 dark:bg-neutral-900">
+                  <summary className="cursor-pointer text-sm font-bold uppercase tracking-wider text-neutral-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 dark:text-neutral-400">
+                    Advanced &amp; Legacy Reports
                   </summary>
                   <div className="mt-5 space-y-5">
 

@@ -2,142 +2,63 @@ import { getSupportedReportScopes, normaliseReportScope } from "../../report/rep
 import { getReportCentrePreviewDescription, REPORT_CENTRE_TYPES } from "./reportCentreConfig.js";
 import ReportOutputActions from "./ReportOutputActions.jsx";
 
-const SCOPE_LABELS = {
-  case: "Whole Case",
-  sequenceGroup: "Sequence Group",
+const SCOPE_LABELS = { case: "Whole Case", sequenceGroup: "Issue" };
+const AUDIENCE_LABELS = { management: "Manager", investigation: "Investigator", client: "Client", internal: "Internal" };
+const COMPLETENESS_LABELS = { complete: "Complete", bounded: "Bounded", summary: "Summary" };
+const OUTPUT_LABELS = { preview: "Preview", markdown: "Markdown", json: "JSON", print: "Print" };
+const REPORT_CATEGORIES = [
+  { id: "primary", title: "Primary Reports", description: "Reports that communicate and explain the case.", reports: ["management", "investigation", "client"] },
+  { id: "reference", title: "Reference Reports", description: "Supporting reports containing detailed factual records.", reports: ["incidentSchedule", "chronologyReport", "evidence", "document", "ledger"] },
+  { id: "quality", title: "Case Quality", description: "Internal checks for case structure, coverage, and record quality.", reports: ["caseAudit"] },
+  { id: "management", title: "Case Management", description: "Operational reports for planning and next steps.", reports: ["action"] },
+];
+const PURPOSES = {
+  management: "Summarises findings, risks, awareness items, and actions for management.",
+  investigation: "Explains the investigation for the whole case or a selected Issue.",
+  client: "Creates a client-facing report through the existing assisted workflow.",
+  incidentSchedule: "Lists Incidents with their recorded supporting context.",
+  chronologyReport: "Presents the canonical record chronology in date order.",
+  evidence: "Provides the structured Evidence schedule and its links.",
+  document: "Provides the structured Document schedule and attachment metadata.",
+  ledger: "Provides the structured financial and measurable-record schedule.",
+  caseAudit: "Reviews recorded case structure, relationships, and data quality.",
+  action: "Summarises recorded actions, risks, and next steps.",
 };
 
-export function ReportCentrePreviewSummary({ reportType, scopeType, scopeLabel }) {
+function formatList(values, labels) { return values.map((value) => labels[value] || value).join(" / "); }
+
+function ReportCard({ reportType, selected, onSelect }) {
+  const definition = REPORT_CENTRE_TYPES.find(({ value }) => value === reportType);
+  const descriptionId = `report-card-${reportType}-purpose`;
   return (
-    <div className="flex flex-col gap-2 border-b border-neutral-200 pb-3 print:hidden sm:flex-row sm:items-end sm:justify-between dark:border-neutral-700">
-      <div>
-        <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Preview</h4>
-        <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">
-          {getReportCentrePreviewDescription(reportType, scopeType)}
-        </p>
-      </div>
-      <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs font-semibold text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
-        Scope: {scopeLabel}
-      </div>
-    </div>
+    <button type="button" aria-pressed={selected} aria-describedby={descriptionId} onClick={() => onSelect(reportType)} className={`group min-w-0 rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950 ${selected ? "border-lime-500 bg-lime-50 ring-1 ring-lime-500 dark:bg-lime-950/30" : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600 dark:hover:bg-neutral-800"}`}>
+      <div className="flex items-start justify-between gap-3"><span className="text-base font-bold leading-6 text-neutral-950 dark:text-neutral-50">{definition.label}</span>{selected ? <span className="shrink-0 rounded-full bg-lime-200 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-lime-950 dark:bg-lime-800 dark:text-lime-50">Selected</span> : null}</div>
+      <p id={descriptionId} className="mt-2 text-sm leading-5 text-neutral-600 dark:text-neutral-300">{PURPOSES[reportType] || definition.description}</p>
+      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-neutral-100 pt-3 text-xs dark:border-neutral-800">
+        <div><dt className="font-bold text-neutral-500 dark:text-neutral-400">Audience</dt><dd className="mt-0.5 text-neutral-800 dark:text-neutral-200">{AUDIENCE_LABELS[definition.audience] || definition.audience}</dd></div>
+        <div><dt className="font-bold text-neutral-500 dark:text-neutral-400">Completeness</dt><dd className="mt-0.5 text-neutral-800 dark:text-neutral-200">{COMPLETENESS_LABELS[definition.completeness] || definition.completeness}</dd></div>
+        <div><dt className="font-bold text-neutral-500 dark:text-neutral-400">Scope</dt><dd className="mt-0.5 text-neutral-800 dark:text-neutral-200">{formatList(definition.supportedScopes, SCOPE_LABELS)}</dd></div>
+        <div><dt className="font-bold text-neutral-500 dark:text-neutral-400">Outputs</dt><dd className="mt-0.5 text-neutral-800 dark:text-neutral-200">{formatList(definition.supportedOutputs, OUTPUT_LABELS)}</dd></div>
+      </dl>
+    </button>
   );
 }
 
-export default function ReportCentreControls({
-  reportType,
-  scopeType,
-  sequenceGroups = [],
-  selectedSequenceGroup = "",
-  markdownAvailable = false,
-  documentOutputAvailable = false,
-  outputFeedback = "",
-  onReportTypeChange,
-  onScopeTypeChange,
-  onSequenceGroupChange,
-  onPrint,
-  onCopyMarkdown,
-  onDownloadMarkdown,
-  onDownloadJson,
-  onOpenSequenceGroupAudit,
-}) {
+function UtilityCard({ title, purpose, audience, status, scope, outputs, actionLabel, onAction, unavailable = false }) {
+  return <article className={`rounded-xl border p-4 ${unavailable ? "border-dashed border-neutral-300 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900/60" : "border-neutral-200 bg-white dark:border-neutral-700 dark:bg-neutral-900"}`}><h5 className="text-base font-bold text-neutral-950 dark:text-neutral-50">{title}</h5><p className="mt-2 text-sm leading-5 text-neutral-600 dark:text-neutral-300">{purpose}</p><dl className="mt-4 grid grid-cols-2 gap-2 border-t border-neutral-100 pt-3 text-xs dark:border-neutral-800"><div><dt className="font-bold text-neutral-500 dark:text-neutral-400">Audience</dt><dd className="mt-0.5 text-neutral-800 dark:text-neutral-200">{audience}</dd></div><div><dt className="font-bold text-neutral-500 dark:text-neutral-400">Status</dt><dd className="mt-0.5 text-neutral-800 dark:text-neutral-200">{status}</dd></div><div><dt className="font-bold text-neutral-500 dark:text-neutral-400">Scope</dt><dd className="mt-0.5 text-neutral-800 dark:text-neutral-200">{scope}</dd></div><div><dt className="font-bold text-neutral-500 dark:text-neutral-400">Outputs</dt><dd className="mt-0.5 text-neutral-800 dark:text-neutral-200">{outputs}</dd></div></dl>{onAction ? <button type="button" onClick={onAction} className="mt-4 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-800 transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700">{actionLabel}</button> : null}</article>;
+}
+
+export function ReportCentrePreviewSummary({ reportType, scopeType, scopeLabel }) { return <div className="flex flex-col gap-2 border-b border-neutral-200 pb-4 print:hidden sm:flex-row sm:items-end sm:justify-between dark:border-neutral-700"><div><h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Report Preview</h4><p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">{getReportCentrePreviewDescription(reportType, scopeType)}</p></div><div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs font-semibold text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">Scope: {scopeLabel}</div></div>; }
+
+export default function ReportCentreControls({ reportType, scopeType, sequenceGroups = [], selectedSequenceGroup = "", markdownAvailable = false, documentOutputAvailable = false, outputFeedback = "", onReportTypeChange, onScopeTypeChange, onSequenceGroupChange, onPrint, onCopyMarkdown, onDownloadMarkdown, onDownloadJson, onOpenSequenceGroupAudit, onOpenAdvancedReports, onOpenPrintPack }) {
   const supportedScopes = getSupportedReportScopes(reportType);
   const activeScope = normaliseReportScope(reportType, scopeType);
   const hasOneScope = supportedScopes.length === 1;
   const reportUnavailable = activeScope === "sequenceGroup" && !selectedSequenceGroup;
-
-  return (
-    <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden dark:border-neutral-700 dark:bg-neutral-900">
-      <div className="grid gap-5 lg:grid-cols-[0.8fr_1fr_0.7fr]">
-        <div>
-          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Scope</h4>
-          <div className={`mt-2 grid gap-2 ${hasOneScope ? "grid-cols-1" : "grid-cols-2"}`}>
-            {supportedScopes.map((value) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={activeScope === value}
-                disabled={hasOneScope}
-                onClick={() => onScopeTypeChange(value)}
-                className={`rounded-lg border px-3 py-2 text-sm font-bold disabled:cursor-default ${
-                  activeScope === value
-                    ? "border-lime-400 bg-lime-400/30 text-neutral-950 dark:text-neutral-50"
-                    : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
-                }`}
-              >
-                {SCOPE_LABELS[value]}
-              </button>
-            ))}
-          </div>
-          {hasOneScope && (
-            <p className="mt-2 inline-flex rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs font-semibold text-neutral-600 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-300">
-              Whole case only
-            </p>
-          )}
-          {activeScope === "sequenceGroup" && (
-            <div className="mt-3">
-              <label className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400" htmlFor="report-centre-sequence-group">
-                Sequence Group
-              </label>
-              {sequenceGroups.length > 0 ? (
-                <select
-                  id="report-centre-sequence-group"
-                  value={selectedSequenceGroup}
-                  onChange={(event) => onSequenceGroupChange(event.target.value)}
-                  className="mt-2 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
-                >
-                  {sequenceGroups.map((groupName) => (
-                    <option key={groupName} value={groupName}>{groupName}</option>
-                  ))}
-                </select>
-              ) : (
-                <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">No sequence groups exist in this case yet.</p>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div>
-          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Report Type</h4>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            {REPORT_CENTRE_TYPES.map(({ value, label, description }) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={reportType === value}
-                onClick={() => onReportTypeChange(value)}
-                className={`rounded-lg border p-3 text-left ${
-                  reportType === value
-                    ? "border-lime-400 bg-lime-400/20 text-neutral-950 dark:text-neutral-50"
-                    : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2 text-sm font-bold"><span>{label}</span>{reportType === value ? <span className="rounded-full bg-lime-100 px-2 py-0.5 text-[10px] uppercase tracking-wider text-lime-900 dark:bg-lime-950 dark:text-lime-200">Selected</span> : null}</div>
-                <div className="mt-1 text-xs leading-5 text-neutral-500 dark:text-neutral-400">{description}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Output</h4>
-          <div className="mt-2 grid gap-2">
-            <div className="rounded-lg border border-lime-300 bg-lime-50 px-3 py-2 text-sm font-bold text-lime-900 dark:border-lime-700 dark:bg-lime-950/30 dark:text-lime-200">
-              Preview
-            </div>
-            <ReportOutputActions reportType={reportType} markdownAvailable={markdownAvailable} documentOutputAvailable={documentOutputAvailable} disabled={reportUnavailable} feedback={outputFeedback} onCopyMarkdown={onCopyMarkdown} onDownloadMarkdown={onDownloadMarkdown} onDownloadJson={onDownloadJson} onPrint={onPrint} />
-            <button
-              type="button"
-              onClick={onOpenSequenceGroupAudit}
-              className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-bold text-neutral-700 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
-            >
-              Open Sequence Group Audit
-            </button>
-          </div>
-          <p className="mt-3 text-xs leading-5 text-neutral-500 dark:text-neutral-400">
-            Evidence, Document, and Ledger packs support shared Markdown and JSON outputs. Action Plan retains its existing Markdown copy.
-          </p>
-        </div>
-      </div>
-    </section>
-  );
+  return <section aria-labelledby="choose-report-heading" className="space-y-8 rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm print:hidden sm:p-6 dark:border-neutral-700 dark:bg-neutral-950">
+    <div><p className="text-xs font-bold uppercase tracking-widest text-lime-700 dark:text-lime-400">Publishing workspace</p><h3 id="choose-report-heading" className="mt-1 text-xl font-bold text-neutral-950 dark:text-neutral-50">Choose a report</h3><p className="mt-1 max-w-3xl text-sm leading-6 text-neutral-600 dark:text-neutral-300">Start with the audience and purpose. Configure the available scope and outputs after selecting the report.</p></div>
+    <div className="space-y-8">{REPORT_CATEGORIES.map((category) => <section key={category.id} aria-labelledby={`report-category-${category.id}`}><h4 id={`report-category-${category.id}`} className="text-lg font-bold text-neutral-950 dark:text-neutral-50">{category.title}</h4><p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">{category.description}</p><div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{category.reports.map((value) => <ReportCard key={value} reportType={value} selected={reportType === value} onSelect={onReportTypeChange} />)}{category.id === "quality" ? <UtilityCard title="Issue Audit" purpose="Audits one Issue or all Issues using the existing Sequence Group audit workflow." audience="Internal" status="Internal" scope="Issue / All Issues" outputs="Existing audit outputs" actionLabel="Open Issue Audit" onAction={onOpenSequenceGroupAudit} /> : null}</div></section>)}</div>
+    <section aria-labelledby="report-category-advanced" className="border-t border-neutral-200 pt-6 dark:border-neutral-700"><h4 id="report-category-advanced" className="text-lg font-bold text-neutral-950 dark:text-neutral-50">Advanced</h4><p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">Specialist, combined, and unavailable reporting tools kept outside the normal publishing workflow.</p><div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3"><UtilityCard title="Advanced Reports" purpose="Opens specialist and legacy report workflows already available in this case." audience="Internal" status="Advanced" scope="Varies by report" outputs="Existing outputs" actionLabel="Open Advanced Reports" onAction={onOpenAdvancedReports} /><UtilityCard title="Print Pack" purpose="Opens the existing workspace for compiling printable case material." audience="Internal / External" status="Advanced" scope="Whole case" outputs="Print" actionLabel="Open Print Pack" onAction={onOpenPrintPack} /><UtilityCard title="Unavailable Reports" purpose="Internal Report and Lawyer Pack are not currently available for generation." audience="Internal / Legal" status="Unavailable" scope="Not available" outputs="None" unavailable /></div></section>
+    <section aria-labelledby="configure-report-heading" className="rounded-xl border border-neutral-200 bg-white p-4 sm:p-5 dark:border-neutral-700 dark:bg-neutral-900"><h4 id="configure-report-heading" className="text-lg font-bold text-neutral-950 dark:text-neutral-50">Configure selected report</h4><p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">Choose an available scope, review the preview below, then use an output action.</p><div className="mt-5 grid gap-6 lg:grid-cols-2"><div><h5 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Scope</h5><div className={`mt-2 grid gap-2 ${hasOneScope ? "grid-cols-1" : "grid-cols-2"}`}>{supportedScopes.map((value) => <button key={value} type="button" aria-pressed={activeScope === value} disabled={hasOneScope} onClick={() => onScopeTypeChange(value)} className={`rounded-lg border px-3 py-2 text-sm font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 disabled:cursor-default ${activeScope === value ? "border-lime-500 bg-lime-100 text-neutral-950 dark:bg-lime-950/40 dark:text-neutral-50" : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"}`}>{SCOPE_LABELS[value]}</button>)}</div>{hasOneScope ? <p className="mt-2 text-xs font-semibold text-neutral-500 dark:text-neutral-400">This report is available for the whole case only.</p> : null}{activeScope === "sequenceGroup" ? <div className="mt-3"><label className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400" htmlFor="report-centre-sequence-group">Issue</label>{sequenceGroups.length ? <select id="report-centre-sequence-group" value={selectedSequenceGroup} onChange={(event) => onSequenceGroupChange(event.target.value)} className="mt-2 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500 focus:ring-1 focus:ring-lime-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100">{sequenceGroups.map((groupName) => <option key={groupName} value={groupName}>{groupName}</option>)}</select> : <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">No Issues exist in this case yet. Create an Issue and assign records before generating an Issue-scoped report.</p>}</div> : null}</div><div><h5 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Outputs</h5><p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">Preview the selected report below before copying, downloading, or printing it.</p><div className="mt-3"><ReportOutputActions reportType={reportType} markdownAvailable={markdownAvailable} documentOutputAvailable={documentOutputAvailable} disabled={reportUnavailable} feedback={outputFeedback} onCopyMarkdown={onCopyMarkdown} onDownloadMarkdown={onDownloadMarkdown} onDownloadJson={onDownloadJson} onPrint={onPrint} /></div></div></div></section>
+  </section>;
 }

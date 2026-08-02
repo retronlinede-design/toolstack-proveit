@@ -63,11 +63,13 @@ function renderPreview(reportType, scopeType, scopeLabel) {
   }));
 }
 
-test("active Report Centre controls render every primary report selector", () => {
+test("active Reports Centre groups every report selector by publishing purpose", () => {
   const html = renderControls();
   for (const definition of REPORT_CENTRE_TYPES) assert.match(html, new RegExp(definition.label));
-  assert.match(html, /Report Type/);
-  assert.match(html, /Output/);
+  for (const heading of ["Primary Reports", "Reference Reports", "Case Quality", "Case Management", "Advanced"]) assert.match(html, new RegExp(heading));
+  assert.match(html, /Configure selected report/);
+  assert.match(html, /Audience/);
+  assert.match(html, /Completeness/);
 });
 
 test("changing report type changes the rendered preview description", () => {
@@ -86,7 +88,7 @@ test("Management and Client reports are rendered as whole-case only", () => {
     assert.match(html, /Whole Case/);
     assert.doesNotMatch(html, />Sequence Group</);
     assert.match(html, /aria-pressed="true" disabled=""/);
-    assert.match(html, /Whole case only/);
+    assert.match(html, /whole case only/i);
   }
   assert.match(renderPreview("management", "case", "Whole case"), /timeline is currently limited to five entries/);
 });
@@ -94,7 +96,7 @@ test("Management and Client reports are rendered as whole-case only", () => {
 test("sequence-group-capable reports render honest scope controls and labels", () => {
   const html = renderControls({ reportType: "evidence", scopeType: "sequenceGroup" });
   assert.match(html, /Whole Case/);
-  assert.match(html, /Sequence Group/);
+  assert.match(html, />Issue</);
   assert.match(html, /id="report-centre-sequence-group"/);
   assert.match(html, /<option value="Alpha" selected="">Alpha<\/option>/);
 
@@ -109,7 +111,7 @@ test("empty sequence group collections render a useful empty state", () => {
     sequenceGroups: [],
     selectedSequenceGroup: "",
   });
-  assert.match(html, /No sequence groups exist in this case yet/);
+  assert.match(html, /No Issues exist in this case yet/);
   assert.match(html, /Print \/ Save PDF/);
   assert.match(html, /disabled=""/);
 });
@@ -145,7 +147,7 @@ test("Case Audit Report is ordered before schedules and exposes the complete sha
   const controls = renderControls({ reportType: "caseAudit", scopeType: "sequenceGroup", markdownAvailable: true, documentOutputAvailable: true });
   assert.match(controls, /Whole Case/); assert.match(controls, /Sequence Group/); assert.match(controls, /Copy Markdown/); assert.match(controls, /Download Markdown/); assert.match(controls, /Download JSON/); assert.match(controls, /Print \/ Save PDF/);
   assert.match(renderPreview("caseAudit", "sequenceGroup", "Sequence Group: Alpha"), /internal deterministic audit/i);
-  assert.match(caseDetailSource, /<CaseAuditReportArticle/); assert.match(caseDetailSource, /reportCentreCaseAuditDocument/); assert.match(caseDetailSource, /This Sequence Group contains no directly assigned records to audit/);
+  assert.match(caseDetailSource, /<CaseAuditReportArticle/); assert.match(caseDetailSource, /reportCentreCaseAuditDocument/); assert.match(caseDetailSource, /This Issue contains no directly assigned records to audit/);
 });
 
 test("bounded whole-case investigation output is explicit", () => {

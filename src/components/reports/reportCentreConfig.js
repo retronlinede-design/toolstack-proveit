@@ -5,7 +5,15 @@ export const REPORT_CENTRE_TYPES = Object.freeze([
   "management", "investigation", "caseAudit", "incidentSchedule", "chronologyReport", "evidence", "document", "ledger", "client", "action",
 ].map((value) => {
   const definition = getReportDefinition(value);
-  return { value, label: definition.label, description: definition.description };
+  return {
+    value,
+    label: definition.label,
+    description: definition.description,
+    audience: definition.audience,
+    completeness: definition.completeness,
+    supportedScopes: definition.supportedScopes,
+    supportedOutputs: definition.supportedOutputs,
+  };
 }));
 
 export function getReportCentrePreviewDescription(reportType, scopeType) {

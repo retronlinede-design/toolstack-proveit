@@ -4,7 +4,8 @@ const COMPLETENESS = {
   summary: { label: "Summary report", description: "Designed for concise communication rather than exhaustive record listing." },
 };
 
-const OUTPUT_LABELS = { preview: "Preview", markdown: "Markdown", json: "JSON", print: "print" };
+const OUTPUT_LABELS = { preview: "Preview", markdown: "Markdown", json: "JSON", print: "Print" };
+const AUDIENCE_LABELS = { management: "Manager", investigation: "Investigator", client: "Client", internal: "Internal" };
 const RECORD_LABELS = { incident: "Incidents", evidence: "Evidence records", document: "Documents", ledger: "Ledger entries", strategy: "Strategy records", watch: "To Watch records", party: "Parties" };
 
 function formatGenerated(value) {
@@ -25,6 +26,7 @@ export default function ReportContextHeader({ definition, scopeLabel, countLabel
         <div className="min-w-0">
           <p className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Selected report</p>
           <h4 id="selected-report-title" className="mt-1 text-xl font-bold text-neutral-950 dark:text-neutral-50">{definition?.label || "Report"}</h4>
+          <p className="mt-1 text-sm leading-6 text-neutral-600 dark:text-neutral-300">{definition?.description}</p>
           <p className="mt-1 text-sm font-semibold text-neutral-700 dark:text-neutral-200">{[completeness.label, scopeLabel, countLabel].filter(Boolean).join(" · ")}</p>
           <p className="mt-1 text-sm leading-6 text-neutral-600 dark:text-neutral-300">{completeness.description}</p>
         </div>
@@ -35,7 +37,8 @@ export default function ReportContextHeader({ definition, scopeLabel, countLabel
           </div>
         ) : null}
       </div>
-      <div className="mt-3 grid gap-2 border-t border-neutral-100 pt-3 text-xs text-neutral-600 sm:grid-cols-2 dark:border-neutral-800 dark:text-neutral-300">
+      <div className="mt-3 grid gap-2 border-t border-neutral-100 pt-3 text-xs text-neutral-600 sm:grid-cols-2 lg:grid-cols-3 dark:border-neutral-800 dark:text-neutral-300">
+        <div><span className="font-semibold text-neutral-800 dark:text-neutral-100">Audience:</span> {AUDIENCE_LABELS[definition?.audience] || definition?.audience || "Not specified"}</div>
         <div><span className="font-semibold text-neutral-800 dark:text-neutral-100">Includes:</span> {includes || "Report-specific case information"}</div>
         <div><span className="font-semibold text-neutral-800 dark:text-neutral-100">Available outputs:</span> {outputs.join(", ") || "Preview"}</div>
       </div>
