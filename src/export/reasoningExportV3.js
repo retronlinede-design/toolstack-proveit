@@ -1,5 +1,6 @@
 import { resolveRecordById } from "../domain/linkingResolvers.js";
 import { runOperationalIntegrityCheck } from "../diagnostics/operationalIntegrity.js";
+import { buildIssueIndex, HUMAN_READABLE_ISSUE_PROMPT, normalizeCaseIssues } from "../domain/issueDomain.js";
 
 export const REASONING_EXPORT_V3 = "reasoning-export-3.0";
 export const WATCH_FACTUAL_STATUS = "unconfirmed_monitored_concern";
@@ -127,6 +128,7 @@ function buildThreads(caseItem, strategies, watchItems) {
 
 export function buildCaseReasoningExportV3Payload(caseItem, options = {}) {
   if (!caseItem) throw new Error("caseItem is required for reasoning-export-3.0");
+  caseItem = normalizeCaseIssues(caseItem).caseData;
   const exportedAt = options.exportedAt || new Date().toISOString();
   const today = strictDate(options.today) || strictDate(exportedAt.slice(0, 10));
   const integrity = runOperationalIntegrityCheck(caseItem, { now: exportedAt, today });
@@ -140,7 +142,7 @@ export function buildCaseReasoningExportV3Payload(caseItem, options = {}) {
   const stats = integrity.openOperationalLoops.stats || {};
   const diagnosticSummary = Object.fromEntries(["overdueStrategyReviews", "unsupportedStrategies", "highPriorityStrategiesWithoutNextSteps", "overdueWatchReviews", "staleWatchItems", "escalatedWatchItemsWithoutOutcome", "watchItemsRequiringEscalationReview"].map((key) => [key, Number(stats[key] || 0)]));
   return {
-    app: "proveit", exportType: "CASE_REASONING_EXPORT", contractVersion: REASONING_EXPORT_V3, exportedAt, importable: false, includesBinaryData: false,
+    app: "proveit", exportType: "CASE_REASONING_EXPORT", contractVersion: REASONING_EXPORT_V3, exportedAt, importable: false, includesBinaryData: false, instructions: HUMAN_READABLE_ISSUE_PROMPT,
     factualStatusConventions: { incident: "recorded_event_or_allegation", evidence: "supporting_material", strategy: "planning_or_analysis", watch: WATCH_FACTUAL_STATUS },
     case: {
       id: caseItem.id, title: clean(caseItem.name || caseItem.title), caseType: clean(caseItem.category || caseItem.caseType), status: clean(caseItem.status), createdDate: clean(caseItem.createdAt), updatedDate: clean(caseItem.updatedAt),
@@ -148,7 +150,7 @@ export function buildCaseReasoningExportV3Payload(caseItem, options = {}) {
       currentFocus: clean(caseItem.actionSummary?.currentFocus), actionSummary: { nextActions: strings(caseItem.actionSummary?.nextActions), importantReminders: strings(caseItem.actionSummary?.importantReminders), strategyFocus: strings(caseItem.actionSummary?.strategyFocus), criticalDeadlines: strings(caseItem.actionSummary?.criticalDeadlines) },
       counts: { incidents: (caseItem.incidents || []).length, evidence: (caseItem.evidence || []).length, documents: (caseItem.documents || []).length, ledger: (caseItem.ledger || []).length, strategies: (caseItem.strategy || []).length, watchItems: (caseItem.watchItems || []).length },
       omitted: { closedOrArchivedStrategies: (caseItem.strategy || []).length - activeStrategies.length, closedMonitoringItems: (caseItem.watchItems || []).length - activeWatch.length },
-      strategies, watchItems, sequenceGroups: buildThreads(caseItem, strategies, watchItems), diagnosticSummary,
+      issues: buildIssueIndex(caseItem), strategies, watchItems, sequenceGroups: buildThreads(caseItem, strategies, watchItems), diagnosticSummary,
     },
   };
 }

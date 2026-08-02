@@ -1,6 +1,7 @@
 import { analyzeCaseDiagnostics } from "../diagnostics/caseDiagnostics.js";
 import { getCaseSequenceGroupDetails } from "../domain/caseDomain.js";
 import { buildSequenceGroupAuditReport } from "../export/sequenceGroupAuditExport.js";
+import { getIssueDisplayLabel, normalizeCaseIssues } from "../domain/issueDomain.js";
 import {
   compareReportChronology,
   projectReportRecord,
@@ -140,11 +141,11 @@ function resolveReferences(records, parties) {
 function buildGroups(caseData, records, sequenceGroupMeta, includeDiagnostics) {
   const domainDetails = getCaseSequenceGroupDetails(caseData);
   const definitions = new Map();
-  domainDetails.groups.forEach((group) => definitions.set(normaliseGroup(group.name), {
-    name: group.name,
-    registered: false,
-    inferred: true,
-  }));
+  (caseData.issues || []).forEach((issue) => definitions.set(normaliseGroup(issue.name), { name: issue.name, issue, registered: true, inferred: false }));
+  domainDetails.groups.forEach((group) => {
+    const key = normaliseGroup(group.name);
+    definitions.set(key, { ...(definitions.get(key) || {}), name: group.name, inferred: true });
+  });
   Object.keys(sequenceGroupMeta).forEach((name) => definitions.set(normaliseGroup(name), {
     ...(definitions.get(normaliseGroup(name)) || {}),
     name,
@@ -166,9 +167,19 @@ function buildGroups(caseData, records, sequenceGroupMeta, includeDiagnostics) {
       const description = text(sequenceGroupMeta[definition.name]?.description)
         || text(Object.entries(sequenceGroupMeta).find(([name]) => normaliseGroup(name) === normaliseGroup(definition.name))?.[1]?.description);
       return {
-        id: definition.name,
+        id: definition.issue?.id || definition.name,
+        issueId: definition.issue?.id || null,
+        issueReference: definition.issue?.reference || null,
+        issueName: definition.name,
+        displayLabel: definition.issue ? getIssueDisplayLabel(definition.issue) : definition.name,
         name: definition.name,
-        description,
+        description: text(definition.issue?.description) || description,
+        purpose: text(definition.issue?.purpose),
+        status: definition.issue?.status || null,
+        priority: definition.issue?.priority || null,
+        ownerPartyId: definition.issue?.ownerPartyId || null,
+        reviewDate: definition.issue?.reviewDate || null,
+        currentPosition: text(definition.issue?.currentPosition),
         order,
         registered: definition.registered,
         inferred: definition.inferred,
@@ -202,12 +213,14 @@ function byType(records) {
 }
 
 export function buildCaseReportModel(caseData, options = {}) {
-  const source = caseData && typeof caseData === "object" && !Array.isArray(caseData) ? caseData : {};
+  const rawSource = caseData && typeof caseData === "object" && !Array.isArray(caseData) ? caseData : {};
   const includeArchived = options.includeArchived !== false;
   const includeDiagnostics = options.includeDiagnostics !== false;
   const sequenceGroupMeta = options.sequenceGroupMeta && typeof options.sequenceGroupMeta === "object" ? options.sequenceGroupMeta : {};
+  const source = normalizeCaseIssues(rawSource, { sequenceGroupMeta }).caseData;
   const requestedScope = options.scope === "sequenceGroup" ? "sequenceGroup" : "case";
   const requestedGroup = requestedScope === "sequenceGroup" ? text(options.sequenceGroupName) : "";
+  const requestedIssueId = requestedScope === "sequenceGroup" ? text(options.issueId) : "";
   const parties = projectParties(source);
   const projected = collectRecords(source, includeArchived);
   const resolved = resolveReferences(projected, parties);
@@ -217,7 +230,7 @@ export function buildCaseReportModel(caseData, options = {}) {
     : resolveReferences(collectRecords(source, true), parties).records;
   const { groups } = buildGroups(source, allRecords, sequenceGroupMeta, includeDiagnostics);
   const selectedGroup = requestedScope === "sequenceGroup"
-    ? groups.find((group) => normaliseGroup(group.name) === normaliseGroup(requestedGroup))
+    ? groups.find((group) => requestedIssueId ? group.issueId === requestedIssueId : normaliseGroup(group.name) === normaliseGroup(requestedGroup))
     : null;
   const scopeIsValid = requestedScope === "case" || Boolean(selectedGroup);
   const primaryScopedRecords = requestedScope === "case"
@@ -259,6 +272,10 @@ export function buildCaseReportModel(caseData, options = {}) {
     scope: {
       type: requestedScope,
       sequenceGroupName: requestedScope === "sequenceGroup" ? requestedGroup : null,
+      issueId: selectedGroup?.issueId || null,
+      issueReference: selectedGroup?.issueReference || null,
+      issueName: selectedGroup?.issueName || (requestedScope === "sequenceGroup" ? requestedGroup : null),
+      displayLabel: selectedGroup?.displayLabel || (requestedScope === "sequenceGroup" ? requestedGroup : "Whole case"),
       isValid: scopeIsValid,
     },
     totals: {

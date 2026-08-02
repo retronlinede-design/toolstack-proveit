@@ -137,6 +137,7 @@ export function projectReportRecord(record = {}, type = "record", context = {}) 
     status,
     archived: record.archived === true || status.toLowerCase() === "archived",
     sequenceGroup: text(record.sequenceGroup),
+    sequenceGroupId: text(record.sequenceGroupId),
     partyIds: uniqueStrings(partyIds),
     resolvedParties: [],
     linkedRecordIds,

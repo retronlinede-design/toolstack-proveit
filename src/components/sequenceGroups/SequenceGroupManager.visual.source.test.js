@@ -13,12 +13,12 @@ test("manager uses three desktop regions and responsive stacking", () => {
 });
 
 test("group list renders count descriptions and an announced selected state", () => {
-  assert.match(manager, /Sequence Groups/);
+  assert.match(manager, /Issues/);
   assert.match(manager, /No description\./);
   assert.match(manager, /group\.totalCount} record/);
   assert.match(manager, /aria-current=\{group\.name === activeGroupName/);
   assert.match(manager, /break-words text-sm font-semibold/);
-  assert.match(manager, />New Group<\/button>/);
+  assert.match(manager, />New Issue<\/button>/);
 });
 
 test("selected records use a non-colour-only selected treatment", () => {
@@ -35,8 +35,8 @@ test("actions are grouped and destructive actions are isolated", () => {
 });
 
 test("manager metrics and empty states remain available", () => {
-  for (const metric of ["Groups", "Need review", "Ungrouped", "Weak links / gaps"]) assert.match(manager, new RegExp(`"${metric}"`));
-  for (const empty of ["No sequence groups yet", "Create your first sequence group", "No ungrouped records", "No matching records"]) assert.match(manager, new RegExp(empty));
+  for (const metric of ["Issues", "Need review", "Ungrouped", "Weak links / gaps"]) assert.match(manager, new RegExp(`"${metric}"`));
+  for (const empty of ["No Issues yet", "Create your first sequence group", "No ungrouped records", "No matching records"]) assert.match(manager, new RegExp(empty));
 });
 
 test("manager surfaces include explicit dark mode treatments", () => {

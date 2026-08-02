@@ -164,3 +164,15 @@ test("the complete mixed model remains JSON serialisable", () => {
   assert.equal(parsed.schemaVersion, 1);
   assert.equal(parsed.records.all.length, 6);
 });
+
+test("Issue scope resolves by immutable ID and exposes human reference after rename", () => {
+  const source = buildCase();
+  source.issues = [{ id: "issue_stable", reference: "ISS-003", name: "Renamed Issue", description: "", purpose: "", status: "open", priority: "high", ownerPartyId: null, reviewDate: null, currentPosition: "", createdAt: "2026-01-01", updatedAt: "2026-01-02" }];
+  source.incidents[0].sequenceGroupId = "issue_stable";
+  source.incidents[0].sequenceGroup = "Renamed Issue";
+  const model = buildCaseReportModel(source, { ...options, scope: "sequenceGroup", issueId: "issue_stable" });
+  assert.equal(model.scope.isValid, true);
+  assert.equal(model.scope.issueReference, "ISS-003");
+  assert.equal(model.scope.displayLabel, "ISS-003 — Renamed Issue");
+  assert.equal(model.sequenceGroups.find((group) => group.issueId === "issue_stable").priority, "high");
+});

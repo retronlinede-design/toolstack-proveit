@@ -7,9 +7,10 @@ const managerSource = readFileSync(new URL("./SequenceGroupManager.jsx", import.
 const caseDetailSource = readFileSync(new URL("../CaseDetail.jsx", import.meta.url), "utf8");
 
 test("SequenceGroupForm shares create and edit fields and validates before saving", () => {
-  assert.match(source, /mode === "edit" \? "Edit Sequence Group" : "New Sequence Group"/);
+  assert.match(source, /mode === "edit" \? "Edit Issue" : "New Issue"/);
   assert.match(source, />Name</);
   assert.match(source, />Description</);
+  for (const field of ["Purpose", "Status", "Priority", "Owner", "Review date", "Current position"]) assert.match(source, new RegExp(field));
   assert.match(source, /validateSequenceGroupInput\(form, existingNames/);
   assert.match(source, /onSave\(result\.value\)/);
 });
@@ -23,8 +24,7 @@ test("create and management cancellation close their modal without saving", () =
 });
 
 test("manager callbacks select created and edited groups and confirm destructive deletion", () => {
-  assert.match(caseDetailSource, /setSelectedSequenceGroupName\(group\.name\)/);
-  assert.match(caseDetailSource, /setSelectedSequenceGroupName\(result\.group\.name\)/);
+  assert.match(caseDetailSource, /setSelectedSequenceGroupName\(result\.issue\.name\)/);
   assert.match(caseDetailSource, /window\.confirm/);
   assert.match(caseDetailSource, /records were kept and are now ungrouped/);
 });

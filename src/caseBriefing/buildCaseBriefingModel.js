@@ -15,6 +15,7 @@ const title = (record, fallback) => text(record?.title) || text(record?.name) ||
 const day = (value) => text(value).slice(0, 10);
 const validTime = (value) => { const time = Date.parse(value); return Number.isFinite(time) ? time : 0; };
 const groupName = (record) => text(record?.sequenceGroup);
+const issueLabel = (issue) => issue?.reference ? `${issue.reference} — ${issue.name}` : issue?.name || "";
 
 function actionText(value) {
   return typeof value === "string" ? value.trim() : text(value?.text) || text(value?.title) || text(value?.label);
@@ -67,6 +68,7 @@ function buildActions(caseData, currentFocus, now) {
     const nextCheck = text(record.nextCheck);
     if (nextCheck) actions.push({ id: `watch-check:${record.id}`, title: nextCheck, source: "To Watch", dueDate: "", issue: groupName(record), recordType: "watchItems", record });
   });
+  list(caseData?.issues).filter((issue) => issue.status !== "archived" && issue.reviewDate).forEach((issue) => actions.push({ id: `issue-review:${issue.id}`, title: `Review ${issueLabel(issue)}`, source: "Issue review", dueDate: day(issue.reviewDate), issue: issueLabel(issue), recordType: "issue", issueId: issue.id, issueName: issue.name, action: "issue-manager" }));
   const seen = new Set();
   return actions.filter((item) => {
     const key = item.title.toLowerCase().replace(/\s+/g, " ");
@@ -85,9 +87,11 @@ export function buildCaseBriefingModel({ caseData = {}, sequenceGroupMeta = {}, 
   const archived = records.length - active.length;
   const diagnosticItems = flattenDiagnostics(diagnostics);
   const groupMap = new Map();
+  list(caseData.issues).filter((issue) => issue?.name).forEach((issue) => groupMap.set(issue.name, { name: issue.name, description: text(issue.description), metadataOnly: true, records: [], issue }));
   Object.entries(sequenceGroupMeta || {}).forEach(([name, meta]) => groupMap.set(name, { name, description: text(meta?.description), metadataOnly: true, records: [] }));
   active.forEach((entry) => {
-    const name = groupName(entry.record);
+    const matchedIssue = list(caseData.issues).find((issue) => entry.record?.sequenceGroupId && issue.id === entry.record.sequenceGroupId);
+    const name = matchedIssue?.name || groupName(entry.record);
     if (!name) return;
     if (!groupMap.has(name)) groupMap.set(name, { name, description: "", metadataOnly: false, records: [] });
     groupMap.get(name).records.push(entry);
@@ -99,8 +103,14 @@ export function buildCaseBriefingModel({ caseData = {}, sequenceGroupMeta = {}, 
     const latest = group.records.map(({ record }) => timestamp(record)).sort((a, b) => validTime(b) - validTime(a))[0] || "";
     const ids = new Set(group.records.map(({ record }) => record.id));
     const warningCount = diagnosticItems.filter((item) => item.record?.id && ids.has(item.record.id)).length;
-    return { name: group.name, description: group.description, directRecordCount: group.records.length, counts, latestActivity: latest, warningCount, empty: group.records.length === 0, metadataOnly: group.metadataOnly };
-  }).sort((a, b) => validTime(b.latestActivity) - validTime(a.latestActivity) || a.name.localeCompare(b.name));
+    const owner = list(caseData.parties).find((party) => party.id === group.issue?.ownerPartyId);
+    return { name: group.name, displayLabel: issueLabel(group.issue) || group.name, reference: group.issue?.reference || "", description: group.description, purpose: text(group.issue?.purpose), status: group.issue?.status || "", priority: group.issue?.priority || "", owner: text(owner?.displayName) || text(owner?.legalName) || text(owner?.name), reviewDate: group.issue?.reviewDate || "", currentPosition: text(group.issue?.currentPosition), directRecordCount: group.records.length, counts, latestActivity: latest, warningCount, empty: group.records.length === 0, metadataOnly: group.metadataOnly };
+  }).sort((a, b) => {
+    const priority = { critical: 0, high: 1, normal: 2, low: 3, "": 4 };
+    const aOverdue = a.reviewDate && a.reviewDate < day(now) ? 0 : 1;
+    const bOverdue = b.reviewDate && b.reviewDate < day(now) ? 0 : 1;
+    return (priority[a.priority] ?? 4) - (priority[b.priority] ?? 4) || aOverdue - bOverdue || validTime(b.latestActivity) - validTime(a.latestActivity) || a.reference.localeCompare(b.reference) || a.name.localeCompare(b.name);
+  });
 
   const today = day(now);
   const additionalFindings = [];
@@ -135,4 +145,3 @@ export function buildCaseBriefingModel({ caseData = {}, sequenceGroupMeta = {}, 
     recommendedAction,
   };
 }
-

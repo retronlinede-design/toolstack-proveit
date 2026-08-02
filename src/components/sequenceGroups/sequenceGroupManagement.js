@@ -12,6 +12,12 @@ export function normalizeSequenceGroupInput(value = {}) {
   return {
     name: typeof value.name === "string" ? value.name.trim() : "",
     description: typeof value.description === "string" ? value.description.trim() : "",
+    purpose: typeof value.purpose === "string" ? value.purpose.trim() : "",
+    status: ["open", "monitoring", "waiting_response", "escalated", "resolved", "archived"].includes(value.status) ? value.status : "open",
+    priority: ["low", "normal", "high", "critical"].includes(value.priority) ? value.priority : "normal",
+    ownerPartyId: typeof value.ownerPartyId === "string" ? value.ownerPartyId.trim() : "",
+    reviewDate: typeof value.reviewDate === "string" ? value.reviewDate.trim() : "",
+    currentPosition: typeof value.currentPosition === "string" ? value.currentPosition.trim() : "",
   };
 }
 

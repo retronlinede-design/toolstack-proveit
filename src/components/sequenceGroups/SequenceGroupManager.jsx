@@ -28,6 +28,7 @@ import SequenceGroupDescription from "./SequenceGroupDescription.jsx";
 import SequenceGroupForm from "./SequenceGroupForm.jsx";
 import SequenceGroupManagementModal from "./SequenceGroupManagementModal.jsx";
 import { mergeManagedSequenceGroupDetails } from "./sequenceGroupManagement.js";
+import { getIssueDisplayLabel, resolveCaseIssue } from "../../domain/issueDomain.js";
 
 function getGroupBadgeVariant(status) {
   if (status === "ready") return "status-positive";
@@ -170,7 +171,8 @@ export default function SequenceGroupManager({
   const sequenceGroupMeta = selectedCase?.id
     ? getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore())
     : {};
-  const managedSequenceGroupDetails = mergeManagedSequenceGroupDetails(sequenceGroupDetails, sequenceGroupMeta);
+  const managedSequenceGroupDetailsBase = mergeManagedSequenceGroupDetails(sequenceGroupDetails, sequenceGroupMeta);
+  const managedSequenceGroupDetails = { ...managedSequenceGroupDetailsBase, groups: managedSequenceGroupDetailsBase.groups.map((group) => ({ ...group, issue: resolveCaseIssue(selectedCase, { issueName: group.name }) })) };
   const selectedGroup = managedSequenceGroupDetails.groups.find((group) => group.name === selectedGroupName) || managedSequenceGroupDetails.groups[0] || null;
   const activeDescriptionGroupName = selectedGroup?.name || "";
   const sequenceDescriptionDraftKey = selectedCase?.id && activeDescriptionGroupName
@@ -447,15 +449,15 @@ export default function SequenceGroupManager({
         <div className="flex items-start justify-between gap-4 border-b border-neutral-200 p-4 dark:border-neutral-700 sm:p-5">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Investigation Structure</div>
-            <h3 className="mt-1 text-xl font-semibold text-neutral-950 dark:text-neutral-100">Sequence Group Manager</h3>
+            <h3 className="mt-1 text-xl font-semibold text-neutral-950 dark:text-neutral-100">Issue Manager</h3>
             <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-              Scan chains, review records, and keep exports or cleanup actions in their own sections.
+              Issues were previously called Sequence Groups. Review records and manage the current flat Issue structure here.
             </p>
           </div>
           <RecordActions
             className="flex flex-wrap justify-end gap-2"
             actions={[
-              { key: "new", label: "New Sequence Group", variant: "primary", onClick: openCreateGroupForm },
+              { key: "new", label: "New Issue", variant: "primary", onClick: openCreateGroupForm },
               { key: "close", label: "Close", onClick: onClose },
             ]}
           />
@@ -470,7 +472,7 @@ export default function SequenceGroupManager({
 
           <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
-              ["Groups", managerSummary.totalGroups],
+              ["Issues", managerSummary.totalGroups],
               ["Need review", managerSummary.groupsNeedingReview],
               ["Ungrouped", managerSummary.ungroupedRecords],
               ["Weak links / gaps", managerSummary.weakLinks],
@@ -493,21 +495,21 @@ export default function SequenceGroupManager({
               />
               <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-700 dark:bg-neutral-900">
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <div className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Sequence Groups</div>
-                  <button type="button" onClick={openCreateGroupForm} className="rounded-md border border-lime-500 bg-white px-2 py-1 text-xs font-semibold text-neutral-800 hover:bg-lime-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7a263a] dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-lime-950/30">New Group</button>
+                  <div className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Issues</div>
+                  <button type="button" onClick={openCreateGroupForm} className="rounded-md border border-lime-500 bg-white px-2 py-1 text-xs font-semibold text-neutral-800 hover:bg-lime-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7a263a] dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-lime-950/30">New Issue</button>
                 </div>
                 {managedSequenceGroupDetails.groups.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-neutral-300 bg-white p-4 text-center">
-                    <h4 className="text-sm font-semibold text-neutral-900">No sequence groups yet</h4>
-                    <p className="mt-1 text-xs leading-5 text-neutral-500">Create a group, then assign investigation records to it.</p>
-                    <RecordActions className="mt-3 flex justify-center" actions={[{ key: "create", label: "Create Sequence Group", variant: "primary", onClick: openCreateGroupForm }]} />
+                    <h4 className="text-sm font-semibold text-neutral-900">No Issues yet</h4>
+                    <p className="mt-1 text-xs leading-5 text-neutral-500">Create an Issue, then assign investigation records to it.</p>
+                    <RecordActions className="mt-3 flex justify-center" actions={[{ key: "create", label: "Create Issue", variant: "primary", onClick: openCreateGroupForm }]} />
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {managedSequenceGroupDetails.groups.map((group) => {
                       const weakLinkCount = groupWeakLinkCounts.get(group.name) || 0;
                       const status = getSequenceGroupStatus(group, weakLinkCount);
-                      const description = getSequenceGroupDescription(selectedCase.id, group.name);
+                      const description = group.issue?.description || getSequenceGroupDescription(selectedCase.id, group.name);
                       return (
                         <div
                           key={group.name}
@@ -525,7 +527,7 @@ export default function SequenceGroupManager({
                               }}
                               className="min-w-0 flex-1 text-left"
                             >
-                              <div className="break-words text-sm font-semibold text-neutral-950 dark:text-neutral-100">{group.name}</div>
+                              <div className="break-words text-sm font-semibold text-neutral-950 dark:text-neutral-100">{group.issue ? getIssueDisplayLabel(group.issue) : group.name}</div>
                               {description ? (
                                 <p className="mt-1 line-clamp-2 text-xs leading-5 text-neutral-500">{description}</p>
                               ) : (
@@ -581,8 +583,9 @@ export default function SequenceGroupManager({
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="break-words text-xl font-semibold text-neutral-950">{selectedGroup.name}</h3>
+                          <h3 className="break-words text-xl font-semibold text-neutral-950 dark:text-neutral-100">{selectedGroup.issue ? getIssueDisplayLabel(selectedGroup.issue) : selectedGroup.name}</h3>
                           <RecordBadge variant={getGroupBadgeVariant(selectedGroupStatus)} className="uppercase tracking-wider">{selectedGroupStatus}</RecordBadge>
+                          {selectedGroup.issue && <><RecordBadge variant="status-neutral">{selectedGroup.issue.status.replaceAll("_", " ")}</RecordBadge><RecordBadge variant={selectedGroup.issue.priority === "critical" || selectedGroup.issue.priority === "high" ? "status-warning" : "status-neutral"}>{selectedGroup.issue.priority} priority</RecordBadge></>}
                         </div>
                         <div className="mt-2 max-w-3xl">
                           <SequenceGroupDescription description={savedSequenceDescription} />
@@ -1064,6 +1067,7 @@ export default function SequenceGroupManager({
           mode={groupForm.mode}
           initialValue={groupForm.initialValue}
           existingNames={groupOptions}
+          parties={selectedCase.parties || []}
           onSave={saveGroupForm}
           onCancel={() => setGroupForm(null)}
         />
@@ -1071,6 +1075,8 @@ export default function SequenceGroupManager({
       {groupForm?.mode === "manage" && selectedGroup && (
         <SequenceGroupManagementModal
           group={selectedGroup}
+          issue={selectedGroup.issue}
+          parties={selectedCase.parties || []}
           groups={managedSequenceGroupDetails.groups}
           description={getSequenceGroupDescription(selectedCase.id, selectedGroup.name)}
           status={selectedGroupStatus}

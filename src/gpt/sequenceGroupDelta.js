@@ -6,6 +6,7 @@ import {
   moveRecordToSequenceGroup,
   renameCaseSequenceGroup,
 } from "../domain/caseDomain.js";
+import { buildIssueIndex, HUMAN_READABLE_ISSUE_PROMPT, normalizeCaseIssues } from "../domain/issueDomain.js";
 
 export const SEQUENCE_GROUP_DELTA_CONTRACT_VERSION = "sequence-group-delta-1.0";
 export const SEQUENCE_GROUP_REVIEW_EXPORT_TYPE = "SEQUENCE_GROUP_REVIEW_PACKAGE";
@@ -113,6 +114,9 @@ function buildReviewRecordsByGroup(caseItem) {
 }
 
 export function buildSequenceGroupReviewPackage(caseItem, options = {}) {
+  caseItem = normalizeCaseIssues(caseItem).caseData;
+  const issueIndex = buildIssueIndex(caseItem);
+  const issueByName = new Map(issueIndex.map((issue) => [issue.name.toLocaleLowerCase(), issue]));
   const details = getCaseSequenceGroupDetails(caseItem);
   const reviewRecords = buildReviewRecordsByGroup(caseItem);
   const caseId = trimText(caseItem?.id);
@@ -131,7 +135,12 @@ export function buildSequenceGroupReviewPackage(caseItem, options = {}) {
     caseId,
     caseName,
     exportedAt: options.exportedAt || new Date().toISOString(),
+    issues: issueIndex,
     groups: details.groups.map((group) => ({
+      issueId: issueByName.get(group.name.toLocaleLowerCase())?.id || null,
+      issueReference: issueByName.get(group.name.toLocaleLowerCase())?.reference || null,
+      issueName: group.name,
+      issueDisplayLabel: issueByName.get(group.name.toLocaleLowerCase())?.displayLabel || group.name,
       name: group.name,
       counts: { ...group.counts },
       warnings: getGroupWarnings(group),
@@ -139,7 +148,7 @@ export function buildSequenceGroupReviewPackage(caseItem, options = {}) {
     })),
     ungroupedRecords: reviewRecords.ungroupedRecords,
     diagnostics,
-    instructions: "Analyze the sequence groups. Suggest only grouping cleanup changes. Do not edit record content. When asked for JSON, return only sequence-group-delta-1.0.",
+    instructions: `${HUMAN_READABLE_ISSUE_PROMPT}\n\nAnalyze the flat Issues (legacy Sequence Groups). Suggest only grouping cleanup changes. Do not edit record content. When asked for JSON, return only sequence-group-delta-1.0.`,
   };
 }
 

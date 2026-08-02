@@ -37,6 +37,12 @@ test("sequence group input requires and trims a unique name", () => {
   assert.deepEqual(validateSequenceGroupInput({ name: " New Group ", description: " Description " }).value, {
     name: "New Group",
     description: "Description",
+    purpose: "",
+    status: "open",
+    priority: "normal",
+    ownerPartyId: "",
+    reviewDate: "",
+    currentPosition: "",
   });
 });
 
@@ -46,7 +52,7 @@ test("creating a group persists name and blank-compatible description without a 
   const metadata = getSequenceGroupMetaForCase("case-1", storage);
   const details = mergeManagedSequenceGroupDetails(getCaseSequenceGroupDetails(buildCase()), metadata);
 
-  assert.deepEqual(group, { name: "New Group", description: "" });
+  assert.deepEqual(group, { name: "New Group", description: "", purpose: "", status: "open", priority: "normal", ownerPartyId: "", reviewDate: "", currentPosition: "" });
   assert.equal(metadata["New Group"].description, "");
   assert.equal(details.groups.find((item) => item.name === "New Group").totalCount, 0);
 });

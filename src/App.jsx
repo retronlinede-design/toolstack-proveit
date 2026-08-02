@@ -71,10 +71,12 @@ import {
   writeAppLockConfig,
 } from "./appLock";
 import {
+  getSequenceGroupMetaForCase,
   mergeSequenceGroupMetaStoreToStorage,
   readSequenceGroupMetaStore,
 } from "./sequenceGroupMeta.js";
 import proveItLogo from "./assets/proveit-logo.png";
+import { normalizeCaseIssues } from "./domain/issueDomain.js";
 
 const lastUsedGroupByType = {};
 const SHOW_REVIEW_QUEUE = false;
@@ -1134,8 +1136,13 @@ export default function ProveItApp() {
 
   const handleUpdateCase = async (updatedCase) => {
     try {
-      await saveCase(updatedCase);
-      setCases((prev) => prev.map((c) => (c.id === updatedCase.id ? updatedCase : c)));
+      const issueResult = normalizeCaseIssues(updatedCase, {
+        sequenceGroupMeta: getSequenceGroupMetaForCase(updatedCase.id, readSequenceGroupMetaStore()),
+      });
+      if (issueResult.conflicts.length) throw new Error(`Issue validation failed: ${issueResult.conflicts.map((item) => item.code).join(", ")}`);
+      const canonicalCase = issueResult.caseData;
+      await saveCase(canonicalCase);
+      setCases((prev) => prev.map((c) => (c.id === canonicalCase.id ? canonicalCase : c)));
       return true;
     } catch (error) {
       console.error("Failed to update case", error);
@@ -2259,7 +2266,11 @@ export default function ProveItApp() {
             const dateB = new Date(b.updatedAt || b.createdAt || 0);
             return dateB - dateA;
           });
-          const normalized = loadedCases.map(normalizeCase);
+          const metadataStore = readSequenceGroupMetaStore();
+          const normalized = loadedCases.map(normalizeCase).map((caseItem) => normalizeCaseIssues(caseItem, {
+            sequenceGroupMeta: getSequenceGroupMetaForCase(caseItem.id, metadataStore),
+          }).caseData);
+          await Promise.all(normalized.filter((caseItem, index) => caseItem !== loadedCases[index]).map(saveCase));
           setCases(normalized);
         }
       } catch (error) {
@@ -2495,7 +2506,9 @@ export default function ProveItApp() {
       }
     }
 
-    const normalizedCases = incomingCases.map(normalizeCase);
+    const normalizedCases = incomingCases.map(normalizeCase).map((caseItem) => normalizeCaseIssues(caseItem, {
+      sequenceGroupMeta: getSequenceGroupMetaForCase(caseItem.id, incomingSequenceGroupMeta || {}),
+    }).caseData);
     const currentCases = await getAllCases();
     const caseMap = new Map(currentCases.map(c => [c.id, c]));
 
@@ -2503,7 +2516,7 @@ export default function ProveItApp() {
       if (caseMap.has(importedCase.id)) {
         const existingCase = caseMap.get(importedCase.id);
         const mergedCase = mergeCase(existingCase, importedCase);
-        caseMap.set(mergedCase.id, mergedCase);
+        caseMap.set(mergedCase.id, normalizeCaseIssues(mergedCase, { sequenceGroupMeta: getSequenceGroupMetaForCase(mergedCase.id, incomingSequenceGroupMeta || {}) }).caseData);
       } else {
         caseMap.set(importedCase.id, importedCase);
       }
@@ -2531,7 +2544,7 @@ export default function ProveItApp() {
       }
     }
 
-    const persistedCases = (await getAllCases()).map(normalizeCase);
+    const persistedCases = (await getAllCases()).map(normalizeCase).map((caseItem) => normalizeCaseIssues(caseItem, { sequenceGroupMeta: getSequenceGroupMetaForCase(caseItem.id, incomingSequenceGroupMeta || {}) }).caseData);
     reconcileUnlockedCaseIds(persistedCases, currentCases);
     setCases(persistedCases);
     if (importFailures.length === 0 && hasIncomingQuickCaptures && shouldImportQuickCaptures) {

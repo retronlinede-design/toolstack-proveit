@@ -93,3 +93,10 @@ test("model construction does not mutate its inputs", () => {
   assert.deepEqual(input, before);
 });
 
+test("stable Issue metadata drives human labels, owner display, ordering, and review actions", () => {
+  const model = build({ parties: [{ id: "p1", name: "Rory" }], issues: [{ id: "issue_a", reference: "ISS-002", name: "Normal", status: "open", priority: "normal", ownerPartyId: null, reviewDate: null }, { id: "issue_b", reference: "ISS-001", name: "Heating", status: "waiting_response", priority: "critical", ownerPartyId: "p1", reviewDate: "2026-08-01", currentPosition: "Awaiting landlord" }], incidents: [{ id: "i", sequenceGroupId: "issue_b", sequenceGroup: "Old name", updatedAt: now }] });
+  assert.equal(model.issues[0].displayLabel, "ISS-001 — Heating");
+  assert.equal(model.issues[0].owner, "Rory");
+  assert.equal(model.issues[0].currentPosition, "Awaiting landlord");
+  assert.ok(model.nextActions.some((action) => action.title === "Review ISS-001 — Heating" && action.dueState === "overdue"));
+});

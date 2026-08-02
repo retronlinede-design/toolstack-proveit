@@ -1,6 +1,7 @@
 import { getIncidentLinkGroups, sortTimelineItems } from "../domain/caseDomain.js";
 import { resolveRecordById } from "../domain/linkingResolvers.js";
 import { sanitizeAttachmentForExport } from "./caseExport.js";
+import { HUMAN_READABLE_ISSUE_PROMPT, getIssueDisplayLabel, resolveCaseIssue } from "../domain/issueDomain.js";
 
 export const SEQUENCE_GROUP_AUDIT_PROMPT =
   "Please audit this sequence group for chronology accuracy, evidence strength, missing records, weak links, unsupported claims, escalation readiness, and safe ProveIt updates.";
@@ -299,6 +300,7 @@ export function buildSequenceGroupAuditReport(caseData, sequenceGroup, options =
   const groupName = cleanSequenceGroup(sequenceGroup);
   if (!groupName) throw new Error("sequenceGroup is required for SEQUENCE_GROUP_FULL_RECORD_AUDIT_REPORT");
   const groupDescription = text(options.sequenceGroupMeta?.[groupName]?.description);
+  const issue = resolveCaseIssue(caseData, { issueName: groupName });
 
   const incidents = Array.isArray(caseData.incidents) ? caseData.incidents : [];
   const evidenceRecords = Array.isArray(caseData.evidence) ? caseData.evidence : [];
@@ -363,6 +365,11 @@ export function buildSequenceGroupAuditReport(caseData, sequenceGroup, options =
       status: caseData.status || "",
     },
     sequenceGroup: groupName,
+    issueId: issue?.id || null,
+    issueReference: issue?.reference || null,
+    issueName: issue?.name || groupName,
+    issueDisplayLabel: issue ? getIssueDisplayLabel(issue) : groupName,
+    instructions: HUMAN_READABLE_ISSUE_PROMPT,
     threadOverview: {
       description: groupDescription,
       incidentCount: mappedIncidents.length,

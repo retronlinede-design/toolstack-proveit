@@ -7,7 +7,7 @@ const records = readFileSync(new URL("./SequenceGroupRecordManager.jsx", import.
 const caseDetail = readFileSync(new URL("../CaseDetail.jsx", import.meta.url), "utf8");
 
 test("management modal exposes accessible full-management sections", () => {
-  for (const label of ["Manage Sequence Group", "Details", "Records", "Move / Merge", "Delete", "Merge Entire Group into Existing Group", "Move Entire Group into New Group"]) assert.match(modal, new RegExp(label.replace("/", "\\/")));
+  for (const label of ["Manage Issue", "Details", "Records", "Move / Merge", "Delete", "Merge Entire Group into Existing Group", "Move Entire Group into New Group"]) assert.match(modal, new RegExp(label.replace("/", "\\/")));
   assert.match(modal, /role="tablist"/);
   assert.match(modal, /role="tab"/);
   assert.match(modal, /aria-selected/);

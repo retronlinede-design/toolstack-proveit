@@ -1,5 +1,6 @@
 import { getCaseSequenceGroupDetails } from "../domain/caseDomain.js";
 import { buildSequenceGroupAuditReport } from "./sequenceGroupAuditExport.js";
+import { buildIssueIndex, getIssueDisplayLabel, resolveCaseIssue } from "../domain/issueDomain.js";
 
 const RECORD_TYPES = ["incidents", "evidence", "documents", "strategy", "watchItems"];
 const text = (value) => typeof value === "string" ? value.trim() : "";
@@ -84,12 +85,13 @@ export function buildAllSequenceGroupAuditsExport(caseData = {}, options = {}) {
     const seen = new Set();
     const records = sortRecords(allCaseRecords(caseData).filter(({ record }) => text(record.sequenceGroup) === group.name))
       .map(({ record, recordType }, index) => exportRecord(record, recordType, index + 1, seen));
-    return { name: group.name, description: text(sequenceGroupMeta[group.name]?.description), state: group.totalCount === 0 ? "metadata-only" : "populated", status: groupStatus(group, audit), recordCount: group.totalCount, recordTypeBreakdown: { ...group.counts }, warnings: { ...group.warnings }, records, audit };
+    const issue = resolveCaseIssue(caseData, { issueName: group.name });
+    return { issueId: issue?.id || null, issueReference: issue?.reference || null, issueName: issue?.name || group.name, issueDisplayLabel: issue ? getIssueDisplayLabel(issue) : group.name, name: group.name, description: text(issue?.description) || text(sequenceGroupMeta[group.name]?.description), state: group.totalCount === 0 ? "metadata-only" : "populated", status: groupStatus(group, audit), recordCount: group.totalCount, recordTypeBreakdown: { ...group.counts }, warnings: { ...group.warnings }, records, audit };
   });
   return {
     exportType: "ALL_SEQUENCE_GROUP_AUDITS", schemaVersion: "1.0", exportedAt: new Date().toISOString(), importable: false, includesBinaryData: false,
     case: { id: caseData.id || "", name: caseData.name || caseData.title || "", reference: caseData.reference || caseData.id || "" },
-    totals: { sequenceGroups: audits.length, groupedRecords: audits.reduce((sum, group) => sum + group.recordCount, 0) }, audits,
+    issues: buildIssueIndex(caseData), totals: { sequenceGroups: audits.length, groupedRecords: audits.reduce((sum, group) => sum + group.recordCount, 0) }, audits,
   };
 }
 
@@ -103,7 +105,8 @@ export function buildCaseBySequenceGroupsExport(caseData = {}, options = {}) {
     const grouped = sortRecords(allRecords.filter(({ record }) => text(record.sequenceGroup) === group.name));
     const records = grouped.map(({ record, recordType }) => exportRecord(record, recordType, ++appearances, seen));
     const audit = buildSequenceGroupAuditReport(caseData, group.name, { sequenceGroupMeta });
-    return { name: group.name, description: text(sequenceGroupMeta[group.name]?.description), state: group.totalCount === 0 ? "metadata-only" : "populated", status: groupStatus(group, audit), counts: { ...group.counts, total: group.totalCount }, warnings: { ...group.warnings }, diagnostics: audit.diagnostics, records };
+    const issue = resolveCaseIssue(caseData, { issueName: group.name });
+    return { issueId: issue?.id || null, issueReference: issue?.reference || null, issueName: issue?.name || group.name, issueDisplayLabel: issue ? getIssueDisplayLabel(issue) : group.name, name: group.name, description: text(issue?.description) || text(sequenceGroupMeta[group.name]?.description), state: group.totalCount === 0 ? "metadata-only" : "populated", status: groupStatus(group, audit), counts: { ...group.counts, total: group.totalCount }, warnings: { ...group.warnings }, diagnostics: audit.diagnostics, records };
   });
   const ungrouped = Object.fromEntries(RECORD_TYPES.map((recordType) => [recordType, sortRecords(allRecords.filter((entry) => entry.recordType === recordType && !text(entry.record.sequenceGroup))).map(({ record }) => exportRecord(record, recordType, ++appearances, seen))]));
   const ungroupedTotal = Object.values(ungrouped).reduce((sum, records) => sum + records.length, 0);
@@ -111,6 +114,7 @@ export function buildCaseBySequenceGroupsExport(caseData = {}, options = {}) {
   return {
     exportType: "FULL_CASE_BY_SEQUENCE_GROUPS", schemaVersion: "1.0", exportedAt: new Date().toISOString(), importable: false, includesBinaryData: false,
     case: { id: caseData.id || "", name: caseData.name || caseData.title || "", reference: caseData.reference || caseData.id || "", description: caseData.description || caseData.summary || caseData.caseState?.currentSituation || "", status: caseData.status || "" },
+    issues: buildIssueIndex(caseData),
     totals: { uniqueRecords: new Set(allRecords.map(({ record, recordType }) => keyOf(recordType, record))).size, groupedRecordAppearances: sequenceGroups.reduce((sum, group) => sum + group.records.length, 0), ungroupedRecords: ungroupedTotal, sequenceGroups: sequenceGroups.length, recordTypes: recordTypeTotals },
     sequenceGroups, ungroupedRecords: ungrouped, unresolvedReferences: collectMissingReferences(caseData, allRecords),
   };

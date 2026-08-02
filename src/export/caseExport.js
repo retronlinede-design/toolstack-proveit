@@ -1,6 +1,7 @@
 import { getCaseHealthReport } from "../lib/caseHealth.js";
 import { getIncidentLinkGroups, sortTimelineItems } from "../domain/caseDomain.js";
 import { getEvidenceDisplayMeta, getIncidentDisplayMeta, getRecordDisplayMeta } from "../domain/linkingResolvers.js";
+import { buildIssueIndex, HUMAN_READABLE_ISSUE_PROMPT, normalizeCaseIssues } from "../domain/issueDomain.js";
 
 /**
  * Sanitizes an attachment object for export, removing binary data.
@@ -99,7 +100,14 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
     throw new Error("caseItem is required for CASE_REASONING_EXPORT");
   }
 
-  const c = sanitizeCaseForExport(caseItem);
+  const c = sanitizeCaseForExport(normalizeCaseIssues(caseItem).caseData);
+  const issues = buildIssueIndex(c);
+  const issueById = new Map(issues.map((issue) => [issue.id, issue]));
+  const issueByName = new Map(issues.map((issue) => [issue.name.toLocaleLowerCase(), issue]));
+  const issueFields = (record) => {
+    const issue = issueById.get(record?.sequenceGroupId) || issueByName.get(String(record?.sequenceGroup || "").trim().toLocaleLowerCase());
+    return issue ? { issueId: issue.id, issueReference: issue.reference, issueName: issue.name, issueDisplayLabel: issue.displayLabel } : { issueId: null, issueReference: null, issueName: record?.sequenceGroup || null, issueDisplayLabel: record?.sequenceGroup || null };
+  };
   // Preserve the versioned reasoning-export health shape; planning/monitoring diagnostics are UI-local in this phase.
   const health = getCaseHealthReport(c, { includePlanningMonitoring: false });
   const limits = mode === "compact"
@@ -300,6 +308,7 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
         isMilestone: !!i.isMilestone,
         evidenceStatus: i.evidenceStatus || "",
         sequenceGroup: i.sequenceGroup || "",
+        ...issueFields(i),
         tags: Array.isArray(i.tags) ? i.tags : [],
         source: i.source || "",
         attachmentCount: Array.isArray(i.attachments) ? i.attachments.length : 0,
@@ -362,6 +371,7 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
         createdAt: s.createdAt || "",
         updatedAt: s.updatedAt || "",
         sequenceGroup: s.sequenceGroup || "",
+        ...issueFields(s),
         tags: Array.isArray(s.tags) ? s.tags : [],
         source: s.source || "",
         summary: (s.description || s.notes || "").substring(0, 300),
@@ -445,6 +455,7 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
     evidenceRole: e.evidenceRole,
     evidenceType: e.evidenceType || "",
     sequenceGroup: e.sequenceGroup || "",
+    ...issueFields(e),
     functionSummary: e.functionSummary || "",
     usedIn: Array.isArray(e.usedIn) ? e.usedIn : [],
     reviewNotes: e.reviewNotes || "",
@@ -652,6 +663,7 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
       source: d.source,
       summary: d.summary || "",
       sequenceGroup: d.sequenceGroup || "",
+      ...issueFields(d),
       createdAt: d.createdAt || "",
       updatedAt: d.updatedAt || "",
       edited: !!d.edited,
@@ -717,6 +729,7 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
     exportedAt: new Date().toISOString(),
     importable: false,
     includesBinaryData: false,
+    instructions: HUMAN_READABLE_ISSUE_PROMPT,
     data: {
       case: {
         id: c.id,
@@ -733,6 +746,7 @@ export function buildCaseReasoningExportPayload(caseItem, mode = "compact") {
           `${openTasks.length} tasks currently pending action.`,
         ],
       },
+      issues,
       caseState,
       riskSummary,
       leveragePoints,

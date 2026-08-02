@@ -3,6 +3,7 @@ import {
   getCaseSequenceGroupRelationshipMap,
 } from "../domain/caseDomain.js";
 import { resolveRecordById } from "../domain/linkingResolvers.js";
+import { HUMAN_READABLE_ISSUE_PROMPT, resolveCaseIssue, getIssueDisplayLabel } from "../domain/issueDomain.js";
 
 export const SEQUENCE_GROUPS_INDEX_PROMPT =
   "Please review this sequence group index and recommend which chains should be audited first, which appear weak or unsupported, and which records may need regrouping.";
@@ -131,8 +132,13 @@ function buildGroupIndexItem(caseData, group, sequenceGroupMeta = {}) {
     milestoneWithoutEvidenceCount,
     externalLinkedRecordCount: countExternalLinkedRecords(caseData, records, groupName),
   };
+  const issue = resolveCaseIssue(caseData, { issueName: groupName });
 
   return {
+    issueId: issue?.id || null,
+    issueReference: issue?.reference || null,
+    issueName: issue?.name || groupName,
+    issueDisplayLabel: issue ? getIssueDisplayLabel(issue) : groupName,
     name: groupName,
     slug: slugify(groupName),
     description: text(sequenceGroupMeta[groupName]?.description),
@@ -206,7 +212,7 @@ export function buildSequenceGroupsIndexReport(caseData = {}, options = {}) {
     totals,
     sequenceGroups,
     ungroupedSummary,
-    gptPromptBlock: SEQUENCE_GROUPS_INDEX_PROMPT,
+    gptPromptBlock: `${HUMAN_READABLE_ISSUE_PROMPT}\n\n${SEQUENCE_GROUPS_INDEX_PROMPT}`,
   };
 }
 
