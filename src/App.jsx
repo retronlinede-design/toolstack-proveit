@@ -140,7 +140,7 @@ function hasRecentFullBackupAll(timestamp) {
 }
 
 function hasRecentFullBackupMeta(meta) {
-  return meta?.exportType === "FULL_BACKUP_ALL" && hasRecentFullBackupAll(meta.timestamp);
+  return meta?.exportType === "FULL_BACKUP_ALL" && meta.complete === true && hasRecentFullBackupAll(meta.timestamp);
 }
 
 function getBackupStatus(meta) {
@@ -148,6 +148,20 @@ function getBackupStatus(meta) {
     return {
       label: "Backup none recorded",
       className: "border-red-200 bg-red-50 text-red-700",
+    };
+  }
+
+  if (meta.complete === false) {
+    return {
+      label: "Partial backup downloaded",
+      className: "border-red-200 bg-red-50 text-red-700",
+    };
+  }
+
+  if (meta.complete !== true) {
+    return {
+      label: "Backup integrity unverified",
+      className: "border-amber-200 bg-amber-50 text-amber-800",
     };
   }
 
@@ -187,6 +201,20 @@ function getCompactBackupStatus(meta) {
     };
   }
 
+  if (meta.complete === false) {
+    return {
+      label: "Backup: Partial",
+      className: "border-red-200 bg-red-50 text-red-700",
+    };
+  }
+
+  if (meta.complete !== true) {
+    return {
+      label: "Backup: Unverified",
+      className: "border-amber-200 bg-amber-50 text-amber-800",
+    };
+  }
+
   const ageMs = Math.max(0, Date.now() - parsedTimestamp);
   const ageDays = Math.floor(ageMs / (24 * 60 * 60 * 1000));
   const label = ageDays === 0 ? "Backup: Today" : `Backup: ${ageDays}d old`;
@@ -197,6 +225,15 @@ function getCompactBackupStatus(meta) {
       ? "border-lime-200 bg-lime-50 text-lime-700"
       : "border-amber-200 bg-amber-50 text-amber-800",
   };
+}
+
+function getPartialBackupMessage(binaryData, label = "Full Backup") {
+  const expected = binaryData?.expected ?? 0;
+  const included = binaryData?.included ?? 0;
+  const missing = binaryData?.missing ?? 0;
+  const failed = binaryData?.failed ?? 0;
+  const failureText = failed > 0 ? ` (${failed} retrieval failure${failed === 1 ? "" : "s"})` : "";
+  return `${label} download initiated, but it is partial: ${included} of ${expected} referenced attachment binaries were included; ${missing} missing${failureText}. This file cannot be treated as a complete recoverable backup.`;
 }
 
 function isTrackingRecordDocument(doc) {
@@ -294,16 +331,6 @@ function mergeImportedCaseFolders(localFolders, importedFolders, importedCases) 
   }
 
   return makeUniqueFolderNames(Array.from(folderMap.values()));
-}
-
-function getFullBackupPayloadCounts(payload) {
-  const imported = payload?.data || payload;
-  const folders = getImportedFolderSource(payload, imported).folders;
-  return {
-    caseCount: Array.isArray(imported?.cases) ? imported.cases.length : 0,
-    quickCaptureCount: Array.isArray(imported?.quickCaptures) ? imported.quickCaptures.length : 0,
-    folderCount: folders.length,
-  };
 }
 
 function readCaseFolders() {
@@ -1102,7 +1129,7 @@ export default function ProveItApp() {
 
       downloadJson(
         payload,
-        `proveit-full-backup-all-${new Date()
+        `proveit-full-backup-all${payload.binaryData.complete ? "" : "-partial"}-${new Date()
           .toISOString()
           .slice(0, 10)}.json`
       );
@@ -1116,19 +1143,29 @@ export default function ProveItApp() {
       const backupMeta = {
         exportType: "FULL_BACKUP_ALL",
         timestamp: backupTimestamp,
+        complete: payload.binaryData.complete,
+        binaryData: payload.binaryData,
+        downloadInitiated: true,
         caseCount: allCases.length,
         quickCaptureCount: quickCaptures.length,
         folderCount: foldersForBackup.length,
       };
       try {
-        localStorage.setItem(LAST_FULL_BACKUP_ALL_AT_KEY, backupTimestamp);
+        if (payload.binaryData.complete) {
+          localStorage.setItem(LAST_FULL_BACKUP_ALL_AT_KEY, backupTimestamp);
+        } else {
+          localStorage.removeItem(LAST_FULL_BACKUP_ALL_AT_KEY);
+        }
         localStorage.setItem(LAST_BACKUP_META_KEY, JSON.stringify(backupMeta));
       } catch {
         // If localStorage is unavailable, keep the timestamp in state for this session only.
       }
       setLastBackupMeta(backupMeta);
       refreshRescueSnapshot();
-      return true;
+      if (!payload.binaryData.complete) {
+        showAppNotice("warning", getPartialBackupMessage(payload.binaryData));
+      }
+      return payload.binaryData.complete;
     } catch (err) {
       console.error("FULL BACKUP failed", err);
       showAppNotice("error", "Full backup failed.");
@@ -2409,7 +2446,10 @@ export default function ProveItApp() {
       }, { getImageById });
       const safeName = selectedCase.name.toLowerCase().replace(/[^a-z0-9]/g, "-");
       const dateStr = new Date().toISOString().slice(0, 10);
-      downloadJson(payload, `proveit-full-backup-case-${safeName}-${dateStr}.json`, { space: 2 });
+      downloadJson(payload, `proveit-full-backup-case${payload.binaryData.complete ? "" : "-partial"}-${safeName}-${dateStr}.json`, { space: 2 });
+      if (!payload.binaryData.complete) {
+        showAppNotice("warning", getPartialBackupMessage(payload.binaryData, "Full Case Backup"));
+      }
     } catch (error) {
       console.error("Export case failed", error);
       showAppNotice("error", "Could not export this case backup.");
@@ -2567,27 +2607,11 @@ export default function ProveItApp() {
               // Import should still complete if optional sequence group metadata cannot be written.
             }
           }
-          const counts = getFullBackupPayloadCounts(parsed);
-          const backupTimestamp = new Date().toISOString();
-          const backupMeta = {
-            exportType: "FULL_BACKUP_ALL",
-            timestamp: backupTimestamp,
-            caseCount: counts.caseCount,
-            quickCaptureCount: counts.quickCaptureCount,
-            folderCount: counts.folderCount,
-          };
-          try {
-            localStorage.setItem(LAST_FULL_BACKUP_ALL_AT_KEY, backupTimestamp);
-            localStorage.setItem(LAST_BACKUP_META_KEY, JSON.stringify(backupMeta));
-          } catch {
-            // Import should still complete if localStorage metadata cannot be written.
-          }
           await updateRescueSnapshot({
             cases: persistedCases,
             folders: readCaseFolders(),
             quickCaptures: incomingQuickCaptures,
           });
-          setLastBackupMeta(backupMeta);
           refreshRescueSnapshot();
         }
         if (exportType !== "FULL_BACKUP_ALL") {
@@ -3784,7 +3808,7 @@ const handleRecordFiles = async (event) => {
                   <div>
                     <h3 className="text-sm font-bold text-neutral-900">Backups</h3>
                     <p className="mt-1 text-xs leading-5 text-neutral-500">
-                      Full app backups are importable and include all cases, quick captures, and stored attachment data.
+                      Full app backups are importable and include all cases, quick captures, and stored attachment data when their binary completeness status is complete.
                     </p>
                   </div>
                   <span className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${backupStatus.className}`}>
@@ -3794,9 +3818,14 @@ const handleRecordFiles = async (event) => {
                 <div className="mt-3 rounded-lg border border-neutral-200 bg-white p-3 text-xs text-neutral-600">
                   <div>Last backup: <span className="font-semibold text-neutral-800">{backupTimestampLabel}</span></div>
                   {lastBackupMeta?.exportType === "FULL_BACKUP_ALL" ? (
-                    <div className="mt-1">
-                      Cases: {lastBackupMeta.caseCount ?? 0} | Quick captures: {lastBackupMeta.quickCaptureCount ?? 0} | Folders: {lastBackupMeta.folderCount ?? 0}
-                    </div>
+                    <>
+                      <div className="mt-1">
+                        Cases: {lastBackupMeta.caseCount ?? 0} | Quick captures: {lastBackupMeta.quickCaptureCount ?? 0} | Folders: {lastBackupMeta.folderCount ?? 0}
+                      </div>
+                      <div className={`mt-1 font-semibold ${lastBackupMeta.complete === false ? "text-red-700" : "text-neutral-700"}`}>
+                        Attachment binaries: {lastBackupMeta.binaryData?.included ?? 0} included / {lastBackupMeta.binaryData?.expected ?? 0} expected; {lastBackupMeta.binaryData?.missing ?? 0} missing{lastBackupMeta.binaryData?.failed ? ` (${lastBackupMeta.binaryData.failed} retrieval failure${lastBackupMeta.binaryData.failed === 1 ? "" : "s"})` : ""}. {lastBackupMeta.complete === true ? "Complete." : lastBackupMeta.complete === false ? "Partial — not a complete recoverable backup." : "Completeness was not verified."}
+                      </div>
+                    </>
                   ) : null}
                 </div>
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -4169,14 +4198,19 @@ const handleRecordFiles = async (event) => {
               <section className="rounded-xl border border-neutral-200 bg-white p-4">
                 <h3 className="text-sm font-bold text-neutral-900">Data & Backups</h3>
                 <p className="mt-1 text-xs leading-5 text-neutral-500">
-                  Full App Backup remains the complete backup path for cases, folders, quick captures, images, and attachments.
+                  Only a Full App Backup marked complete includes every referenced attachment binary.
                 </p>
                 <div className="mt-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-xs text-neutral-600">
                   <div>Last backup: <span className="font-semibold text-neutral-800">{backupTimestampLabel}</span></div>
                   {lastBackupMeta?.exportType === "FULL_BACKUP_ALL" ? (
-                    <div className="mt-1">
-                      Cases: {lastBackupMeta.caseCount ?? 0} | Quick captures: {lastBackupMeta.quickCaptureCount ?? 0} | Folders: {lastBackupMeta.folderCount ?? 0}
-                    </div>
+                    <>
+                      <div className="mt-1">
+                        Cases: {lastBackupMeta.caseCount ?? 0} | Quick captures: {lastBackupMeta.quickCaptureCount ?? 0} | Folders: {lastBackupMeta.folderCount ?? 0}
+                      </div>
+                      <div className={`mt-1 font-semibold ${lastBackupMeta.complete === false ? "text-red-700" : "text-neutral-700"}`}>
+                        Attachment binaries: {lastBackupMeta.binaryData?.included ?? 0} included / {lastBackupMeta.binaryData?.expected ?? 0} expected; {lastBackupMeta.binaryData?.missing ?? 0} missing. {lastBackupMeta.complete === true ? "Complete." : lastBackupMeta.complete === false ? "Partial — not a complete recoverable backup." : "Completeness was not verified."}
+                      </div>
+                    </>
                   ) : null}
                 </div>
                 <button

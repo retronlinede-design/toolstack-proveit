@@ -81,6 +81,120 @@ test("buildFullBackupRecord case and quick capture preserve current structure", 
   assert.deepEqual(backedCase.strategy, []);
 });
 
+test("AUDIT-006: full backup payload reports complete binary accounting when every referenced binary is available", async () => {
+  const payload = await buildFullBackupAllPayload({
+    cases: [{
+      id: "case-available",
+      evidence: [{ id: "evidence-available", attachments: [{ id: "att-available", storage: { imageId: "img-available" } }] }],
+    }],
+  }, {
+    getImageById: async () => ({ dataUrl: "data:image/png;base64,available" }),
+  });
+
+  assert.equal(payload.includesBinaryData, true);
+  assert.deepEqual(payload.binaryData, {
+    expected: 1,
+    included: 1,
+    missing: 0,
+    failed: 0,
+    complete: true,
+    missingReferences: [],
+  });
+  assert.equal(payload.data.cases[0].evidence[0].attachments[0].backupDataUrl, "data:image/png;base64,available");
+});
+
+test("AUDIT-006: full backup payload is explicitly partial when one or more referenced binaries are absent", async () => {
+  const payload = await buildFullBackupAllPayload({
+    cases: [{
+      id: "case-missing",
+      evidence: [{ id: "evidence-missing", attachments: [
+        { id: "att-present", storage: { imageId: "img-present" } },
+        { id: "att-missing-one", name: "one.pdf", storage: { imageId: "img-missing-one" } },
+        { id: "att-missing-two", name: "two.pdf", storage: { imageId: "img-missing-two" } },
+      ] }],
+    }],
+  }, {
+    getImageById: async (id) => id === "img-present" ? { dataUrl: "data:present" } : undefined,
+  });
+
+  assert.equal(payload.includesBinaryData, false);
+  assert.deepEqual(payload.binaryData, {
+    expected: 3,
+    included: 1,
+    missing: 2,
+    failed: 0,
+    complete: false,
+    missingReferences: [
+      { attachmentId: "att-missing-one", name: "one.pdf", imageId: "img-missing-one", reason: "missing" },
+      { attachmentId: "att-missing-two", name: "two.pdf", imageId: "img-missing-two", reason: "missing" },
+    ],
+  });
+  assert.equal(payload.data.cases[0].evidence[0].attachments[0].backupDataUrl, "data:present");
+  assert.equal(payload.data.cases[0].evidence[0].attachments[1].backupDataUrl, undefined);
+});
+
+test("AUDIT-006: full backup preserves available data and records retrieval failures as partial", async () => {
+  const payload = await buildFullBackupAllPayload({
+    cases: [{
+      id: "case-failure",
+      evidence: [{ id: "evidence-failure", attachments: [
+        { id: "att-available", storage: { imageId: "img-available" } },
+        { id: "att-failed", name: "unreadable.png", storage: { imageId: "img-failed" } },
+      ] }],
+    }],
+  }, {
+    getImageById: async (id) => {
+      if (id === "img-failed") throw new Error("IndexedDB read failed");
+      return { dataUrl: "data:available" };
+    },
+  });
+
+  assert.deepEqual(payload.binaryData, {
+    expected: 2,
+    included: 1,
+    missing: 1,
+    failed: 1,
+    complete: false,
+    missingReferences: [{ attachmentId: "att-failed", name: "unreadable.png", imageId: "img-failed", reason: "failed" }],
+  });
+  assert.equal(payload.data.cases[0].evidence[0].attachments[0].backupDataUrl, "data:available");
+});
+
+test("AUDIT-006: cases without attachments and mixed case/capture data receive truthful aggregate binary accounting", async () => {
+  const noAttachmentPayload = await buildFullBackupCasePayload({ caseItem: { id: "case-empty", evidence: [] } }, {
+    getImageById: async () => { throw new Error("should not read"); },
+  });
+  assert.deepEqual(noAttachmentPayload.binaryData, {
+    expected: 0,
+    included: 0,
+    missing: 0,
+    failed: 0,
+    complete: true,
+    missingReferences: [],
+  });
+
+  const mixedPayload = await buildFullBackupAllPayload({
+    cases: [
+      { id: "case-one", evidence: [{ id: "evidence-one", attachments: [{ id: "att-one", storage: { imageId: "img-one" } }] }] },
+      { id: "case-two", documents: [{ id: "document-two", attachments: [{ id: "att-two", storage: { imageId: "img-two" } }] }] },
+    ],
+    quickCaptures: [{ id: "capture-three", attachments: [{ id: "att-three", storage: { imageId: "img-three" } }] }],
+  }, {
+    getImageById: async (id) => id === "img-one" ? { dataUrl: "data:one" } : undefined,
+  });
+  assert.deepEqual(mixedPayload.binaryData, {
+    expected: 3,
+    included: 1,
+    missing: 2,
+    failed: 0,
+    complete: false,
+    missingReferences: [
+      { attachmentId: "att-two", name: "", imageId: "img-two", reason: "missing" },
+      { attachmentId: "att-three", name: "", imageId: "img-three", reason: "missing" },
+    ],
+  });
+});
+
 test("restore helpers preserve attachment identity while assigning fresh storage IDs", async () => {
   const saved = [];
   const deps = {

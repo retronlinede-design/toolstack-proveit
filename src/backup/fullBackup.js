@@ -1,14 +1,59 @@
 import { createRestoreSession } from "./restoreSession.js";
 
-export async function buildFullBackupAttachment(att, { getImageById } = {}) {
+function createBinaryDataStats() {
+  return {
+    expected: 0,
+    included: 0,
+    missing: 0,
+    failed: 0,
+    missingReferences: [],
+  };
+}
+
+function finalizeBinaryDataStats(stats) {
+  return {
+    expected: stats.expected,
+    included: stats.included,
+    missing: stats.missing,
+    failed: stats.failed,
+    complete: stats.missing === 0,
+    missingReferences: stats.missingReferences,
+  };
+}
+
+function recordMissingBinary(stats, att, imageId, reason) {
+  stats.missing += 1;
+  if (reason === "failed") stats.failed += 1;
+  stats.missingReferences.push({
+    attachmentId: att?.id || "",
+    name: att?.name || "",
+    imageId,
+    reason,
+  });
+}
+
+export async function buildFullBackupAttachment(att, { getImageById, binaryDataStats } = {}) {
   if (!att) return att;
 
   const cloned = { ...att };
 
-  if (att.storage?.imageId) {
-    const stored = await getImageById(att.storage.imageId);
-    if (stored && stored.dataUrl) {
-      cloned.backupDataUrl = stored.dataUrl;
+  const imageId = att.storage?.imageId;
+  if (imageId) {
+    if (binaryDataStats) binaryDataStats.expected += 1;
+    try {
+      const stored = await getImageById(imageId);
+      if (stored && stored.dataUrl) {
+        cloned.backupDataUrl = stored.dataUrl;
+        if (binaryDataStats) binaryDataStats.included += 1;
+      } else if (binaryDataStats) {
+        recordMissingBinary(binaryDataStats, att, imageId, "missing");
+      }
+    } catch (error) {
+      if (binaryDataStats) {
+        recordMissingBinary(binaryDataStats, att, imageId, "failed");
+      } else {
+        throw error;
+      }
     }
   }
 
@@ -211,9 +256,12 @@ export async function buildFullBackupAllPayload({
   selectedCaseId = null,
   activeTab = "overview",
 } = {}, deps = {}) {
+  const binaryDataStats = createBinaryDataStats();
   const backupFolders = Array.isArray(folders) ? folders : [];
-  const backupCases = await Promise.all((cases || []).map((caseItem) => buildFullBackupCase(caseItem, deps)));
-  const backupQuickCaptures = await Promise.all((quickCaptures || []).map((capture) => buildFullBackupQuickCapture(capture, deps)));
+  const backupDeps = { ...deps, binaryDataStats };
+  const backupCases = await Promise.all((cases || []).map((caseItem) => buildFullBackupCase(caseItem, backupDeps)));
+  const backupQuickCaptures = await Promise.all((quickCaptures || []).map((capture) => buildFullBackupQuickCapture(capture, backupDeps)));
+  const binaryData = finalizeBinaryDataStats(binaryDataStats);
 
   return {
     app: "proveit",
@@ -221,7 +269,8 @@ export async function buildFullBackupAllPayload({
     exportType: "FULL_BACKUP_ALL",
     exportedAt: new Date().toISOString(),
     importable: true,
-    includesBinaryData: true,
+    includesBinaryData: binaryData.complete,
+    binaryData,
     metadata: {
       caseCount: backupCases.length,
       quickCaptureCount: backupQuickCaptures.length,
@@ -250,15 +299,20 @@ export async function buildFullBackupCasePayload({
     throw new Error("caseItem is required for FULL_BACKUP_CASE");
   }
 
+  const binaryDataStats = createBinaryDataStats();
+  const backupCase = await buildFullBackupCase(caseItem, { ...deps, binaryDataStats });
+  const finalBinaryData = finalizeBinaryDataStats(binaryDataStats);
+
   return {
     app: "proveit",
     contractVersion: "2.0",
     exportType: "FULL_BACKUP_CASE",
     exportedAt: new Date().toISOString(),
     importable: true,
-    includesBinaryData: true,
+    includesBinaryData: finalBinaryData.complete,
+    binaryData: finalBinaryData,
     data: {
-      cases: [await buildFullBackupCase(caseItem, deps)],
+      cases: [backupCase],
       selectedCaseId: selectedCaseId ?? caseItem.id,
       activeTab,
     },
