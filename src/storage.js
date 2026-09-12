@@ -275,6 +275,15 @@ export async function saveImage(imageItem) {
   return db.put(STORE_NAMES.images, imageItem);
 }
 
+// Restore must use insert-only semantics, including on an unexpected ID collision.
+export async function addImageToDb(db, imageItem) {
+  return db.add(STORE_NAMES.images, imageItem);
+}
+
+export async function addImage(imageItem) {
+  return addImageToDb(await getDb(), imageItem);
+}
+
 export async function deleteImage(imageId) {
   const db = await getDb();
   return db.delete(STORE_NAMES.images, imageId);

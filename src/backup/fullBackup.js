@@ -1,3 +1,5 @@
+import { createRestoreSession } from "./restoreSession.js";
+
 export async function buildFullBackupAttachment(att, { getImageById } = {}) {
   if (!att) return att;
 
@@ -86,37 +88,26 @@ export async function buildFullBackupQuickCapture(capture, deps = {}) {
   return cloned;
 }
 
-export async function restoreFullBackupAttachment(att, ownerId, { saveImage, generateId, restoreStats, caseRestoreKey } = {}) {
+export async function restoreFullBackupAttachment(att, ownerId, deps = {}) {
+  const { restoreStats } = deps;
   if (!att) return att;
 
   const cloned = { ...att };
 
-  if (!att.backupDataUrl) {
+  const session = deps.restoreSession || createRestoreSession(deps, [{ attachments: [att] }]);
+  if (!session.hasPayload(att)) {
     return cloned;
   }
 
-  let imageId = att.storage?.imageId || att.imageId || att.id || generateId();
-
   try {
-    await saveImage({
-      id: imageId,
-      evidenceId: ownerId || null,
-      dataUrl: att.backupDataUrl,
-      createdAt: att.createdAt || new Date().toISOString(),
-    });
+    const imageId = await session.restore(att, ownerId);
 
     cloned.storage = {
       ...(cloned.storage || {}),
       type: "indexeddb",
       imageId,
     };
-    if (restoreStats && caseRestoreKey) {
-      if (!restoreStats.restoredImageIdsByCase) restoreStats.restoredImageIdsByCase = {};
-      if (!Array.isArray(restoreStats.restoredImageIdsByCase[caseRestoreKey])) {
-        restoreStats.restoredImageIdsByCase[caseRestoreKey] = [];
-      }
-      restoreStats.restoredImageIdsByCase[caseRestoreKey].push(imageId);
-    }
+    if (Object.hasOwn(cloned, "imageId")) cloned.imageId = imageId;
     // Remove backupDataUrl after restoring to keep the attachment clean
     delete cloned.backupDataUrl;
   } catch (err) {
@@ -134,6 +125,7 @@ export async function restoreFullBackupAttachment(att, ownerId, { saveImage, gen
 }
 
 export async function restoreFullBackupRecord(record, deps = {}) {
+  deps = { ...deps, restoreSession: deps.restoreSession || createRestoreSession(deps, [record]) };
   if (!record) return record;
 
   const cloned = { ...record };
@@ -161,6 +153,7 @@ export async function restoreFullBackupRecord(record, deps = {}) {
 }
 
 export async function restoreFullBackupDocument(doc, deps = {}) {
+  deps = { ...deps, restoreSession: deps.restoreSession || createRestoreSession(deps, [doc]) };
   if (!doc) return doc;
 
   const cloned = { ...doc };
@@ -174,14 +167,11 @@ export async function restoreFullBackupDocument(doc, deps = {}) {
 }
 
 export async function restoreFullBackupCase(caseItem, deps = {}) {
+  deps = { ...deps, restoreSession: deps.restoreSession || createRestoreSession(deps, [caseItem]) };
   if (!caseItem) return caseItem;
 
   const cloned = { ...caseItem };
-  const caseRestoreKey = caseItem.id || deps.generateId?.() || `case-${Date.now()}`;
-  const scopedDeps = {
-    ...deps,
-    caseRestoreKey,
-  };
+  const scopedDeps = deps;
 
   cloned.evidence = await Promise.all((caseItem.evidence || []).map((record) => restoreFullBackupRecord(record, scopedDeps)));
   cloned.incidents = await Promise.all((caseItem.incidents || []).map((record) => restoreFullBackupRecord(record, scopedDeps)));
@@ -194,6 +184,7 @@ export async function restoreFullBackupCase(caseItem, deps = {}) {
 }
 
 export async function restoreFullBackupQuickCapture(capture, deps = {}) {
+  deps = { ...deps, restoreSession: deps.restoreSession || createRestoreSession(deps, [capture]) };
   if (!capture) return capture;
 
   const cloned = { ...capture };

@@ -48,7 +48,7 @@ test("full backup and restore preserve watch attachments", async () => {
   const source = { id: "c", watchItems: [{ id: "w", attachments: [{ id: "a", name: "file", storage: { imageId: "img" } }] }] };
   const backup = await buildFullBackupCase(source, { getImageById: async () => ({ dataUrl: "data:text/plain;base64,WA==" }) });
   assert.equal(backup.watchItems[0].attachments[0].backupDataUrl, "data:text/plain;base64,WA==");
-  const restored = await restoreFullBackupCase(backup, { generateId: () => "new", saveImage: async () => "stored" });
+  const restored = await restoreFullBackupCase(backup, { generateId: () => "new", addImage: async () => "stored" });
   assert.equal(restored.watchItems[0].attachments[0].name, "file");
 });
 

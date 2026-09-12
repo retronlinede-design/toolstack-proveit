@@ -81,11 +81,11 @@ test("buildFullBackupRecord case and quick capture preserve current structure", 
   assert.deepEqual(backedCase.strategy, []);
 });
 
-test("restore helpers recreate attachment metadata with current stored id selection behavior", async () => {
+test("restore helpers preserve attachment identity while assigning fresh storage IDs", async () => {
   const saved = [];
   const deps = {
     generateId: () => "generated-id",
-    saveImage: async (image) => {
+    addImage: async (image) => {
       saved.push(image);
     },
   };
@@ -98,7 +98,7 @@ test("restore helpers recreate attachment metadata with current stored id select
   }, "owner-1", deps);
 
   assert.deepEqual(saved, [{
-    id: "att-1",
+    id: "generated-id",
     evidenceId: "owner-1",
     dataUrl: "data:image/png;base64,abc",
     createdAt: "2024-01-01T09:00:00.000Z",
@@ -109,7 +109,7 @@ test("restore helpers recreate attachment metadata with current stored id select
     createdAt: "2024-01-01T09:00:00.000Z",
     storage: {
       type: "indexeddb",
-      imageId: "att-1",
+      imageId: "generated-id",
     },
   });
 });
@@ -127,7 +127,7 @@ test("restore helpers preserve log-and-continue behavior on attachment restore f
       backupDataUrl: "data:image/png;base64,bad",
     }, "owner-1", {
       generateId: () => "generated-id",
-      saveImage: async () => {
+      addImage: async () => {
         throw new Error("write failed");
       },
     });
@@ -146,8 +146,8 @@ test("restore helpers preserve log-and-continue behavior on attachment restore f
 test("restoreFullBackupRecord case and quick capture preserve current structure", async () => {
   const saved = [];
   const deps = {
-    generateId: () => "generated-owner",
-    saveImage: async (image) => {
+    generateId: (() => { let next = 0; return () => `fresh-${++next}`; })(),
+    addImage: async (image) => {
       saved.push(image);
     },
   };
@@ -177,14 +177,14 @@ test("restoreFullBackupRecord case and quick capture preserve current structure"
   const restoredCase = await restoreFullBackupCase(caseItem, deps);
   const restoredCapture = await restoreFullBackupQuickCapture(capture, deps);
 
-  assert.equal(restoredRecord.attachments[0].storage.imageId, "att-1");
-  assert.equal(restoredRecord.availability.digital.files[0].storage.imageId, "att-2");
-  assert.equal(restoredCase.evidence[0].attachments[0].storage.imageId, "att-1");
-  assert.equal(restoredCase.documents[0].attachments[0].storage.imageId, "doc-att");
-  assert.equal(restoredCapture.attachments[0].storage.imageId, "cap-att");
-  assert.ok(saved.some((item) => item.evidenceId === "ev-1" && item.id === "att-1"));
-  assert.ok(saved.some((item) => item.evidenceId === "doc-1" && item.id === "doc-att"));
-  assert.ok(saved.some((item) => item.evidenceId === "cap-1" && item.id === "cap-att"));
+  assert.equal(restoredRecord.attachments[0].storage.imageId, "fresh-1");
+  assert.equal(restoredRecord.availability.digital.files[0].storage.imageId, "fresh-2");
+  assert.equal(restoredCase.evidence[0].attachments[0].storage.imageId, "fresh-3");
+  assert.equal(restoredCase.documents[0].attachments[0].storage.imageId, "fresh-5");
+  assert.equal(restoredCapture.attachments[0].storage.imageId, "fresh-6");
+  assert.ok(saved.some((item) => item.evidenceId === "ev-1" && item.id === "fresh-1"));
+  assert.ok(saved.some((item) => item.evidenceId === "doc-1" && item.id === "fresh-5"));
+  assert.ok(saved.some((item) => item.evidenceId === "cap-1" && item.id === "fresh-6"));
 });
 
 test("full backup payload builders return the current top-level shape", async () => {

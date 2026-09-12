@@ -5,6 +5,7 @@ import {
   saveCase,
   deleteCase,
   saveImage,
+  addImage,
   getImageById,
   collectEmbeddedCaseImageIds,
   deleteImages,
@@ -22,6 +23,7 @@ import {
   restoreFullBackupCase,
   restoreFullBackupQuickCapture,
 } from "./backup/fullBackup";
+import { createRestoreSession } from "./backup/restoreSession.js";
 import { downloadJson } from "./browser/downloadJson";
 import {
   buildCaseReasoningExportPayload,
@@ -2496,128 +2498,133 @@ export default function ProveItApp() {
       getImportedFolderSource(parsed, imported);
     const incomingSequenceGroupMeta = parsed?.appData?.sequenceGroupMeta || imported?.appData?.sequenceGroupMeta;
 
-    if (isFullBackup) {
-      incomingCases = await Promise.all(incomingCases.map((caseItem) =>
-        restoreFullBackupCase(caseItem, { saveImage, generateId, restoreStats })
-      ));
-      if (shouldImportQuickCaptures) {
-        incomingQuickCaptures = await Promise.all(incomingQuickCaptures.map((capture) =>
-          restoreFullBackupQuickCapture(capture, { saveImage, generateId, restoreStats })
+    const restoreSession = createRestoreSession({ addImage, generateId, deleteImages }, isFullBackup
+      ? [...incomingCases, ...(shouldImportQuickCaptures ? incomingQuickCaptures : [])] : []);
+    try {
+      if (isFullBackup) {
+        incomingCases = await Promise.all(incomingCases.map((caseItem) =>
+          restoreFullBackupCase(caseItem, { addImage, generateId, restoreStats, restoreSession })
         ));
-      }
-    }
-
-    const normalizedCases = incomingCases.map((caseItem) => normalizeStoredCase(caseItem, {
-      sequenceGroupMeta: getSequenceGroupMetaForCase(caseItem.id, incomingSequenceGroupMeta || {}),
-    }));
-    const currentCases = await getAllCases();
-    const caseMap = new Map(currentCases.map(c => [c.id, c]));
-
-    for (const importedCase of normalizedCases) {
-      if (caseMap.has(importedCase.id)) {
-        const existingCase = caseMap.get(importedCase.id);
-        const mergedCase = mergeCase(existingCase, importedCase);
-        caseMap.set(mergedCase.id, normalizeCaseIssues(mergedCase, { sequenceGroupMeta: getSequenceGroupMetaForCase(mergedCase.id, incomingSequenceGroupMeta || {}) }).caseData);
-      } else {
-        caseMap.set(importedCase.id, importedCase);
-      }
-    }
-
-    const mergedCases = Array.from(caseMap.values());
-    const importSuccesses = [];
-    const importFailures = [];
-
-    for (const caseItem of mergedCases) {
-      try {
-        await saveCase(caseItem);
-        importSuccesses.push(caseItem.name || caseItem.id || "Untitled case");
-      } catch (error) {
-        console.error("Failed to save imported case", caseItem?.id, error);
-        importFailures.push({
-          id: caseItem.id,
-          name: caseItem.name || caseItem.id || "Untitled case",
-          message: error.message || "Unknown save error",
-        });
-        const restoredImageIds = restoreStats.restoredImageIdsByCase?.[caseItem.id] || [];
-        if (restoredImageIds.length > 0) {
-          await deleteImages(restoredImageIds);
+        if (shouldImportQuickCaptures) {
+          incomingQuickCaptures = await Promise.all(incomingQuickCaptures.map((capture) =>
+            restoreFullBackupQuickCapture(capture, { addImage, generateId, restoreStats, restoreSession })
+          ));
         }
       }
-    }
 
-    const persistedCases = (await getAllCases()).map((caseItem) => normalizeStoredCase(caseItem, { sequenceGroupMeta: getSequenceGroupMetaForCase(caseItem.id, incomingSequenceGroupMeta || {}) }));
-    reconcileUnlockedCaseIds(persistedCases, currentCases);
-    setCases(persistedCases);
-    if (importFailures.length === 0 && hasIncomingQuickCaptures && shouldImportQuickCaptures) {
-      setQuickCaptures((prev) => {
-        const captureMap = new Map(prev.map(q => [q.id, q]));
-        for (const q of incomingQuickCaptures) {
-          captureMap.set(q.id, normalizeQuickCapture(q, { normalizeAttachments: true }));
+      const normalizedCases = incomingCases.map((caseItem) => normalizeStoredCase(caseItem, {
+        sequenceGroupMeta: getSequenceGroupMetaForCase(caseItem.id, incomingSequenceGroupMeta || {}),
+      }));
+      const currentCases = await getAllCases();
+      const caseMap = new Map(currentCases.map(c => [c.id, c]));
+
+      for (const importedCase of normalizedCases) {
+        if (caseMap.has(importedCase.id)) {
+          const existingCase = caseMap.get(importedCase.id);
+          const mergedCase = mergeCase(existingCase, importedCase);
+          caseMap.set(mergedCase.id, normalizeCaseIssues(mergedCase, { sequenceGroupMeta: getSequenceGroupMetaForCase(mergedCase.id, incomingSequenceGroupMeta || {}) }).caseData);
+        } else {
+          caseMap.set(importedCase.id, importedCase);
         }
-        return Array.from(captureMap.values());
-      });
-    }
-    if (importFailures.length === 0) {
-      if (shouldImportQuickCaptures && (hasIncomingFolderData || normalizedCases.some((caseItem) => caseItem?.folderId))) {
-        const mergedFolders = mergeImportedCaseFolders(caseFolders, incomingFolders, normalizedCases);
-        setCaseFolders(mergedFolders);
+      }
+
+      const mergedCases = Array.from(caseMap.values());
+      const importSuccesses = [];
+      const importFailures = [];
+
+      for (const caseItem of mergedCases) {
         try {
-          localStorage.setItem(CASE_FOLDERS_STORAGE_KEY, JSON.stringify(mergedFolders));
-        } catch {
-          // State still updates the folder dashboard when localStorage is unavailable.
+          await saveCase(caseItem);
+          restoreSession.commit(caseItem);
+          importSuccesses.push(caseItem.name || caseItem.id || "Untitled case");
+        } catch (error) {
+          console.error("Failed to save imported case", caseItem?.id, error);
+          importFailures.push({
+            id: caseItem.id,
+            name: caseItem.name || caseItem.id || "Untitled case",
+            message: error.message || "Unknown save error",
+          });
+          // Session cleanup removes only uncommitted restore-owned binaries.
         }
       }
-      setSelectedCaseId(imported.selectedCaseId ?? null);
-      setActiveTab(imported.activeTab || "overview");
 
-      if (exportType === "FULL_BACKUP_ALL") {
-        if (incomingSequenceGroupMeta) {
+      const persistedCases = (await getAllCases()).map((caseItem) => normalizeStoredCase(caseItem, { sequenceGroupMeta: getSequenceGroupMetaForCase(caseItem.id, incomingSequenceGroupMeta || {}) }));
+      reconcileUnlockedCaseIds(persistedCases, currentCases);
+      setCases(persistedCases);
+      if (importFailures.length === 0 && hasIncomingQuickCaptures && shouldImportQuickCaptures) {
+        setQuickCaptures((prev) => {
+          const captureMap = new Map(prev.map(q => [q.id, q]));
+          for (const q of incomingQuickCaptures) {
+            captureMap.set(q.id, normalizeQuickCapture(q, { normalizeAttachments: true }));
+          }
+          return Array.from(captureMap.values());
+        });
+      }
+      if (importFailures.length === 0) {
+        if (hasIncomingQuickCaptures && shouldImportQuickCaptures) incomingQuickCaptures.forEach((capture) => restoreSession.commit(capture));
+        if (shouldImportQuickCaptures && (hasIncomingFolderData || normalizedCases.some((caseItem) => caseItem?.folderId))) {
+          const mergedFolders = mergeImportedCaseFolders(caseFolders, incomingFolders, normalizedCases);
+          setCaseFolders(mergedFolders);
           try {
-            mergeSequenceGroupMetaStoreToStorage(incomingSequenceGroupMeta);
+            localStorage.setItem(CASE_FOLDERS_STORAGE_KEY, JSON.stringify(mergedFolders));
           } catch {
-            // Import should still complete if optional sequence group metadata cannot be written.
+            // State still updates the folder dashboard when localStorage is unavailable.
           }
         }
-        const counts = getFullBackupPayloadCounts(parsed);
-        const backupTimestamp = new Date().toISOString();
-        const backupMeta = {
-          exportType: "FULL_BACKUP_ALL",
-          timestamp: backupTimestamp,
-          caseCount: counts.caseCount,
-          quickCaptureCount: counts.quickCaptureCount,
-          folderCount: counts.folderCount,
-        };
-        try {
-          localStorage.setItem(LAST_FULL_BACKUP_ALL_AT_KEY, backupTimestamp);
-          localStorage.setItem(LAST_BACKUP_META_KEY, JSON.stringify(backupMeta));
-        } catch {
-          // Import should still complete if localStorage metadata cannot be written.
-        }
-        await updateRescueSnapshot({
-          cases: persistedCases,
-          folders: readCaseFolders(),
-          quickCaptures: incomingQuickCaptures,
-        });
-        setLastBackupMeta(backupMeta);
-        refreshRescueSnapshot();
-      }
-      if (exportType !== "FULL_BACKUP_ALL") {
-        await updateRescueSnapshot({
-          cases: persistedCases,
-          folders: readCaseFolders(),
-          quickCaptures,
-        });
-      }
-      setEmptyDbWarning("");
-      setStorageDiagnostics(await getStorageDiagnostics());
-    }
+        setSelectedCaseId(imported.selectedCaseId ?? null);
+        setActiveTab(imported.activeTab || "overview");
 
-    return {
-      source,
-      importSuccesses,
-      importFailures,
-      restoreStats,
-    };
+        if (exportType === "FULL_BACKUP_ALL") {
+          if (incomingSequenceGroupMeta) {
+            try {
+              mergeSequenceGroupMetaStoreToStorage(incomingSequenceGroupMeta);
+            } catch {
+              // Import should still complete if optional sequence group metadata cannot be written.
+            }
+          }
+          const counts = getFullBackupPayloadCounts(parsed);
+          const backupTimestamp = new Date().toISOString();
+          const backupMeta = {
+            exportType: "FULL_BACKUP_ALL",
+            timestamp: backupTimestamp,
+            caseCount: counts.caseCount,
+            quickCaptureCount: counts.quickCaptureCount,
+            folderCount: counts.folderCount,
+          };
+          try {
+            localStorage.setItem(LAST_FULL_BACKUP_ALL_AT_KEY, backupTimestamp);
+            localStorage.setItem(LAST_BACKUP_META_KEY, JSON.stringify(backupMeta));
+          } catch {
+            // Import should still complete if localStorage metadata cannot be written.
+          }
+          await updateRescueSnapshot({
+            cases: persistedCases,
+            folders: readCaseFolders(),
+            quickCaptures: incomingQuickCaptures,
+          });
+          setLastBackupMeta(backupMeta);
+          refreshRescueSnapshot();
+        }
+        if (exportType !== "FULL_BACKUP_ALL") {
+          await updateRescueSnapshot({
+            cases: persistedCases,
+            folders: readCaseFolders(),
+            quickCaptures,
+          });
+        }
+        setEmptyDbWarning("");
+        setStorageDiagnostics(await getStorageDiagnostics());
+      }
+
+      return {
+        source,
+        importSuccesses,
+        importFailures,
+        restoreStats,
+      };
+    } finally {
+      await restoreSession.cleanup();
+    }
   };
 
   const importData = async (event) => {
