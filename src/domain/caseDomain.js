@@ -1,3 +1,9 @@
+const CASE_ISSUE_FIELDS = ["issues", "issueSchemaVersion", "nextIssueReferenceNumber", "retiredIssueReferences", "retiredIssues"];
+
+function preserveCaseIssueData(caseItem) {
+  return Object.fromEntries(CASE_ISSUE_FIELDS.filter((key) => Object.hasOwn(caseItem || {}, key)).map((key) => [key, caseItem[key]]));
+}
+
 /**
  * Safe UUID fallback for insecure contexts or older browsers.
  */
@@ -210,6 +216,7 @@ export function normalizeWatchItem(item = {}) {
     outcome: safeString(item.outcome).trim(),
     linkedRecordIds: normalizeLinkedRecordIds(item.linkedRecordIds),
     linkedPartyIds: normalizeLinkedRecordIds(item.linkedPartyIds),
+    sequenceGroupId: safeString(item.sequenceGroupId).trim(),
     sequenceGroup: normalizeSequenceGroup(item.sequenceGroup),
     tags: normalizeStringList(item.tags),
     attachments: Array.isArray(item.attachments) ? item.attachments : [],
@@ -470,6 +477,8 @@ export function normalizeLedgerEntry(item) {
 
   return {
     id: item?.id || generateId(),
+    sequenceGroupId: safeString(item?.sequenceGroupId).trim(),
+    sequenceGroup: normalizeSequenceGroup(item?.sequenceGroup),
     category: validLedgerCategories.includes(item?.category)
       ? item.category
       : "other",
@@ -515,6 +524,7 @@ export function normalizeActionSummary(summary) {
 
 export function normalizeDocumentEntry(item) {
   const normalized = {
+    sequenceGroupId: safeString(item?.sequenceGroupId).trim(),
     id: item?.id || generateId(),
     title: item?.title || "",
     category: item?.category || "other",
@@ -540,6 +550,8 @@ export function normalizeDocumentEntry(item) {
 
 export function normalizeRecord(item, recordType) {
   const base = {
+    sequenceGroupId: safeString(item?.sequenceGroupId).trim(),
+    sequenceGroup: normalizeSequenceGroup(item?.sequenceGroup),
     id: item?.id || generateId(),
     type: recordType || item?.type || "unknown",
     title: item?.title || "",
@@ -1238,6 +1250,7 @@ export function normalizeCase(caseItem) {
   const generatedReportText = normalizeGeneratedReportText(caseItem?.generatedReportText);
 
   return {
+    ...preserveCaseIssueData(caseItem),
     id: caseItem?.id || generateId(),
     name: normalizeCaseName(caseItem?.name),
     category: normalizeCategory(caseItem?.category),

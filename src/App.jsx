@@ -77,6 +77,7 @@ import {
 } from "./sequenceGroupMeta.js";
 import proveItLogo from "./assets/proveit-logo.png";
 import { normalizeCaseIssues } from "./domain/issueDomain.js";
+import { normalizeStoredCase } from "./domain/caseNormalization.js";
 
 const lastUsedGroupByType = {};
 const SHOW_REVIEW_QUEUE = false;
@@ -2267,9 +2268,9 @@ export default function ProveItApp() {
             return dateB - dateA;
           });
           const metadataStore = readSequenceGroupMetaStore();
-          const normalized = loadedCases.map(normalizeCase).map((caseItem) => normalizeCaseIssues(caseItem, {
+          const normalized = loadedCases.map((caseItem) => normalizeStoredCase(caseItem, {
             sequenceGroupMeta: getSequenceGroupMetaForCase(caseItem.id, metadataStore),
-          }).caseData);
+          }));
           await Promise.all(normalized.filter((caseItem, index) => caseItem !== loadedCases[index]).map(saveCase));
           setCases(normalized);
         }
@@ -2506,9 +2507,9 @@ export default function ProveItApp() {
       }
     }
 
-    const normalizedCases = incomingCases.map(normalizeCase).map((caseItem) => normalizeCaseIssues(caseItem, {
+    const normalizedCases = incomingCases.map((caseItem) => normalizeStoredCase(caseItem, {
       sequenceGroupMeta: getSequenceGroupMetaForCase(caseItem.id, incomingSequenceGroupMeta || {}),
-    }).caseData);
+    }));
     const currentCases = await getAllCases();
     const caseMap = new Map(currentCases.map(c => [c.id, c]));
 
@@ -2544,7 +2545,7 @@ export default function ProveItApp() {
       }
     }
 
-    const persistedCases = (await getAllCases()).map(normalizeCase).map((caseItem) => normalizeCaseIssues(caseItem, { sequenceGroupMeta: getSequenceGroupMetaForCase(caseItem.id, incomingSequenceGroupMeta || {}) }).caseData);
+    const persistedCases = (await getAllCases()).map((caseItem) => normalizeStoredCase(caseItem, { sequenceGroupMeta: getSequenceGroupMetaForCase(caseItem.id, incomingSequenceGroupMeta || {}) }));
     reconcileUnlockedCaseIds(persistedCases, currentCases);
     setCases(persistedCases);
     if (importFailures.length === 0 && hasIncomingQuickCaptures && shouldImportQuickCaptures) {

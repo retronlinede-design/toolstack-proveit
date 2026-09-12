@@ -80,7 +80,11 @@ export function resolveCaseIssue(caseData = {}, value) {
 export function normalizeCaseIssues(caseData = {}, options = {}) {
   const source = caseData && typeof caseData === "object" ? caseData : {};
   const legacyMeta = options.sequenceGroupMeta && typeof options.sequenceGroupMeta === "object" ? options.sequenceGroupMeta : {};
-  const existing = list(source.issues).map((issue) => normalizeIssueShape(issue));
+  // Keep stored extension metadata; do not invent migration semantics for it.
+  const existing = list(source.issues).map((issue) => ({
+    ...(issue && typeof issue === "object" && !Array.isArray(issue) ? issue : {}),
+    ...normalizeIssueShape(issue),
+  }));
   const idSet = new Set(); const referenceSet = new Set(); const nameSet = new Set(); const conflicts = [];
   existing.forEach((issue) => {
     if (!issue.id || idSet.has(issue.id)) conflicts.push({ code: "duplicate_issue_id", value: issue.id }); else idSet.add(issue.id);
@@ -92,10 +96,16 @@ export function normalizeCaseIssues(caseData = {}, options = {}) {
 
   const names = new Map();
   existing.forEach((issue) => names.set(normalizedName(issue.name), issue.name));
-  ISSUE_RECORD_COLLECTIONS.forEach((collection) => list(source[collection]).forEach((record) => { const name = text(record?.sequenceGroup); if (name && !names.has(normalizedName(name))) names.set(normalizedName(name), name); }));
+  ISSUE_RECORD_COLLECTIONS.forEach((collection) => list(source[collection]).forEach((record) => {
+    // A resolvable canonical ID wins; an old display name must not create another Issue.
+    if (idSet.has(text(record?.sequenceGroupId))) return;
+    const name = text(record?.sequenceGroup);
+    if (name && !names.has(normalizedName(name))) names.set(normalizedName(name), name);
+  }));
   Object.keys(legacyMeta).sort((a, b) => a.localeCompare(b)).forEach((name) => { if (text(name) && !names.has(normalizedName(name))) names.set(normalizedName(name), text(name)); });
   const issues = [...existing];
-  let counter = Math.max(1, Number(source.nextIssueReferenceNumber) || 1, ...issues.map((issue) => referenceNumber(issue.reference) + 1), ...list(source.retiredIssueReferences).map((ref) => referenceNumber(ref) + 1));
+  // Use the same active/retired-history floor as explicit Issue allocation.
+  let counter = allocateNextIssueReference(source).nextIssueReferenceNumber - 1;
   const createdAt = text(source.createdAt);
   [...names.entries()].filter(([key]) => !issues.some((issue) => normalizedName(issue.name) === key)).sort((a, b) => a[1].localeCompare(b[1])).forEach(([, name]) => {
     while (referenceSet.has(formatReference(counter).toLowerCase())) counter += 1;
