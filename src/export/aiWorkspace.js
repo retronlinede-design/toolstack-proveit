@@ -1,5 +1,5 @@
 import { getCaseRevision, INITIAL_CASE_REVISION } from "../domain/caseRevision.js";
-import { buildCaseReasoningExportV3Payload } from "./reasoningExportV3.js";
+import { AI_WORKSPACE_CASE_PROJECTION_VERSION, buildAiWorkspaceCaseProjection } from "./aiWorkspaceProjection.js";
 
 export const AI_WORKSPACE_FORMAT = "proveit-ai-workspace";
 export const AI_WORKSPACE_VERSION = "1.0";
@@ -30,7 +30,7 @@ export function buildAiWorkspaceCurrentCase(caseItem, options = {}) {
   const manifest = buildAiWorkspaceManifest(caseItem, options);
   return {
     ...manifest,
-    projectionContractVersion: "reasoning-export-3.0",
-    projection: buildCaseReasoningExportV3Payload(caseItem, { exportedAt: manifest.exportedAt }),
+    projectionContractVersion: AI_WORKSPACE_CASE_PROJECTION_VERSION,
+    projection: buildAiWorkspaceCaseProjection(caseItem, { exportedAt: manifest.exportedAt }),
   };
 }
