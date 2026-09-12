@@ -97,6 +97,18 @@ export const AI_WORKSPACE_SECTIONS = [
     description: "Start with the whole investigation.",
     tasks: [
       {
+        id: "download-ai-workspace-snapshot",
+        title: "AI Workspace Snapshot",
+        technicalTool: "CURRENT_CASE.json",
+        actionKind: "ai-workspace-snapshot",
+        purpose: "Downloads the revision-safe current case snapshot for a local AI Workspace. It is reasoning context only, not a backup or an import file.",
+        useThisWhen: "Use this to test a current case with a local ChatGPT Project before folder sync is available.",
+        bestGpt: ["General ChatGPT", "Investigation Review GPT"],
+        contains: ["V3 reasoning projection", "Case ID", "Base revision", "Workspace protocol metadata"],
+        doesNotInclude: ["Attachment files", "Binary data", "Backup import capability"],
+        safety: ["Read Only", "Not importable", "Does not change case data"],
+      },
+      {
         id: "download-split-reasoning-package",
         title: "Reasoning Package — Split Case Files",
         technicalTool: "Split Reasoning Package ZIP",
@@ -302,6 +314,22 @@ export const AI_WORKSPACE_SECTIONS = [
 ];
 
 export const AI_TASK_GUIDANCE = {
+  "download-ai-workspace-snapshot": {
+    workflow: [
+      "Download CURRENT_CASE.json.",
+      "Add it to the intended local ChatGPT Project or other AI workspace.",
+      "Ask questions against the supplied current snapshot only.",
+      "Check recommendations against the source records in ProveIt before changing the case.",
+    ],
+    recommendedGpt: "General ChatGPT",
+    alsoSuitableFor: ["Investigation Review GPT", "Legal Specialist"],
+    exampleQuestions: [
+      "Summarise the current recorded case position.",
+      "Identify the most important evidence gaps.",
+      "Which Issues need review next?",
+      "What recommendations need human verification before action?",
+    ],
+  },
   "download-split-reasoning-package": {
     workflow: [
       "Download the ZIP and extract it.",

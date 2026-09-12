@@ -81,6 +81,16 @@ test("buildFullBackupRecord case and quick capture preserve current structure", 
   assert.deepEqual(backedCase.strategy, []);
 });
 
+test("full backup and restore preserve a persisted case revision", async () => {
+  const source = { id: "case-revision", revision: 12, evidence: [], incidents: [], tasks: [], strategy: [], watchItems: [], documents: [] };
+  const payload = await buildFullBackupCasePayload({ caseItem: source });
+  const restored = await restoreFullBackupCase(payload.data.cases[0], {
+    addImage: async () => {}, generateId: () => "unused",
+  });
+  assert.equal(payload.data.cases[0].revision, 12);
+  assert.equal(restored.revision, 12);
+});
+
 test("AUDIT-006: full backup payload reports complete binary accounting when every referenced binary is available", async () => {
   const payload = await buildFullBackupAllPayload({
     cases: [{

@@ -1,4 +1,5 @@
 import { mergePresentFields, mergeImportedRecords } from "./importPresence.js";
+import { getCaseRevision } from "./caseRevision.js";
 
 const CASE_ISSUE_FIELDS = ["issues", "issueSchemaVersion", "nextIssueReferenceNumber", "retiredIssueReferences", "retiredIssues"];
 
@@ -1250,10 +1251,12 @@ export function normalizeCase(caseItem) {
   const actionSummary = normalizeActionSummary(caseItem?.actionSummary || {});
   const privacyLock = normalizeCasePrivacyLock(caseItem?.privacyLock);
   const generatedReportText = normalizeGeneratedReportText(caseItem?.generatedReportText);
+  const revision = getCaseRevision(caseItem);
 
   return {
     ...preserveCaseIssueData(caseItem),
     id: caseItem?.id || generateId(),
+    ...(revision == null ? {} : { revision }),
     name: normalizeCaseName(caseItem?.name),
     category: normalizeCategory(caseItem?.category),
     status: normalizeCaseStatus(caseItem?.status),

@@ -107,6 +107,12 @@ test("AUDIT-003: imported timestamps do not select winners and missing timestamp
   assert.equal(mergeCase(local, { id: "case", name: "No date" }).updatedAt, time);
 });
 
+test("AUDIT-003: sparse imports cannot regress a persisted case revision", () => {
+  const local = { ...localCase(), revision: 12 };
+  const merged = mergeImportedCases([local], [{ id: "case", revision: 3, evidence: [{ id: "e", title: "Imported" }] }]).mergedCases[0];
+  assert.equal(merged.revision, 12);
+});
+
 async function restoreMergeReload(payload, local = localCase()) {
   const parsed = JSON.parse(JSON.stringify(payload));
   const images = new Map([["local-image", { id: "local-image", dataUrl: "ORIGINAL" }]]);
@@ -136,6 +142,7 @@ for (const exportType of ["FULL_BACKUP_CASE", "FULL_BACKUP_ALL"]) {
     const result = await restoreMergeReload(payload, local);
     const expected = structuredClone(local);
     expected.evidence.find((item) => item.id === "e").title = "Restored title";
+    expected.revision = 1;
     assert.deepEqual(result.reloaded, expected);
     assert.deepEqual([...result.images.keys()], ["local-image"]);
     assert.deepEqual(result.deleted, []);

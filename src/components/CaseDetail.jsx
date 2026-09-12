@@ -40,6 +40,8 @@ import {
   exportGptProtocolPackMarkdown,
 } from "../export/gptProtocolPack.js";
 import { buildCaseReasoningExportPayload } from "../export/caseExport.js";
+import { buildAiWorkspaceCurrentCase, AI_WORKSPACE_CURRENT_CASE_FILENAME } from "../export/aiWorkspace.js";
+import { downloadJson } from "../browser/downloadJson.js";
 import { downloadSplitReasoningPackage } from "../export/splitReasoningPackage.js";
 import {
   buildCaseSliceMarkdownPrompt,
@@ -1376,6 +1378,17 @@ export default function CaseDetail({
     } catch (error) {
       console.error("Failed to export split reasoning package", error);
       setAiToolsFeedback("Could not create the split reasoning package.");
+    }
+  }
+
+  function handleDownloadAiWorkspaceSnapshot() {
+    if (!selectedCase) return;
+    try {
+      downloadJson(buildAiWorkspaceCurrentCase(selectedCase), AI_WORKSPACE_CURRENT_CASE_FILENAME, { space: 2 });
+      setAiToolsFeedback("AI Workspace CURRENT_CASE.json downloaded.");
+    } catch (error) {
+      console.error("Failed to export AI Workspace snapshot", error);
+      setAiToolsFeedback(error.message || "Could not export AI Workspace snapshot.");
     }
   }
 
@@ -7326,6 +7339,15 @@ ${ungroupedSequenceText}
                         className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
                       >
                         Download ZIP
+                      </button>
+                    )}
+                    {activeAiTaskActionKind === "ai-workspace-snapshot" && (
+                      <button
+                        type="button"
+                        onClick={handleDownloadAiWorkspaceSnapshot}
+                        className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
+                      >
+                        Download CURRENT_CASE.json
                       </button>
                     )}
                     {activeAiTaskActionKind === "ai-tool" && (

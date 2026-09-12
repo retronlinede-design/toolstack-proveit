@@ -5,6 +5,7 @@ import {
   EMERGENCY_BACKUP_PREFIX,
   collectEmbeddedCaseImageIds,
   deleteCaseFromDb,
+  getCommittedCaseRevision,
   saveCaseToDb,
 } from "./storage.js";
 
@@ -244,6 +245,43 @@ test("saveCaseToDb blocks suspicious overwrite that would erase non-empty core a
     assert.equal([...values.keys()].some((key) => key.startsWith(EMERGENCY_BACKUP_PREFIX)), true);
     assert.equal(warnings.some((entry) => String(entry[0]).includes("blocked suspicious case overwrite")), true);
   });
+});
+
+test("case revisions initialize, migrate, and advance only for a successful material save", async () => {
+  await withPersistenceStubs(async () => {
+    const db = makeFakeDb();
+    const newCase = { id: "new-case", name: "New", incidents: [], evidence: [], documents: [], ledger: [], strategy: [], watchItems: [] };
+    await saveCaseToDb(db, newCase);
+    assert.equal(newCase.revision, 1);
+    assert.equal(db.stores.cases.get("new-case").revision, 1);
+
+    const legacy = { id: "legacy", name: "Legacy", incidents: [], evidence: [], documents: [], ledger: [], strategy: [], watchItems: [] };
+    db.stores.cases.set(legacy.id, structuredClone(legacy));
+    const migrated = structuredClone(legacy);
+    await saveCaseToDb(db, migrated);
+    assert.equal(migrated.revision, 1);
+
+    const changed = { ...migrated, name: "Changed" };
+    await saveCaseToDb(db, changed);
+    assert.equal(changed.revision, 2);
+    const reload = structuredClone(db.stores.cases.get("legacy"));
+    await saveCaseToDb(db, reload);
+    assert.equal(reload.revision, 2);
+  });
+});
+
+test("case revision does not advance for a rejected save", async () => {
+  await withPersistenceStubs(async () => {
+    const existing = { id: "case-1", revision: 4, incidents: [{ id: "inc" }], evidence: [], documents: [], ledger: [], strategy: [], watchItems: [] };
+    const db = makeFakeDb({ cases: [existing] });
+    await assert.rejects(saveCaseToDb(db, { ...existing, incidents: [] }), /Blocked suspicious ProveIt case overwrite/);
+    assert.equal(db.stores.cases.get("case-1").revision, 4);
+  });
+});
+
+test("existing revision wins over an imported revision and advances once for the committed change", () => {
+  assert.equal(getCommittedCaseRevision({ id: "case", revision: 9, name: "Local" }, { id: "case", revision: 2, name: "Imported" }), 10);
+  assert.equal(getCommittedCaseRevision({ id: "case", revision: 9, name: "Local" }, { id: "case", revision: 2, name: "Local" }), 9);
 });
 
 test("saveCaseToDb allows explicit suspicious overwrite override and creates emergency backup", async () => {

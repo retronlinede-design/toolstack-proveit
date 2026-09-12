@@ -5,6 +5,7 @@
 // - all live case updates must end in saveCase(updatedCase)
 
 import { STORE_NAMES } from "./dbConstants.js";
+import { getCaseRevision, INITIAL_CASE_REVISION } from "./domain/caseRevision.js";
 
 export const CORE_CASE_ARRAY_FIELDS = ["incidents", "evidence", "documents", "ledger", "strategy", "watchItems"];
 export const EMERGENCY_BACKUP_PREFIX = "toolstack.proveit.v1.emergencyBackup.";
@@ -29,6 +30,22 @@ export function hasSuspiciousCoreArrayShrink(existingCase, incomingCase) {
     const incomingCount = Array.isArray(incomingCase?.[field]) ? incomingCase[field].length : 0;
     return incomingCount === 0;
   });
+}
+
+function stableCaseValue(value) {
+  if (value == null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map(stableCaseValue);
+  return Object.fromEntries(Object.keys(value).sort().filter((key) => key !== "revision").map((key) => [key, stableCaseValue(value[key])]));
+}
+
+function hasMaterialCaseChange(existingCase, incomingCase) {
+  return JSON.stringify(stableCaseValue(existingCase)) !== JSON.stringify(stableCaseValue(incomingCase));
+}
+
+export function getCommittedCaseRevision(existingCase, incomingCase) {
+  const existingRevision = getCaseRevision(existingCase);
+  if (existingRevision == null) return getCaseRevision(incomingCase) || INITIAL_CASE_REVISION;
+  return existingRevision + (hasMaterialCaseChange(existingCase, incomingCase) ? 1 : 0);
 }
 
 function getStackTrace() {
@@ -159,7 +176,12 @@ export async function saveCaseToDb(db, caseItem, options = {}) {
     });
   }
 
-  return db.put(STORE_NAMES.cases, caseItem);
+  const committedCase = { ...caseItem, revision: getCommittedCaseRevision(existingCase, caseItem) };
+  const result = await db.put(STORE_NAMES.cases, committedCase);
+  // Callers hold the canonical in-memory instance and use it immediately after
+  // persistence. Reflect the committed revision without adding another save path.
+  Object.assign(caseItem, committedCase);
+  return result;
 }
 
 export async function saveCase(caseItem, options = {}) {
