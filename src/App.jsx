@@ -24,6 +24,7 @@ import {
   restoreFullBackupQuickCapture,
 } from "./backup/fullBackup";
 import { createRestoreSession } from "./backup/restoreSession.js";
+import { preflightBackupPayload, validateStoredCaseForNormalization } from "./backup/importPreflight.js";
 import { downloadJson } from "./browser/downloadJson";
 import {
   buildCaseReasoningExportPayload,
@@ -2307,11 +2308,14 @@ export default function ProveItApp() {
             return dateB - dateA;
           });
           const metadataStore = readSequenceGroupMetaStore();
-          const normalized = loadedCases.map((caseItem) => normalizeStoredCase(caseItem, {
+          const validStoredCases = loadedCases.filter((caseItem) => validateStoredCaseForNormalization(caseItem).ok);
+          const rejectedStoredCases = loadedCases.filter((caseItem) => !validateStoredCaseForNormalization(caseItem).ok);
+          const normalized = validStoredCases.map((caseItem) => normalizeStoredCase(caseItem, {
             sequenceGroupMeta: getSequenceGroupMetaForCase(caseItem.id, metadataStore),
           }));
-          await Promise.all(normalized.filter((caseItem, index) => caseItem !== loadedCases[index]).map(saveCase));
+          await Promise.all(normalized.filter((caseItem, index) => caseItem !== validStoredCases[index]).map(saveCase));
           setCases(normalized);
+          if (rejectedStoredCases.length) showAppNotice("warning", `${rejectedStoredCases.length} stored case${rejectedStoredCases.length === 1 ? " was" : "s were"} skipped because its structure is unsupported or malformed.`);
         }
       } catch (error) {
         console.error("Failed to load cases", error);
@@ -2496,9 +2500,12 @@ export default function ProveItApp() {
   };
 
   const restoreBackupPayload = async (parsed, { source = "file" } = {}) => {
+    const currentCases = await getAllCases();
+    const preflight = preflightBackupPayload(parsed, { existingCaseIds: currentCases.map((caseItem) => caseItem.id) });
+    if (!preflight.ok) throw new Error(preflight.reason);
     await createEmergencyBackupFromDb(`restoreBackupPayload:before:${source}`);
-    const imported = parsed?.data || parsed;
-    const exportType = parsed?.exportType;
+    const imported = preflight.data;
+    const exportType = preflight.exportType;
     console.warn("[ProveIt persistence] restore/import attempt", {
       source,
       exportType,
@@ -2506,29 +2513,8 @@ export default function ProveItApp() {
       stack: new Error().stack,
     });
 
-    if (exportType === "CASE_REASONING_EXPORT" || parsed?.importable === false) {
-      throw new Error("This is a reasoning export and not an importable backup.");
-    }
-
-    if (exportType && !["FULL_BACKUP_ALL", "FULL_BACKUP_CASE"].includes(exportType)) {
-      throw new Error("Unsupported ProveIt export type.");
-    }
-
-    if (!imported || !Array.isArray(imported.cases)) {
-      throw new Error("Invalid import file.");
-    }
-
-    if (exportType === "FULL_BACKUP_CASE" && imported.cases.length !== 1) {
-      throw new Error("Invalid full case backup. Expected exactly one case.");
-    }
-
-    const isFullBackup =
-      exportType === "FULL_BACKUP_ALL" ||
-      exportType === "FULL_BACKUP_CASE" ||
-      parsed?.type === "FULL_BACKUP" ||
-      parsed?.includesBinaryData === true ||
-      parsed?.version === "2.1-full-backup";
-    const shouldImportQuickCaptures = exportType !== "FULL_BACKUP_CASE";
+    const isFullBackup = preflight.isFullBackup;
+    const shouldImportQuickCaptures = preflight.shouldImportQuickCaptures;
     const restoreStats = { failedAttachments: [] };
 
     let incomingCases = imported.cases || [];
@@ -2552,7 +2538,6 @@ export default function ProveItApp() {
         }
       }
 
-      const currentCases = await getAllCases();
       const { mergedCases, normalizedCases } = mergeImportedCases(currentCases, incomingCases, incomingSequenceGroupMeta || {});
       const importSuccesses = [];
       const importFailures = [];

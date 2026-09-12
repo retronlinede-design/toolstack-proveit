@@ -21,20 +21,21 @@ test("startup case load does not save empty/default cases back to IndexedDB", ()
   assert.doesNotMatch(startupLoadEffect, /deleteCase\s*\(/);
 });
 
-test("restore/import creates an emergency backup before processing imported cases", () => {
+test("restore/import preflights before an emergency backup and only then processes imported cases", () => {
   const restoreFunction = getSourceSlice(
     "const restoreBackupPayload = async",
     "const importData = async"
   );
 
   const backupIndex = restoreFunction.indexOf("createEmergencyBackupFromDb");
-  const importedIndex = restoreFunction.indexOf("const imported = parsed?.data || parsed");
+  const preflightIndex = restoreFunction.indexOf("const preflight = preflightBackupPayload(parsed");
+  const importedIndex = restoreFunction.indexOf("const imported = preflight.data");
   const currentCasesIndex = restoreFunction.indexOf("const currentCases = await getAllCases()");
 
   assert.ok(backupIndex >= 0, "restoreBackupPayload should create an emergency backup");
-  assert.ok(backupIndex < importedIndex, "backup should happen before import validation/processing");
-  assert.ok(currentCasesIndex > importedIndex, "restore should load current cases for merge");
+  assert.ok(preflightIndex >= 0 && preflightIndex < backupIndex, "preflight should reject invalid payloads before any write");
+  assert.ok(backupIndex < importedIndex, "backup should happen before valid import processing");
+  assert.ok(currentCasesIndex < preflightIndex, "restore should load current case identities for sparse-import preflight");
   assert.doesNotMatch(restoreFunction, /deleteCase\s*\(/);
   assert.doesNotMatch(restoreFunction, /deleteCaseFromDb\s*\(/);
 });
-

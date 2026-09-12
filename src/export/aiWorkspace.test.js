@@ -57,8 +57,8 @@ test("AI Workspace ledger totals are deterministic and currency-separated", () =
   assert.deepEqual(totals.map((item) => [item.currency, item.expectedTotal, item.paidTotal, item.differenceTotal]), [["EUR", 1000, 750, 250], ["USD", 10, 8, 2]]);
 });
 
-test("AI Workspace remains non-importable and the application rejects reasoning exports", () => {
-  const snapshot = buildAiWorkspaceCurrentCase(fixture()); const app = readFileSync("src/App.jsx", "utf8"); assert.equal(snapshot.projection.importable, false); assert.match(app, /exportType === "CASE_REASONING_EXPORT" \|\| parsed\?\.importable === false/);
+test("AI Workspace remains non-importable and the application uses shared preflight for import rejection", () => {
+  const snapshot = buildAiWorkspaceCurrentCase(fixture()); const app = readFileSync("src/App.jsx", "utf8"); assert.equal(snapshot.projection.importable, false); assert.match(app, /preflightBackupPayload\(parsed/);
 });
 
 test("AI Workspace manifest stays metadata-only and uses the initial revision for legacy cases", () => {
