@@ -4,6 +4,12 @@ export const SPLIT_REASONING_PACKAGE_VERSION = "1.0";
 export const DEFAULT_JSON_TARGET_BYTES = 2 * 1024 * 1024;
 
 const BINARY_KEYS = new Set(["dataurl", "backupdataurl", "blob", "arraybuffer", "binary", "binarydata", "rawbinary", "imagedata", "imagepayload", "indexeddbimagepayload", "fullbackup", "fullbackuppayload"]);
+const CREDENTIAL_KEYS = new Set(["privacylock", "pin", "casepin", "privacypin", "lockpin", "passcode", "password", "credentials"]);
+const CASE_METADATA_KEYS = [
+  "id", "name", "title", "category", "caseType", "status", "folderId", "reference", "notes", "description", "summary", "tags", "createdAt", "updatedAt",
+  "issues", "issueSchemaVersion", "nextIssueReferenceNumber", "retiredIssueReferences", "retiredIssues",
+  "generatedReportText", "generatedReportVersions", "activeGeneratedReportLanguage", "caseState",
+];
 const COLLECTIONS = [
   ["party", "parties"], ["incident", "incidents"], ["evidence", "evidence"],
   ["document", "documents"], ["strategy", "strategy"], ["watch", "watchItems"],
@@ -13,6 +19,7 @@ const COLLECTIONS = [
 const isBinaryValue = (value) =>
   (typeof Blob !== "undefined" && value instanceof Blob) ||
   (typeof ArrayBuffer !== "undefined" && (value instanceof ArrayBuffer || ArrayBuffer.isView(value)));
+const isCredentialKey = (key) => CREDENTIAL_KEYS.has(key) || key.endsWith("privacylock") || /(?:case|privacy|lock)pin$/.test(key);
 
 export function sanitizeSplitReasoningValue(value, seen = new WeakSet()) {
   if (value == null || typeof value !== "object") return value;
@@ -26,12 +33,19 @@ export function sanitizeSplitReasoningValue(value, seen = new WeakSet()) {
   }
   const result = {};
   for (const [key, item] of Object.entries(value)) {
-    if (BINARY_KEYS.has(key.toLowerCase()) || isBinaryValue(item)) continue;
+    const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (BINARY_KEYS.has(normalizedKey) || isCredentialKey(normalizedKey) || isBinaryValue(item)) continue;
     const sanitized = sanitizeSplitReasoningValue(item, seen);
     if (sanitized !== undefined) result[key] = sanitized;
   }
   seen.delete(value);
   return result;
+}
+
+function projectCaseMetadata(caseItem) {
+  return sanitizeSplitReasoningValue(Object.fromEntries(
+    CASE_METADATA_KEYS.filter((key) => Object.hasOwn(caseItem, key)).map((key) => [key, caseItem[key]])
+  ));
 }
 
 export function serializeSplitReasoningJson(payload) {
@@ -110,7 +124,7 @@ export function projectSplitReasoningSections(caseItem, { exportedAt = new Date(
     const status = item?.status || "unspecified";
     statusTotals[status] = (statusTotals[status] || 0) + 1;
   }
-  const metadata = sanitizeSplitReasoningValue(Object.fromEntries(Object.entries(caseItem).filter(([key]) => !COLLECTIONS.some(([, collection]) => collection === key) && !["actionSummary", "auditLog"].includes(key))));
+  const metadata = projectCaseMetadata(caseItem);
   const sequenceNames = [...new Set(COLLECTIONS.flatMap(([, key]) => records(caseItem, key).map((item) => item?.sequenceGroup)).filter(Boolean))].sort();
   return {
     summary: { packageFormat: "ProveIt Reasoning Package — Split Case Files", packageVersion: SPLIT_REASONING_PACKAGE_VERSION, exportedAt, caseMetadata: metadata, caseDescription: caseItem.description || "", currentFocus: actionSummary.currentFocus, actionSummary, nextActions: actionSummary.nextActions, reminders: actionSummary.importantReminders, deadlines: actionSummary.criticalDeadlines, currentStrategicFocus: actionSummary.strategyFocus, statusTotals },

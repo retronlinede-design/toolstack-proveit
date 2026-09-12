@@ -64,6 +64,35 @@ test("recursive sanitizer excludes binary fields and values while preserving met
   assert.doesNotThrow(() => serializeSplitReasoningJson(value));
 });
 
+test("AUDIT-004: split handoff excludes case lock credentials from every exported projection", () => {
+  const caseItem = fixture();
+  caseItem.notes = "Useful case notes";
+  caseItem.privacyLock = { pin: "AUDIT004_TOP_LEVEL_PIN", enabledAt: "AUDIT004_LOCK_TIMESTAMP" };
+  caseItem.issues = [{ id: "issue-1", name: "Useful issue context", metadata: { privacyLock: { pin: "AUDIT004_NESTED_ISSUE_PIN" } } }];
+  caseItem.incidents[0].inheritedCaseMetadata = { casePin: "AUDIT004_RECORD_CASE_PIN", credentials: { passcode: "AUDIT004_RECORD_PASSCODE" } };
+  caseItem.actionSummary.privateCopy = { lockPin: "AUDIT004_ACTION_LOCK_PIN" };
+  const sequenceGroupMeta = { "Thread A": { description: "Useful group context", privacy_lock: { pin: "AUDIT004_GROUP_PIN" } } };
+
+  const files = buildSplitReasoningPackageFiles(caseItem, {
+    exportedAt: "2026-07-25T12:00:00.000Z",
+    sequenceGroupMeta,
+  });
+  const exportedText = files.map((file) => file.json).join("\n");
+  for (const marker of ["AUDIT004_TOP_LEVEL_PIN", "AUDIT004_LOCK_TIMESTAMP", "AUDIT004_NESTED_ISSUE_PIN", "AUDIT004_RECORD_CASE_PIN", "AUDIT004_RECORD_PASSCODE", "AUDIT004_ACTION_LOCK_PIN", "AUDIT004_GROUP_PIN"]) {
+    assert.doesNotMatch(exportedText, new RegExp(marker));
+  }
+
+  const sections = projectSplitReasoningSections(caseItem, { sequenceGroupMeta });
+  assert.equal(sections.summary.caseMetadata.name, "Representative Case");
+  assert.equal(sections.summary.caseMetadata.description, "Complete case description");
+  assert.equal(sections.summary.caseMetadata.notes, "Useful case notes");
+  assert.equal(sections.summary.caseMetadata.issues[0].name, "Useful issue context");
+  assert.equal(sections.summary.currentFocus, "Preserve this focus");
+  assert.equal(sections.incidents.incidents[0].description, "Full archived description");
+  assert.equal(sections.documents.documents[0].textContent, "The complete extracted document text must survive.");
+  assert.equal(sections.sequenceGroups.metadata["Thread A"].description, "Useful group context");
+});
+
 test("UTF-8 byte measurement counts encoded bytes", () => {
   assert.equal(utf8ByteSize("a😀"), 5);
 });
