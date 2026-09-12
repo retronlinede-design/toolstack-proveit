@@ -25,7 +25,7 @@ test("record manager keeps selection stable while exposing filters and grouping-
 });
 
 test("case persistence precedes bulk metadata updates and confirmations are structured", () => {
-  assert.match(caseDetail, /const saved = await onUpdateCase\(result\.caseItem\)/);
+  assert.match(caseDetail, /const saved = await onUpdateCase\(result\.caseData\)/);
   assert.match(caseDetail, /if \(!saved\)/);
   assert.match(caseDetail, /Operation: Move selected records/);
   assert.match(caseDetail, /Operation: Merge entire group/);

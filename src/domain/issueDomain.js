@@ -94,15 +94,20 @@ export function normalizeCaseIssues(caseData = {}, options = {}) {
   });
   if (conflicts.length) return { caseData: source, changed: false, conflicts, migrationSummary: { created: 0, assigned: 0 } };
 
+  // A retired Issue is a tombstone, not a legacy candidate.  In particular,
+  // stale local sequence-group metadata must never resurrect a deleted or
+  // merged Issue during a later save/load normalization.
+  const retiredIds = new Set(list(source.retiredIssues).map((issue) => text(issue?.id)).filter(Boolean));
+  const retiredNames = new Set(list(source.retiredIssues).map((issue) => normalizedName(issue?.name)).filter(Boolean));
   const names = new Map();
   existing.forEach((issue) => names.set(normalizedName(issue.name), issue.name));
   ISSUE_RECORD_COLLECTIONS.forEach((collection) => list(source[collection]).forEach((record) => {
     // A resolvable canonical ID wins; an old display name must not create another Issue.
-    if (idSet.has(text(record?.sequenceGroupId))) return;
+    if (idSet.has(text(record?.sequenceGroupId)) || retiredIds.has(text(record?.sequenceGroupId))) return;
     const name = text(record?.sequenceGroup);
-    if (name && !names.has(normalizedName(name))) names.set(normalizedName(name), name);
+    if (name && !retiredNames.has(normalizedName(name)) && !names.has(normalizedName(name))) names.set(normalizedName(name), name);
   }));
-  Object.keys(legacyMeta).sort((a, b) => a.localeCompare(b)).forEach((name) => { if (text(name) && !names.has(normalizedName(name))) names.set(normalizedName(name), text(name)); });
+  Object.keys(legacyMeta).sort((a, b) => a.localeCompare(b)).forEach((name) => { if (text(name) && !retiredNames.has(normalizedName(name)) && !names.has(normalizedName(name))) names.set(normalizedName(name), text(name)); });
   const issues = [...existing];
   // Use the same active/retired-history floor as explicit Issue allocation.
   let counter = allocateNextIssueReference(source).nextIssueReferenceNumber - 1;
@@ -120,7 +125,8 @@ export function normalizeCaseIssues(caseData = {}, options = {}) {
   ISSUE_RECORD_COLLECTIONS.forEach((collection) => {
     if (!Array.isArray(source[collection])) return;
     next[collection] = source[collection].map((record) => {
-      const issue = byId.get(text(record?.sequenceGroupId)) || byName.get(normalizedName(record?.sequenceGroup));
+      const storedId = text(record?.sequenceGroupId);
+      const issue = byId.get(storedId) || (!retiredIds.has(storedId) && byName.get(normalizedName(record?.sequenceGroup)));
       if (!issue) return record;
       if (record.sequenceGroupId === issue.id && record.sequenceGroup === issue.name) return record;
       assigned += 1;

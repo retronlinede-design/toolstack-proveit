@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { allocateNextIssueReference, assignRecordToIssue, createCaseIssue, deleteCaseIssue, getIssueDisplayLabel, HUMAN_READABLE_ISSUE_PROMPT, mergeCaseIssues, normalizeCaseIssues, removeRecordFromIssue, renameCaseIssue, resolveCaseIssue, updateCaseIssue } from "./issueDomain.js";
+import { normalizeStoredCase } from "./caseNormalization.js";
 
 const oldCase = { id: "case-1", createdAt: "2026-01-01T00:00:00Z", incidents: [{ id: "i1", sequenceGroup: "Heating" }], evidence: [{ id: "e1", sequenceGroup: " Heating " }], documents: [], ledger: [], strategy: [], watchItems: [], parties: [{ id: "p1", name: "Owner" }] };
 const migrate = () => normalizeCaseIssues(oldCase, { sequenceGroupMeta: { Heating: { description: "Legacy description", updatedAt: "2026-02-01T00:00:00Z" }, Empty: { description: "Empty issue" } } });
@@ -20,3 +21,60 @@ test("assignment by ID synchronizes name and removal clears both fields", () => 
 test("merge preserves destination identity and retires source reference", () => { const base = migrate().caseData; const source = resolveCaseIssue(base, "Heating"); const destination = resolveCaseIssue(base, "Empty"); const result = mergeCaseIssues(base, source.id, destination.id, { now: "2026-08-01" }); assert.equal(result.caseData.incidents[0].sequenceGroupId, destination.id); assert.ok(result.caseData.retiredIssueReferences.includes(source.reference)); assert.equal(resolveCaseIssue(result.caseData, { issueId: source.id }), null); });
 test("delete preserves records, clears assignment, and prevents reference reuse", () => { const base = migrate().caseData; const issue = resolveCaseIssue(base, "Heating"); const result = deleteCaseIssue(base, issue.id, { now: "2026-08-01" }); assert.equal(result.caseData.incidents.length, 1); assert.equal(result.caseData.incidents[0].sequenceGroup, ""); assert.ok(result.caseData.retiredIssueReferences.includes(issue.reference)); assert.notEqual(allocateNextIssueReference(result.caseData).reference, issue.reference); });
 test("GPT policy requires human references and restricts internal IDs", () => { assert.match(HUMAN_READABLE_ISSUE_PROMPT, /ISS-003 — Heating Failure/); assert.match(HUMAN_READABLE_ISSUE_PROMPT, /Do not refer.*internal UUID/); });
+
+function reload(caseData, sequenceGroupMeta = {}) {
+  return normalizeStoredCase(structuredClone(caseData), { sequenceGroupMeta });
+}
+
+test("AUDIT-005: move, rename and split retain canonical membership through save/reload", () => {
+  const base = migrate().caseData;
+  const source = resolveCaseIssue(base, "Heating");
+  const destination = resolveCaseIssue(base, "Empty");
+  const moved = assignRecordToIssue(base, "incidents", "i1", destination.id).caseData;
+  const movedReloaded = reload(moved, { Heating: { description: "stale" }, Empty: { description: "current" } });
+  assert.equal(movedReloaded.incidents[0].sequenceGroupId, destination.id);
+  assert.equal(movedReloaded.incidents[0].sequenceGroup, destination.name);
+  const renamed = renameCaseIssue(movedReloaded, destination.id, "Renamed Empty").caseData;
+  const renamedReloaded = reload(renamed, { "Renamed Empty": { description: "current" } });
+  assert.equal(renamedReloaded.incidents[0].sequenceGroupId, destination.id);
+  assert.equal(renamedReloaded.incidents[0].sequenceGroup, "Renamed Empty");
+  const split = createCaseIssue(renamedReloaded, { name: "Split Issue" });
+  const splitAssigned = assignRecordToIssue(split.caseData, "evidence", "e1", split.issue.id).caseData;
+  const splitReloaded = reload(splitAssigned, { "Split Issue": { description: "split" } });
+  assert.equal(splitReloaded.evidence[0].sequenceGroupId, split.issue.id);
+  assert.equal(splitReloaded.incidents[0].sequenceGroupId, destination.id);
+  assert.equal(resolveCaseIssue(splitReloaded, { issueId: source.id }).id, source.id);
+});
+
+test("AUDIT-005: merge and delete retire source identities without stale legacy resurrection", () => {
+  const base = migrate().caseData;
+  const source = resolveCaseIssue(base, "Heating");
+  const destination = resolveCaseIssue(base, "Empty");
+  const merged = mergeCaseIssues(base, source.id, destination.id, { now: "2026-08-01" }).caseData;
+  const mergedReloaded = reload(merged, { Heating: { description: "stale source" }, Empty: { description: "target" } });
+  assert.equal(resolveCaseIssue(mergedReloaded, { issueId: source.id }), null);
+  assert.equal(mergedReloaded.incidents[0].sequenceGroupId, destination.id);
+  assert.ok(mergedReloaded.retiredIssueReferences.includes(source.reference));
+  const deleted = deleteCaseIssue(mergedReloaded, destination.id, { now: "2026-08-02" }).caseData;
+  const deletedReloaded = reload(deleted, { Empty: { description: "stale deleted metadata" } });
+  assert.equal(resolveCaseIssue(deletedReloaded, { issueId: destination.id }), null);
+  assert.equal(deletedReloaded.incidents[0].sequenceGroupId, "");
+  assert.equal(deletedReloaded.incidents[0].sequenceGroup, "");
+  assert.ok(deletedReloaded.retiredIssueReferences.includes(destination.reference));
+});
+
+test("AUDIT-005: canonical IDs win over contradictory names and legacy-only data still migrates", () => {
+  const base = migrate().caseData;
+  const [heating, empty] = base.issues;
+  const contradictory = {
+    ...base,
+    incidents: [{ id: "id-wins", sequenceGroupId: heating.id, sequenceGroup: empty.name }],
+    evidence: [{ id: "legacy-only", sequenceGroup: empty.name }],
+    documents: [{ id: "unresolved-id", sequenceGroupId: "unknown", sequenceGroup: heating.name }],
+  };
+  const normalized = reload(contradictory);
+  assert.equal(normalized.incidents[0].sequenceGroupId, heating.id);
+  assert.equal(normalized.incidents[0].sequenceGroup, heating.name);
+  assert.equal(normalized.evidence[0].sequenceGroupId, empty.id);
+  assert.equal(normalized.documents[0].sequenceGroupId, heating.id);
+});

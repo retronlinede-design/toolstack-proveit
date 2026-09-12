@@ -10,13 +10,6 @@ import {
   buildRecordTypeConversionPreview,
   clearRecordSequenceGroup,
   convertRecordTypeInCase,
-  mergeCaseSequenceGroups,
-  mergeCaseSequenceGroupsWithStats,
-  moveCaseSequenceGroupRecords,
-  moveRecordToSequenceGroup,
-  removeCaseSequenceGroupRecords,
-  renameCaseSequenceGroup,
-  splitCaseSequenceGroup,
 } from "../domain/caseDomain.js";
 import { getRecordDisplayMeta, resolveRecordById } from "../domain/linkingResolvers.js";
 import { buildNarrativeSections } from "../lib/narrativeBuilder.js";
@@ -98,9 +91,6 @@ import ReportCentreControls, { ReportCentrePreviewSummary } from "./reports/Repo
 import ReportContextHeader from "./reports/ReportContextHeader.jsx";
 import SequenceGroupManager from "./sequenceGroups/SequenceGroupManager";
 import {
-  deleteManagedSequenceGroup,
-} from "./sequenceGroups/sequenceGroupManagement.js";
-import {
   actionSummaryToForm,
   applyActionSummaryPatch,
   emptyActionSummaryForm,
@@ -113,7 +103,7 @@ import ActionSummaryPanel from "./caseDetail/ActionSummaryPanel";
 import CaseBriefingDashboard from "./caseBriefing/CaseBriefingDashboard.jsx";
 import { getOverviewRecordLaunch } from "./caseBriefing/overviewRecordLaunch.js";
 import { buildCaseBriefingModel } from "../caseBriefing/buildCaseBriefingModel.js";
-import { createCaseIssue, deleteCaseIssue, mergeCaseIssues, normalizeCaseIssues, resolveCaseIssue, updateCaseIssue } from "../domain/issueDomain.js";
+import { assignRecordToIssue, createCaseIssue, deleteCaseIssue, mergeCaseIssues, normalizeCaseIssues, removeRecordFromIssue, resolveCaseIssue, updateCaseIssue } from "../domain/issueDomain.js";
 import ActiveLedgerRecordModal from "./caseDetail/ActiveLedgerRecordModal";
 import DocumentsTab from "./caseDetail/DocumentsTab";
 import FloatingWorkspaceMenu from "./caseDetail/FloatingWorkspaceMenu";
@@ -884,7 +874,7 @@ export default function CaseDetail({
 
   const getSequenceRecordKey = (record) => `${record.recordType}:${record.id}`;
 
-  function handleRenameSequenceGroup(groupName) {
+  async function handleRenameSequenceGroup(groupName) {
     if (!selectedCase) return;
 
     const nextName = safeText(sequenceRenameInputs[groupName]).trim();
@@ -898,15 +888,18 @@ export default function CaseDetail({
       return;
     }
 
-    const updatedCase = renameCaseSequenceGroup(selectedCase, groupName, nextName);
+    const canonical = normalizeCaseIssues(selectedCase, { sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()) }).caseData;
+    const issue = resolveCaseIssue(canonical, { issueName: groupName });
+    const result = issue && updateCaseIssue(canonical, issue.id, { name: nextName });
+    if (!result?.success) return setSequenceGroupFeedback(result?.errors?.join(" ") || "Issue could not be renamed safely.");
     renameSequenceGroupMeta(selectedCase.id, groupName, nextName);
-    onUpdateCase(updatedCase);
+    if (!(await onUpdateCase(result.caseData))) return setSequenceGroupFeedback("Issue could not be renamed safely.");
     setSequenceRenameInputs((prev) => ({ ...prev, [groupName]: "" }));
     setSelectedSequenceGroupName(nextName);
     setSequenceGroupFeedback(`Renamed "${groupName}" to "${nextName}".`);
   }
 
-  function handleMergeSequenceGroup(fromGroup) {
+  async function handleMergeSequenceGroup(fromGroup) {
     if (!selectedCase || !fromGroup) return;
     const targetGroup = safeText(sequenceMoveInputs[`merge:${fromGroup}`]).trim();
     if (!targetGroup) {
@@ -921,24 +914,32 @@ export default function CaseDetail({
     const confirmed = window.confirm(`Merge "${fromGroup}" into "${targetGroup}"? Records in "${fromGroup}" will be moved to "${targetGroup}".`);
     if (!confirmed) return;
 
+    const canonical = normalizeCaseIssues(selectedCase, { sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()) }).caseData;
+    const source = resolveCaseIssue(canonical, { issueName: fromGroup });
+    const destination = resolveCaseIssue(canonical, { issueName: targetGroup });
+    const result = source && destination && mergeCaseIssues(canonical, source.id, destination.id);
+    if (!result?.success || !(await onUpdateCase(result.caseData))) return setSequenceGroupFeedback(result?.errors?.join(" ") || "Issues could not be merged safely.");
     mergeSequenceGroupMeta(selectedCase.id, fromGroup, targetGroup);
-    onUpdateCase(mergeCaseSequenceGroups(selectedCase, fromGroup, targetGroup));
     setSelectedSequenceGroupName(targetGroup);
     setSequenceGroupFeedback(`Merged "${fromGroup}" into "${targetGroup}".`);
   }
 
-  function handleRemoveSequenceGroup(group) {
+  async function handleRemoveSequenceGroup(group) {
     if (!selectedCase || !group) return;
 
     const confirmed = window.confirm(`Clear "${group.name}" from ${group.totalCount} record${group.totalCount === 1 ? "" : "s"}? The records will be kept and become ungrouped.`);
     if (!confirmed) return;
 
-    onUpdateCase(deleteManagedSequenceGroup(selectedCase, group.name));
+    const canonical = normalizeCaseIssues(selectedCase, { sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()) }).caseData;
+    const issue = resolveCaseIssue(canonical, { issueName: group.name });
+    const result = issue && deleteCaseIssue(canonical, issue.id);
+    if (!result?.success || !(await onUpdateCase(result.caseData))) return setSequenceGroupFeedback(result?.errors?.join(" ") || "Issue could not be removed safely.");
+    deleteSequenceGroupMeta(selectedCase.id, group.name);
     setSelectedSequenceGroupName(sequenceGroups.find((item) => item.name !== group.name)?.name || "");
     setSequenceGroupFeedback(`Removed "${group.name}" from ${group.totalCount} record${group.totalCount === 1 ? "" : "s"}.`);
   }
 
-  function handleMoveSequenceRecord(record, targetGroup) {
+  async function handleMoveSequenceRecord(record, targetGroup) {
     if (!selectedCase || !record) return;
     const nextGroup = safeText(targetGroup).trim();
     if (!nextGroup) {
@@ -946,7 +947,10 @@ export default function CaseDetail({
       return;
     }
 
-    onUpdateCase(moveRecordToSequenceGroup(selectedCase, record.recordType, record.id, nextGroup));
+    const canonical = normalizeCaseIssues(selectedCase, { sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()) }).caseData;
+    const destination = resolveCaseIssue(canonical, { issueName: nextGroup });
+    const result = destination && assignRecordToIssue(canonical, record.recordType, record.id, destination.id);
+    if (!result?.success || !(await onUpdateCase(result.caseData))) return setSequenceGroupFeedback(result?.errors?.join(" ") || "Record could not be moved safely.");
     setSelectedSequenceGroupName(nextGroup);
     setSequenceGroupFeedback(`Moved "${record.title}" to "${nextGroup}".`);
   }
@@ -1241,8 +1245,8 @@ export default function CaseDetail({
     if (!issue) return setSequenceGroupFeedback("Issue could not be resolved safely.");
     const result = updateCaseIssue(canonical, issue.id, value);
     if (!result.success) return setSequenceGroupFeedback(result.errors.join(" "));
-    if (!(await onUpdateCase(result.caseData))) return;
     if (result.issue.name !== currentName) renameSequenceGroupMeta(selectedCase.id, currentName, result.issue.name);
+    if (!(await onUpdateCase(result.caseData))) return;
     saveSequenceGroupMeta(selectedCase.id, result.issue.name, { description: result.issue.description });
     setSelectedSequenceGroupName(result.issue.name);
     setSequenceGroupFeedback(`Updated ${result.issue.reference} — ${result.issue.name}.`);
@@ -1276,27 +1280,46 @@ export default function CaseDetail({
     const sourceGroup = safeText(operation.sourceGroup).trim();
     const destinationGroup = safeText(operation.destinationGroup).trim();
     const affected = Array.isArray(operation.recordRefs) ? operation.recordRefs.length : 0;
+    const canonical = normalizeCaseIssues(selectedCase, { sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()) }).caseData;
+    const sourceIssue = resolveCaseIssue(canonical, { issueName: sourceGroup });
+    const destinationIssue = resolveCaseIssue(canonical, { issueName: destinationGroup });
+    const applySelectedRecords = (mutate) => {
+      let caseData = canonical;
+      for (const ref of operation.recordRefs || []) {
+        const record = (Array.isArray(caseData[ref.recordType]) ? caseData[ref.recordType] : []).find((item) => item.id === ref.recordId);
+        if (!record || record.sequenceGroupId !== sourceIssue?.id) return { success: false, errors: ["A selected record no longer belongs to the source Issue."] };
+        const result = mutate(caseData, ref);
+        if (!result.success) return result;
+        caseData = result.caseData;
+      }
+      return { success: true, caseData, affectedCount: affected };
+    };
     let result;
     let confirmation = "";
 
     if (operation.type === "move-records") {
-      result = moveCaseSequenceGroupRecords({ caseData: selectedCase, sourceGroup, destinationGroup, recordRefs: operation.recordRefs });
+      result = sourceIssue && destinationIssue
+        ? applySelectedRecords((caseData, ref) => assignRecordToIssue(caseData, ref.recordType, ref.recordId, destinationIssue.id))
+        : { success: false, errors: ["Issues could not be resolved safely."] };
       confirmation = `Operation: Move selected records\nSource: ${sourceGroup}\nDestination: ${destinationGroup}\nRecords affected: ${affected}\n\nThe records remain in the case. Their content, links, and attachments will not change.`;
     } else if (operation.type === "split-records") {
-      result = splitCaseSequenceGroup({ caseData: selectedCase, sourceGroup, destinationGroup, recordRefs: operation.recordRefs });
+      const created = sourceIssue ? createCaseIssue(canonical, { name: destinationGroup, description: operation.destinationDescription || "" }) : null;
+      result = created?.success
+        ? (() => { let caseData = created.caseData; for (const ref of operation.recordRefs || []) { const assigned = assignRecordToIssue(caseData, ref.recordType, ref.recordId, created.issue.id); if (!assigned.success) return assigned; caseData = assigned.caseData; } return { success: true, caseData, affectedCount: affected }; })()
+        : { success: false, errors: created?.errors || ["Source Issue could not be resolved safely."] };
       confirmation = `Operation: Split records into a new group\nSource: ${sourceGroup}\nDestination: ${destinationGroup}\nRecords affected: ${affected}\n\nUnselected records remain in the source group.`;
     } else if (operation.type === "remove-records") {
-      result = removeCaseSequenceGroupRecords({ caseData: selectedCase, groupName: sourceGroup, recordRefs: operation.recordRefs });
+      result = sourceIssue
+        ? applySelectedRecords((caseData, ref) => removeRecordFromIssue(caseData, ref.recordType, ref.recordId))
+        : { success: false, errors: ["Source Issue could not be resolved safely."] };
       confirmation = `Operation: Remove selected records from group\nSource: ${sourceGroup}\nRecords affected: ${affected}\n\nThe records will remain in the case but will no longer belong to a sequence group.`;
     } else if (operation.type === "merge-groups") {
-      const canonical = normalizeCaseIssues(selectedCase, { sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()) }).caseData;
-      const sourceIssue = resolveCaseIssue(canonical, { issueName: sourceGroup });
-      const destinationIssue = resolveCaseIssue(canonical, { issueName: destinationGroup });
       const merged = sourceIssue && destinationIssue ? mergeCaseIssues(canonical, sourceIssue.id, destinationIssue.id) : null;
       result = merged?.success ? { ...merged, success: true, affectedCount: Object.values(sequenceGroupDetails.groups.find((item) => item.name === sourceGroup)?.records || {}).flat().length } : { success: false, errors: merged?.errors || ["Issues could not be resolved safely."] };
       confirmation = `Operation: Merge entire group\nSource: ${sourceGroup}\nDestination: ${destinationGroup}\nRecords affected: ${result.affectedCount}\n\nDestination metadata remains primary. Source metadata is removed after the records are saved.`;
     } else if (operation.type === "rename-entire-group") {
-      result = mergeCaseSequenceGroupsWithStats({ caseData: selectedCase, sourceGroup, destinationGroup });
+      result = sourceIssue ? updateCaseIssue(canonical, sourceIssue.id, { name: destinationGroup, description: operation.destinationDescription || sourceIssue.description }) : { success: false, errors: ["Source Issue could not be resolved safely."] };
+      if (result?.success) result = { ...result, affectedCount: affected };
       confirmation = `Operation: Move entire group to a new label\nSource: ${sourceGroup}\nDestination: ${destinationGroup}\nRecords affected: ${result.affectedCount}\n\nThe current group label will no longer exist.`;
     } else if (operation.type === "delete-group") {
       const group = sequenceGroupDetails.groups.find((item) => item.name === sourceGroup);
@@ -1309,8 +1332,13 @@ export default function CaseDetail({
     }
     if (!window.confirm(confirmation)) return false;
 
-    if (result.caseItem !== selectedCase) {
-      const saved = await onUpdateCase(result.caseItem);
+    // The compatibility store is consulted by the app-level save normalizer.
+    // Move its old name before saving a rename so that it cannot create a
+    // second legacy Issue alongside the renamed canonical one.
+    if (operation.type === "rename-entire-group") renameSequenceGroupMeta(selectedCase.id, sourceGroup, destinationGroup);
+
+    if (result.caseData !== canonical) {
+      const saved = await onUpdateCase(result.caseData);
       if (!saved) {
         setSequenceGroupFeedback("The case could not be saved. No sequence-group metadata was changed.");
         return false;
@@ -1331,7 +1359,6 @@ export default function CaseDetail({
       setSelectedSequenceGroupName(destinationGroup);
     } else if (operation.type === "rename-entire-group") {
       saveSequenceGroupMeta(selectedCase.id, destinationGroup, { description: operation.destinationDescription });
-      deleteSequenceGroupMeta(selectedCase.id, sourceGroup);
       setSelectedSequenceGroupName(destinationGroup);
     }
     setSequenceGroupFeedback(`${result.affectedCount} record${result.affectedCount === 1 ? "" : "s"} updated successfully.`);
