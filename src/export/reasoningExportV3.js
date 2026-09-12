@@ -1,3 +1,4 @@
+import { projectNextActionTexts } from "../domain/nextActions.js";
 import { resolveRecordById } from "../domain/linkingResolvers.js";
 import { runOperationalIntegrityCheck } from "../diagnostics/operationalIntegrity.js";
 import { buildIssueIndex, HUMAN_READABLE_ISSUE_PROMPT, normalizeCaseIssues } from "../domain/issueDomain.js";
@@ -147,7 +148,7 @@ export function buildCaseReasoningExportV3Payload(caseItem, options = {}) {
     case: {
       id: caseItem.id, title: clean(caseItem.name || caseItem.title), caseType: clean(caseItem.category || caseItem.caseType), status: clean(caseItem.status), createdDate: clean(caseItem.createdAt), updatedDate: clean(caseItem.updatedAt),
       parties: [...partiesById.values()].map((party) => ({ id: party.id, name: clean(party.name || party.displayName || party.label) })).sort((a, b) => a.id.localeCompare(b.id)),
-      currentFocus: clean(caseItem.actionSummary?.currentFocus), actionSummary: { nextActions: strings(caseItem.actionSummary?.nextActions), importantReminders: strings(caseItem.actionSummary?.importantReminders), strategyFocus: strings(caseItem.actionSummary?.strategyFocus), criticalDeadlines: strings(caseItem.actionSummary?.criticalDeadlines) },
+      currentFocus: clean(caseItem.actionSummary?.currentFocus), actionSummary: { nextActions: [...new Set(projectNextActionTexts(caseItem.actionSummary?.nextActions))], importantReminders: strings(caseItem.actionSummary?.importantReminders), strategyFocus: strings(caseItem.actionSummary?.strategyFocus), criticalDeadlines: strings(caseItem.actionSummary?.criticalDeadlines) },
       counts: { incidents: (caseItem.incidents || []).length, evidence: (caseItem.evidence || []).length, documents: (caseItem.documents || []).length, ledger: (caseItem.ledger || []).length, strategies: (caseItem.strategy || []).length, watchItems: (caseItem.watchItems || []).length },
       omitted: { closedOrArchivedStrategies: (caseItem.strategy || []).length - activeStrategies.length, closedMonitoringItems: (caseItem.watchItems || []).length - activeWatch.length },
       issues: buildIssueIndex(caseItem), strategies, watchItems, sequenceGroups: buildThreads(caseItem, strategies, watchItems), diagnosticSummary,

@@ -1,3 +1,4 @@
+import { projectNextActionTexts } from "../domain/nextActions.js";
 import { buildIssueIndex, normalizeCaseIssues } from "../domain/issueDomain.js";
 import { getStrictCalendarDate } from "../domain/caseDomain.js";
 import { resolveRecordById } from "../domain/linkingResolvers.js";
@@ -69,6 +70,7 @@ function mapParty(party = {}) {
 }
 
 function mapActionSummary(summary = {}) {
+  projectNextActionTexts(summary.nextActions); // Reject unsupported objects explicitly; keep the projection allowlist.
   return { currentFocus: text(summary.currentFocus), nextActions: list(summary.nextActions).map((item) => typeof item === "string" ? item : item && typeof item === "object" ? { id: text(item.id), text: text(item.text), completed: bool(item.completed), completedAt: text(item.completedAt) } : "").filter(Boolean), importantReminders: strings(summary.importantReminders), strategyFocus: strings(summary.strategyFocus), criticalDeadlines: strings(summary.criticalDeadlines), updatedAt: text(summary.updatedAt) };
 }
 

@@ -1,3 +1,6 @@
+import { getActionText, isActionCompleted, normalizeNextAction, normalizeNextActions } from "../../domain/nextActions.js";
+export { getActionText, isActionCompleted, normalizeNextAction, normalizeNextActions };
+
 export const emptyActionSummaryForm = {
   currentFocus: "",
   nextActions: "",
@@ -19,43 +22,6 @@ function safeText(value) {
 
 export function safeTextList(value) {
   return Array.isArray(value) ? value.filter(item => typeof item === "string") : [];
-}
-
-function safeIsoTimestamp(value) {
-  if (typeof value !== "string" || !value.trim()) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
-}
-
-export function getActionText(action) {
-  if (typeof action === "string") return action;
-  return typeof action?.text === "string" ? action.text : "";
-}
-
-export function isActionCompleted(action) {
-  return typeof action === "object" && action !== null && action.completed === true;
-}
-
-export function normalizeNextAction(action) {
-  const text = getActionText(action).trim();
-  if (!text) return null;
-
-  const completed = isActionCompleted(action);
-  return {
-    text,
-    completed,
-    completedAt: completed ? safeIsoTimestamp(action.completedAt) : null,
-  };
-}
-
-export function normalizeNextActions(value) {
-  if (!Array.isArray(value)) return [];
-
-  return value.reduce((actions, action) => {
-    const normalized = normalizeNextAction(action);
-    if (normalized) actions.push(normalized);
-    return actions;
-  }, []);
 }
 
 export function getActiveNextActions(actions = []) {
@@ -127,20 +93,26 @@ export function actionSummaryToForm(actionSummary = {}) {
 }
 
 export function formToActionSummary(form, existingActionSummary = {}) {
-  const completedActions = getCompletedNextActions(existingActionSummary.nextActions);
-
-  return {
+  const existing = normalizeActionSummary(existingActionSummary);
+  const previousForm = actionSummaryToForm(existing);
+  const unchangedActions = safeText(form.nextActions) === previousForm.nextActions;
+  const available = getActiveNextActions(existing.nextActions).filter((action) => getActionText(action).trim());
+  const editedActions = safeText(form.nextActions).split("\n").filter((text) => text.trim()).map((text) => {
+    const match = available.findIndex((action) => getActionText(action).trim() === text.trim());
+    return match >= 0 ? available.splice(match, 1)[0] : normalizeNextAction(text);
+  });
+  const result = {
+    ...existingActionSummary,
     currentFocus: safeText(form.currentFocus),
-    nextActions: [
-      ...safeText(form.nextActions).split("\n").filter(Boolean).map(text => ({
-        text,
-        completed: false,
-        completedAt: null,
-      })),
-      ...completedActions,
+    nextActions: unchangedActions ? existing.nextActions : [
+      ...editedActions,
+      ...existing.nextActions.filter((action) => action.completed || !getActionText(action).trim()),
     ],
     importantReminders: safeText(form.importantReminders).split("\n").filter(Boolean),
     strategyFocus: safeText(form.strategyFocus).split("\n").filter(Boolean),
-    updatedAt: new Date().toISOString(),
   };
+  const unchanged = Object.keys(result).every((key) => JSON.stringify(result[key]) === JSON.stringify(existing[key]));
+  if (!unchanged) result.updatedAt = new Date().toISOString();
+  else if (Object.hasOwn(existingActionSummary, "updatedAt")) result.updatedAt = existingActionSummary.updatedAt;
+  return result;
 }
