@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { buildAiWorkspaceCurrentCase } from "./export/aiWorkspace.js";
 
 import {
+  CaseRevisionConflictError,
   EMERGENCY_BACKUP_PREFIX,
   collectEmbeddedCaseImageIds,
   deleteCaseFromDb,
@@ -276,6 +278,58 @@ test("case revision does not advance for a rejected save", async () => {
     const db = makeFakeDb({ cases: [existing] });
     await assert.rejects(saveCaseToDb(db, { ...existing, incidents: [] }), /Blocked suspicious ProveIt case overwrite/);
     assert.equal(db.stores.cases.get("case-1").revision, 4);
+  });
+});
+
+test("AUDIT-007: revision-checked saves reject stale whole-case writers without losing newer fields", async () => {
+  await withPersistenceStubs(async () => {
+    const original = { id: "case-1", revision: 7, name: "Original", description: "Original description", incidents: [], evidence: [], documents: [], ledger: [], strategy: [], watchItems: [] };
+    const db = makeFakeDb({ cases: [original] });
+    const firstWriter = { ...structuredClone(original), name: "First writer" };
+    const staleWriter = { ...structuredClone(original), description: "Stale writer change" };
+
+    await saveCaseToDb(db, firstWriter);
+    assert.equal(firstWriter.revision, 8);
+
+    await assert.rejects(saveCaseToDb(db, staleWriter), (error) => {
+      assert.equal(error instanceof CaseRevisionConflictError, true);
+      assert.equal(error.code, "CASE_REVISION_CONFLICT");
+      assert.equal(error.expectedRevision, 7);
+      assert.equal(error.actualRevision, 8);
+      return true;
+    });
+    assert.deepEqual(db.stores.cases.get("case-1"), firstWriter);
+    assert.equal(staleWriter.revision, 7);
+    assert.equal(db.stores.cases.get("case-1").revision, 8);
+
+    const freshWriter = structuredClone(db.stores.cases.get("case-1"));
+    freshWriter.description = "Fresh writer change";
+    await saveCaseToDb(db, freshWriter);
+    assert.equal(freshWriter.revision, 9);
+    assert.equal(db.stores.cases.get("case-1").name, "First writer");
+    assert.equal(db.stores.cases.get("case-1").description, "Fresh writer change");
+  });
+});
+
+test("AUDIT-007: a current-revision no-op stays a no-op", async () => {
+  await withPersistenceStubs(async () => {
+    const existing = { id: "case-1", revision: 4, name: "Current", incidents: [], evidence: [], documents: [], ledger: [], strategy: [], watchItems: [] };
+    const db = makeFakeDb({ cases: [existing] });
+    const noOp = structuredClone(existing);
+    await saveCaseToDb(db, noOp);
+    assert.equal(noOp.revision, 4);
+    assert.equal(db.stores.cases.get("case-1").revision, 4);
+  });
+});
+
+test("AUDIT-007: AI Workspace reports the revision committed after a fresh save", async () => {
+  await withPersistenceStubs(async () => {
+    const current = { id: "case-1", revision: 2, name: "Current", incidents: [], evidence: [], documents: [], ledger: [], strategy: [], watchItems: [] };
+    const db = makeFakeDb({ cases: [current] });
+    const fresh = { ...structuredClone(current), name: "Fresh" };
+    await saveCaseToDb(db, fresh);
+    assert.equal(fresh.revision, 3);
+    assert.equal(buildAiWorkspaceCurrentCase(fresh).baseRevision, 3);
   });
 });
 

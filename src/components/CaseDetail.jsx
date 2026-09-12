@@ -969,9 +969,12 @@ export default function CaseDetail({
     if (targetGroup) setSequenceNewGroupInputs((prev) => ({ ...prev, [key]: "" }));
   }
 
-  function handleClearSequenceRecord(record) {
+  async function handleClearSequenceRecord(record) {
     if (!selectedCase || !record) return;
-    onUpdateCase(clearRecordSequenceGroup(selectedCase, record.recordType, record.id));
+    if (!(await onUpdateCase(clearRecordSequenceGroup(selectedCase, record.recordType, record.id)))) {
+      setSequenceGroupFeedback("The case changed before this record could be updated. Refresh and try again.");
+      return;
+    }
     setSequenceGroupFeedback(`Removed "${record.title}" from its sequence group.`);
   }
 
@@ -1430,7 +1433,7 @@ export default function CaseDetail({
     }
   }
 
-  function handleApplySequenceGroupDelta() {
+  async function handleApplySequenceGroupDelta() {
     if (!selectedCase) return;
     const validation = ingestSequenceGroupDelta(sequenceGroupDeltaDraft, selectedCase);
     setSequenceGroupDeltaResult(validation);
@@ -1445,7 +1448,10 @@ export default function CaseDetail({
     if (!confirmed) return;
 
     const result = ingestSequenceGroupDelta(sequenceGroupDeltaDraft, selectedCase, { apply: true });
-    onUpdateCase(result.updatedCase);
+    if (!(await onUpdateCase(result.updatedCase))) {
+      setSequenceGroupFeedback("The case changed before these AI group changes could be applied. Refresh and review the suggestions again.");
+      return;
+    }
     setSequenceGroupDeltaDraft("");
     setSequenceGroupDeltaResult(null);
     setSequenceGroupFeedback(`Applied ${previewCount} AI sequence group change${previewCount === 1 ? "" : "s"}.`);
@@ -2042,17 +2048,17 @@ ${strategyFocus.join("\n") || "—"}`;
       handleOpenIssue({ ...item, record: launch.record, type: launch.targetType, tab: undefined });
     }
   };
-  const saveOverviewWatchItem = (savedItem) => {
+  const saveOverviewWatchItem = async (savedItem) => {
     const currentItems = selectedCase?.watchItems || [];
     const exists = currentItems.some((item) => item.id === savedItem.id);
-    onUpdateCase({
+    const saved = await onUpdateCase({
       ...selectedCase,
       watchItems: exists
         ? currentItems.map((item) => item.id === savedItem.id ? savedItem : item)
         : [savedItem, ...currentItems],
       updatedAt: new Date().toISOString(),
     });
-    setOverviewWatchItem(undefined);
+    if (saved) setOverviewWatchItem(undefined);
   };
   const applyEvidenceFilter = (filter) => {
     setEvidenceFilter(filter);

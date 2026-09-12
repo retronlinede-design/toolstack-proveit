@@ -10,6 +10,18 @@ import { getCaseRevision, INITIAL_CASE_REVISION } from "./domain/caseRevision.js
 export const CORE_CASE_ARRAY_FIELDS = ["incidents", "evidence", "documents", "ledger", "strategy", "watchItems"];
 export const EMERGENCY_BACKUP_PREFIX = "toolstack.proveit.v1.emergencyBackup.";
 
+export class CaseRevisionConflictError extends Error {
+  constructor({ caseId, expectedRevision, actualRevision, operation }) {
+    super(`Case save conflict: case ${caseId} is at revision ${actualRevision}, but this change was based on revision ${expectedRevision}. Refresh the case and try again.`);
+    this.name = "CaseRevisionConflictError";
+    this.code = "CASE_REVISION_CONFLICT";
+    this.caseId = caseId;
+    this.expectedRevision = expectedRevision;
+    this.actualRevision = actualRevision;
+    this.operation = operation;
+  }
+}
+
 async function getDb() {
   const { dbPromise } = await import("./db.js");
   return dbPromise;
@@ -116,21 +128,6 @@ export async function createEmergencyBackupFromDb(operation, { caseId = "", befo
   }
 }
 
-async function createEmergencyBackupFromOpenDb(db, operation, { caseId = "", beforeCounts = null, afterCounts = null } = {}) {
-  try {
-    const cases = await db.getAll(STORE_NAMES.cases);
-    return writeEmergencyBackupSnapshot({ operation, cases, caseId, beforeCounts, afterCounts });
-  } catch (error) {
-    console.warn("[ProveIt persistence] could not read cases for emergency backup", {
-      operation,
-      caseId,
-      error,
-      stack: getStackTrace(),
-    });
-    return null;
-  }
-}
-
 export async function getAllCases() {
   const db = await getDb();
   return db.getAll(STORE_NAMES.cases);
@@ -138,50 +135,55 @@ export async function getAllCases() {
 
 export async function saveCaseToDb(db, caseItem, options = {}) {
   const operation = options.operation || "saveCase";
-  const existingCase = caseItem?.id ? await db.get(STORE_NAMES.cases, caseItem.id) : null;
-  const beforeCounts = getCaseCoreCounts(existingCase);
-  const afterCounts = getCaseCoreCounts(caseItem);
-  const suspiciousShrink = hasSuspiciousCoreArrayShrink(existingCase, caseItem);
+  const save = async (store) => {
+    const existingCase = caseItem?.id ? await store.get(caseItem.id) : null;
+    const expectedRevision = getCaseRevision(caseItem);
+    const actualRevision = getCaseRevision(existingCase);
 
-  logDestructiveOperation(operation, {
-    caseId: caseItem?.id || "",
-    beforeCounts,
-    afterCounts,
-    suspiciousShrink,
-    override: options.allowSuspiciousOverwrite === true,
-  });
+    // Legacy cases without a revision remain migratable, but every revisioned
+    // case must be written from the exact persisted revision it was read from.
+    if (actualRevision != null && expectedRevision !== actualRevision) {
+      throw new CaseRevisionConflictError({ caseId: caseItem.id, expectedRevision, actualRevision, operation });
+    }
 
-  if (suspiciousShrink && options.allowSuspiciousOverwrite !== true) {
-    await createEmergencyBackupFromOpenDb(db, `${operation}:blocked-suspicious-overwrite`, {
-      caseId: caseItem.id,
-      beforeCounts,
-      afterCounts,
-    });
-    const error = new Error("Blocked suspicious ProveIt case overwrite: incoming case would erase non-empty core data arrays.");
-    console.warn("[ProveIt persistence] blocked suspicious case overwrite", {
-      operation,
-      caseId: caseItem.id,
-      beforeCounts,
-      afterCounts,
-      stack: getStackTrace(),
-    });
-    throw error;
+    const beforeCounts = getCaseCoreCounts(existingCase);
+    const afterCounts = getCaseCoreCounts(caseItem);
+    const suspiciousShrink = hasSuspiciousCoreArrayShrink(existingCase, caseItem);
+    logDestructiveOperation(operation, { caseId: caseItem?.id || "", beforeCounts, afterCounts, suspiciousShrink, override: options.allowSuspiciousOverwrite === true });
+
+    if (suspiciousShrink) {
+      // Keep the guard and its recovery copy inside the same revision-checked
+      // boundary; opening another IndexedDB transaction here would break it.
+      writeEmergencyBackupSnapshot({
+        operation: `${operation}:${options.allowSuspiciousOverwrite === true ? "allowed" : "blocked"}-suspicious-overwrite`,
+        cases: existingCase ? [existingCase] : [], caseId: caseItem.id, beforeCounts, afterCounts,
+      });
+      if (options.allowSuspiciousOverwrite !== true) {
+        const error = new Error("Blocked suspicious ProveIt case overwrite: incoming case would erase non-empty core data arrays.");
+        console.warn("[ProveIt persistence] blocked suspicious case overwrite", { operation, caseId: caseItem.id, beforeCounts, afterCounts, stack: getStackTrace() });
+        throw error;
+      }
+    }
+
+    const committedCase = { ...caseItem, revision: getCommittedCaseRevision(existingCase, caseItem) };
+    await store.put(committedCase);
+    return committedCase;
+  };
+
+  let committedCase;
+  if (typeof db.transaction === "function") {
+    const tx = db.transaction(STORE_NAMES.cases, "readwrite");
+    committedCase = await save(tx.store);
+    await tx.done;
+  } else {
+    // Test doubles retain the same conflict contract; production IndexedDB uses
+    // the readwrite transaction above to make the read/check/put atomic.
+    committedCase = await save({ get: (id) => db.get(STORE_NAMES.cases, id), put: (item) => db.put(STORE_NAMES.cases, item) });
   }
-
-  if (suspiciousShrink) {
-    await createEmergencyBackupFromOpenDb(db, `${operation}:allowed-suspicious-overwrite`, {
-      caseId: caseItem.id,
-      beforeCounts,
-      afterCounts,
-    });
-  }
-
-  const committedCase = { ...caseItem, revision: getCommittedCaseRevision(existingCase, caseItem) };
-  const result = await db.put(STORE_NAMES.cases, committedCase);
   // Callers hold the canonical in-memory instance and use it immediately after
   // persistence. Reflect the committed revision without adding another save path.
   Object.assign(caseItem, committedCase);
-  return result;
+  return caseItem.id;
 }
 
 export async function saveCase(caseItem, options = {}) {
