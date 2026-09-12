@@ -1,3 +1,5 @@
+import { mergePresentFields, mergeImportedRecords } from "./importPresence.js";
+
 const CASE_ISSUE_FIELDS = ["issues", "issueSchemaVersion", "nextIssueReferenceNumber", "retiredIssueReferences", "retiredIssues"];
 
 function preserveCaseIssueData(caseItem) {
@@ -52,7 +54,7 @@ export const normalizeGeneratedReportVersions = (value, legacyGeneratedReportTex
     de: normalizeGeneratedReportText(value?.de),
   };
 
-  if (!versions.en && legacyText) {
+  if (!Object.hasOwn(value || {}, "en") && legacyText) {
     versions.en = legacyText;
   }
 
@@ -2082,65 +2084,13 @@ export function mergeWatchItems(existingItems = [], incomingItems = []) {
   return Array.from(itemMap.values());
 }
 
-export function mergeCase(existingCase, incomingCase) {
-  const nExisting = normalizeCase(existingCase);
-  const nIncoming = normalizeCase(incomingCase);
-  const hasIncomingGeneratedReportText = Object.prototype.hasOwnProperty.call(incomingCase || {}, "generatedReportText");
-  const hasIncomingGeneratedReportVersions = Object.prototype.hasOwnProperty.call(incomingCase || {}, "generatedReportVersions");
-  const hasIncomingActiveGeneratedReportLanguage = Object.prototype.hasOwnProperty.call(incomingCase || {}, "activeGeneratedReportLanguage");
-  const generatedReportVersions = hasIncomingGeneratedReportVersions
-    ? {
-        en: nIncoming.generatedReportVersions.en || nExisting.generatedReportVersions.en,
-        de: nIncoming.generatedReportVersions.de || nExisting.generatedReportVersions.de,
-      }
-    : nExisting.generatedReportVersions;
-
-  return {
-    ...nExisting,
-    ...nIncoming,
-    name: normalizeCaseName(
-      (typeof incomingCase?.name === "string" && incomingCase.name.trim())
-        ? incomingCase.name
-        : existingCase?.name
-    ),
-    category: normalizeCategory(nIncoming.category || nExisting.category),
-    status: normalizeCaseStatus(nIncoming.status || nExisting.status),
-    folderId: Object.prototype.hasOwnProperty.call(incomingCase || {}, "folderId") ? nIncoming.folderId : nExisting.folderId,
-    notes: nIncoming.notes || nExisting.notes || "",
-    description: nIncoming.description || nExisting.description || "",
-    tags: Array.from(new Set([...nExisting.tags, ...nIncoming.tags])),
-    createdAt: nExisting.createdAt || nIncoming.createdAt || new Date().toISOString(),
-    updatedAt: nIncoming.updatedAt || nExisting.updatedAt || new Date().toISOString(),
-    evidence: mergeRecords(nExisting.evidence, nIncoming.evidence, "evidence"),
-    incidents: mergeRecords(nExisting.incidents, nIncoming.incidents, "incidents"),
-    tasks: mergeRecords(nExisting.tasks, nIncoming.tasks, "tasks"),
-    strategy: mergeRecords(nExisting.strategy, nIncoming.strategy, "strategy"),
-    ledger: mergeLedgerEntries(nExisting.ledger, nIncoming.ledger),
-    documents: mergeDocumentEntries(nExisting.documents, nIncoming.documents),
-    parties: mergeParties(nExisting.parties, nIncoming.parties),
-    watchItems: mergeWatchItems(nExisting.watchItems, Array.isArray(incomingCase?.watchItems) ? incomingCase.watchItems : []),
-    actionSummary: normalizeActionSummary(
-      incomingCase?.actionSummary && (
-        incomingCase.actionSummary.currentFocus ||
-        (incomingCase.actionSummary.nextActions || []).length ||
-        (incomingCase.actionSummary.importantReminders || []).length ||
-        (incomingCase.actionSummary.strategyFocus || []).length ||
-        incomingCase.actionSummary.updatedAt
-      )
-        ? incomingCase.actionSummary
-        : existingCase?.actionSummary
-    ),
-    privacyLock: normalizeCasePrivacyLock(incomingCase?.privacyLock) || normalizeCasePrivacyLock(existingCase?.privacyLock),
-    generatedReportText: hasIncomingGeneratedReportText
-      ? normalizeGeneratedReportText(incomingCase?.generatedReportText)
-      : normalizeGeneratedReportText(existingCase?.generatedReportText),
-    generatedReportVersions,
-    activeGeneratedReportLanguage: hasIncomingActiveGeneratedReportLanguage
-      ? normalizeActiveGeneratedReportLanguage(incomingCase?.activeGeneratedReportLanguage)
-      : normalizeActiveGeneratedReportLanguage(existingCase?.activeGeneratedReportLanguage),
-    auditLog: [
-      ...normalizeAuditLog(existingCase?.auditLog),
-      ...normalizeAuditLog(incomingCase?.auditLog),
-    ],
-  };
+export function mergeCase(existingCase, incomingCase = {}) {
+  const local = normalizeCase(existingCase);
+  const merged = mergePresentFields(local, incomingCase);
+  for (const collection of ["evidence", "incidents", "tasks", "strategy", "ledger", "documents", "parties", "watchItems", "issues"]) {
+    if (Array.isArray(incomingCase[collection])) {
+      merged[collection] = mergeImportedRecords(local[collection] || [], incomingCase[collection]);
+    }
+  }
+  return normalizeCase(merged);
 }

@@ -2903,7 +2903,7 @@ test("upsertDocumentEntryInCase edit replaces an existing document entry by id a
   assert.equal(updated.strategy, strategy);
 });
 
-test("mergeCase normalizes both sides, merges collections by id, and keeps current action summary selection", () => {
+test("mergeCase merges raw present fields by id and honors explicit empty values", () => {
   const existing = {
     id: "case-1",
     name: "Existing Name",
@@ -2981,9 +2981,9 @@ test("mergeCase normalizes both sides, merges collections by id, and keeps curre
   assert.equal(merged.category, "general");
   assert.equal(merged.status, "archived");
   assert.equal(merged.folderId, "folder-new");
-  assert.equal(merged.notes, "existing notes");
+  assert.equal(merged.notes, "");
   assert.equal(merged.description, "incoming description");
-  assert.deepEqual(merged.tags, ["existing", "shared", "incoming"]);
+  assert.deepEqual(merged.tags, ["incoming", "shared"]);
   assert.equal(merged.createdAt, iso("2024-01-01"));
   assert.equal(merged.updatedAt, iso("2024-02-01"));
   assert.deepEqual(merged.incidents.map((item) => item.id), ["inc-2", "inc-1"]);
@@ -2998,12 +2998,12 @@ test("mergeCase normalizes both sides, merges collections by id, and keeps curre
   assert.equal(merged.parties[0].entityType, "company");
   assert.deepEqual(merged.parties[0].roles, ["respondent"]);
   assert.deepEqual(merged.actionSummary, {
-    currentFocus: "Existing focus",
-    nextActions: [{ text: "Existing action", completed: false, completedAt: null }],
+    currentFocus: "",
+    nextActions: [],
     importantReminders: [],
     strategyFocus: [],
     criticalDeadlines: [],
-    updatedAt: "existing-summary-time",
+    updatedAt: "",
   });
   assert.equal(merged.generatedReportText, "Existing legacy report");
   assert.deepEqual(merged.generatedReportVersions, {

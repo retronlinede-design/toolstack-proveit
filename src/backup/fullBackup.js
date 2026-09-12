@@ -131,9 +131,11 @@ export async function restoreFullBackupRecord(record, deps = {}) {
   const cloned = { ...record };
   const ownerId = record.id || deps.generateId();
 
-  cloned.attachments = await Promise.all(
-    (record.attachments || []).map((att) => restoreFullBackupAttachment(att, ownerId, deps))
-  );
+  if (Object.hasOwn(record, "attachments")) {
+    cloned.attachments = await Promise.all(
+      (record.attachments || []).map((att) => restoreFullBackupAttachment(att, ownerId, deps))
+    );
+  }
 
   if (record.availability?.digital?.files) {
     cloned.availability = {
@@ -159,9 +161,11 @@ export async function restoreFullBackupDocument(doc, deps = {}) {
   const cloned = { ...doc };
   const ownerId = doc.id || deps.generateId();
 
-  cloned.attachments = await Promise.all(
-    (doc.attachments || []).map((att) => restoreFullBackupAttachment(att, ownerId, deps))
-  );
+  if (Object.hasOwn(doc, "attachments")) {
+    cloned.attachments = await Promise.all(
+      (doc.attachments || []).map((att) => restoreFullBackupAttachment(att, ownerId, deps))
+    );
+  }
 
   return cloned;
 }
@@ -173,12 +177,12 @@ export async function restoreFullBackupCase(caseItem, deps = {}) {
   const cloned = { ...caseItem };
   const scopedDeps = deps;
 
-  cloned.evidence = await Promise.all((caseItem.evidence || []).map((record) => restoreFullBackupRecord(record, scopedDeps)));
-  cloned.incidents = await Promise.all((caseItem.incidents || []).map((record) => restoreFullBackupRecord(record, scopedDeps)));
-  cloned.tasks = await Promise.all((caseItem.tasks || []).map((record) => restoreFullBackupRecord(record, scopedDeps)));
-  cloned.strategy = await Promise.all((caseItem.strategy || []).map((record) => restoreFullBackupRecord(record, scopedDeps)));
-  cloned.watchItems = await Promise.all((caseItem.watchItems || []).map((record) => restoreFullBackupRecord(record, scopedDeps)));
-  cloned.documents = await Promise.all((caseItem.documents || []).map((doc) => restoreFullBackupDocument(doc, scopedDeps)));
+  if (Object.hasOwn(caseItem, "evidence")) cloned.evidence = await Promise.all((caseItem.evidence || []).map((record) => restoreFullBackupRecord(record, scopedDeps)));
+  if (Object.hasOwn(caseItem, "incidents")) cloned.incidents = await Promise.all((caseItem.incidents || []).map((record) => restoreFullBackupRecord(record, scopedDeps)));
+  if (Object.hasOwn(caseItem, "tasks")) cloned.tasks = await Promise.all((caseItem.tasks || []).map((record) => restoreFullBackupRecord(record, scopedDeps)));
+  if (Object.hasOwn(caseItem, "strategy")) cloned.strategy = await Promise.all((caseItem.strategy || []).map((record) => restoreFullBackupRecord(record, scopedDeps)));
+  if (Object.hasOwn(caseItem, "watchItems")) cloned.watchItems = await Promise.all((caseItem.watchItems || []).map((record) => restoreFullBackupRecord(record, scopedDeps)));
+  if (Object.hasOwn(caseItem, "documents")) cloned.documents = await Promise.all((caseItem.documents || []).map((doc) => restoreFullBackupDocument(doc, scopedDeps)));
 
   return cloned;
 }
@@ -190,9 +194,11 @@ export async function restoreFullBackupQuickCapture(capture, deps = {}) {
   const cloned = { ...capture };
   const ownerId = capture.id || deps.generateId();
 
-  cloned.attachments = await Promise.all(
-    (capture.attachments || []).map((att) => restoreFullBackupAttachment(att, ownerId, deps))
-  );
+  if (Object.hasOwn(capture, "attachments")) {
+    cloned.attachments = await Promise.all(
+      (capture.attachments || []).map((att) => restoreFullBackupAttachment(att, ownerId, deps))
+    );
+  }
 
   return cloned;
 }

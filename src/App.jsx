@@ -42,7 +42,6 @@ import {
   deletePartyFromCase,
   deleteRecordFromCase,
   generateId,
-  mergeCase,
   normalizeCase,
   normalizeCategory,
   syncCaseLinks,
@@ -79,6 +78,7 @@ import {
 } from "./sequenceGroupMeta.js";
 import proveItLogo from "./assets/proveit-logo.png";
 import { normalizeCaseIssues } from "./domain/issueDomain.js";
+import { mergeImportedCases } from "./domain/caseImport.js";
 import { normalizeStoredCase } from "./domain/caseNormalization.js";
 
 const lastUsedGroupByType = {};
@@ -2512,23 +2512,8 @@ export default function ProveItApp() {
         }
       }
 
-      const normalizedCases = incomingCases.map((caseItem) => normalizeStoredCase(caseItem, {
-        sequenceGroupMeta: getSequenceGroupMetaForCase(caseItem.id, incomingSequenceGroupMeta || {}),
-      }));
       const currentCases = await getAllCases();
-      const caseMap = new Map(currentCases.map(c => [c.id, c]));
-
-      for (const importedCase of normalizedCases) {
-        if (caseMap.has(importedCase.id)) {
-          const existingCase = caseMap.get(importedCase.id);
-          const mergedCase = mergeCase(existingCase, importedCase);
-          caseMap.set(mergedCase.id, normalizeCaseIssues(mergedCase, { sequenceGroupMeta: getSequenceGroupMetaForCase(mergedCase.id, incomingSequenceGroupMeta || {}) }).caseData);
-        } else {
-          caseMap.set(importedCase.id, importedCase);
-        }
-      }
-
-      const mergedCases = Array.from(caseMap.values());
+      const { mergedCases, normalizedCases } = mergeImportedCases(currentCases, incomingCases, incomingSequenceGroupMeta || {});
       const importSuccesses = [];
       const importFailures = [];
 
@@ -3873,6 +3858,9 @@ const handleRecordFiles = async (event) => {
                 <h3 className="text-sm font-bold text-neutral-900">Import</h3>
                 <p className="mt-1 text-xs leading-5 text-amber-800">
                   Import changes local browser data. Download a Full App Backup before importing.
+                  Cases and records merge by ID: omitted fields and local-only records are kept.
+                  Supplied fields replace current values, including explicit empty values, even from an older backup.
+                  Import does not compare timestamps or provide conflict resolution.
                 </p>
                 <label className="mt-4 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20 sm:w-auto">
                   <Upload className="h-4 w-4" />
