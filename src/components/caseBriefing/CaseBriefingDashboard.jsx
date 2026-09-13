@@ -24,6 +24,15 @@ export default function CaseBriefingDashboard({ model, onOpenIssue, onOpenItem, 
   return (
     <main className="space-y-5" aria-labelledby="case-briefing-heading">
       <div><p className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Overview</p><h1 id="case-briefing-heading" className="mt-1 text-2xl font-semibold text-neutral-950 dark:text-neutral-100">Case Briefing</h1><p className={`mt-1 ${muted}`}>A factual daily view of this case, its Issues, and recorded next steps.</p></div>
+      <details className={`${surface} px-4 py-3`}>
+        <summary className="cursor-pointer font-semibold text-neutral-950 dark:text-neutral-100">Where does this belong?</summary>
+        <dl className="mt-3 grid gap-2 border-t border-neutral-200 pt-3 text-sm leading-5 dark:border-neutral-700 sm:grid-cols-2">
+          <div><dt className="font-semibold text-neutral-900 dark:text-neutral-100">Incident vs Evidence</dt><dd className={muted}>Incident is what happened; Evidence is material supporting, challenging, or contextualising it.</dd></div>
+          <div><dt className="font-semibold text-neutral-900 dark:text-neutral-100">Document vs Evidence</dt><dd className={muted}>Document is the original source or correspondence; Evidence is the assessed significance of source material.</dd></div>
+          <div><dt className="font-semibold text-neutral-900 dark:text-neutral-100">Strategy vs Action</dt><dd className={muted}>Strategy is the considered position and approach; an Action is executable work that should happen now.</dd></div>
+          <div><dt className="font-semibold text-neutral-900 dark:text-neutral-100">To Watch vs Incident</dt><dd className={muted}>To Watch is an uncertain development or trigger being monitored; an Incident is something that has happened.</dd></div>
+        </dl>
+      </details>
       {model.isEmptyCase && <div className={`${surface} border-lime-300`}><h2 className="text-lg font-semibold dark:text-white">Start building this case</h2><p className={`mt-1 ${muted}`}>Add the people involved, record the first Incident, and attach any supporting material.</p><div className="mt-3 flex flex-wrap gap-2"><button className={button} onClick={() => onOpenTab?.("parties")}>Add Party</button><button className={button} onClick={onAddIncident}>Add Incident</button><button className={button} onClick={onAddEvidence}>Add Evidence</button><button className={button} onClick={onAddDocument}>Add Document</button></div></div>}
       <Section title="Case Snapshot">
         <div className="mt-3 flex flex-wrap items-baseline justify-between gap-3"><div><div className="text-xl font-semibold text-neutral-950 dark:text-white">{snapshot.name}</div><div className={muted}>{snapshot.category} · {snapshot.status} · {snapshot.folder}</div></div><div className={muted}>Updated {dateLabel(snapshot.lastUpdated)}</div></div>

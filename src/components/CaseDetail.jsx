@@ -4060,15 +4060,6 @@ ${ungroupedSequenceText}
                     <button onClick={() => openLedgerModal()} className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30">Add Ledger</button>
                     <button onClick={() => setActiveTab("generate-report")} className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30">Generate Report</button>
                   </div>
-                  <details className="mt-3 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600">
-                    <summary className="cursor-pointer font-semibold text-neutral-800">Where does this belong?</summary>
-                    <dl className="mt-3 grid gap-2 border-t border-neutral-200 pt-3 text-xs leading-5 sm:grid-cols-2">
-                      <div><dt className="font-semibold text-neutral-800">Incident vs Evidence</dt><dd>Incident is what happened; Evidence is material supporting, challenging, or contextualising what happened.</dd></div>
-                      <div><dt className="font-semibold text-neutral-800">Document vs Evidence</dt><dd>Document is the original source or correspondence; Evidence is the assessed significance of source material.</dd></div>
-                      <div><dt className="font-semibold text-neutral-800">Strategy vs Action</dt><dd>Strategy is the considered position and approach; an Action is executable work that should happen now.</dd></div>
-                      <div><dt className="font-semibold text-neutral-800">To Watch vs Incident</dt><dd>To Watch is an uncertain development or trigger being monitored; an Incident is something that has actually happened.</dd></div>
-                    </dl>
-                  </details>
                 </section>
 
                 <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">

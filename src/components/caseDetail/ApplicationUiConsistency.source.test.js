@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const caseDetail = readFileSync(new URL("../CaseDetail.jsx", import.meta.url), "utf8");
+const caseBriefingDashboard = readFileSync(new URL("../caseBriefing/CaseBriefingDashboard.jsx", import.meta.url), "utf8");
 const ledger = readFileSync(new URL("./LedgerTab.jsx", import.meta.url), "utf8");
 const records = readFileSync(new URL("./RecordsTab.jsx", import.meta.url), "utf8");
 
@@ -18,12 +19,13 @@ test("timeline filters expose state and an accessible selector name", () => {
   assert.match(caseDetail, /aria-label="Filter timeline by Issue"/);
 });
 
-test("overview provides compact record-choice guidance", () => {
-  assert.match(caseDetail, /Where does this belong\?/);
-  assert.match(caseDetail, /Incident is what happened; Evidence is material supporting, challenging, or contextualising what happened\./);
-  assert.match(caseDetail, /Document is the original source or correspondence; Evidence is the assessed significance of source material\./);
-  assert.match(caseDetail, /Strategy is the considered position and approach; an Action is executable work that should happen now\./);
-  assert.match(caseDetail, /To Watch is an uncertain development or trigger being monitored; an Incident is something that has actually happened\./);
+test("live overview provides compact record-choice guidance", () => {
+  assert.match(caseBriefingDashboard, /Where does this belong\?/);
+  assert.match(caseBriefingDashboard, /Incident is what happened; Evidence is material supporting, challenging, or contextualising it\./);
+  assert.match(caseBriefingDashboard, /Document is the original source or correspondence; Evidence is the assessed significance of source material\./);
+  assert.match(caseBriefingDashboard, /Strategy is the considered position and approach; an Action is executable work that should happen now\./);
+  assert.match(caseBriefingDashboard, /To Watch is an uncertain development or trigger being monitored; an Incident is something that has happened\./);
+  assert.doesNotMatch(caseDetail, /Where does this belong\?/);
 });
 
 test("incident and evidence search icons are decorative", () => {
