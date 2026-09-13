@@ -21,6 +21,6 @@ test("floating Tools menu keeps AI access separate from investigation tool actio
   assert.equal(labels.includes("Full Chain GPT Pack"), false);
   assert.equal(labels.includes("Case Slice Pack"), false);
 
-  actions.find((action) => action.label === "Open Sequence Group Manager").onClick();
+  actions.find((action) => action.label === "Open Issue Manager").onClick();
   assert.deepEqual(calls, ["groups"]);
 });

@@ -57,7 +57,7 @@ export function buildIncidentScheduleDocument(reportModel, definition, options =
     if (!incident.id || incident.title === incident.id || /^Untitled incident$/i.test(incident.title)) findings.push(finding("INCIDENT_MISSING_TITLE", "warning", incident, "Incident has no title."));
     if (!incident.summary && !incident.details?.functionSummary) findings.push(finding("INCIDENT_MISSING_DESCRIPTION", "warning", incident, "Incident has no description or function summary."));
     if (!coverage.find((item) => item.incidentId === incident.id)?.supportingEvidenceCount) findings.push(finding("INCIDENT_NO_LINKED_EVIDENCE", "info", incident, "Incident has no structured evidence association."));
-    if (!incident.sequenceGroup) findings.push(finding("INCIDENT_NO_SEQUENCE_GROUP", "info", incident, "Incident is not assigned to a Sequence Group."));
+    if (!incident.sequenceGroup) findings.push(finding("INCIDENT_NO_SEQUENCE_GROUP", "info", incident, "Incident is not assigned to an Issue."));
     if (relevantUnresolved(model, incident).some((item) => item.referenceType === "party")) findings.push(finding("INCIDENT_UNRESOLVED_PARTY", "warning", incident, "Incident contains an unresolved party reference."));
     if (relevantUnresolved(model, incident).some((item) => item.referenceType !== "party")) findings.push(finding("INCIDENT_UNRESOLVED_RECORD", "warning", incident, "Incident contains an unresolved record reference."));
     if (Object.hasOwn(incident.details || {}, "outcome") && !String(incident.details.outcome || "").trim()) findings.push(finding("INCIDENT_MISSING_OUTCOME", "info", incident, "Incident outcome is blank."));
@@ -70,7 +70,7 @@ export function buildIncidentScheduleDocument(reportModel, definition, options =
     { code: "ATTACHMENT_METADATA_ONLY", severity: "info", message: "Attachments are represented by metadata only; attachment content is not included." },
   ];
   const summary = {
-    caseOverview: model.sourceCase || {}, scopeLabel: model.scope?.type === "sequenceGroup" ? `Sequence Group: ${model.scope.sequenceGroupName || ""}` : "Whole case",
+    caseOverview: model.sourceCase || {}, scopeLabel: model.scope?.type === "sequenceGroup" ? `Issue: ${model.scope.sequenceGroupName || ""}` : "Whole case",
     scopedIncidentCount: rows.length, activeIncidentCount: rows.filter((row) => !row.archived).length, archivedIncidentCount: rows.filter((row) => row.archived).length,
     incidentsWithLinkedEvidence: rows.filter((row) => row.linkedEvidence.length).length, incidentsWithoutLinkedEvidence: rows.filter((row) => !row.linkedEvidence.length).length,
     incidentsWithLinkedDocuments: rows.filter((row) => row.linkedDocuments.length).length, incidentsWithLinkedStrategies: rows.filter((row) => row.linkedStrategies.length).length,

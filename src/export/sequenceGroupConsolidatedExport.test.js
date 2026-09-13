@@ -85,10 +85,10 @@ test("human-readable exports identify all groups, ungrouped records and missing 
   const allMarkdown = exportAllSequenceGroupAuditsMarkdown(buildCase(), { sequenceGroupMeta: meta });
   const fullMarkdown = exportCaseBySequenceGroupsMarkdown(buildCase(), { sequenceGroupMeta: meta });
 
-  assert.match(allMarkdown, /# All Sequence Group Audits/);
+  assert.match(allMarkdown, /# All Issue Audits/);
   assert.match(allMarkdown, /## Empty Group/);
-  assert.match(fullMarkdown, /# Full Case by Sequence Groups/);
-  assert.match(fullMarkdown, /## Ungrouped Records/);
+  assert.match(fullMarkdown, /# Full Case by Issues/);
+  assert.match(fullMarkdown, /## Unassigned Records/);
   assert.match(fullMarkdown, /Ungrouped incident/);
   assert.match(fullMarkdown, /## Unresolved and Missing References/);
 });

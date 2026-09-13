@@ -742,7 +742,7 @@ export function buildEvidencePackReport(caseItem = {}, scope = {}, options = {})
   const evidenceWithoutAttachments = evidenceMatrix.filter((item) => item.attachmentCount === 0);
   const diagnostics = buildEvidencePackDiagnostics(caseItem, evidenceRecords, supportedIncidents);
   const scopeLabel = normalizedScope.scopeType === "sequenceGroup"
-    ? `sequenceGroup: ${normalizedScope.sequenceGroup || "-"}`
+    ? `Issue: ${normalizedScope.sequenceGroup || "-"}`
     : "Whole case";
 
   return {
@@ -854,7 +854,7 @@ export function buildDocumentPackReport(caseItem = {}, scope = {}, options = {})
   const diagnostics = buildDocumentPackDiagnostics(caseItem, documentRecords);
   const supportSummary = buildDocumentSupportSummary(documentMatrix);
   const scopeLabel = normalizedScope.scopeType === "sequenceGroup"
-    ? `sequenceGroup: ${normalizedScope.sequenceGroup || "-"}`
+    ? `Issue: ${normalizedScope.sequenceGroup || "-"}`
     : "Whole case";
 
   return {
@@ -957,7 +957,7 @@ export function buildLedgerPackReport(caseItem = {}, scope = {}, options = {}) {
   const linkedLedgerEntries = ledgerMatrix.filter((entry) => entry.linkedRecords.length > 0);
   const unlinkedLedgerEntries = ledgerMatrix.filter((entry) => entry.linkedRecords.length === 0);
   const scopeLabel = normalizedScope.scopeType === "sequenceGroup"
-    ? `sequenceGroup: ${normalizedScope.sequenceGroup || "-"}`
+    ? `Issue: ${normalizedScope.sequenceGroup || "-"}`
     : "Whole case";
 
   return {
@@ -1632,7 +1632,7 @@ function mapManagementChainProof(evidence = {}, groupName = "") {
     missingFunctionSummary: !compactText(establishes),
     sequenceGroup: getSequenceGroupName(evidence.sequenceGroup),
     note: getSequenceGroupName(evidence.sequenceGroup) && getSequenceGroupName(evidence.sequenceGroup) !== groupName
-      ? `Explicitly linked evidence from sequence group "${getSequenceGroupName(evidence.sequenceGroup)}".`
+      ? `Explicitly linked evidence from Issue "${getSequenceGroupName(evidence.sequenceGroup)}".`
       : "",
   };
 }
@@ -1648,7 +1648,7 @@ function mapManagementReferenceDocument(document = {}, groupName = "") {
     linkedRecordIds: Array.isArray(document.linkedRecordIds) ? document.linkedRecordIds : [],
     basedOnEvidenceIds: Array.isArray(document.basedOnEvidenceIds) ? document.basedOnEvidenceIds : [],
     note: getSequenceGroupName(document.sequenceGroup) && getSequenceGroupName(document.sequenceGroup) !== groupName
-      ? `Reference material from sequence group "${getSequenceGroupName(document.sequenceGroup)}"; not treated as proof by default.`
+      ? `Reference material from Issue "${getSequenceGroupName(document.sequenceGroup)}"; not treated as proof by default.`
       : "Reference material only; not treated as proof by default.",
   };
 }
@@ -2155,13 +2155,13 @@ export function buildCaseBundleReport(caseItem = {}, scope = {}, options = {}) {
     combinedDiagnostics: selectedSections.diagnosticsSummary ? buildCombinedDiagnostics(caseItem, includedIds) : null,
   };
   const scopeLabel = normalizedScope.scopeType === "sequenceGroup"
-    ? `sequenceGroup: ${normalizedScope.sequenceGroup || "-"}`
+    ? `Issue: ${normalizedScope.sequenceGroup || "-"}`
     : "Whole case";
 
   return {
     reportType: CASE_BUNDLE_REPORT,
     title: normalizedScope.scopeType === "sequenceGroup"
-      ? `Case Bundle: ${normalizedScope.sequenceGroup || "Unselected sequenceGroup"}`
+      ? `Case Bundle: ${normalizedScope.sequenceGroup || "Unselected Issue"}`
       : "Case Bundle: Whole Case",
     audience: "general",
     scopeType: normalizedScope.scopeType,

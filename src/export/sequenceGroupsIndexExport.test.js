@@ -135,7 +135,7 @@ test("exportSequenceGroupsIndexJson is valid compact JSON", () => {
   assert.equal(parsed.schemaVersion, "1.0");
   assert.equal(parsed.importable, false);
   assert.equal(JSON.stringify(parsed).includes("data:image/png;base64"), false);
-  assert.equal(parsed.gptPromptBlock.includes("recommend which chains should be audited first"), true);
+  assert.equal(parsed.gptPromptBlock.includes("recommend which Issues should be audited first"), true);
 });
 
 test("exportSequenceGroupsIndexMarkdown includes group names", () => {
@@ -148,7 +148,7 @@ test("exportSequenceGroupsIndexMarkdown includes group names", () => {
     },
   });
 
-  assert.match(markdown, /# Sequence Groups Index Report/);
+  assert.match(markdown, /# Issues Index Report/);
   assert.match(markdown, /### Mould chain/);
   assert.match(markdown, /Description: Mould condition, notice, and evidence thread\./);
   assert.match(markdown, /### Rent chain/);

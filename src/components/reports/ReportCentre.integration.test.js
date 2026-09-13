@@ -100,8 +100,8 @@ test("sequence-group-capable reports render honest scope controls and labels", (
   assert.match(html, /id="report-centre-sequence-group"/);
   assert.match(html, /<option value="Alpha" selected="">Alpha<\/option>/);
 
-  const preview = renderPreview("evidence", "sequenceGroup", "sequenceGroup: Alpha");
-  assert.match(preview, /Scope: sequenceGroup: Alpha/);
+  const preview = renderPreview("evidence", "sequenceGroup", "Issue: Alpha");
+  assert.match(preview, /Scope: Issue: Alpha/);
 });
 
 test("empty sequence group collections render a useful empty state", () => {
@@ -134,8 +134,8 @@ test("migrated factual reports expose shared Markdown and JSON actions only when
 test("Incident Schedule and Chronology Report expose complete scoped previews", () => {
   for (const reportType of ["incidentSchedule", "chronologyReport"]) {
     const controls = renderControls({ reportType, scopeType: "sequenceGroup", markdownAvailable: true, documentOutputAvailable: true });
-    assert.match(controls, /Whole Case/); assert.match(controls, /Sequence Group/); assert.match(controls, /Copy Markdown/); assert.match(controls, /Download Markdown/); assert.match(controls, /Download JSON/); assert.match(controls, /Print \/ Save PDF/);
-    assert.match(renderPreview(reportType, "sequenceGroup", "Sequence Group: Alpha"), /Scope: Sequence Group: Alpha/);
+    assert.match(controls, /Whole Case/); assert.match(controls, />Issue</); assert.match(controls, /Copy Markdown/); assert.match(controls, /Download Markdown/); assert.match(controls, /Download JSON/); assert.match(controls, /Print \/ Save PDF/);
+    assert.match(renderPreview(reportType, "sequenceGroup", "Issue: Alpha"), /Scope: Issue: Alpha/);
   }
   assert.match(caseDetailSource, /<IncidentScheduleReportArticle/); assert.match(caseDetailSource, /<ChronologyReportArticle/); assert.match(caseDetailSource, /reportCentreIncidentDocument/); assert.match(caseDetailSource, /reportCentreChronologyDocument/);
 });
@@ -143,7 +143,7 @@ test("Incident Schedule and Chronology Report expose complete scoped previews", 
 test("Case Audit Report is ordered before schedules and exposes the complete shared runtime", () => {
   const ids = REPORT_CENTRE_TYPES.map((item) => item.value); assert.ok(ids.indexOf("caseAudit") > ids.indexOf("investigation")); assert.ok(ids.indexOf("caseAudit") < ids.indexOf("incidentSchedule"));
   const controls = renderControls({ reportType: "caseAudit", scopeType: "sequenceGroup", markdownAvailable: true, documentOutputAvailable: true });
-  assert.match(controls, /Whole Case/); assert.match(controls, /Sequence Group/); assert.match(controls, /Copy Markdown/); assert.match(controls, /Download Markdown/); assert.match(controls, /Download JSON/); assert.match(controls, /Print \/ Save PDF/);
+  assert.match(controls, /Whole Case/); assert.match(controls, />Issue</); assert.match(controls, /Copy Markdown/); assert.match(controls, /Download Markdown/); assert.match(controls, /Download JSON/); assert.match(controls, /Print \/ Save PDF/);
   assert.match(renderPreview("caseAudit", "sequenceGroup", "Sequence Group: Alpha"), /internal deterministic audit/i);
   assert.match(caseDetailSource, /<CaseAuditReportArticle/); assert.match(caseDetailSource, /reportCentreCaseAuditDocument/); assert.match(caseDetailSource, /This Issue contains no directly assigned records to audit/);
 });

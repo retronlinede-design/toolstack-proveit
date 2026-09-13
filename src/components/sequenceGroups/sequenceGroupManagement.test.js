@@ -33,7 +33,7 @@ function buildCase() {
 
 test("sequence group input requires and trims a unique name", () => {
   assert.equal(validateSequenceGroupInput({ name: "   ", description: "x" }).error, "Name is required.");
-  assert.equal(validateSequenceGroupInput({ name: " Existing " }, ["Existing"]).error, "A sequence group with this name already exists.");
+  assert.equal(validateSequenceGroupInput({ name: " Existing " }, ["Existing"]).error, "An Issue with this name already exists.");
   assert.deepEqual(validateSequenceGroupInput({ name: " New Group ", description: " Description " }).value, {
     name: "New Group",
     description: "Description",

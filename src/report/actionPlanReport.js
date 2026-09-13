@@ -100,11 +100,11 @@ export function buildActionPlanReport(caseData = {}, options = {}) {
 
   return {
     title: scopeType === "sequenceGroup"
-      ? `Action Plan: ${sequenceGroupName || "Unselected sequenceGroup"}`
+      ? `Action Plan: ${sequenceGroupName || "Unselected Issue"}`
       : "Action Plan: Whole Case",
     sourceCaseId: caseData.id || "",
     generatedAt: options.generatedAt || new Date().toISOString(),
-    scopeLabel: scopeType === "sequenceGroup" ? `sequenceGroup: ${sequenceGroupName || "-"}` : "Whole case",
+    scopeLabel: scopeType === "sequenceGroup" ? `Issue: ${sequenceGroupName || "-"}` : "Whole case",
     scopeType,
     sequenceGroupName,
     isEmptyScope: scopeType === "sequenceGroup" && scopedRecordIds.size === 0,

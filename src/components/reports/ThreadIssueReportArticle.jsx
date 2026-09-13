@@ -56,7 +56,7 @@ export default function ThreadIssueReportArticle({
             <h1 className="text-3xl font-bold leading-tight text-neutral-950 print:text-[22pt]">{report.title}</h1>
             <div className="mt-3 grid gap-1 text-sm text-neutral-600">
               <div><span className="font-semibold text-neutral-950">Case:</span> {report.caseOverview.name || report.sourceCaseId || "Untitled Case"}</div>
-              <div><span className="font-semibold text-neutral-950">sequenceGroup:</span> {report.sequenceGroup || "-"}</div>
+              <div><span className="font-semibold text-neutral-950">Issue:</span> {report.sequenceGroup || "-"}</div>
               <div><span className="font-semibold text-neutral-950">Generated:</span> {formatReportDate(report.generatedAt)}</div>
             </div>
           </div>
@@ -117,7 +117,7 @@ export default function ThreadIssueReportArticle({
       <section className="border-b border-neutral-200 py-6 print:py-5">
         <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Thread Chronology</h2>
         {report.chronology.length === 0 ? (
-          <p className="mt-4 text-sm text-neutral-600">No dated records are available for this sequence group.</p>
+          <p className="mt-4 text-sm text-neutral-600">No dated records are available for this Issue.</p>
         ) : (
           <div className="mt-4 space-y-5">
             {(report.chronologyGroups || []).map((group) => (
@@ -153,7 +153,7 @@ export default function ThreadIssueReportArticle({
                 <span className="rounded border border-neutral-200 px-2 py-1">Status: {incident.status || "-"}</span>
                 <span className="rounded border border-neutral-200 px-2 py-1">Evidence: {incident.evidenceStatus || "-"}</span>
                 <span className="rounded border border-neutral-200 px-2 py-1">Milestone: {incident.isMilestone ? "Yes" : "No"}</span>
-                <span className="rounded border border-neutral-200 px-2 py-1">sequenceGroup: {incident.sequenceGroup || "-"}</span>
+                <span className="rounded border border-neutral-200 px-2 py-1">Issue: {incident.sequenceGroup || "-"}</span>
               </div>
               {incident.summary ? <p className="mt-3 text-sm leading-6 text-neutral-700">{incident.summary}</p> : null}
               <div className="mt-3 rounded-lg border border-lime-100 bg-lime-50 p-3 text-sm text-lime-950 print:bg-white">

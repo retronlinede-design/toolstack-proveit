@@ -12,8 +12,8 @@ const code = transformed.code.replaceAll('from "react/jsx-runtime"', `from "${im
 const { default: ReportContextHeader } = await import(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`);
 
 test("context header renders selected report completeness scope count capabilities and provenance", () => {
-  const html = renderToStaticMarkup(React.createElement(ReportContextHeader, { definition: { label: "Evidence Pack", completeness: "complete", supportedOutputs: ["preview", "print", "markdown", "json"], recordTypes: ["evidence", "incident"] }, scopeLabel: "Sequence Group: Alpha", countLabel: "6 evidence records", reportDocument: { source: { sourceRevision: { fingerprint: "a12bc34defgh" } }, report: { generatedAt: "2026-07-26T16:42:00Z" } } }));
-  for (const value of ["Selected report", "Evidence Pack", "Complete report", "Sequence Group: Alpha", "6 evidence records", "a12bc34d", "Evidence records", "Markdown", "JSON"]) assert.match(html, new RegExp(value));
+  const html = renderToStaticMarkup(React.createElement(ReportContextHeader, { definition: { label: "Evidence Pack", completeness: "complete", supportedOutputs: ["preview", "print", "markdown", "json"], recordTypes: ["evidence", "incident"] }, scopeLabel: "Issue: Alpha", countLabel: "6 evidence records", reportDocument: { source: { sourceRevision: { fingerprint: "a12bc34defgh" } }, report: { generatedAt: "2026-07-26T16:42:00Z" } } }));
+  for (const value of ["Selected report", "Evidence Pack", "Complete report", "Issue: Alpha", "6 evidence records", "a12bc34d", "Evidence records", "Markdown", "JSON"]) assert.match(html, new RegExp(value));
   assert.match(html, /title="a12bc34defgh"/);
 });
 

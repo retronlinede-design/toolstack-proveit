@@ -1,8 +1,8 @@
 import { ArrowUp, Bot, CalendarClock, ChevronDown, ListTree, ScanSearch, Wrench } from "lucide-react";
 
 const toolIcons = {
-  "Open Sequence Group Manager": ListTree,
-  "Open Sequence Group Audit": ScanSearch,
+  "Open Issue Manager": ListTree,
+  "Open Issue Audit": ScanSearch,
   "Incident Date Repair Tool": CalendarClock,
 };
 

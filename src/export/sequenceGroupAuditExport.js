@@ -4,7 +4,7 @@ import { sanitizeAttachmentForExport } from "./caseExport.js";
 import { HUMAN_READABLE_ISSUE_PROMPT, getIssueDisplayLabel, resolveCaseIssue } from "../domain/issueDomain.js";
 
 export const SEQUENCE_GROUP_AUDIT_PROMPT =
-  "Please audit this sequence group for chronology accuracy, evidence strength, missing records, weak links, unsupported claims, escalation readiness, and safe ProveIt updates.";
+  "Please audit this Issue for chronology accuracy, evidence strength, missing records, weak links, unsupported claims, escalation readiness, and safe ProveIt updates.";
 
 function text(value) {
   return typeof value === "string" ? value : "";
@@ -227,7 +227,7 @@ function collectDiagnostics(caseData, groupName, groupIncidents, includedEvidenc
       const linkedGroup = cleanSequenceGroup(linkedIncident?.sequenceGroup);
       if (linkedIncident && linkedGroup && linkedGroup !== groupName) {
         evidenceLinkedToUnrelatedSequenceGroups.push({
-          ...diagnostic(evidence, "evidence", "evidence_linked_to_unrelated_sequence_group", "Evidence is linked to an incident in another sequence group."),
+          ...diagnostic(evidence, "evidence", "evidence_linked_to_unrelated_sequence_group", "Evidence is linked to an incident in another Issue."),
           linkedIncidentId: linkedIncident.id,
           linkedSequenceGroup: linkedGroup,
         });
@@ -409,11 +409,11 @@ export function exportSequenceGroupAuditJson(caseData, sequenceGroup, options = 
 export function exportSequenceGroupAuditMarkdown(caseData, sequenceGroup, options = {}) {
   const report = buildSequenceGroupAuditReport(caseData, sequenceGroup, options);
   const lines = [
-    "# Sequence Group Full Record Audit Report",
+    "# Issue Full Record Audit Report",
     "",
     `Case: ${report.case.name || report.case.id}`,
     `Case ID: ${report.case.id}`,
-    `Sequence Group: ${report.sequenceGroup}`,
+    `Issue: ${report.sequenceGroup}`,
     `Exported: ${report.exportedAt}`,
     "",
     "## Thread overview",
@@ -457,7 +457,7 @@ export function exportSequenceGroupAuditMarkdown(caseData, sequenceGroup, option
     "",
     "## External linked records",
     "",
-    mdList(report.externalLinkedRecords, (item) => `- ${item.id} | ${item.title} | sequenceGroup: ${item.sequenceGroup || "none"} | externalLinkedRecord: true`),
+    mdList(report.externalLinkedRecords, (item) => `- ${item.id} | ${item.title} | Issue: ${item.sequenceGroup || "none"} | externalLinkedRecord: true`),
     "",
     "## GPT audit prompt block",
     "",

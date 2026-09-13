@@ -1317,7 +1317,7 @@ export default function CaseDetail({
       result = sourceIssue
         ? applySelectedRecords((caseData, ref) => removeRecordFromIssue(caseData, ref.recordType, ref.recordId))
         : { success: false, errors: ["Source Issue could not be resolved safely."] };
-      confirmation = `Operation: Remove selected records from group\nSource: ${sourceGroup}\nRecords affected: ${affected}\n\nThe records will remain in the case but will no longer belong to a sequence group.`;
+      confirmation = `Operation: Remove selected records from Issue\nSource: ${sourceGroup}\nRecords affected: ${affected}\n\nThe records will remain in the case but will no longer belong to an Issue.`;
     } else if (operation.type === "merge-groups") {
       const merged = sourceIssue && destinationIssue ? mergeCaseIssues(canonical, sourceIssue.id, destinationIssue.id) : null;
       result = merged?.success ? { ...merged, success: true, affectedCount: Object.values(sequenceGroupDetails.groups.find((item) => item.name === sourceGroup)?.records || {}).flat().length } : { success: false, errors: merged?.errors || ["Issues could not be resolved safely."] };
@@ -1444,7 +1444,7 @@ export default function CaseDetail({
     }
 
     const previewCount = Object.values(validation.preview || {}).reduce((sum, items) => sum + (Array.isArray(items) ? items.length : 0), 0);
-    const confirmed = window.confirm(`Apply ${previewCount} AI sequence group change${previewCount === 1 ? "" : "s"}?`);
+    const confirmed = window.confirm(`Apply ${previewCount} AI Issue change${previewCount === 1 ? "" : "s"}?`);
     if (!confirmed) return;
 
     const result = ingestSequenceGroupDelta(sequenceGroupDeltaDraft, selectedCase, { apply: true });
@@ -1454,7 +1454,7 @@ export default function CaseDetail({
     }
     setSequenceGroupDeltaDraft("");
     setSequenceGroupDeltaResult(null);
-    setSequenceGroupFeedback(`Applied ${previewCount} AI sequence group change${previewCount === 1 ? "" : "s"}.`);
+    setSequenceGroupFeedback(`Applied ${previewCount} AI Issue change${previewCount === 1 ? "" : "s"}.`);
   }
 
   async function handleCopyExecutiveSummaryPolishPrompt() {
@@ -3550,7 +3550,7 @@ ${ungroupedSequenceText}
     .filter(Boolean)
     .join(" - ");
   const reportCentreScopeLabel = reportCentreScope.scopeType === "sequenceGroup"
-    ? `sequenceGroup: ${selectedReportCentreSequenceGroup || "-"}`
+    ? `Issue: ${selectedReportCentreSequenceGroup || "-"}`
     : "Whole case";
   const handleReportCentreTypeChange = (nextReportType) => {
     setReportCentreType(nextReportType);
@@ -3660,7 +3660,7 @@ ${ungroupedSequenceText}
     { label: "Documents", value: (selectedCase.documents || []).length },
     { label: "Strategy", value: (selectedCase.strategy || []).length },
     { label: "Timeline", value: timelineItems.length },
-    { label: "Sequence Groups", value: sequenceGroupDetails.groups.length },
+    { label: "Issues", value: sequenceGroupDetails.groups.length },
   ];
 
   return (
@@ -3815,7 +3815,7 @@ ${ungroupedSequenceText}
                     onClick={() => { openSequenceGroupAuditExport(); setShowExportMenu(false); }}
                     className="block min-h-11 w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-neutral-50"
                   >
-                    <span className="block text-sm font-semibold leading-snug text-neutral-700">Open Sequence Group Audit</span>
+                    <span className="block text-sm font-semibold leading-snug text-neutral-700">Open Issue Audit</span>
                     <span className="mt-0.5 block text-xs leading-4 text-neutral-500">Issue/sequence review export tools for focused chain audits.</span>
                   </button>
                 </div>
@@ -3831,7 +3831,7 @@ ${ungroupedSequenceText}
                 onClick={openSequenceGroupManager}
                 className="case-toolbar-critical flex min-h-9 items-center justify-center rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
               >
-                Sequence Group Manager
+                Issue Manager
               </button>
               <button
                 type="button"
@@ -4111,7 +4111,7 @@ ${ungroupedSequenceText}
                       onClick={openSequenceGroupManager}
                       className="w-fit rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30"
                     >
-                      Open Sequence Group Manager
+                      Open Issue Manager
                     </button>
                   </div>
                 </div>
@@ -4729,7 +4729,7 @@ ${ungroupedSequenceText}
                         onClick={openSequenceGroupManager}
                         className="min-h-9 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
                       >
-                        Sequence Groups
+                        Issues
                       </button>
                     </div>
                   </div>
@@ -5374,7 +5374,7 @@ ${ungroupedSequenceText}
                                 ))}
                               </select>
                             ) : (
-                              <p className="mt-2 text-sm text-neutral-600">No sequence groups exist in this case yet.</p>
+                              <p className="mt-2 text-sm text-neutral-600">No Issues exist in this case yet.</p>
                             )}
                           </div>
                         )}
@@ -5457,7 +5457,7 @@ ${ungroupedSequenceText}
                             </select>
                           ) : (
                             <p className="mt-2 text-sm text-neutral-600">
-                              No sequence groups exist in this case yet.
+                              No Issues exist in this case yet.
                             </p>
                           )}
                         </div>
@@ -5553,7 +5553,7 @@ ${ungroupedSequenceText}
                                 ))}
                               </select>
                             ) : (
-                              <p className="mt-2 text-sm text-neutral-600">No sequence groups exist in this case yet.</p>
+                              <p className="mt-2 text-sm text-neutral-600">No Issues exist in this case yet.</p>
                             )}
                           </div>
                         )}
@@ -5630,7 +5630,7 @@ ${ungroupedSequenceText}
                                 ))}
                               </select>
                             ) : (
-                              <p className="mt-2 text-sm text-neutral-600">No sequence groups exist in this case yet.</p>
+                              <p className="mt-2 text-sm text-neutral-600">No Issues exist in this case yet.</p>
                             )}
                           </div>
                         )}
@@ -5707,7 +5707,7 @@ ${ungroupedSequenceText}
                                 ))}
                               </select>
                             ) : (
-                              <p className="mt-2 text-sm text-neutral-600">No sequence groups exist in this case yet.</p>
+                              <p className="mt-2 text-sm text-neutral-600">No Issues exist in this case yet.</p>
                             )}
                           </div>
                         )}
@@ -7227,7 +7227,7 @@ ${ungroupedSequenceText}
                 {(activeAiToolNeedsSequenceGroup || activeAiToolUsesReportBuilderScope) && (
                   <label className="mt-4 block">
                     <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">
-                      {activeAiToolUsesReportBuilderScope ? "Scope" : "Sequence group"}
+                      {activeAiToolUsesReportBuilderScope ? "Scope" : "Issue"}
                     </span>
                     <select
                       value={aiToolsSequenceGroup}
@@ -7241,7 +7241,7 @@ ${ungroupedSequenceText}
                         <option value={MANAGEMENT_REPORT_BUILDER_WHOLE_CASE}>Whole Case</option>
                       )}
                       {sequenceGroups.length === 0 && !activeAiToolUsesReportBuilderScope ? (
-                        <option value="">No sequence groups available</option>
+                        <option value="">No Issues available</option>
                       ) : sequenceGroups.map((group) => (
                         <option key={group.name} value={group.name}>
                           {group.name} ({group.totalCount} records)
@@ -7436,7 +7436,7 @@ ${ungroupedSequenceText}
                         onClick={openSequenceGroupAuditExport}
                         className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
                       >
-                        Open Sequence Group Audit
+                        Open Issue Audit
                       </button>
                     )}
                   </div>
@@ -7463,9 +7463,9 @@ ${ungroupedSequenceText}
           <div className="w-full max-w-xl rounded-2xl bg-white shadow-xl">
             <div className="flex items-start justify-between gap-4 border-b border-neutral-100 p-5">
               <div>
-                <h3 className="text-lg font-semibold text-neutral-900">Sequence Group Audit Exports</h3>
+                <h3 className="text-lg font-semibold text-neutral-900">Issue Audit Exports</h3>
                 <p className="mt-1 text-xs text-neutral-500">
-                  Download the selected audit, a consolidated audit overview, or the complete case arranged by sequence group.
+                  Download the selected audit, a consolidated audit overview, or the complete case arranged by Issue.
                 </p>
               </div>
               <button
@@ -7501,9 +7501,9 @@ ${ungroupedSequenceText}
                 <legend className="text-xs font-bold uppercase tracking-wider text-neutral-500">Export scope</legend>
                 <div className="mt-2 space-y-2">
                   {[
-                    ["selected", "Export Selected Group", "Current group only."],
-                    ["all", "Export All Group Audits", "Consolidated overview of every sequence group."],
-                    ["full", "Export Full Case by Sequence Groups", "Complete case content arranged by group, including ungrouped records."],
+                    ["selected", "Export Selected Issue", "Current Issue only."],
+                    ["all", "Export All Issue Audits", "Consolidated overview of every Issue."],
+                    ["full", "Export Full Case by Issues", "Complete case content arranged by Issue, including ungrouped records."],
                   ].map(([value, label, description]) => (
                     <button
                       key={value}
@@ -7529,13 +7529,13 @@ ${ungroupedSequenceText}
 
               {sequenceGroupAuditScope === "selected" && sequenceGroups.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-500">
-                  No sequence groups exist in this case. Assign records to a sequenceGroup before creating this audit export.
+                  No Issues exist in this case. Assign records to an Issue before creating this audit export.
                 </div>
               ) : (
                 <>
                   {sequenceGroupAuditScope === "selected" && (
                     <label className="block">
-                      <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Sequence group</span>
+                      <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Issue</span>
                       <select
                         value={selectedSequenceGroupAuditGroup}
                         onChange={(event) => {
@@ -7658,7 +7658,7 @@ ${ungroupedSequenceText}
                         <th className="px-3 py-2">Title</th>
                         <th className="px-3 py-2">Date</th>
                         <th className="px-3 py-2">Event date</th>
-                        <th className="px-3 py-2">Sequence group</th>
+                        <th className="px-3 py-2">Issue</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-100 bg-white">

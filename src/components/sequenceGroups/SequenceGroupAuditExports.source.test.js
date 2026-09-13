@@ -4,13 +4,13 @@ import { readFileSync } from "node:fs";
 
 const source = readFileSync(new URL("../CaseDetail.jsx", import.meta.url), "utf8");
 
-test("Sequence Group Audit exposes all three export scopes with accessible descriptions", () => {
-  assert.match(source, /Export Selected Group/);
-  assert.match(source, /Current group only\./);
-  assert.match(source, /Export All Group Audits/);
-  assert.match(source, /Consolidated overview of every sequence group\./);
-  assert.match(source, /Export Full Case by Sequence Groups/);
-  assert.match(source, /Complete case content arranged by group, including ungrouped records\./);
+test("Issue Audit exposes all three export scopes with accessible descriptions", () => {
+  assert.match(source, /Export Selected Issue/);
+  assert.match(source, /Current Issue only\./);
+  assert.match(source, /Export All Issue Audits/);
+  assert.match(source, /Consolidated overview of every Issue\./);
+  assert.match(source, /Export Full Case by Issues/);
+  assert.match(source, /Complete case content arranged by Issue, including ungrouped records\./);
   assert.match(source, /aria-pressed=\{sequenceGroupAuditScope === value\}/);
 });
 

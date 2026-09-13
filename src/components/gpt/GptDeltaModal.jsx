@@ -24,7 +24,7 @@ export default function GptDeltaModal({
             Paste a ProveIt GPT delta, validate it, then review the supported changes before applying.
             gpt-delta-1.0 supports only actionSummary and strategy patches. gpt-delta-2.0 supports incident, evidence, document, and ledger creates, plus incident, evidence, document, ledger, and strategy patches.
             gpt-delta-3.0 supports structured Strategy patches and controlled To Watch create, patch, and observation-append operations.
-            Use sequence-group-delta-1.0 for sequence group cleanup.
+            Use sequence-group-delta-1.0 for Issue cleanup.
           </p>
         </div>
 

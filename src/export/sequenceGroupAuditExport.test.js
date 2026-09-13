@@ -227,7 +227,7 @@ test("exportSequenceGroupAuditJson is valid complete JSON", () => {
   assert.equal(parsed.importable, false);
   assert.equal(parsed.includesBinaryData, false);
   assert.equal(parsed.evidence.length, 2);
-  assert.equal(parsed.gptAuditPromptBlock.includes("Please audit this sequence group"), true);
+  assert.equal(parsed.gptAuditPromptBlock.includes("Please audit this Issue"), true);
 });
 
 test("buildSequenceGroupAuditReport handles older missing fields safely", () => {

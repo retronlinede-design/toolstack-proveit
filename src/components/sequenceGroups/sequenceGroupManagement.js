@@ -27,7 +27,7 @@ export function validateSequenceGroupInput(value, existingNames = [], currentNam
   const duplicate = existingNames.some((name) => (
     name !== currentName && name.localeCompare(normalized.name, undefined, { sensitivity: "accent" }) === 0
   ));
-  if (duplicate) return { value: normalized, error: "A sequence group with this name already exists." };
+  if (duplicate) return { value: normalized, error: "An Issue with this name already exists." };
   return { value: normalized, error: "" };
 }
 

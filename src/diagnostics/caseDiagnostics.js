@@ -498,7 +498,7 @@ export function analyzeCaseDiagnostics(caseItem, options = {}) {
   if (evidenceCoverage.incidentsNeedingEvidence.length > 0) risks.push({ id: "unsupported-incidents", message: `${evidenceCoverage.incidentsNeedingEvidence.length} incident(s) still need evidence.` });
   if (chronology.missingDateRecords.length > 0) warnings.push({ id: "chronology-missing-dates", message: `${chronology.missingDateRecords.length} record(s) have no chronology date.` });
   if (duplicateTitleSuspicions.length > 0) warnings.push({ id: "duplicate-title-suspicion", message: `${duplicateTitleSuspicions.length} duplicate title group(s) detected.` });
-  if (sequenceGroups.ungroupedRecords.length > 0) suggestions.push({ id: "sequence-groups", message: "Assign sequenceGroup values to records that belong to the same issue or thread." });
+  if (sequenceGroups.ungroupedRecords.length > 0) suggestions.push({ id: "sequence-groups", message: "Assign records that belong to the same thread to an Issue." });
   if (linkMetrics.weaklyLinkedRecords.length > 0) suggestions.push({ id: "weak-links", message: "Strengthen weak records by linking them to relevant incidents, evidence, documents, or ledger entries." });
 
   // TODO: attach escalation readiness signals here.

@@ -54,8 +54,8 @@ export function buildDocumentPackReportFromModel(model, options = {}) {
   };
   return {
     reportType: DOCUMENT_PACK_REPORT,
-    title: scopeType === "sequenceGroup" ? `Document Pack: ${sequenceGroup || "Unselected sequenceGroup"}` : "Document Pack: Whole Case",
-    audience: "general", scopeType, sequenceGroup, scopeLabel: scopeType === "sequenceGroup" ? `sequenceGroup: ${sequenceGroup || "-"}` : "Whole case",
+    title: scopeType === "sequenceGroup" ? `Document Pack: ${sequenceGroup || "Unselected Issue"}` : "Document Pack: Whole Case",
+    audience: "general", scopeType, sequenceGroup, scopeLabel: scopeType === "sequenceGroup" ? `Issue: ${sequenceGroup || "-"}` : "Whole case",
     sourceCaseId: model?.sourceCase?.id || "", generatedAt: options.generatedAt || model?.generatedAt || new Date().toISOString(),
     includedDocumentCount: records.length, includedDocumentIds: records.map((record) => record.id),
     caseOverview: { name: model?.sourceCase?.name || "", category: model?.sourceCase?.category || "", status: model?.sourceCase?.status || "" },

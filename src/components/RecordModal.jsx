@@ -1016,7 +1016,7 @@ export default function RecordModal({
                       {meaningfulSuggestionFields.map((field) => {
                         if (field === "evidenceRole") return "evidence role";
                         if (field === "functionSummary") return "function summary";
-                        if (field === "sequenceGroup") return "sequence group";
+                        if (field === "sequenceGroup") return "Issue";
                         return field;
                       }).join(", ")}.
                     </p>

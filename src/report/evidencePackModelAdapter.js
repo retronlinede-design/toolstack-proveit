@@ -87,7 +87,7 @@ export function buildEvidencePackReportFromModel(model, options = {}) {
     audience: "general",
     scopeType,
     sequenceGroup,
-    scopeLabel: scopeType === "sequenceGroup" ? `sequenceGroup: ${sequenceGroup || "-"}` : "Whole case",
+    scopeLabel: scopeType === "sequenceGroup" ? `Issue: ${sequenceGroup || "-"}` : "Whole case",
     sourceCaseId: safeModel.sourceCase?.id || "",
     generatedAt: options.generatedAt || safeModel.generatedAt || new Date().toISOString(),
     includedEvidenceCount: evidenceRecords.length,

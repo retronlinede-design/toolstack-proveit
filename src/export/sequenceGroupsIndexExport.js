@@ -6,7 +6,7 @@ import { resolveRecordById } from "../domain/linkingResolvers.js";
 import { HUMAN_READABLE_ISSUE_PROMPT, resolveCaseIssue, getIssueDisplayLabel } from "../domain/issueDomain.js";
 
 export const SEQUENCE_GROUPS_INDEX_PROMPT =
-  "Please review this sequence group index and recommend which chains should be audited first, which appear weak or unsupported, and which records may need regrouping.";
+  "Please review this Issue index and recommend which Issues should be audited first, which appear weak or unsupported, and which records may need reassignment.";
 
 const RECORD_TYPES = ["incidents", "evidence", "documents", "strategy"];
 
@@ -232,7 +232,7 @@ export function exportSequenceGroupsIndexJson(caseData, options = {}) {
 export function exportSequenceGroupsIndexMarkdown(caseData, options = {}) {
   const report = buildSequenceGroupsIndexReport(caseData, options);
   const lines = [
-    "# Sequence Groups Index Report",
+    "# Issues Index Report",
     "",
     "## Case",
     "",
@@ -243,7 +243,7 @@ export function exportSequenceGroupsIndexMarkdown(caseData, options = {}) {
     "",
     "## Totals",
     "",
-    `- Sequence groups: ${report.totals.sequenceGroupCount}`,
+    `- Issues: ${report.totals.sequenceGroupCount}`,
     `- Grouped records: ${report.totals.groupedRecordCount}`,
     `- Ungrouped records: ${report.totals.ungroupedRecordCount}`,
     `- Incidents: ${report.totals.incidentCount}`,
@@ -251,7 +251,7 @@ export function exportSequenceGroupsIndexMarkdown(caseData, options = {}) {
     `- Documents: ${report.totals.documentCount}`,
     `- Strategy: ${report.totals.strategyCount}`,
     "",
-    "## Sequence Groups",
+    "## Issues",
     "",
     mdList(report.sequenceGroups, (group) => [
       `### ${mdEscape(group.name)}`,

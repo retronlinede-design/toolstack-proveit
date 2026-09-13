@@ -306,7 +306,7 @@ function buildOpenOperationalLoops(caseData = {}, options = {}) {
     const groupSupport = String(strategy.sequenceGroup || "").trim() && [...recordIndex.values()].some(({ record }) => record?.id !== strategy.id && String(record?.sequenceGroup || "").trim() === String(strategy.sequenceGroup).trim());
     if (validLinks.length === 0 && !groupSupport) {
       metrics.unsupportedStrategies += 1;
-      addIssue(issues, issueForRecord("STRATEGY_UNSUPPORTED", ["high", "critical"].includes(priority) ? "warning" : "info", "Active strategy has no linked supporting records or sequence-group support.", strategy, "strategy", {}, "Link relevant records or confirm the strategy context."));
+      addIssue(issues, issueForRecord("STRATEGY_UNSUPPORTED", ["high", "critical"].includes(priority) ? "warning" : "info", "Active strategy has no linked supporting records or Issue support.", strategy, "strategy", {}, "Link relevant records or confirm the strategy context."));
     }
     const hasNextSteps = textListHasItems(strategy.nextSteps);
     if (["high", "critical"].includes(priority) && !hasNextSteps) {
@@ -416,7 +416,7 @@ function buildOpenOperationalLoops(caseData = {}, options = {}) {
     addIssue(issues, {
       code: "DORMANT_OPERATIONAL_THREAD",
       severity: "warning",
-      message: `Sequence group "${group.sequenceGroup}" has open records but no recent activity.`,
+      message: `Issue "${group.sequenceGroup}" has open records but no recent activity.`,
       details: {
         sequenceGroup: group.sequenceGroup,
         daysInactive: differenceInDays(nowTime, group.newestTime),
