@@ -66,14 +66,15 @@ test("due and overdue Watch reviews are labelled deterministically", () => {
   assert.deepEqual(model.nextActions.map((x) => x.dueState), ["overdue", "today"]);
 });
 
-test("action ordering places overdue, today, upcoming, then undated", () => {
+test("scheduled reviews are ordered by reliable review date while Action Summary work remains separate", () => {
   const model = build({ actionSummary: { nextActions: [{ text: "Undated" }] }, strategy: [{ id: "s", title: "Future", reviewDate: "2026-08-03" }], watchItems: [{ id: "w", title: "Today", reviewDate: "2026-08-02" }, { id: "x", title: "Late", reviewDate: "2026-08-01" }] });
-  assert.deepEqual(model.nextActions.map((x) => x.dueState), ["overdue", "today", "upcoming", "undated"]);
+  assert.deepEqual(model.scheduledReviews.map((x) => x.dueState), ["overdue", "today", "upcoming"]);
+  assert.deepEqual(model.immediateActions.map((x) => x.title), ["Undated"]);
 });
 
-test("obvious duplicate actions are collapsed", () => {
+test("Action Summary items remain distinct canonical work items", () => {
   const model = build({ actionSummary: { nextActions: [{ text: "Send letter" }, { text: " send   letter " }] } });
-  assert.equal(model.nextActions.length, 1);
+  assert.equal(model.immediateActions.length, 2);
 });
 
 test("current focus reuses Action Summary without adding persistence", () => {
@@ -101,10 +102,24 @@ test("stable Issue metadata drives human labels, owner display, ordering, and re
   assert.ok(model.nextActions.some((action) => action.title === "Review ISS-001 — Heating" && action.dueState === "overdue"));
 });
 
-test("Next Actions expose stable source routing metadata", () => {
-  const model = build({ actionSummary: { nextActions: [{ text: "Briefing action" }] }, strategy: [{ id: "s1", nextSteps: ["Strategy action"] }], watchItems: [{ id: "w1", nextCheck: "Watch action" }], issues: [{ id: "issue-1", reference: "ISS-001", name: "Issue", status: "open", reviewDate: "2026-08-03" }] });
-  assert.ok(model.nextActions.some((item) => item.sourceType === "case_briefing" && item.sourceRecordId === "actionSummary"));
-  assert.ok(model.nextActions.some((item) => item.sourceType === "strategy" && item.sourceRecordId === "s1"));
-  assert.ok(model.nextActions.some((item) => item.sourceType === "watch" && item.sourceRecordId === "w1"));
-  assert.ok(model.nextActions.some((item) => item.sourceType === "issue_review" && item.sourceRecordId === "issue-1"));
+test("immediate actions and dated reviews expose stable source routing metadata", () => {
+  const model = build({ actionSummary: { nextActions: [{ text: "Briefing action" }] }, strategy: [{ id: "s1", nextSteps: ["Strategy action"], reviewDate: "2026-08-03" }], watchItems: [{ id: "w1", nextCheck: "Watch action", reviewDate: "2026-08-03" }], issues: [{ id: "issue-1", reference: "ISS-001", name: "Issue", status: "open", reviewDate: "2026-08-03" }] });
+  assert.ok(model.immediateActions.some((item) => item.sourceType === "case_briefing" && item.sourceRecordId === "actionSummary"));
+  assert.ok(model.scheduledReviews.some((item) => item.sourceType === "strategy" && item.sourceRecordId === "s1"));
+  assert.ok(model.scheduledReviews.some((item) => item.sourceType === "watch" && item.sourceRecordId === "w1"));
+  assert.ok(model.scheduledReviews.some((item) => item.sourceType === "issue_review" && item.sourceRecordId === "issue-1"));
+  assert.equal(model.scheduledReviews.some((item) => item.title === "Strategy action" || item.title === "Watch action"), false);
+});
+
+test("active Issues exclude resolved and archived metadata while preserving direct ID and legacy assignments", () => {
+  const model = build({ issues: [{ id: "open", name: "Open", status: "open" }, { id: "closed", name: "Closed", status: "resolved" }, { id: "archived", name: "Archived", status: "archived" }], incidents: [{ id: "one", sequenceGroupId: "open" }, { id: "two", sequenceGroupId: "closed", sequenceGroup: "Closed" }, { id: "three", sequenceGroup: "Legacy" }], ledger: [{ id: "four", sequenceGroupId: "open" }] });
+  assert.deepEqual(new Set(model.issues.map((item) => item.name)), new Set(["Open", "Legacy"]));
+  assert.equal(model.issues.find((item) => item.name === "Open").counts.Ledger, 1);
+  assert.equal(model.attentionItems.some((item) => item.id === "ungrouped-records"), false);
+});
+
+test("recent changes only use update and create timestamps", () => {
+  const model = build({ incidents: [{ id: "event-only", eventDate: "2026-08-02" }, { id: "created", createdAt: "2026-08-01" }, { id: "changed", updatedAt: "2026-08-02", createdAt: "2026-01-01" }], documents: [{ id: "document-only", documentDate: "2026-08-02" }] });
+  assert.deepEqual(model.recentActivity.map((item) => item.id), ["changed", "created"]);
+  assert.deepEqual(model.recentActivity.map((item) => item.changeType), ["Changed", "Created"]);
 });

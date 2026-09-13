@@ -10,12 +10,13 @@ const COLLECTIONS = [
 const text = (value) => typeof value === "string" ? value.trim() : "";
 const list = (value) => Array.isArray(value) ? value : [];
 const isArchived = (record) => text(record?.status).toLowerCase() === "archived" || record?.archived === true;
-const timestamp = (record) => text(record?.updatedAt) || text(record?.createdAt) || text(record?.loggedAt) || text(record?.date) || text(record?.eventDate) || text(record?.documentDate);
+const timestamp = (record) => text(record?.updatedAt) || text(record?.createdAt);
 const title = (record, fallback) => text(record?.title) || text(record?.name) || text(record?.description) || `${fallback} record`;
 const day = (value) => text(value).slice(0, 10);
 const validTime = (value) => { const time = Date.parse(value); return Number.isFinite(time) ? time : 0; };
 const groupName = (record) => text(record?.sequenceGroup);
 const issueLabel = (issue) => issue?.reference ? `${issue.reference} — ${issue.name}` : issue?.name || "";
+const isActiveIssue = (issue) => !["closed", "complete", "completed", "done", "resolved", "archived", "cancelled", "canceled"].includes(text(issue?.status).toLowerCase());
 
 function actionText(value) {
   return typeof value === "string" ? value.trim() : text(value?.text) || text(value?.title) || text(value?.label);
@@ -44,35 +45,16 @@ function dueState(date, today) {
   return "upcoming";
 }
 
-function buildActions(caseData, currentFocus, now) {
+function buildActions(caseData, now) {
   const today = day(now);
   const actions = [];
-  const summary = caseData?.actionSummary || {};
-  list(summary.nextActions).filter((item) => !item?.completed).forEach((item, index) => {
-    const label = actionText(item);
-    if (label) actions.push({ id: `briefing-action:${index}`, title: label, source: "Case Briefing", sourceType: "case_briefing", sourceRecordId: "actionSummary", dueDate: day(item?.dueDate), recordType: "overview" });
-  });
-  list(summary.importantReminders).forEach((item, index) => {
-    const label = actionText(item);
-    if (label) actions.push({ id: `briefing-reminder:${index}`, title: label, source: "Case Briefing reminder", sourceType: "case_briefing", sourceRecordId: "actionSummary", dueDate: day(item?.dueDate), recordType: "overview" });
-  });
-  list(summary.criticalDeadlines).forEach((item, index) => {
-    const label = actionText(item);
-    if (label) actions.push({ id: `briefing-deadline:${index}`, title: label, source: "Case Briefing deadline", sourceType: "case_briefing", sourceRecordId: "actionSummary", dueDate: day(item?.date || item?.dueDate), recordType: "overview" });
-  });
   list(caseData?.strategy).filter((record) => !isArchived(record)).forEach((record) => {
-    list(record.nextSteps).forEach((step, index) => {
-      const label = actionText(step);
-      if (label) actions.push({ id: `strategy-step:${record.id}:${index}`, title: label, source: "Strategy", sourceType: "strategy", sourceRecordId: record.id, dueDate: day(step?.dueDate), owner: text(record.owner) || text(record.ownerName), issue: groupName(record), recordType: "strategy", record });
-    });
     if (day(record.reviewDate)) actions.push({ id: `strategy-review:${record.id}`, title: `Review ${title(record, "Strategy")}`, source: "Strategy review", sourceType: "strategy", sourceRecordId: record.id, dueDate: day(record.reviewDate), owner: text(record.owner) || text(record.ownerName), issue: groupName(record), recordType: "strategy", record });
   });
   list(caseData?.watchItems).filter((record) => !isArchived(record)).forEach((record) => {
     if (day(record.reviewDate)) actions.push({ id: `watch-review:${record.id}`, title: `Review ${title(record, "Watch item")}`, source: "To Watch review", sourceType: "watch", sourceRecordId: record.id, dueDate: day(record.reviewDate), issue: groupName(record), recordType: "watchItems", record });
-    const nextCheck = text(record.nextCheck);
-    if (nextCheck) actions.push({ id: `watch-check:${record.id}`, title: nextCheck, source: "To Watch", sourceType: "watch", sourceRecordId: record.id, dueDate: "", issue: groupName(record), recordType: "watchItems", record });
   });
-  list(caseData?.issues).filter((issue) => issue.status !== "archived" && issue.reviewDate).forEach((issue) => actions.push({ id: `issue-review:${issue.id}`, title: `Review ${issueLabel(issue)}`, source: "Issue review", sourceType: "issue_review", sourceRecordId: issue.id, dueDate: day(issue.reviewDate), issue: issueLabel(issue), recordType: "issue", issueId: issue.id, issueName: issue.name, action: "issue-manager" }));
+  list(caseData?.issues).filter((issue) => isActiveIssue(issue) && issue.reviewDate).forEach((issue) => actions.push({ id: `issue-review:${issue.id}`, title: `Review ${issueLabel(issue)}`, source: "Issue review", sourceType: "issue_review", sourceRecordId: issue.id, dueDate: day(issue.reviewDate), issue: issueLabel(issue), recordType: "issue", issueId: issue.id, issueName: issue.name, action: "issue-manager" }));
   const seen = new Set();
   return actions.filter((item) => {
     const key = item.title.toLowerCase().replace(/\s+/g, " ");
@@ -91,10 +73,11 @@ export function buildCaseBriefingModel({ caseData = {}, sequenceGroupMeta = {}, 
   const archived = records.length - active.length;
   const diagnosticItems = flattenDiagnostics(diagnostics);
   const groupMap = new Map();
-  list(caseData.issues).filter((issue) => issue?.name).forEach((issue) => groupMap.set(issue.name, { name: issue.name, description: text(issue.description), metadataOnly: true, records: [], issue }));
+  list(caseData.issues).filter((issue) => issue?.name && isActiveIssue(issue)).forEach((issue) => groupMap.set(issue.name, { name: issue.name, description: text(issue.description), metadataOnly: true, records: [], issue }));
   Object.entries(sequenceGroupMeta || {}).forEach(([name, meta]) => groupMap.set(name, { name, description: text(meta?.description), metadataOnly: true, records: [] }));
   active.forEach((entry) => {
-    const matchedIssue = list(caseData.issues).find((issue) => entry.record?.sequenceGroupId && issue.id === entry.record.sequenceGroupId);
+    if (entry.record?.sequenceGroupId && list(caseData.issues).some((issue) => issue.id === entry.record.sequenceGroupId && !isActiveIssue(issue))) return;
+    const matchedIssue = list(caseData.issues).find((issue) => isActiveIssue(issue) && entry.record?.sequenceGroupId && issue.id === entry.record.sequenceGroupId);
     const name = matchedIssue?.name || groupName(entry.record);
     if (!name) return;
     if (!groupMap.has(name)) groupMap.set(name, { name, description: "", metadataOnly: false, records: [] });
@@ -118,23 +101,28 @@ export function buildCaseBriefingModel({ caseData = {}, sequenceGroupMeta = {}, 
 
   const today = day(now);
   const additionalFindings = [];
-  list(caseData.strategy).filter((record) => !isArchived(record) && day(record.reviewDate) && day(record.reviewDate) <= today).forEach((record) => additionalFindings.push({ id: `due-strategy:${record.id}`, severity: day(record.reviewDate) < today ? "warning" : "advisory", recordType: "strategy", title: "Strategy review due", reason: `${title(record, "Strategy")} is due for review on ${day(record.reviewDate)}.`, record }));
-  list(caseData.watchItems).filter((record) => !isArchived(record) && day(record.reviewDate) && day(record.reviewDate) <= today).forEach((record) => additionalFindings.push({ id: `due-watch:${record.id}`, severity: day(record.reviewDate) < today ? "warning" : "advisory", recordType: "watchItems", title: "Watch review due", reason: `${title(record, "Watch item")} is due for review on ${day(record.reviewDate)}.`, record }));
-  const ungrouped = active.filter(({ record, key }) => key !== "ledger" && !groupName(record));
+  const assignedIssueIds = new Set(list(caseData.issues).map((issue) => issue.id));
+  const ungrouped = active.filter(({ record }) => !assignedIssueIds.has(record.sequenceGroupId) && !groupName(record));
   if (ungrouped.length) additionalFindings.push({ id: "ungrouped-records", severity: "advisory", recordType: "case", title: "Records are not assigned to an Issue", reason: `${ungrouped.length} active record${ungrouped.length === 1 ? " is" : "s are"} ungrouped.`, tab: "overview", action: "issue-manager" });
   issues.filter((issue) => issue.empty).forEach((issue) => additionalFindings.push({ id: `empty-issue:${issue.name}`, severity: "advisory", recordType: "Issue", title: "Empty Issue", reason: `${issue.name} has no direct records.`, issue: issue.name, action: "issue-manager" }));
-  const allFindings = [...diagnosticItems, ...additionalFindings];
+  const seenFindings = new Set();
+  const allFindings = [...diagnosticItems, ...additionalFindings].filter((item) => {
+    const key = `${item.record?.id || item.sourceRecordId || item.id}:${item.title}:${item.reason}`;
+    if (seenFindings.has(key)) return false;
+    seenFindings.add(key); return true;
+  });
   const severityRank = { blocking: 0, warning: 1, advisory: 2, info: 3 };
   allFindings.sort((a, b) => (severityRank[a.severity] ?? 9) - (severityRank[b.severity] ?? 9) || a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
 
-  const recentActivity = active.map(({ record, key, label }) => ({ id: record.id, recordType: key, typeLabel: label, title: title(record, label), timestamp: timestamp(record), issue: groupName(record), archived: false, record }))
+  const recentActivity = active.map(({ record, key, label }) => ({ id: record.id, recordType: key, typeLabel: label, title: title(record, label), timestamp: timestamp(record), changeType: text(record.updatedAt) ? "Changed" : "Created", issue: groupName(record), archived: false, record }))
     .filter((item) => item.timestamp).sort((a, b) => validTime(b.timestamp) - validTime(a.timestamp) || a.title.localeCompare(b.title) || String(a.id).localeCompare(String(b.id))).slice(0, 8);
   const focus = text(caseData?.actionSummary?.currentFocus);
-  const nextActions = buildActions(caseData, focus, now);
+  const immediateActions = list(caseData?.actionSummary?.nextActions).filter((item) => !item?.completed).map((item, index) => ({ id: `briefing-action:${index}`, title: actionText(item), source: "Action Summary", sourceType: "case_briefing", sourceRecordId: "actionSummary", dueDate: day(item?.dueDate), dueState: dueState(day(item?.dueDate), today), recordType: "overview" })).filter((item) => item.title);
+  const scheduledReviews = buildActions(caseData, now);
   let recommendedAction;
   if (!list(caseData.parties).length) recommendedAction = { title: "Add the people involved", reason: "No Parties are recorded for this case.", tab: "parties", buttonLabel: "Add Party" };
   else if (!list(caseData.incidents).length) recommendedAction = { title: "Record the first Incident", reason: "No Incidents are recorded for this case.", tab: "incidents", buttonLabel: "Add Incident" };
-  else if (nextActions[0]?.dueState === "overdue") recommendedAction = { title: nextActions[0].title, reason: `This ${nextActions[0].source.toLowerCase()} is overdue.`, item: nextActions[0], buttonLabel: "Open source" };
+  else if (scheduledReviews[0]?.dueState === "overdue") recommendedAction = { title: scheduledReviews[0].title, reason: `This ${scheduledReviews[0].source.toLowerCase()} is overdue.`, item: scheduledReviews[0], buttonLabel: "Open source" };
   else if (allFindings[0]) recommendedAction = { title: allFindings[0].title, reason: allFindings[0].reason, item: allFindings[0], tab: allFindings[0].tab, buttonLabel: "Review finding" };
   else recommendedAction = { title: "Continue the current case plan", reason: "No higher-priority deterministic finding is currently detected.", tab: "overview", buttonLabel: "View Case Briefing" };
 
@@ -144,7 +132,9 @@ export function buildCaseBriefingModel({ caseData = {}, sequenceGroupMeta = {}, 
     currentFocus: { text: focus, topNextAction: actionText(list(caseData?.actionSummary?.nextActions).find((item) => !item?.completed)), activeActionCount: list(caseData?.actionSummary?.nextActions).filter((item) => !item?.completed).length, reminderCount: list(caseData?.actionSummary?.importantReminders).length, deadlineCount: list(caseData?.actionSummary?.criticalDeadlines).length, lastUpdated: text(caseData?.actionSummary?.updatedAt) },
     issues,
     attentionItems: allFindings.slice(0, 7),
-    nextActions,
+    immediateActions,
+    scheduledReviews,
+    nextActions: scheduledReviews,
     recentActivity,
     recommendedAction,
   };
