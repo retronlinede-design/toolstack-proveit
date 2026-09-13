@@ -55,7 +55,7 @@ export default function StrategyWorkspace({ strategies = [], onAddStrategy, rend
           <div>
             <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Strategy Workspace</div>
             <h2 className="mt-1 text-xl font-semibold text-neutral-950">Strategy Summary</h2>
-            <p className="mt-1 text-sm text-neutral-600">Review active approaches, linked context, and recent movement.</p>
+            <p className="mt-1 text-sm text-neutral-600">Review considered approaches, positions, risks, planned responses, and linked context.</p>
           </div>
           <button
             type="button"
@@ -143,7 +143,7 @@ export default function StrategyWorkspace({ strategies = [], onAddStrategy, rend
                   <option value="recently-updated">Recently Updated</option>
                   <option value="priority">Priority</option>
                   <option value="review-date">Review Date</option>
-                  <option value="sequence-group">Sequence Group</option>
+                  <option value="sequence-group">Issue</option>
                 </select>
               </label>
             </div>

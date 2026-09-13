@@ -47,7 +47,7 @@ export default function WatchWorkspace({ caseItem, onUpdateCase }) {
         <div>
           <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Monitoring Workspace</div>
           <h2 className="mt-1 text-xl font-semibold text-neutral-950 dark:text-neutral-100">To Watch</h2>
-          <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">Uncertain and developing matters that need observation.</p>
+          <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">Uncertain developments, conditions, or triggers that require observation.</p>
         </div>
         <button type="button" onClick={()=>setEditing(null)} className="rounded-xl border border-lime-500 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 shadow-sm transition-colors hover:bg-lime-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7a263a] dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-lime-950/30">Add Watch Item</button>
       </div>

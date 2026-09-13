@@ -60,7 +60,7 @@ export default function WatchItemCard({ item, caseItem, onEdit, onDelete, onConv
       { key: "tags", label: "Tags", value: item.tags?.join(", ") },
     ]} />}
     links={<RecordLinksRow aria-label="Watch item relationships" groups={[
-      { key: "sequence-group", label: "Sequence group", items: [{ key: "sequence", label: item.sequenceGroup, variant: "sequence", hidden: !item.sequenceGroup }] },
+      { key: "sequence-group", label: "Issue", items: [{ key: "sequence", label: item.sequenceGroup, variant: "sequence", hidden: !item.sequenceGroup }] },
       { key: "linked-records", label: "Linked records", items: [
         { key: "resolved-links", label: `${links.length} linked record${links.length === 1 ? "" : "s"}`, variant: "linked" },
         { key: "missing-links", label: `${(item.linkedRecordIds?.length || 0) - links.length} missing link${(item.linkedRecordIds?.length || 0) - links.length === 1 ? "" : "s"}`, variant: "missing", title: "Linked records that could not be resolved", hidden: !item.linkedRecordIds || item.linkedRecordIds.length === links.length },

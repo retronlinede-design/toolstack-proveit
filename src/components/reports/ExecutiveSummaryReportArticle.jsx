@@ -290,7 +290,7 @@ function ManagementReportDashboardTemplate({
           <section className="rounded-xl border border-slate-200 bg-white p-5">
             <h2 className="text-sm font-black uppercase tracking-wider text-slate-700">Top Issues Overview</h2>
             {topIssues.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">No sequence chains are available yet. TODO: Add sequenceGroup labels to build top issues.</p>
+              <p className="mt-3 text-sm text-slate-500">No Issues are available yet. Assign records to an Issue to build the top-issue view.</p>
             ) : (
               <div className="mt-4 grid gap-3">
                 {topIssues.map((chain) => (
@@ -742,7 +742,7 @@ export default function ExecutiveSummaryReportArticle({
           </div>
           {sequenceChains.length === 0 ? (
             <div className="mt-5 border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm leading-6 text-neutral-700">
-              No sequence chains are available for this management report. Add sequenceGroup labels to incidents, evidence, documents, ledger entries, or strategy records to organize the report by chain.
+              No Issues are available for this management report. Assign incidents, evidence, documents, ledger entries, or strategy records to an Issue to organise the report by Issue.
             </div>
           ) : (
             sequenceChains.map((chain) => (

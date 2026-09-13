@@ -12,7 +12,7 @@ export default function ActionSummaryModal({
       <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-xl">
         <div className="border-b border-neutral-100 p-5">
           <h3 className="text-lg font-semibold text-neutral-900">Edit Action Summary</h3>
-          <p className="mt-1 text-xs text-neutral-500">Keep the next actions short. Put one item on each line.</p>
+          <p className="mt-1 text-xs text-neutral-500">Keep this as the short, immediate list of executable work. Put one item on each line.</p>
         </div>
 
         <div className="flex-1 space-y-5 overflow-y-auto p-5">

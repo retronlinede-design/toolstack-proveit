@@ -19,7 +19,7 @@ test("management modal exposes accessible full-management sections", () => {
 });
 
 test("record manager keeps selection stable while exposing filters and grouping-only actions", () => {
-  for (const label of ["Select all visible", "Clear selection", "Move to Group", "Split Selected Records into New Group", "Remove from Group", "Selected only", "Missing date", "Open / Edit"]) assert.equal(records.includes(label), true);
+  for (const label of ["Select all visible", "Clear selection", "Move to Issue", "Split Selected Records into New Issue", "Remove from Issue", "Selected only", "Missing date", "Open / Edit"]) assert.equal(records.includes(label), true);
   assert.doesNotMatch(records, /Delete Record/);
   assert.match(records, /await onOperation/);
 });

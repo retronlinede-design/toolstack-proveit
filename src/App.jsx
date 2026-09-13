@@ -1966,8 +1966,8 @@ export default function ProveItApp() {
 
   const renderDocumentSequenceGroupField = () => (
     <div>
-      <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Sequence Group</label>
-      <p className="mb-2 text-xs text-neutral-500">Use this to group related items that belong to the same chain, timeline, or document sequence.</p>
+      <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Issue</label>
+      <p className="mb-2 text-xs text-neutral-500">Assign this document to the Issue or case thread it belongs to.</p>
       <select
         value={documentSequenceGroupMode}
         onChange={(e) => {
@@ -1987,26 +1987,26 @@ export default function ProveItApp() {
         }}
         className="w-full rounded-xl border border-neutral-300 p-3 bg-white"
       >
-        <option value="">Select existing group or create new</option>
+        <option value="">Select an Issue or create a new one</option>
         {existingDocumentSequenceGroups.map((group) => (
           <option key={group} value={group}>
             {group}
           </option>
         ))}
-        <option value={CREATE_NEW_SEQUENCE_GROUP_OPTION}>Create new sequence group</option>
+        <option value={CREATE_NEW_SEQUENCE_GROUP_OPTION}>Create new Issue</option>
       </select>
       {documentSequenceGroupMode === CREATE_NEW_SEQUENCE_GROUP_OPTION && (
         <input
           value={documentForm.sequenceGroup || ""}
           onChange={(e) => setDocumentForm((prev) => ({ ...prev, sequenceGroup: e.target.value }))}
-          placeholder="e.g. Repair timeline, Notice sequence, Payment chain"
+          placeholder="e.g. Heating defect, Notice and response, Payment dispute"
           className="mt-2 w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none"
         />
       )}
       {safeText(documentForm.sequenceGroup).trim() && (
         <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2">
           <span className="min-w-0 truncate text-xs text-neutral-500">
-            Current group: {safeText(documentForm.sequenceGroup).trim()}
+            Current Issue: {safeText(documentForm.sequenceGroup).trim()}
           </span>
           <button
             type="button"
@@ -2016,7 +2016,7 @@ export default function ProveItApp() {
             }}
             className="shrink-0 rounded-lg border border-neutral-300 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors"
           >
-            Clear group
+            Clear Issue
           </button>
         </div>
       )}
@@ -4954,7 +4954,7 @@ const handleRecordFiles = async (event) => {
             <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl flex flex-col max-h-[90vh]">
               <div className="mb-4">
                 <h2 className="text-xl font-semibold">{editingLedgerId ? "Edit Ledger Entry" : "Add Ledger Entry"}</h2>
-                <p className="text-sm text-neutral-600">{editingLedgerId ? "Update payment or cost details." : "Enter payment or expected cost details."}</p>
+                <p className="text-sm text-neutral-600">{editingLedgerId ? "Update money, payment, or claim details." : "Record money due, paid, withheld, or claimed."}</p>
               </div>
 
               <div className="flex-1 overflow-y-auto pr-1 space-y-4">
@@ -5192,7 +5192,7 @@ const handleRecordFiles = async (event) => {
                 <p className="text-sm text-neutral-600">
                   {documentModalMode === "record"
                     ? "Create a table-based tracking record."
-                    : editingDocumentId ? "Update details for this document record." : "Enter details for a new document record."}
+                    : editingDocumentId ? "Update the original source or correspondence." : "Store the original letter, email, file, or correspondence."}
                 </p>
               </div>
 

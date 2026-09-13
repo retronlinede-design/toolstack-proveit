@@ -82,9 +82,9 @@ test("ExecutiveSummaryReportArticle keeps deterministic proof gaps risks actions
 });
 
 test("ExecutiveSummaryReportArticle shows a v1 empty state when no sequence chains exist", () => {
-  assert.match(source, /No sequence chains are available for this management report/);
-  assert.match(source, /Add sequenceGroup labels to incidents, evidence, documents, ledger entries, or strategy records/);
-  assert.match(source, /No sequence chains are available yet/);
+  assert.match(source, /No Issues are available for this management report/);
+  assert.match(source, /Assign incidents, evidence, documents, ledger entries, or strategy records to an Issue/);
+  assert.match(source, /No Issues are available yet/);
 });
 
 test("ExecutiveSummaryReportArticle labels documents as reference material", () => {

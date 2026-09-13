@@ -620,8 +620,8 @@ export default function RecordModal({
 
   const renderSequenceGroupField = () => (
     <div>
-      <label className="text-xs font-semibold text-neutral-600">Sequence Group</label>
-      <p className="mt-1 text-xs text-neutral-500">Use this to group related items that belong to the same chain, timeline, or document sequence.</p>
+      <label className="text-xs font-semibold text-neutral-600">Issue</label>
+      <p className="mt-1 text-xs text-neutral-500">Assign this record to the Issue or case thread it belongs to.</p>
       <select
         value={sequenceGroupMode}
         onChange={(e) => {
@@ -641,17 +641,17 @@ export default function RecordModal({
         }}
         className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm"
       >
-        <option value="">Select existing group or create new</option>
+        <option value="">Select an Issue or create a new one</option>
         {existingSequenceGroups.map((group) => (
           <option key={group} value={group}>
             {group}
           </option>
         ))}
-        <option value={CREATE_NEW_SEQUENCE_GROUP_OPTION}>Create new sequence group</option>
+        <option value={CREATE_NEW_SEQUENCE_GROUP_OPTION}>Create new Issue</option>
       </select>
       {sequenceGroupMode === CREATE_NEW_SEQUENCE_GROUP_OPTION && (
         <input
-          placeholder="e.g. Repair timeline, Notice sequence, Payment chain"
+          placeholder="e.g. Heating defect, Notice and response, Payment dispute"
           value={recordForm.sequenceGroup || ""}
           onChange={(e) => updateSuggestedMetadataField("sequenceGroup", e.target.value)}
           className="mt-2 w-full rounded-lg border border-neutral-300 p-2 text-sm"
@@ -660,7 +660,7 @@ export default function RecordModal({
       {safeText(recordForm.sequenceGroup).trim() && (
         <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
           <span className="min-w-0 truncate text-xs text-neutral-500">
-            Current group: {safeText(recordForm.sequenceGroup).trim()}
+            Current Issue: {safeText(recordForm.sequenceGroup).trim()}
           </span>
           <button
             type="button"
@@ -670,7 +670,7 @@ export default function RecordModal({
             }}
             className="shrink-0 rounded-lg border border-neutral-300 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors"
           >
-            Clear group
+            Clear Issue
           </button>
         </div>
       )}
@@ -685,6 +685,9 @@ export default function RecordModal({
             {isLinking ? "Link Existing Evidence" : `${isEdit ? "Edit" : "Add"} ${typeLabel}`}
           </h2>
           <p className="mb-4 text-sm text-neutral-600">Case: {selectedCase.name}</p>
+          {!isLinking && recordType === "incidents" && <p className="mb-4 text-sm text-neutral-600">Record something that happened.</p>}
+          {!isLinking && recordType === "evidence" && <p className="mb-4 text-sm text-neutral-600">Record material that supports or challenges a point.</p>}
+          {!isLinking && recordType === "strategy" && <p className="mb-4 text-sm text-neutral-600">Record the considered approach, position, risks, and planned response.</p>}
           {focusHint && !isLinking && (
             <p className="mb-4 rounded-lg border border-lime-100 bg-lime-50 px-3 py-2 text-xs text-lime-800">
               Also needed: {focusHint}

@@ -36,7 +36,7 @@ test("actions are grouped and destructive actions are isolated", () => {
 
 test("manager metrics and empty states remain available", () => {
   for (const metric of ["Issues", "Need review", "Ungrouped", "Weak links / gaps"]) assert.match(manager, new RegExp(`"${metric}"`));
-  for (const empty of ["No Issues yet", "Create your first sequence group", "No ungrouped records", "No matching records"]) assert.match(manager, new RegExp(empty));
+  for (const empty of ["No Issues yet", "Create your first Issue", "No ungrouped records", "No matching records"]) assert.match(manager, new RegExp(empty));
 });
 
 test("manager surfaces include explicit dark mode treatments", () => {

@@ -15,7 +15,15 @@ test("the common workspace frame is responsive and explicitly dark compatible", 
 test("timeline filters expose state and an accessible selector name", () => {
   assert.match(caseDetail, /aria-pressed=\{timelineView === filter\.id\}/);
   assert.match(caseDetail, /aria-pressed=\{timelineMilestonesOnly\}/);
-  assert.match(caseDetail, /aria-label="Filter timeline by sequence group"/);
+  assert.match(caseDetail, /aria-label="Filter timeline by Issue"/);
+});
+
+test("overview provides compact record-choice guidance", () => {
+  assert.match(caseDetail, /Where does this belong\?/);
+  assert.match(caseDetail, /Incident is what happened; Evidence is material supporting, challenging, or contextualising what happened\./);
+  assert.match(caseDetail, /Document is the original source or correspondence; Evidence is the assessed significance of source material\./);
+  assert.match(caseDetail, /Strategy is the considered position and approach; an Action is executable work that should happen now\./);
+  assert.match(caseDetail, /To Watch is an uncertain development or trigger being monitored; an Incident is something that has actually happened\./);
 });
 
 test("incident and evidence search icons are decorative", () => {

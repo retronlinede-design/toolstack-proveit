@@ -451,7 +451,7 @@ export default function SequenceGroupManager({
             <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Investigation Structure</div>
             <h3 className="mt-1 text-xl font-semibold text-neutral-950 dark:text-neutral-100">Issue Manager</h3>
             <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-              Issues were previously called Sequence Groups. Review records and manage the current flat Issue structure here.
+              Organise related records into flat Issues, then review their records, links, and chronology here.
             </p>
           </div>
           <RecordActions
@@ -490,7 +490,7 @@ export default function SequenceGroupManager({
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search records"
-                aria-label="Search sequence-group records"
+                aria-label="Search Issue records"
                 className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-lime-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
               />
               <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-700 dark:bg-neutral-900">
@@ -634,7 +634,7 @@ export default function SequenceGroupManager({
                         <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
                           <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Key Diagnostics</h4>
                           {selectedGroupRelationshipMap.weakNodes.length === 0 && !selectedGroup.warnings.noIncidents && !selectedGroup.warnings.incidentsWithoutEvidence ? (
-                            <p className="mt-2 text-sm text-neutral-500">No major sequence-group diagnostics are flagged.</p>
+                            <p className="mt-2 text-sm text-neutral-500">No major Issue diagnostics are flagged.</p>
                           ) : (
                             <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-800">
                               {selectedGroup.warnings.noIncidents && <li>No incidents are assigned to this group.</li>}
@@ -655,7 +655,7 @@ export default function SequenceGroupManager({
                         <div>
                           <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Timeline</h4>
                           <p className="mt-1 text-xs text-neutral-500">
-                            Chronological view for records in this sequence group.
+                            Chronological view for records in this Issue.
                           </p>
                         </div>
                         <div className="inline-flex rounded-md border border-neutral-200 bg-white p-1">
@@ -739,7 +739,7 @@ export default function SequenceGroupManager({
                         <div>
                           <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Links and Evidence</h4>
                           <p className="mt-1 text-xs text-neutral-500">
-                            Proof chains and record links inside this sequence group.
+                            Proof chains and record links inside this Issue.
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -937,9 +937,9 @@ export default function SequenceGroupManager({
                   </>
                 ) : (
                   <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-5 text-center">
-                    <h4 className="text-sm font-semibold text-neutral-900">Create your first sequence group</h4>
+                    <h4 className="text-sm font-semibold text-neutral-900">Create your first Issue</h4>
                     <p className="mt-1 text-sm text-neutral-500">Groups organise related records into a reviewable investigation chain.</p>
-                    <RecordActions className="mt-4 flex justify-center" actions={[{ key: "create", label: "Create Sequence Group", variant: "primary", onClick: openCreateGroupForm }]} />
+                    <RecordActions className="mt-4 flex justify-center" actions={[{ key: "create", label: "Create Issue", variant: "primary", onClick: openCreateGroupForm }]} />
                   </div>
                 )}
               </section>
@@ -948,13 +948,13 @@ export default function SequenceGroupManager({
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Ungrouped Records</h4>
-                    <p className="mt-1 text-xs text-neutral-500">{ungroupedCount} record{ungroupedCount === 1 ? "" : "s"} without a sequenceGroup.</p>
+                    <p className="mt-1 text-xs text-neutral-500">{ungroupedCount} record{ungroupedCount === 1 ? "" : "s"} without an Issue.</p>
                   </div>
                 </div>
                 <div className="grid gap-4 xl:grid-cols-2">
                   {ungroupedCount === 0 && (
                     <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-500 xl:col-span-2">
-                      No ungrouped records. Every supported record already has a sequence group label.
+                      No ungrouped records. Every supported record already belongs to an Issue.
                     </div>
                   )}
                   {Object.entries(SEQUENCE_GROUP_TYPE_LABELS).map(([recordType, label]) => {
@@ -986,7 +986,7 @@ export default function SequenceGroupManager({
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                       <p className="max-w-3xl text-xs leading-5 text-neutral-500">
-                        Copy a compact review package for GPT, then paste sequence-group-delta-1.0 suggestions here. This can only move, rename, merge, or clear sequence groups.
+                        Copy a compact review package for GPT, then paste the technical update suggestion here. It can only move, rename, merge, or clear Issues.
                       </p>
                     </div>
                     <button
@@ -1005,7 +1005,7 @@ export default function SequenceGroupManager({
                         setSequenceGroupDeltaDraft(event.target.value);
                         setSequenceGroupDeltaResult(null);
                       }}
-                      placeholder='Paste sequence-group-delta-1.0 JSON here'
+                      placeholder='Paste Issue update JSON here'
                       className="min-h-28 w-full rounded-lg border border-neutral-300 bg-white p-3 font-mono text-xs outline-none focus:border-lime-500"
                     />
                     <button
@@ -1030,7 +1030,7 @@ export default function SequenceGroupManager({
               </details>
             </div>
 
-            <aside className="space-y-3 lg:col-start-2 xl:col-start-auto" aria-label="Sequence group actions">
+            <aside className="space-y-3 lg:col-start-2 xl:col-start-auto" aria-label="Issue actions">
               <section className="rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-700 dark:bg-neutral-900">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Organisation</h4>
                 <RecordActions className="mt-3 grid gap-2" actions={[

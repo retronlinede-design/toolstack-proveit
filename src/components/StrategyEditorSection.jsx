@@ -14,7 +14,7 @@ export default function StrategyEditorSection({ recordForm, setRecordForm, caseP
       <section className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
         <div>
           <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Core</h3>
-          <p className="mt-1 text-sm text-neutral-600">Define the strategy and its ownership, timing, and current state.</p>
+          <p className="mt-1 text-sm text-neutral-600">Record the considered approach, position, risks, and planned response.</p>
         </div>
         <div>
           <label className="mb-1 block text-xs font-semibold text-neutral-600">Title</label>

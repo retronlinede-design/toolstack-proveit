@@ -69,7 +69,7 @@ export default function LedgerPackReportArticle({ report, className = "" }) {
                 <div className="p-3">Reference</div>
                 <div className="p-3">Proof</div>
                 <div className="p-3">Batch</div>
-                <div className="p-3">sequenceGroup</div>
+                <div className="p-3">Issue</div>
                 <div className="p-3">Linked records</div>
               </div>
               {report.ledgerMatrix.map((entry) => (

@@ -25,3 +25,11 @@ test("evidence modal renders linked parties selector from case parties", () => {
   assert.match(source, /parties=\{caseParties\}/);
   assert.match(source, /linkedPartyIds=\{recordForm\.linkedPartyIds\}/);
 });
+
+test("record editors use Issue terminology and explain the record choice", () => {
+  assert.match(source, />Issue<\/label>/);
+  assert.match(source, /Assign this record to the Issue or case thread it belongs to\./);
+  assert.match(source, /Record something that happened\./);
+  assert.match(source, /Record material that supports or challenges a point\./);
+  assert.match(source, /considered approach, position, risks, and planned response/);
+});

@@ -800,10 +800,10 @@ export default function CaseDetail({
         sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
       });
       downloadTextFile(JSON.stringify(payload, null, 2), getSequenceGroupsIndexFilename("json"), "application/json");
-      setSequenceGroupFeedback("Sequence Groups Index JSON downloaded.");
+      setSequenceGroupFeedback("Issues Index JSON downloaded.");
     } catch (error) {
       console.error("Failed to export sequence groups index JSON", error);
-      setSequenceGroupFeedback("Could not create the Sequence Groups Index JSON.");
+      setSequenceGroupFeedback("Could not create the Issues Index JSON.");
     }
   }
 
@@ -815,17 +815,17 @@ export default function CaseDetail({
         sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
       });
       downloadTextFile(markdown, getSequenceGroupsIndexFilename("md"), "text/markdown");
-      setSequenceGroupFeedback("Sequence Groups Index Markdown downloaded.");
+      setSequenceGroupFeedback("Issues Index Markdown downloaded.");
     } catch (error) {
       console.error("Failed to export sequence groups index Markdown", error);
-      setSequenceGroupFeedback("Could not create the Sequence Groups Index Markdown.");
+      setSequenceGroupFeedback("Could not create the Issues Index Markdown.");
     }
   }
 
   function handleRunSequenceGroupAuditExport() {
     if (!selectedCase) return;
     if (sequenceGroupAuditScope === "selected" && !selectedSequenceGroupAuditGroup) {
-      setSequenceGroupAuditFeedback("No sequence groups exist for this case.");
+      setSequenceGroupAuditFeedback("No Issues exist for this case.");
       return;
     }
 
@@ -840,7 +840,7 @@ export default function CaseDetail({
         } else {
           downloadTextFile(exportAllSequenceGroupAuditsMarkdown(selectedCase, exportOptions), getConsolidatedSequenceGroupFilename("all", "md"), "text/markdown");
         }
-        setSequenceGroupAuditFeedback("All Sequence Group Audits export created.");
+        setSequenceGroupAuditFeedback("All Issue Audits export created.");
         return;
       }
       if (sequenceGroupAuditScope === "full") {
@@ -850,7 +850,7 @@ export default function CaseDetail({
         } else {
           downloadTextFile(exportCaseBySequenceGroupsMarkdown(selectedCase, exportOptions), getConsolidatedSequenceGroupFilename("full", "md"), "text/markdown");
         }
-        setSequenceGroupAuditFeedback("Full Case by Sequence Groups export created.");
+        setSequenceGroupAuditFeedback("Full Case by Issues export created.");
         return;
       }
       if (sequenceGroupAuditFormat === "json") {
@@ -867,10 +867,10 @@ export default function CaseDetail({
         }
       }
 
-      setSequenceGroupAuditFeedback("Sequence Group Audit Pack created.");
+      setSequenceGroupAuditFeedback("Issue Audit Pack created.");
     } catch (error) {
       console.error("Failed to export sequence group audit", error);
-      setSequenceGroupAuditFeedback("Could not create the Sequence Group Audit Pack.");
+      setSequenceGroupAuditFeedback("Could not create the Issue Audit Pack.");
     }
   }
 
@@ -945,7 +945,7 @@ export default function CaseDetail({
     if (!selectedCase || !record) return;
     const nextGroup = safeText(targetGroup).trim();
     if (!nextGroup) {
-      setSequenceGroupFeedback("Choose or enter a sequence group before moving the record.");
+      setSequenceGroupFeedback("Choose or enter an Issue before moving the record.");
       return;
     }
 
@@ -975,7 +975,7 @@ export default function CaseDetail({
       setSequenceGroupFeedback("The case changed before this record could be updated. Refresh and try again.");
       return;
     }
-    setSequenceGroupFeedback(`Removed "${record.title}" from its sequence group.`);
+    setSequenceGroupFeedback(`Removed "${record.title}" from its Issue.`);
   }
 
   function handleSelectSequenceTimelineItem(item) {
@@ -1052,17 +1052,17 @@ export default function CaseDetail({
         const savedKey = `${recordType}:${recordId}`;
         const previousGroup = safeText(previousSequenceGroup).trim();
         const nextGroup = safeText(nextSequenceGroup).trim();
-        let feedback = "Record saved. Returned to sequence group.";
+        let feedback = "Record saved. Returned to Issue.";
         if (previousGroup && nextGroup && previousGroup !== nextGroup) {
-          feedback = "Record moved to another sequence group.";
+          feedback = "Record moved to another Issue.";
         } else if (previousGroup && !nextGroup) {
-          feedback = "Record removed from this sequence group.";
+          feedback = "Record removed from this Issue.";
         }
         restoreSequenceGroupManagerAfterEdit(managerContext, { feedback, highlightedKey: savedKey });
       },
       onCancel: () => {
         restoreSequenceGroupManagerAfterEdit(managerContext, {
-          feedback: "Returned to sequence group.",
+          feedback: "Returned to Issue.",
           highlightedKey: key,
         });
       },
@@ -4060,6 +4060,15 @@ ${ungroupedSequenceText}
                     <button onClick={() => openLedgerModal()} className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30">Add Ledger</button>
                     <button onClick={() => setActiveTab("generate-report")} className="rounded-xl border border-lime-500 bg-white px-3 py-2 text-sm font-medium text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30">Generate Report</button>
                   </div>
+                  <details className="mt-3 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600">
+                    <summary className="cursor-pointer font-semibold text-neutral-800">Where does this belong?</summary>
+                    <dl className="mt-3 grid gap-2 border-t border-neutral-200 pt-3 text-xs leading-5 sm:grid-cols-2">
+                      <div><dt className="font-semibold text-neutral-800">Incident vs Evidence</dt><dd>Incident is what happened; Evidence is material supporting, challenging, or contextualising what happened.</dd></div>
+                      <div><dt className="font-semibold text-neutral-800">Document vs Evidence</dt><dd>Document is the original source or correspondence; Evidence is the assessed significance of source material.</dd></div>
+                      <div><dt className="font-semibold text-neutral-800">Strategy vs Action</dt><dd>Strategy is the considered position and approach; an Action is executable work that should happen now.</dd></div>
+                      <div><dt className="font-semibold text-neutral-800">To Watch vs Incident</dt><dd>To Watch is an uncertain development or trigger being monitored; an Incident is something that has actually happened.</dd></div>
+                    </dl>
+                  </details>
                 </section>
 
                 <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
@@ -4528,21 +4537,21 @@ ${ungroupedSequenceText}
                           type="search"
                           value={evidenceSearch}
                           onChange={(event) => setEvidenceSearch(event.target.value)}
-                          placeholder="Search evidence, summaries, tags, linked incidents, parties, or sequence group"
+                          placeholder="Search evidence, summaries, tags, linked incidents, parties, or Issue"
                           className="min-w-0 flex-1 bg-transparent text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
                         />
                       </div>
                     </div>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                       <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                        Sequence Group
+                        Issue
                         <select
                           value={evidenceSequenceGroupFilter}
                           onChange={(event) => setEvidenceSequenceGroupFilter(event.target.value)}
                           className="mt-2 block w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 outline-none transition-colors focus:border-lime-500 sm:w-60"
                         >
-                          <option value="all">All Sequence Groups</option>
-                          <option value="__ungrouped__">Ungrouped Evidence</option>
+                          <option value="all">All Issues</option>
+                          <option value="__ungrouped__">Evidence without an Issue</option>
                           {sequenceGroups.map((group) => (
                             <option key={group.name} value={group.name}>
                               {group.name}
@@ -4755,21 +4764,21 @@ ${ungroupedSequenceText}
                           type="search"
                           value={incidentSearch}
                           onChange={(event) => setIncidentSearch(event.target.value)}
-                          placeholder="Search incidents, tags, linked parties, evidence, documents, or sequence group"
+                          placeholder="Search incidents, tags, linked parties, evidence, documents, or Issue"
                           className="min-w-0 flex-1 bg-transparent text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
                         />
                       </div>
                     </div>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                       <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                        Sequence Group
+                        Issue
                         <select
                           value={incidentSequenceGroupFilter}
                           onChange={(event) => setIncidentSequenceGroupFilter(event.target.value)}
                           className="mt-2 block w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 outline-none transition-colors focus:border-lime-500 sm:w-60"
                         >
-                          <option value="all">All Sequence Groups</option>
-                          <option value="__ungrouped__">Ungrouped Incidents</option>
+                          <option value="all">All Issues</option>
+                          <option value="__ungrouped__">Incidents without an Issue</option>
                           {sequenceGroups.map((group) => (
                             <option key={group.name} value={group.name}>
                               {group.name}
@@ -6430,12 +6439,12 @@ ${ungroupedSequenceText}
                     {sequenceGroups.length > 0 && (
                       <div className="flex items-center gap-2">
                         <select
-                          aria-label="Filter timeline by sequence group"
+                          aria-label="Filter timeline by Issue"
                           value={timelineSequenceGroupFilter}
                           onChange={(event) => setTimelineSequenceGroupFilter(event.target.value)}
                           className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-600 outline-none transition-colors hover:bg-neutral-50 focus:border-lime-500"
                         >
-                          <option value="all">All sequence groups</option>
+                          <option value="all">All Issues</option>
                           {sequenceGroups.map((group) => (
                             <option key={group.name} value={group.name}>
                               {group.name}
