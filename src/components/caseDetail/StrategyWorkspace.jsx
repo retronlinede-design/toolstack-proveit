@@ -11,6 +11,7 @@ import GoalWorkspace from "./GoalWorkspace.jsx";
 import { getStrategiesForGoal } from "./strategyGoalHelpers.js";
 import { downloadJson } from "../../browser/downloadJson.js";
 import { buildStrategyContextPayload, getStrategyContextFilename, serializeStrategyContext } from "../../export/strategyContextExport.js";
+import { buildGoalsStrategyExport, getGoalsStrategyExportFilename } from "../../export/goalsStrategyExport.js";
 import { applyStrategyDelta, describeStrategyDeltaProposal, parseStrategyDeltaText, validateStrategyDelta } from "../../domain/strategyDelta.js";
 import StrategyDeltaModal from "./StrategyDeltaModal.jsx";
 
@@ -77,6 +78,10 @@ export default function StrategyWorkspace({ caseItem, strategies = [], onAddStra
     downloadJson(payload, getStrategyContextFilename(caseItem, focusedGoal), { space: 2 });
     setStrategyContextFeedback("Strategy Context JSON downloaded.");
   };
+  const downloadGoalsStrategyExport = () => {
+    downloadJson(buildGoalsStrategyExport(caseItem), getGoalsStrategyExportFilename(caseItem), { space: 2 });
+    setStrategyContextFeedback("Goals & Strategy JSON downloaded.");
+  };
   const resetStrategyDelta = () => {
     setStrategyDeltaOpen(false); setStrategyDeltaText(""); setStrategyDeltaError(""); setStrategyDeltaValidation(null); setSelectedDeltaIndexes([]); setStaleDeltaConfirmed(false);
   };
@@ -109,6 +114,13 @@ export default function StrategyWorkspace({ caseItem, strategies = [], onAddStra
         </div>
         {focusedGoal && (focusedStrategies.length > 0 ? <div className="mt-4 space-y-4">{focusedStrategies.map((strategy) => <div key={strategy.id}>{renderStrategyCard(strategy)}</div>)}</div> : <div className="mt-4 rounded-xl border border-dashed border-lime-300 bg-white/70 p-4 text-sm text-neutral-700">No Strategies are linked to this Goal yet. Open a Strategy record to link it to this Goal.</div>)}
         <div className="mt-4 rounded-xl border border-lime-200 bg-white/80 p-3">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-lime-800">Goals &amp; Strategy Data</div>
+          <p className="mt-1 text-xs text-neutral-600">Download the complete, read-only Goals and Strategy subsystem for this case.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" onClick={downloadGoalsStrategyExport} className="rounded-lg border border-lime-500 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-800 hover:bg-lime-50">Download Goals &amp; Strategy JSON</button>
+          </div>
+        </div>
+        <div className="rounded-xl border border-lime-200 bg-white/80 p-3">
           <div className="text-[10px] font-bold uppercase tracking-wider text-lime-800">Work with AI</div>
           <p className="mt-1 text-xs text-neutral-600">Create a focused, read-only Strategy Context package for external strategic analysis.</p>
           <div className="mt-3 flex flex-wrap gap-2">

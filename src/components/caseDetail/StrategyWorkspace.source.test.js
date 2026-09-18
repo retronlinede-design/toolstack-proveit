@@ -23,7 +23,9 @@ test("strategy workspace exposes structured filters, sorts, summary metrics, and
   assert.match(source, /Work with AI/);
   assert.match(source, /Copy Strategy Context/);
   assert.match(source, /Download Strategy Context JSON/);
+  assert.match(source, /Download Goals &amp; Strategy JSON/);
   assert.match(source, /buildStrategyContextPayload/);
+  assert.match(source, /buildGoalsStrategyExport/);
   assert.match(source, /serializeStrategyContext/);
   assert.match(source, /Update from AI/);
   assert.match(source, /validateStrategyDelta/);
@@ -31,4 +33,5 @@ test("strategy workspace exposes structured filters, sorts, summary metrics, and
   assert.match(source, /StrategyDeltaModal/);
   assert.match(source, /copyStrategyContext[\s\S]*buildFocusedStrategyContext/);
   assert.match(source, /downloadStrategyContext[\s\S]*buildFocusedStrategyContext/);
+  assert.match(source, /downloadGoalsStrategyExport[\s\S]*buildGoalsStrategyExport/);
 });
