@@ -15,12 +15,14 @@ test("strategy modal uses the dedicated editor inside the shared save flow", () 
 });
 
 test("strategy editor exposes structured planning fields and party ownership", () => {
-  for (const field of ["strategyType", "objective", "rationale", "desiredOutcome", "priority", "reviewDate", "decisionStatus", "ownerPartyId", "assumptions", "risks", "nextSteps"]) {
+  for (const field of ["strategyType", "objective", "rationale", "desiredOutcome", "priority", "reviewDate", "decisionStatus", "ownerPartyId", "assumptions", "risks", "nextSteps", "goalIds"]) {
     assert.match(editorSource, new RegExp(`recordForm\\.${field}`));
   }
   assert.match(editorSource, /caseParties\.map/);
   assert.match(editorSource, /type="date" value=\{recordForm\.reviewDate/);
   assert.match(editorSource, /<StringListEditor/);
+  assert.match(editorSource, /Linked Goals/);
+  assert.match(editorSource, /caseGoals\.map/);
 });
 
 test("shared form defaults and hydration include safe strategy list state", () => {

@@ -8,15 +8,20 @@ import { getVisibleGoals, prepareGoalDraft, saveGoalToCase, toggleGoalIssueId } 
 const label = (value) => value.charAt(0).toUpperCase() + value.slice(1);
 const statusVariant = (status) => status === "achieved" ? "status-positive" : status === "active" ? "status-warning" : "status-neutral";
 
-export default function GoalWorkspace({ caseItem, onUpdateCase }) {
+export default function GoalWorkspace({ caseItem, onUpdateCase, focusedGoalId = "", onFocusGoal }) {
   const goals = Array.isArray(caseItem?.goals) ? caseItem.goals : [];
   const issues = Array.isArray(caseItem?.issues) ? caseItem.issues : [];
   const [view, setView] = useState("active");
-  const [focusedGoalId, setFocusedGoalId] = useState("");
+  const [localFocusedGoalId, setLocalFocusedGoalId] = useState("");
   const [editingGoalId, setEditingGoalId] = useState(null);
   const [draft, setDraft] = useState(null);
   const visibleGoals = getVisibleGoals(goals, view);
-  const focusedGoal = goals.find((goal) => goal.id === focusedGoalId) || null;
+  const activeFocusedGoalId = onFocusGoal ? focusedGoalId : localFocusedGoalId;
+  const focusedGoal = goals.find((goal) => goal.id === activeFocusedGoalId) || null;
+  const focusGoal = (goalId) => {
+    if (onFocusGoal) onFocusGoal(goalId);
+    else setLocalFocusedGoalId(goalId);
+  };
 
   const beginCreate = () => {
     setEditingGoalId("");
@@ -31,7 +36,7 @@ export default function GoalWorkspace({ caseItem, onUpdateCase }) {
     if (!draft?.title.trim()) return;
     const result = saveGoalToCase(caseItem, draft, editingGoalId || "");
     if (await onUpdateCase(result.caseData)) {
-      setFocusedGoalId(result.goal.id);
+      focusGoal(result.goal.id);
       setDraft(null);
       setEditingGoalId(null);
     }
@@ -84,8 +89,8 @@ export default function GoalWorkspace({ caseItem, onUpdateCase }) {
 
       <div className="mt-4 space-y-3">
         {visibleGoals.map((goal) => (
-          <article key={goal.id} className={`rounded-xl border p-3 ${goal.id === focusedGoalId ? "border-lime-400 bg-lime-50/50" : "border-neutral-200 bg-neutral-50"}`}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-neutral-900">{goal.title || "Untitled Goal"}</h3><RecordBadge variant={statusVariant(goal.status)}>{label(goal.status)}</RecordBadge><RecordBadge variant={`priority-${goal.priority}`}>Priority: {label(goal.priority)}</RecordBadge></div>{goal.description && <p className="mt-2 text-sm text-neutral-700">{goal.description}</p>}</div><div className="flex gap-2"><button type="button" onClick={() => setFocusedGoalId(goal.id)} className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-100">Focus</button><button type="button" onClick={() => beginEdit(goal)} className="rounded-lg border border-lime-500 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-800 hover:bg-lime-50">Edit</button></div></div>
+          <article key={goal.id} className={`rounded-xl border p-3 ${goal.id === activeFocusedGoalId ? "border-lime-400 bg-lime-50/50" : "border-neutral-200 bg-neutral-50"}`}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-neutral-900">{goal.title || "Untitled Goal"}</h3><RecordBadge variant={statusVariant(goal.status)}>{label(goal.status)}</RecordBadge><RecordBadge variant={`priority-${goal.priority}`}>Priority: {label(goal.priority)}</RecordBadge></div>{goal.description && <p className="mt-2 text-sm text-neutral-700">{goal.description}</p>}</div><div className="flex gap-2"><button type="button" onClick={() => focusGoal(goal.id)} className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-100">Focus</button><button type="button" onClick={() => beginEdit(goal)} className="rounded-lg border border-lime-500 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-800 hover:bg-lime-50">Edit</button></div></div>
             <div className="mt-3 flex flex-wrap gap-2 text-xs text-neutral-600">{goal.reviewDate && <span>Review: {goal.reviewDate}</span>}{goal.successCriteria?.length > 0 && <span>Success criteria: {goal.successCriteria.length}</span>}{goal.issueIds?.map((id) => { const issue = issues.find((item) => item.id === id); return <RecordBadge key={id} variant="type">{issue ? getIssueDisplayLabel(issue) : "Unresolved Issue"}</RecordBadge>; })}</div>
           </article>
         ))}

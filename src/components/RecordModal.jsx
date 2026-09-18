@@ -948,6 +948,7 @@ export default function RecordModal({
             recordForm={recordForm}
             setRecordForm={setRecordForm}
             caseParties={caseParties}
+            caseGoals={selectedCase.goals || []}
             titleInputRef={titleInputRef}
             dateInputRef={dateInputRef}
             descriptionTextareaRef={descriptionTextareaRef}

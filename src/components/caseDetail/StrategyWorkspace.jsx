@@ -8,6 +8,7 @@ import {
   sortStrategies,
 } from "./strategyWorkspaceHelpers.js";
 import GoalWorkspace from "./GoalWorkspace.jsx";
+import { getStrategiesForGoal } from "./strategyGoalHelpers.js";
 
 export default function StrategyWorkspace({ caseItem, strategies = [], onAddStrategy, onUpdateCase, renderStrategyCard }) {
   const [search, setSearch] = useState("");
@@ -16,6 +17,10 @@ export default function StrategyWorkspace({ caseItem, strategies = [], onAddStra
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [reviewStateFilter, setReviewStateFilter] = useState("all");
   const [sortMode, setSortMode] = useState("newest");
+  const [focusedGoalId, setFocusedGoalId] = useState("");
+  const goals = Array.isArray(caseItem?.goals) ? caseItem.goals : [];
+  const focusedGoal = goals.find((goal) => goal.id === focusedGoalId) || null;
+  const focusedStrategies = useMemo(() => getStrategiesForGoal(strategies, focusedGoalId), [focusedGoalId, strategies]);
   const summary = useMemo(() => getStrategySummary(strategies), [strategies]);
   const visibleStrategies = useMemo(() => {
     const filtered = filterStrategies(strategies, search, statusFilter, {
@@ -51,13 +56,20 @@ export default function StrategyWorkspace({ caseItem, strategies = [], onAddStra
 
   return (
     <div className="space-y-6">
-      <GoalWorkspace caseItem={caseItem} onUpdateCase={onUpdateCase} />
+      <GoalWorkspace caseItem={caseItem} onUpdateCase={onUpdateCase} focusedGoalId={focusedGoalId} onFocusGoal={setFocusedGoalId} />
+      <section className="rounded-2xl border border-lime-200 bg-lime-50/40 p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div><div className="text-[10px] font-bold uppercase tracking-wider text-lime-800">Current Strategy</div><h2 className="mt-1 text-xl font-semibold text-neutral-950">{focusedGoal ? focusedGoal.title || "Untitled Goal" : "Select a Goal"}</h2><p className="mt-1 text-sm text-neutral-700">{focusedGoal ? "Strategies linked to this Goal." : "Choose Focus on a Goal above to review its linked Strategies."}</p></div>
+          {focusedGoal && <span className="rounded-full border border-lime-300 bg-white px-3 py-1 text-xs font-semibold text-lime-900">{focusedStrategies.length} linked</span>}
+        </div>
+        {focusedGoal && (focusedStrategies.length > 0 ? <div className="mt-4 space-y-4">{focusedStrategies.map((strategy) => <div key={strategy.id}>{renderStrategyCard(strategy)}</div>)}</div> : <div className="mt-4 rounded-xl border border-dashed border-lime-300 bg-white/70 p-4 text-sm text-neutral-700">No Strategies are linked to this Goal yet. Open a Strategy record to link it to this Goal.</div>)}
+      </section>
       <section className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Strategy Workspace</div>
-            <h2 className="mt-1 text-xl font-semibold text-neutral-950">Strategy Summary</h2>
-            <p className="mt-1 text-sm text-neutral-600">Review considered approaches, positions, risks, planned responses, and linked context.</p>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Strategy Records & History</div>
+            <h2 className="mt-1 text-xl font-semibold text-neutral-950">All Strategy Records</h2>
+            <p className="mt-1 text-sm text-neutral-600">Review all considered approaches, positions, risks, planned responses, and linked context.</p>
           </div>
           <button
             type="button"

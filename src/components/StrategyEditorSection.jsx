@@ -5,9 +5,11 @@ const PRIORITIES = ["low", "medium", "high", "critical"];
 const DECISION_STATUSES = ["proposed", "approved", "rejected", "completed"];
 const optionLabel = (value) => value.charAt(0).toUpperCase() + value.slice(1);
 
-export default function StrategyEditorSection({ recordForm, setRecordForm, caseParties = [], titleInputRef, dateInputRef, descriptionTextareaRef, sequenceGroupField }) {
+export default function StrategyEditorSection({ recordForm, setRecordForm, caseParties = [], caseGoals = [], titleInputRef, dateInputRef, descriptionTextareaRef, sequenceGroupField }) {
   const updateField = (field, value) => setRecordForm((current) => ({ ...current, [field]: value }));
   const status = recordForm.status === "archived" ? "archived" : "open";
+  const goalIds = Array.isArray(recordForm.goalIds) ? recordForm.goalIds : [];
+  const toggleGoal = (goalId, checked) => updateField("goalIds", checked ? [...new Set([...goalIds, goalId])] : goalIds.filter((id) => id !== goalId));
 
   return (
     <div className="mb-4 space-y-4">
@@ -58,6 +60,13 @@ export default function StrategyEditorSection({ recordForm, setRecordForm, caseP
           </div>
         </div>
         <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">{sequenceGroupField}</div>
+        <div>
+          <label className="text-xs font-semibold text-neutral-600">Linked Goals</label>
+          <div className="mt-1 max-h-36 space-y-1 overflow-y-auto rounded-lg border border-neutral-200 bg-neutral-50 p-2">
+            {caseGoals.map((goal) => <label key={goal.id} className="flex cursor-pointer items-center gap-2 rounded p-1.5 text-sm text-neutral-700 hover:bg-white"><input type="checkbox" checked={goalIds.includes(goal.id)} onChange={(event) => toggleGoal(goal.id, event.target.checked)} className="h-4 w-4 rounded border-neutral-300 text-lime-600 focus:ring-lime-500" />{goal.title || "Untitled Goal"}</label>)}
+            {caseGoals.length === 0 && <p className="p-1 text-xs italic text-neutral-500">No Goals are available to link.</p>}
+          </div>
+        </div>
       </section>
 
       <section className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
