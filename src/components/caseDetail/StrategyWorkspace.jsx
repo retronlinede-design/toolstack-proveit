@@ -9,6 +9,7 @@ import {
 } from "./strategyWorkspaceHelpers.js";
 import GoalWorkspace from "./GoalWorkspace.jsx";
 import { getStrategiesForGoal } from "./strategyGoalHelpers.js";
+import { getStrategySummaryShortcutFilters, isStrategySummaryShortcutActive } from "./strategySummaryShortcuts.js";
 import { downloadJson } from "../../browser/downloadJson.js";
 import { buildStrategyContextPayload, getStrategyContextFilename, serializeStrategyContext } from "../../export/strategyContextExport.js";
 import { buildGoalsStrategyExport, getGoalsStrategyExportFilename } from "../../export/goalsStrategyExport.js";
@@ -47,16 +48,16 @@ export default function StrategyWorkspace({ caseItem, strategies = [], onAddStra
     [sortMode, visibleStrategies]
   );
   const summaryCards = [
-    ["Total Strategies", summary.total],
-    ["Active / Open", summary.active],
-    ["Archived", summary.archived],
-    ["Unlinked", summary.unlinked],
-    ["Updated in 14 Days", summary.recentlyUpdated],
-    ["Critical Priority", summary.criticalPriority],
-    ["High Priority", summary.highPriority],
-    ["Due for Review", summary.dueForReview],
-    ["Overdue Reviews", summary.overdueReview],
-    ["Open Next Steps", summary.openNextSteps],
+    { label: "Total Strategies", value: summary.total, shortcut: "all" },
+    { label: "Active / Open", value: summary.active, shortcut: "active" },
+    { label: "Archived", value: summary.archived, shortcut: "archived" },
+    { label: "Unlinked", value: summary.unlinked, shortcut: "unlinked" },
+    { label: "Updated in 14 Days", value: summary.recentlyUpdated },
+    { label: "Critical Priority", value: summary.criticalPriority, shortcut: "critical" },
+    { label: "High Priority", value: summary.highPriority, shortcut: "high" },
+    { label: "Due for Review", value: summary.dueForReview, shortcut: "dueSoon" },
+    { label: "Overdue Reviews", value: summary.overdueReview, shortcut: "overdue" },
+    { label: "Open Next Steps", value: summary.openNextSteps },
   ];
   const resetFilters = () => {
     setSearch("");
@@ -65,6 +66,16 @@ export default function StrategyWorkspace({ caseItem, strategies = [], onAddStra
     setPriorityFilter("all");
     setReviewStateFilter("all");
   };
+  const applySummaryShortcut = (shortcut) => {
+    const filters = getStrategySummaryShortcutFilters(shortcut);
+    if (!filters) return;
+    setSearch(filters.search);
+    setStatusFilter(filters.statusFilter);
+    setStrategyTypeFilter(filters.strategyTypeFilter);
+    setPriorityFilter(filters.priorityFilter);
+    setReviewStateFilter(filters.reviewStateFilter);
+  };
+  const currentFilters = { search, statusFilter, strategyTypeFilter, priorityFilter, reviewStateFilter };
   const buildFocusedStrategyContext = () => focusedGoal ? buildStrategyContextPayload(caseItem, focusedGoal.id) : null;
   const copyStrategyContext = async () => {
     const payload = buildFocusedStrategyContext();
@@ -149,12 +160,12 @@ export default function StrategyWorkspace({ caseItem, strategies = [], onAddStra
           </button>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {summaryCards.map(([label, value]) => (
-            <div key={label} className="rounded-xl border border-neutral-200 bg-white p-3">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">{label}</div>
-              <div className="mt-2 text-2xl font-semibold text-neutral-900">{value}</div>
-            </div>
-          ))}
+          {summaryCards.map(({ label, value, shortcut }) => {
+            const active = shortcut && isStrategySummaryShortcutActive(shortcut, currentFilters);
+            const className = `rounded-xl border p-3 text-left ${active ? "border-lime-400 bg-lime-50" : "border-neutral-200 bg-white"}`;
+            const content = <><div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">{label}</div><div className="mt-2 text-2xl font-semibold text-neutral-900">{value}</div></>;
+            return shortcut ? <button key={label} type="button" aria-pressed={active} onClick={() => applySummaryShortcut(shortcut)} className={`${className} cursor-pointer transition-colors hover:border-lime-300 hover:bg-lime-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500`}>{content}</button> : <div key={label} className={className}>{content}</div>;
+          })}
         </div>
       </section>
 

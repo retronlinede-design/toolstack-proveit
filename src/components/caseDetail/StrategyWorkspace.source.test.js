@@ -10,6 +10,10 @@ test("strategy workspace exposes structured filters, sorts, summary metrics, and
   assert.match(source, /Due for Review/);
   assert.match(source, /Overdue Reviews/);
   assert.match(source, /Open Next Steps/);
+  assert.match(source, /getStrategySummaryShortcutFilters/);
+  assert.match(source, /isStrategySummaryShortcutActive/);
+  assert.match(source, /applySummaryShortcut/);
+  assert.match(source, /aria-pressed=\{active\}/);
   assert.match(source, /Strategy Type/);
   assert.match(source, /Review State/);
   assert.match(source, /value="priority">Priority/);
