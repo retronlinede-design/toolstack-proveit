@@ -1,19 +1,14 @@
 import { normalizeNextActions } from "./nextActions.js";
 import { mergePresentFields, mergeImportedRecords } from "./importPresence.js";
 import { getCaseRevision } from "./caseRevision.js";
+import { normalizeGoalIds, normalizeGoals } from "./goalDomain.js";
+import { generateId } from "./id.js";
+export { generateId } from "./id.js";
 
 const CASE_ISSUE_FIELDS = ["issues", "issueSchemaVersion", "nextIssueReferenceNumber", "retiredIssueReferences", "retiredIssues"];
 
 function preserveCaseIssueData(caseItem) {
   return Object.fromEntries(CASE_ISSUE_FIELDS.filter((key) => Object.hasOwn(caseItem || {}, key)).map((key) => [key, caseItem[key]]));
-}
-
-/**
- * Safe UUID fallback for insecure contexts or older browsers.
- */
-export function generateId() {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 }
 
 export const normalizeCategory = (value) => {
@@ -594,6 +589,7 @@ export function normalizeRecord(item, recordType) {
       strategySchemaVersion: Number.isInteger(item?.strategySchemaVersion) && item.strategySchemaVersion > 0
         ? item.strategySchemaVersion
         : 2,
+      ...(Object.hasOwn(item || {}, "goalIds") ? { goalIds: normalizeGoalIds(item.goalIds) } : {}),
       strategyType: safeString(item?.strategyType),
       objective: safeString(item?.objective),
       rationale: safeString(item?.rationale),
@@ -1223,6 +1219,7 @@ export function normalizeCase(caseItem) {
 
   return {
     ...preserveCaseIssueData(caseItem),
+    ...(Object.hasOwn(caseItem || {}, "goals") ? { goals: normalizeGoals(caseItem.goals) } : {}),
     id: caseItem?.id || generateId(),
     ...(revision == null ? {} : { revision }),
     name: normalizeCaseName(caseItem?.name),
@@ -2058,7 +2055,7 @@ export function mergeWatchItems(existingItems = [], incomingItems = []) {
 export function mergeCase(existingCase, incomingCase = {}) {
   const local = normalizeCase(existingCase);
   const merged = mergePresentFields(local, incomingCase);
-  for (const collection of ["evidence", "incidents", "tasks", "strategy", "ledger", "documents", "parties", "watchItems", "issues"]) {
+  for (const collection of ["evidence", "incidents", "tasks", "strategy", "ledger", "documents", "parties", "watchItems", "issues", "goals"]) {
     if (Array.isArray(incomingCase[collection])) {
       merged[collection] = mergeImportedRecords(local[collection] || [], incomingCase[collection]);
     }

@@ -1,3 +1,5 @@
+import { normalizeGoals } from "./goalDomain.js";
+
 export const ISSUE_SCHEMA_VERSION = 1;
 export const ISSUE_STATUSES = Object.freeze(["open", "monitoring", "waiting_response", "escalated", "resolved", "archived"]);
 export const ISSUE_PRIORITIES = Object.freeze(["low", "normal", "high", "critical"]);
@@ -78,7 +80,10 @@ export function resolveCaseIssue(caseData = {}, value) {
 }
 
 export function normalizeCaseIssues(caseData = {}, options = {}) {
-  const source = caseData && typeof caseData === "object" ? caseData : {};
+  const sourceCase = caseData && typeof caseData === "object" ? caseData : {};
+  const source = Object.hasOwn(sourceCase, "goals")
+    ? { ...sourceCase, goals: normalizeGoals(sourceCase.goals) }
+    : sourceCase;
   const legacyMeta = options.sequenceGroupMeta && typeof options.sequenceGroupMeta === "object" ? options.sequenceGroupMeta : {};
   // Keep stored extension metadata; do not invent migration semantics for it.
   const existing = list(source.issues).map((issue) => ({
@@ -200,6 +205,9 @@ export function deleteCaseIssue(caseData, issueId, options = {}) {
   const issue = resolveCaseIssue(normalized, { issueId });
   if (!issue) return { success: false, errors: ["Issue could not be resolved."], caseData };
   let next = { ...normalized, issues: normalized.issues.filter((item) => item.id !== issueId), retiredIssueReferences: [...new Set([...normalized.retiredIssueReferences, issue.reference])], retiredIssues: [...list(normalized.retiredIssues), { id: issue.id, reference: issue.reference, name: issue.name, deletedAt: text(options.now) || new Date().toISOString() }] };
+  if (Object.hasOwn(normalized, "goals")) {
+    next.goals = normalized.goals.map((goal) => ({ ...goal, issueIds: goal.issueIds.filter((id) => id !== issue.id) }));
+  }
   ISSUE_RECORD_COLLECTIONS.forEach((collection) => { if (Array.isArray(next[collection])) next[collection] = next[collection].map((record) => record.sequenceGroupId === issueId || normalizedName(record.sequenceGroup) === normalizedName(issue.name) ? { ...record, sequenceGroupId: "", sequenceGroup: "" } : record); });
   return { success: true, deletedIssue: issue, caseData: next };
 }
@@ -209,6 +217,9 @@ export function mergeCaseIssues(caseData, sourceIssueId, destinationIssueId, opt
   const source = resolveCaseIssue(normalized, { issueId: sourceIssueId }); const destination = resolveCaseIssue(normalized, { issueId: destinationIssueId });
   if (!source || !destination || source.id === destination.id) return { success: false, errors: ["Source and destination Issues must be distinct and resolvable."], caseData };
   let next = { ...normalized, issues: normalized.issues.filter((item) => item.id !== source.id), retiredIssueReferences: [...new Set([...normalized.retiredIssueReferences, source.reference])], retiredIssues: [...list(normalized.retiredIssues), { id: source.id, reference: source.reference, name: source.name, mergedIntoIssueId: destination.id, deletedAt: text(options.now) || new Date().toISOString() }] };
+  if (Object.hasOwn(normalized, "goals")) {
+    next.goals = normalized.goals.map((goal) => ({ ...goal, issueIds: [...new Set(goal.issueIds.map((id) => id === source.id ? destination.id : id))] }));
+  }
   ISSUE_RECORD_COLLECTIONS.forEach((collection) => { if (Array.isArray(next[collection])) next[collection] = next[collection].map((record) => record.sequenceGroupId === source.id || normalizedName(record.sequenceGroup) === normalizedName(source.name) ? { ...record, sequenceGroupId: destination.id, sequenceGroup: destination.name } : record); });
   return { success: true, sourceIssue: source, destinationIssue: destination, caseData: next };
 }

@@ -4864,8 +4864,10 @@ ${ungroupedSequenceText}
             )}
             {activeTab === "strategy" && (
               <StrategyWorkspace
+                caseItem={selectedCase}
                 strategies={selectedCase.strategy || []}
                 onAddStrategy={() => openRecordModal("strategy")}
+                onUpdateCase={onUpdateCase}
                 renderStrategyCard={(strategy) => renderRecordCard(strategy, "strategy")}
               />
             )}

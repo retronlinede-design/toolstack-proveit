@@ -7,8 +7,9 @@ import {
   groupStrategiesBySequenceGroup,
   sortStrategies,
 } from "./strategyWorkspaceHelpers.js";
+import GoalWorkspace from "./GoalWorkspace.jsx";
 
-export default function StrategyWorkspace({ strategies = [], onAddStrategy, renderStrategyCard }) {
+export default function StrategyWorkspace({ caseItem, strategies = [], onAddStrategy, onUpdateCase, renderStrategyCard }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [strategyTypeFilter, setStrategyTypeFilter] = useState("all");
@@ -50,6 +51,7 @@ export default function StrategyWorkspace({ strategies = [], onAddStrategy, rend
 
   return (
     <div className="space-y-6">
+      <GoalWorkspace caseItem={caseItem} onUpdateCase={onUpdateCase} />
       <section className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>

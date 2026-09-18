@@ -7,7 +7,7 @@
 import { STORE_NAMES } from "./dbConstants.js";
 import { getCaseRevision, INITIAL_CASE_REVISION } from "./domain/caseRevision.js";
 
-export const CORE_CASE_ARRAY_FIELDS = ["incidents", "evidence", "documents", "ledger", "strategy", "watchItems"];
+export const CORE_CASE_ARRAY_FIELDS = ["incidents", "evidence", "documents", "ledger", "strategy", "watchItems", "goals"];
 export const EMERGENCY_BACKUP_PREFIX = "toolstack.proveit.v1.emergencyBackup.";
 
 export class CaseRevisionConflictError extends Error {
