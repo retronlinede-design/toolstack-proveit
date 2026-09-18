@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { allocateNextIssueReference, assignRecordToIssue, createCaseIssue, deleteCaseIssue, getIssueDisplayLabel, HUMAN_READABLE_ISSUE_PROMPT, mergeCaseIssues, normalizeCaseIssues, removeRecordFromIssue, renameCaseIssue, resolveCaseIssue, updateCaseIssue } from "./issueDomain.js";
+import { allocateNextIssueReference, assignRecordToIssue, createCaseIssue, deleteCaseIssue, getCaseIssueSelectionOptions, getIssueDisplayLabel, HUMAN_READABLE_ISSUE_PROMPT, mergeCaseIssues, normalizeCaseIssues, removeRecordFromIssue, renameCaseIssue, resolveCaseIssue, updateCaseIssue } from "./issueDomain.js";
+import { upsertRecordInCase } from "./caseDomain.js";
 import { normalizeStoredCase } from "./caseNormalization.js";
 
 const oldCase = { id: "case-1", createdAt: "2026-01-01T00:00:00Z", incidents: [{ id: "i1", sequenceGroup: "Heating" }], evidence: [{ id: "e1", sequenceGroup: " Heating " }], documents: [], ledger: [], strategy: [], watchItems: [], parties: [{ id: "p1", name: "Owner" }] };
@@ -10,6 +11,23 @@ test("legacy and metadata-only groups migrate deterministically with assignments
 test("migration is idempotent and does not rewrite identity or timestamps", () => { const first = migrate().caseData; const second = normalizeCaseIssues(first).caseData; assert.strictEqual(second, first); assert.deepEqual(second, first); });
 test("migration does not mutate source input", () => { const before = structuredClone(oldCase); migrate(); assert.deepEqual(oldCase, before); });
 test("display labels combine reference and editable name", () => assert.equal(getIssueDisplayLabel({ reference: "ISS-003", name: "Heating" }), "ISS-003 — Heating"));
+test("canonical Issue selector options include metadata-only Issues by ID and display reference", () => {
+  const caseData = {
+    id: "case-options",
+    createdAt: "2026-09-18T00:00:00Z",
+    incidents: [],
+    evidence: [],
+    documents: [],
+    strategy: [],
+  };
+  const created = createCaseIssue(caseData, { name: "Resolved repair" }, { now: "2026-09-18T00:00:00Z" });
+  assert.equal(created.success, true);
+  assert.deepEqual(getCaseIssueSelectionOptions(created.caseData), [{
+    id: created.issue.id,
+    name: "Resolved repair",
+    label: "ISS-001 — Resolved repair",
+  }]);
+});
 test("create applies required defaults and monotonic identity", () => { const base = migrate().caseData; const result = createCaseIssue(base, { name: "Repairs" }, { now: "2026-03-01T00:00:00Z" }); assert.equal(result.success, true); assert.equal(result.issue.reference, "ISS-003"); assert.equal(result.issue.status, "open"); assert.equal(result.issue.priority, "normal"); assert.match(result.issue.id, /^issue_/); });
 test("duplicate normalized names are blocked", () => assert.equal(createCaseIssue(migrate().caseData, { name: " heating " }).success, false));
 test("ID and reference are immutable while metadata validates", () => { const base = migrate().caseData; const issue = base.issues[0]; assert.equal(updateCaseIssue(base, issue.id, { id: "changed" }).success, false); assert.equal(updateCaseIssue(base, issue.id, { status: "invented" }).success, false); assert.equal(updateCaseIssue(base, issue.id, { priority: "urgent" }).success, false); assert.equal(updateCaseIssue(base, issue.id, { ownerPartyId: "missing" }).success, false); });
@@ -18,6 +36,59 @@ test("rename preserves ID/reference and synchronizes compatibility labels", () =
 test("resolution prioritizes ID then reference then unique normalized name", () => { const base = migrate().caseData; const issue = base.issues[0]; assert.equal(resolveCaseIssue(base, { issueId: issue.id }).id, issue.id); assert.equal(resolveCaseIssue(base, { issueReference: issue.reference }).id, issue.id); assert.equal(resolveCaseIssue(base, { issueName: ` ${issue.name.toUpperCase()} ` }).id, issue.id); });
 test("duplicate IDs and references are rejected as migration conflicts", () => { const base = migrate().caseData; const duplicate = { ...base, issues: [...base.issues, { ...base.issues[0], name: "Other" }] }; const result = normalizeCaseIssues(duplicate); assert.equal(result.changed, false); assert.ok(result.conflicts.some((x) => x.code === "duplicate_issue_id")); assert.ok(result.conflicts.some((x) => x.code === "duplicate_issue_reference")); });
 test("assignment by ID synchronizes name and removal clears both fields", () => { const base = { ...migrate().caseData, documents: [{ id: "d1" }] }; const issue = base.issues[0]; const assigned = assignRecordToIssue(base, "documents", "d1", issue.id); assert.equal(assigned.caseData.documents[0].sequenceGroup, issue.name); const removed = removeRecordFromIssue(assigned.caseData, "documents", "d1"); assert.equal(removed.caseData.documents[0].sequenceGroupId, ""); assert.equal(removed.caseData.documents[0].sequenceGroup, ""); });
+test("Strategy Issue assignment, reassignment, clearing, and reload retain canonical membership", () => {
+  const base = migrate().caseData;
+  const [heating, empty] = base.issues;
+  const created = upsertRecordInCase(base, "strategy", {
+    id: "str-issue",
+    title: "Plan",
+    date: "2026-09-18",
+    description: "",
+    notes: "",
+    attachments: [],
+    availability: {},
+    sequenceGroupId: heating.id,
+    sequenceGroup: heating.name,
+  });
+  const reloaded = reload(created);
+  assert.equal(reloaded.strategy[0].sequenceGroupId, heating.id);
+  assert.equal(reloaded.strategy[0].sequenceGroup, heating.name);
+  const reassigned = upsertRecordInCase(reloaded, "strategy", {
+    ...reloaded.strategy[0],
+    sequenceGroupId: empty.id,
+    sequenceGroup: empty.name,
+  }, reloaded.strategy[0]);
+  const reassignedReloaded = reload(reassigned);
+  assert.equal(reassignedReloaded.strategy[0].sequenceGroupId, empty.id);
+  assert.equal(reassignedReloaded.strategy[0].sequenceGroup, empty.name);
+  const cleared = removeRecordFromIssue(reassignedReloaded, "strategy", "str-issue").caseData;
+  assert.equal(cleared.strategy[0].sequenceGroupId, "");
+  assert.equal(cleared.strategy[0].sequenceGroup, "");
+});
+test("legacy name-only Strategy memberships remain resolvable on reload", () => {
+  const base = migrate().caseData;
+  const issue = resolveCaseIssue(base, "Heating");
+  const reloaded = reload({ ...base, strategy: [{ id: "str-legacy", sequenceGroup: issue.name }] });
+  assert.equal(reloaded.strategy[0].sequenceGroupId, issue.id);
+  assert.equal(reloaded.strategy[0].sequenceGroup, issue.name);
+});
+test("Issue rename, merge, and delete keep Strategy memberships synchronized", () => {
+  const base = migrate().caseData;
+  const [source, destination] = base.issues;
+  const withStrategy = {
+    ...base,
+    strategy: [{ id: "str-lifecycle", sequenceGroupId: source.id, sequenceGroup: source.name }],
+  };
+  const renamed = renameCaseIssue(withStrategy, source.id, "Renamed Heating").caseData;
+  assert.equal(renamed.strategy[0].sequenceGroupId, source.id);
+  assert.equal(renamed.strategy[0].sequenceGroup, "Renamed Heating");
+  const merged = mergeCaseIssues(renamed, source.id, destination.id, { now: "2026-09-18" }).caseData;
+  assert.equal(merged.strategy[0].sequenceGroupId, destination.id);
+  assert.equal(merged.strategy[0].sequenceGroup, destination.name);
+  const deleted = deleteCaseIssue(merged, destination.id, { now: "2026-09-19" }).caseData;
+  assert.equal(deleted.strategy[0].sequenceGroupId, "");
+  assert.equal(deleted.strategy[0].sequenceGroup, "");
+});
 test("merge preserves destination identity and retires source reference", () => { const base = migrate().caseData; const source = resolveCaseIssue(base, "Heating"); const destination = resolveCaseIssue(base, "Empty"); const result = mergeCaseIssues(base, source.id, destination.id, { now: "2026-08-01" }); assert.equal(result.caseData.incidents[0].sequenceGroupId, destination.id); assert.ok(result.caseData.retiredIssueReferences.includes(source.reference)); assert.equal(resolveCaseIssue(result.caseData, { issueId: source.id }), null); });
 test("delete preserves records, clears assignment, and prevents reference reuse", () => { const base = migrate().caseData; const issue = resolveCaseIssue(base, "Heating"); const result = deleteCaseIssue(base, issue.id, { now: "2026-08-01" }); assert.equal(result.caseData.incidents.length, 1); assert.equal(result.caseData.incidents[0].sequenceGroup, ""); assert.ok(result.caseData.retiredIssueReferences.includes(issue.reference)); assert.notEqual(allocateNextIssueReference(result.caseData).reference, issue.reference); });
 test("GPT policy requires human references and restricts internal IDs", () => { assert.match(HUMAN_READABLE_ISSUE_PROMPT, /ISS-003 — Heating Failure/); assert.match(HUMAN_READABLE_ISSUE_PROMPT, /Do not refer.*internal UUID/); });

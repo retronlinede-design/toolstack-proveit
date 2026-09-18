@@ -3065,6 +3065,14 @@ const handleRecordFiles = async (event) => {
       : normalizedPayload;
 
     updatedCase = upsertRecordInCase(selectedCase, recordType, payloadForUpsert, currentEditingRecord);
+    const issueResult = normalizeCaseIssues(updatedCase, {
+      sequenceGroupMeta: getSequenceGroupMetaForCase(updatedCase.id, readSequenceGroupMetaStore()),
+    });
+    if (issueResult.conflicts.length) {
+      showAppNotice("error", `Issue validation failed: ${issueResult.conflicts.map((item) => item.code).join(", ")}`);
+      return;
+    }
+    updatedCase = issueResult.caseData;
     const newImageIds = getNewImageIdsForCaseUpdate(selectedCase, updatedCase);
 
     try {

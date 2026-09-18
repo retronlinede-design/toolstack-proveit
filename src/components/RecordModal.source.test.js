@@ -33,3 +33,11 @@ test("record editors use Issue terminology and explain the record choice", () =>
   assert.match(source, /Record material that supports or challenges a point\./);
   assert.match(source, /considered approach, position, risks, and planned response/);
 });
+
+test("Strategy Issue selector uses canonical Issue IDs and labels", () => {
+  assert.match(source, /getCaseIssueSelectionOptions\(selectedCase\)/);
+  assert.match(source, /resolveCaseIssue\(selectedCase, \{\s*issueId: recordForm\.sequenceGroupId/);
+  assert.match(source, /recordType === "strategy" \? strategyIssueOptions : existingSequenceGroups/);
+  assert.match(source, /sequenceGroupId: issue\.id, sequenceGroup: issue\.name/);
+  assert.match(source, /sequenceGroupId: "", sequenceGroup: ""/);
+});

@@ -30,6 +30,12 @@ export function getIssueDisplayLabel(issue) {
   return [text(issue.reference), text(issue.name)].filter(Boolean).join(" — ") || "Unnamed Issue";
 }
 
+export function getCaseIssueSelectionOptions(caseData = {}) {
+  return list(caseData.issues)
+    .filter((issue) => text(issue?.id) && text(issue?.name))
+    .map((issue) => ({ id: issue.id, name: issue.name, label: getIssueDisplayLabel(issue) }));
+}
+
 export function validateIssue(issue, caseData = {}) {
   const errors = [];
   if (!text(issue?.id)) errors.push("Issue ID is required.");

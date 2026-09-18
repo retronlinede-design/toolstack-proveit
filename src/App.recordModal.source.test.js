@@ -53,3 +53,9 @@ test("ledger modal loads and edits linked party ids", () => {
   assert.match(source, /<LinkedPartiesSelector\s+parties=\{selectedCase\?\.parties \|\| \[\]\}\s+linkedPartyIds=\{ledgerForm\.linkedPartyIds\}/);
   assert.match(source, /onChange=\{\(linkedPartyIds\) => setLedgerForm\(\(prev\) => \(\{ \.\.\.prev, linkedPartyIds \}\)\)\}/);
 });
+
+test("record saves pass through the established canonical Issue normalization boundary", () => {
+  assert.match(source, /updatedCase = upsertRecordInCase\(selectedCase, recordType, payloadForUpsert, currentEditingRecord\);\s+const issueResult = normalizeCaseIssues\(updatedCase, \{/);
+  assert.match(source, /sequenceGroupMeta: getSequenceGroupMetaForCase\(updatedCase\.id, readSequenceGroupMetaStore\(\)\)/);
+  assert.match(source, /updatedCase = issueResult\.caseData;/);
+});

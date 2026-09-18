@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { EVIDENCE_ROLES, EVIDENCE_TYPES, INCIDENT_LINK_TYPES } from "../domain/caseDomain.js";
 import { prepareRecordFormForSave, suggestEvidenceMetadataForForm } from "../domain/recordFormDomain.js";
+import { getCaseIssueSelectionOptions, resolveCaseIssue } from "../domain/issueDomain.js";
 import LinkedPartiesSelector from "./caseDetail/LinkedPartiesSelector";
 import StrategyEditorSection from "./StrategyEditorSection";
 
@@ -339,6 +340,18 @@ export default function RecordModal({
           return true;
         });
   }, [recordForm.id, recordForm.sequenceGroup, selectedCase, supportsSequenceGroup]);
+  const strategyIssueOptions = useMemo(() => {
+    if (recordType !== "strategy") return [];
+    return getCaseIssueSelectionOptions(selectedCase);
+  }, [recordType, selectedCase]);
+  const resolvedStrategyIssue = useMemo(() => (
+    recordType === "strategy"
+      ? resolveCaseIssue(selectedCase, {
+        issueId: recordForm.sequenceGroupId,
+        issueName: recordForm.sequenceGroup,
+      })
+      : null
+  ), [recordForm.sequenceGroup, recordForm.sequenceGroupId, recordType, selectedCase]);
   const activeEvidenceTemplate = recordType === "evidence" && selectedEvidenceTemplate
     ? EVIDENCE_TEMPLATE_CONFIG[selectedEvidenceTemplate]
     : null;
@@ -603,6 +616,17 @@ export default function RecordModal({
   useEffect(() => {
     if (!supportsSequenceGroup) return;
 
+    if (recordType === "strategy") {
+      const timeout = window.setTimeout(() => {
+        setSequenceGroupMode(resolvedStrategyIssue?.id || (
+          safeText(recordForm.sequenceGroup).trim() || safeText(recordForm.sequenceGroupId).trim()
+            ? CREATE_NEW_SEQUENCE_GROUP_OPTION
+            : ""
+        ));
+      }, 0);
+      return () => window.clearTimeout(timeout);
+    }
+
     const currentValue = safeText(recordForm.sequenceGroup).trim();
     if (!currentValue) {
       const timeout = window.setTimeout(() => setSequenceGroupMode(""), 0);
@@ -616,7 +640,7 @@ export default function RecordModal({
 
     const timeout = window.setTimeout(() => setSequenceGroupMode(CREATE_NEW_SEQUENCE_GROUP_OPTION), 0);
     return () => window.clearTimeout(timeout);
-  }, [existingSequenceGroups, recordForm.sequenceGroup, supportsSequenceGroup]);
+  }, [existingSequenceGroups, recordForm.sequenceGroup, recordForm.sequenceGroupId, recordType, resolvedStrategyIssue, supportsSequenceGroup]);
 
   const renderSequenceGroupField = () => (
     <div>
@@ -628,13 +652,32 @@ export default function RecordModal({
           const nextValue = e.target.value;
           setSequenceGroupMode(nextValue);
           if (nextValue === "") {
-            updateSuggestedMetadataField("sequenceGroup", "");
+            if (recordType === "strategy") {
+              setRecordForm((currentForm) => ({ ...currentForm, sequenceGroupId: "", sequenceGroup: "" }));
+            } else {
+              updateSuggestedMetadataField("sequenceGroup", "");
+            }
             return;
           }
           if (nextValue === CREATE_NEW_SEQUENCE_GROUP_OPTION) {
+            if (recordType === "strategy") {
+              setRecordForm((currentForm) => ({
+                ...currentForm,
+                sequenceGroupId: "",
+                sequenceGroup: resolvedStrategyIssue ? "" : currentForm.sequenceGroup,
+              }));
+              return;
+            }
             if (existingSequenceGroups.includes(safeText(recordForm.sequenceGroup).trim())) {
               updateSuggestedMetadataField("sequenceGroup", "");
             }
+            return;
+          }
+          if (recordType === "strategy") {
+            const issue = strategyIssueOptions.find((item) => item.id === nextValue);
+            if (!issue) return;
+            setUserEditedSuggestionFields((prev) => ({ ...prev, sequenceGroup: true }));
+            setRecordForm((currentForm) => ({ ...currentForm, sequenceGroupId: issue.id, sequenceGroup: issue.name }));
             return;
           }
           updateSuggestedMetadataField("sequenceGroup", nextValue);
@@ -642,9 +685,9 @@ export default function RecordModal({
         className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm"
       >
         <option value="">Select an Issue or create a new one</option>
-        {existingSequenceGroups.map((group) => (
-          <option key={group} value={group}>
-            {group}
+        {(recordType === "strategy" ? strategyIssueOptions : existingSequenceGroups).map((item) => (
+          <option key={typeof item === "string" ? item : item.id} value={typeof item === "string" ? item : item.id}>
+            {typeof item === "string" ? item : item.label}
           </option>
         ))}
         <option value={CREATE_NEW_SEQUENCE_GROUP_OPTION}>Create new Issue</option>
@@ -653,7 +696,13 @@ export default function RecordModal({
         <input
           placeholder="e.g. Heating defect, Notice and response, Payment dispute"
           value={recordForm.sequenceGroup || ""}
-          onChange={(e) => updateSuggestedMetadataField("sequenceGroup", e.target.value)}
+          onChange={(e) => {
+            if (recordType === "strategy") {
+              setRecordForm((currentForm) => ({ ...currentForm, sequenceGroupId: "", sequenceGroup: e.target.value }));
+            } else {
+              updateSuggestedMetadataField("sequenceGroup", e.target.value);
+            }
+          }}
           className="mt-2 w-full rounded-lg border border-neutral-300 p-2 text-sm"
         />
       )}
@@ -666,7 +715,11 @@ export default function RecordModal({
             type="button"
             onClick={() => {
               setSequenceGroupMode("");
-              updateSuggestedMetadataField("sequenceGroup", "");
+              if (recordType === "strategy") {
+                setRecordForm((currentForm) => ({ ...currentForm, sequenceGroupId: "", sequenceGroup: "" }));
+              } else {
+                updateSuggestedMetadataField("sequenceGroup", "");
+              }
             }}
             className="shrink-0 rounded-lg border border-neutral-300 bg-white px-2 py-1 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors"
           >
