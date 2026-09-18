@@ -11,6 +11,8 @@ import GoalWorkspace from "./GoalWorkspace.jsx";
 import { getStrategiesForGoal } from "./strategyGoalHelpers.js";
 import { downloadJson } from "../../browser/downloadJson.js";
 import { buildStrategyContextPayload, getStrategyContextFilename, serializeStrategyContext } from "../../export/strategyContextExport.js";
+import { applyStrategyDelta, describeStrategyDeltaProposal, parseStrategyDeltaText, validateStrategyDelta } from "../../domain/strategyDelta.js";
+import StrategyDeltaModal from "./StrategyDeltaModal.jsx";
 
 export default function StrategyWorkspace({ caseItem, strategies = [], onAddStrategy, onUpdateCase, renderStrategyCard }) {
   const [search, setSearch] = useState("");
@@ -21,6 +23,12 @@ export default function StrategyWorkspace({ caseItem, strategies = [], onAddStra
   const [sortMode, setSortMode] = useState("newest");
   const [focusedGoalId, setFocusedGoalId] = useState("");
   const [strategyContextFeedback, setStrategyContextFeedback] = useState("");
+  const [strategyDeltaOpen, setStrategyDeltaOpen] = useState(false);
+  const [strategyDeltaText, setStrategyDeltaText] = useState("");
+  const [strategyDeltaError, setStrategyDeltaError] = useState("");
+  const [strategyDeltaValidation, setStrategyDeltaValidation] = useState(null);
+  const [selectedDeltaIndexes, setSelectedDeltaIndexes] = useState([]);
+  const [staleDeltaConfirmed, setStaleDeltaConfirmed] = useState(false);
   const goals = Array.isArray(caseItem?.goals) ? caseItem.goals : [];
   const focusedGoal = goals.find((goal) => goal.id === focusedGoalId) || null;
   const focusedStrategies = useMemo(() => getStrategiesForGoal(strategies, focusedGoalId), [focusedGoalId, strategies]);
@@ -69,6 +77,27 @@ export default function StrategyWorkspace({ caseItem, strategies = [], onAddStra
     downloadJson(payload, getStrategyContextFilename(caseItem, focusedGoal), { space: 2 });
     setStrategyContextFeedback("Strategy Context JSON downloaded.");
   };
+  const resetStrategyDelta = () => {
+    setStrategyDeltaOpen(false); setStrategyDeltaText(""); setStrategyDeltaError(""); setStrategyDeltaValidation(null); setSelectedDeltaIndexes([]); setStaleDeltaConfirmed(false);
+  };
+  const validatePastedStrategyDelta = () => {
+    setStrategyDeltaError(""); setStrategyDeltaValidation(null); setSelectedDeltaIndexes([]); setStaleDeltaConfirmed(false);
+    const parsed = parseStrategyDeltaText(strategyDeltaText);
+    if (!parsed.ok) { setStrategyDeltaError(parsed.reason); return; }
+    const result = validateStrategyDelta(caseItem, parsed.payload);
+    if (!result.ok) { setStrategyDeltaError(result.reason || "Strategy Delta validation failed."); return; }
+    if (!focusedGoal || result.goal.id !== focusedGoal.id) { setStrategyDeltaError("Strategy Delta goalId must match the currently focused Goal."); return; }
+    const planned = result.planned.map((proposal) => ({ ...proposal, preview: describeStrategyDeltaProposal(proposal, caseItem) }));
+    setStrategyDeltaValidation({ ...result, planned }); setSelectedDeltaIndexes(planned.map((proposal) => proposal.index));
+  };
+  const applySelectedStrategyDelta = async () => {
+    if (!strategyDeltaValidation || (strategyDeltaValidation.stale && !staleDeltaConfirmed)) return;
+    const result = applyStrategyDelta(caseItem, strategyDeltaValidation, selectedDeltaIndexes);
+    if (!result.ok) { setStrategyDeltaError(result.reason || "Could not apply selected Strategy proposals."); return; }
+    if (await onUpdateCase(result.caseData)) resetStrategyDelta();
+    else setStrategyDeltaError("Could not save the selected Strategy proposals.");
+  };
+  const toggleDeltaProposal = (index, checked) => setSelectedDeltaIndexes((current) => checked ? [...new Set([...current, index])] : current.filter((item) => item !== index));
 
   return (
     <div className="space-y-6">
@@ -85,11 +114,13 @@ export default function StrategyWorkspace({ caseItem, strategies = [], onAddStra
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" disabled={!focusedGoal} onClick={copyStrategyContext} className="rounded-lg border border-lime-500 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-800 hover:bg-lime-50 disabled:cursor-not-allowed disabled:opacity-50">Copy Strategy Context</button>
             <button type="button" disabled={!focusedGoal} onClick={downloadStrategyContext} className="rounded-lg border border-lime-500 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-800 hover:bg-lime-50 disabled:cursor-not-allowed disabled:opacity-50">Download Strategy Context JSON</button>
+            <button type="button" disabled={!focusedGoal} onClick={() => { setStrategyDeltaOpen(true); setStrategyDeltaError(""); setStrategyDeltaValidation(null); }} className="rounded-lg border border-lime-500 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-800 hover:bg-lime-50 disabled:cursor-not-allowed disabled:opacity-50">Update from AI</button>
           </div>
           {!focusedGoal && <p className="mt-2 text-xs text-neutral-500">Focus a Goal above to create its Strategy Context. ProveIt will not export the whole case from here.</p>}
           {strategyContextFeedback && <p className="mt-2 text-xs font-medium text-lime-900" role="status">{strategyContextFeedback}</p>}
         </div>
       </section>
+      {strategyDeltaOpen && <StrategyDeltaModal text={strategyDeltaText} error={strategyDeltaError} validation={strategyDeltaValidation} selectedIndexes={selectedDeltaIndexes} staleConfirmed={staleDeltaConfirmed} onChangeText={(value) => { setStrategyDeltaText(value); setStrategyDeltaError(""); setStrategyDeltaValidation(null); setSelectedDeltaIndexes([]); setStaleDeltaConfirmed(false); }} onValidate={validatePastedStrategyDelta} onToggleProposal={toggleDeltaProposal} onStaleConfirm={setStaleDeltaConfirmed} onApply={applySelectedStrategyDelta} onClose={resetStrategyDelta} />}
       <section className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
