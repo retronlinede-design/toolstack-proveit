@@ -3,7 +3,7 @@ import StringListEditor from "../StringListEditor.jsx";
 import RecordBadge from "../shared/RecordBadge.jsx";
 import { getIssueDisplayLabel } from "../../domain/issueDomain.js";
 import { GOAL_PRIORITIES, GOAL_STATUSES } from "../../domain/goalDomain.js";
-import { getVisibleGoals, prepareGoalDraft, saveGoalToCase, toggleGoalIssueId } from "./goalWorkspaceHelpers.js";
+import { confirmAndDeleteGoal, getVisibleGoals, prepareGoalDraft, saveGoalToCase, toggleGoalIssueId } from "./goalWorkspaceHelpers.js";
 
 const label = (value) => value.charAt(0).toUpperCase() + value.slice(1);
 const statusVariant = (status) => status === "achieved" ? "status-positive" : status === "active" ? "status-warning" : "status-neutral";
@@ -37,6 +37,16 @@ export default function GoalWorkspace({ caseItem, onUpdateCase, focusedGoalId = 
     const result = saveGoalToCase(caseItem, draft, editingGoalId || "");
     if (await onUpdateCase(result.caseData)) {
       focusGoal(result.goal.id);
+      setDraft(null);
+      setEditingGoalId(null);
+    }
+  };
+  const remove = async () => {
+    if (!editingGoalId) return;
+    const result = confirmAndDeleteGoal(caseItem, editingGoalId, () => window.confirm("Delete this Goal permanently? Linked Strategies will remain, but this Goal link will be removed."));
+    if (!result.deleted) return;
+    if (await onUpdateCase(result.caseData)) {
+      if (activeFocusedGoalId === editingGoalId) focusGoal("");
       setDraft(null);
       setEditingGoalId(null);
     }
@@ -83,7 +93,7 @@ export default function GoalWorkspace({ caseItem, onUpdateCase, focusedGoalId = 
               {issues.length === 0 && <p className="p-2 text-xs italic text-neutral-500">No Issues are available to link.</p>}
             </div>
           </div>
-          <button type="button" disabled={!draft.title.trim()} onClick={save} className="rounded-xl bg-lime-600 px-4 py-2 text-sm font-bold text-white hover:bg-lime-700 disabled:cursor-not-allowed disabled:opacity-50">Save Goal</button>
+          <div className="flex flex-wrap justify-between gap-2"><button type="button" disabled={!draft.title.trim()} onClick={save} className="rounded-xl bg-lime-600 px-4 py-2 text-sm font-bold text-white hover:bg-lime-700 disabled:cursor-not-allowed disabled:opacity-50">Save Goal</button>{editingGoalId && <button type="button" onClick={remove} className="rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50">Delete Goal</button>}</div>
         </div>
       )}
 

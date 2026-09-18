@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getVisibleGoals, prepareGoalDraft, saveGoalToCase, toggleGoalIssueId } from "./goalWorkspaceHelpers.js";
+import { confirmAndDeleteGoal, deleteGoalFromCase, getVisibleGoals, prepareGoalDraft, saveGoalToCase, toggleGoalIssueId } from "./goalWorkspaceHelpers.js";
 
 const time = "2026-09-18T12:00:00.000Z";
 const existingGoal = {
@@ -40,4 +40,22 @@ test("Goal workspace: editing preserves canonical fields while persisting status
 test("Goal workspace: Issue selection stores canonical IDs only", () => {
   assert.deepEqual(toggleGoalIssueId(["issue-1"], "issue-2", true), ["issue-1", "issue-2"]);
   assert.deepEqual(toggleGoalIssueId(["issue-1", "issue-2"], "issue-1", false), ["issue-2"]);
+});
+
+test("Goal workspace: deleting a Goal removes only its Strategy links and preserves unrelated case data", () => {
+  const caseItem = {
+    id: "case", name: "Case", goals: [existingGoal, { ...existingGoal, id: "goal-2" }], evidence: [{ id: "evidence-1" }],
+    strategy: [{ id: "strategy-only", goalIds: ["goal-1"], title: "Only" }, { id: "strategy-many", goalIds: ["goal-2", "goal-1"], title: "Many" }, { id: "strategy-unlinked", title: "Unlinked" }],
+  };
+  const result = deleteGoalFromCase(caseItem, "goal-1", time);
+  assert.equal(result.deleted, true); assert.deepEqual(result.caseData.goals.map((goal) => goal.id), ["goal-2"]);
+  assert.deepEqual(result.caseData.strategy.map((strategy) => strategy.goalIds), [[], ["goal-2"], undefined]);
+  assert.deepEqual(result.caseData.strategy.map((strategy) => strategy.id), ["strategy-only", "strategy-many", "strategy-unlinked"]);
+  assert.deepEqual(result.caseData.evidence, caseItem.evidence);
+});
+
+test("Goal workspace: cancellation and legacy cases without Goals leave the case unchanged", () => {
+  const legacy = { id: "legacy", strategy: [{ id: "strategy" }], evidence: [{ id: "evidence" }] };
+  assert.equal(confirmAndDeleteGoal(legacy, "goal-1", () => false).caseData, legacy);
+  assert.equal(deleteGoalFromCase(legacy, "goal-1").caseData, legacy);
 });

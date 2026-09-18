@@ -28,6 +28,29 @@ export function saveGoalToCase(caseItem, draft, goalId = "", now = new Date().to
   return { caseData: { ...caseItem, goals: nextGoals, updatedAt: now }, goal: savedGoal };
 }
 
+export function deleteGoalFromCase(caseItem, goalId, now = new Date().toISOString()) {
+  const goals = Array.isArray(caseItem?.goals) ? caseItem.goals : null;
+  if (!goals?.some((goal) => goal.id === goalId)) return { caseData: caseItem, deleted: false };
+  return {
+    caseData: {
+      ...caseItem,
+      goals: goals.filter((goal) => goal.id !== goalId),
+      strategy: Array.isArray(caseItem?.strategy)
+        ? caseItem.strategy.map((strategy) => Array.isArray(strategy?.goalIds) && strategy.goalIds.includes(goalId)
+          ? { ...strategy, goalIds: strategy.goalIds.filter((id) => id !== goalId) }
+          : strategy)
+        : caseItem?.strategy,
+      updatedAt: now,
+    },
+    deleted: true,
+  };
+}
+
+export function confirmAndDeleteGoal(caseItem, goalId, confirm, now = new Date().toISOString()) {
+  if (!confirm()) return { caseData: caseItem, deleted: false };
+  return deleteGoalFromCase(caseItem, goalId, now);
+}
+
 export function toggleGoalIssueId(issueIds, issueId, checked) {
   const current = Array.isArray(issueIds) ? issueIds : [];
   return checked

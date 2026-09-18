@@ -20,7 +20,7 @@ const editorUrl = toDataUrl(`import { jsx } from "${runtimeUrl}"; export default
 const badgeUrl = toDataUrl(`import { jsx } from "${runtimeUrl}"; export default function Badge({ children }) { return jsx("span", { children }); }`);
 const issueDomainUrl = toDataUrl('export const getIssueDisplayLabel = (issue) => `${issue.reference} — ${issue.name}`;');
 const goalDomainUrl = toDataUrl('export const GOAL_PRIORITIES = ["low", "medium", "high", "critical"]; export const GOAL_STATUSES = ["active", "achieved", "abandoned", "archived"];');
-const helpersUrl = toDataUrl('export const getVisibleGoals = (goals, view) => view === "all" ? goals : goals.filter((goal) => goal.status === "active"); export const prepareGoalDraft = () => ({}); export const saveGoalToCase = () => ({}); export const toggleGoalIssueId = () => [];');
+const helpersUrl = toDataUrl('export const confirmAndDeleteGoal = () => ({ deleted: false }); export const getVisibleGoals = (goals, view) => view === "all" ? goals : goals.filter((goal) => goal.status === "active"); export const prepareGoalDraft = () => ({}); export const saveGoalToCase = () => ({}); export const toggleGoalIssueId = () => [];');
 const workspaceUrl = await transformModule(new URL("./GoalWorkspace.jsx", import.meta.url), [
   ['from "../StringListEditor.jsx"', `from "${editorUrl}"`],
   ['from "../shared/RecordBadge.jsx"', `from "${badgeUrl}"`],
