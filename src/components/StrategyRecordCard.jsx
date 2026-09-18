@@ -91,6 +91,7 @@ export default function StrategyRecordCard({
   onPreviewFile,
   openEditRecordModal,
   onConvertRecord,
+  onArchiveStrategy,
   deleteRecord,
   openLinkedRecord,
 }) {
@@ -127,6 +128,7 @@ export default function StrategyRecordCard({
   const hasObjective = hasText(item?.objective);
   const hasDesiredOutcome = hasText(item?.desiredOutcome);
   const hasRationale = hasText(item?.rationale);
+  const canArchive = item?.status === "open";
 
   return (
     <RecordCardShell
@@ -154,6 +156,7 @@ export default function StrategyRecordCard({
             actions={[
               { key: "open", label: "Open", variant: "primary", onClick: () => openEditRecordModal("strategy", item) },
               { key: "convert", label: "Convert", variant: "secondary", onClick: () => onConvertRecord?.("strategy", item) },
+              { key: "archive", label: "Archive", variant: "secondary", hidden: !canArchive, onClick: () => onArchiveStrategy?.(item.id) },
               { key: "delete", label: "Delete", variant: "danger", onClick: () => deleteRecord("strategy", item.id) },
             ]}
           />}

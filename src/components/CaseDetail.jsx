@@ -116,6 +116,7 @@ import StrategyWorkspace from "./caseDetail/StrategyWorkspace";
 import WatchWorkspace, { WatchEditor } from "./caseDetail/WatchWorkspace";
 import { AI_TASK_GUIDANCE, AI_TOOL_OPTIONS, AI_WORKSPACE_SECTIONS } from "./caseDetail/aiToolsConfig.js";
 import { sortChronological } from "./caseDetail/ledgerViewHelpers";
+import { confirmAndArchiveOpenStrategy } from "./caseDetail/strategyWorkspaceHelpers.js";
 import {
   compareRecordsNewestFirst,
   compareRecordsOldestFirst,
@@ -1895,6 +1896,14 @@ ${strategyFocus.join("\n") || "—"}`;
       onViewRecord={onViewRecord}
       openEditRecordModal={openEditRecordModal}
       onConvertRecord={openRecordConversion}
+      onArchiveStrategy={async (strategyId) => {
+        const result = confirmAndArchiveOpenStrategy(
+          selectedCase,
+          strategyId,
+          () => window.confirm("Archive this Strategy? It will remain in the case, but will no longer be treated as active/open work.")
+        );
+        if (result.archived) await onUpdateCase(result.caseData);
+      }}
       deleteRecord={deleteRecord}
       openLinkedRecord={openLinkedRecord}
       openRecordModal={openRecordModal}

@@ -10,6 +10,7 @@ export default function RecordCard({
   onPreviewFile,
   openEditRecordModal,
   onConvertRecord,
+  onArchiveStrategy,
   deleteRecord,
   openLinkedRecord,
   showTypeBadge = false,
@@ -17,7 +18,7 @@ export default function RecordCard({
   isMilestone = false,
   isActionItem = false,
 }) {
-  const sharedProps = { item, selectedCase, imageCache, onPreviewFile, openEditRecordModal, onConvertRecord, deleteRecord, openLinkedRecord };
+  const sharedProps = { item, selectedCase, imageCache, onPreviewFile, openEditRecordModal, onConvertRecord, onArchiveStrategy, deleteRecord, openLinkedRecord };
 
   if (recordType === "strategy") return <StrategyRecordCard {...sharedProps} />;
   if (recordType === "incidents") return <IncidentRecordCard {...sharedProps} showTypeBadge={showTypeBadge} isTimeline={isTimeline} isMilestone={isMilestone} isActionItem={isActionItem} />;

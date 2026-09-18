@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  archiveOpenStrategyInCase,
+  confirmAndArchiveOpenStrategy,
   filterStrategies,
   getStrategySummary,
   getStrategyReviewState,
@@ -29,6 +31,29 @@ test("strategy filters combine status and text search", () => {
   assert.deepEqual(filterStrategies(strategies, "inspection", "active").map((item) => item.id), ["unlinked"]);
   assert.deepEqual(filterStrategies(strategies, "", "archived").map((item) => item.id), ["archived"]);
   assert.deepEqual(filterStrategies(strategies, "", "unlinked").map((item) => item.id), ["archived", "unlinked"]);
+});
+
+test("archiving an open Strategy changes only its status and leaves it discoverable as archived", () => {
+  const source = {
+    id: "case-1", evidence: [{ id: "ev-1", title: "Unrelated evidence" }],
+    strategy: [
+      { id: "str-open", title: "Open strategy", status: "open", goalIds: ["goal-1"], sequenceGroupId: "issue-1", linkedRecordIds: ["inc-1"], objective: "Objective", rationale: "Reason", desiredOutcome: "Outcome", assumptions: ["Assumption"], risks: ["Risk"], nextSteps: ["Next step"], reviewDate: "2026-10-01", attachments: [{ id: "attachment-1" }] },
+      { id: "str-other", title: "Other strategy", status: "open", goalIds: ["goal-2"] },
+    ],
+  };
+  const updated = archiveOpenStrategyInCase(source, "str-open");
+  assert.equal(updated.strategy[0].status, "archived");
+  assert.deepEqual({ ...updated.strategy[0], status: "open" }, source.strategy[0]);
+  assert.equal(updated.strategy[1], source.strategy[1]);
+  assert.equal(updated.evidence, source.evidence);
+  assert.deepEqual(filterStrategies(updated.strategy, "", "archived").map((item) => item.id), ["str-open"]);
+});
+
+test("archive cancellation and non-open or legacy Strategies leave the case unchanged", () => {
+  const source = { id: "case-1", strategy: [{ id: "str-open", status: "open" }, { id: "str-archived", status: "archived" }] };
+  assert.equal(confirmAndArchiveOpenStrategy(source, "str-open", () => false).caseData, source);
+  assert.equal(confirmAndArchiveOpenStrategy(source, "str-archived", () => { throw new Error("should not confirm"); }).caseData, source);
+  assert.equal(archiveOpenStrategyInCase({ id: "legacy" }, "str-open").id, "legacy");
 });
 
 test("strategy sorts do not mutate input and keep invalid dates at the bottom", () => {

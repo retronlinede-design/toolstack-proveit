@@ -72,6 +72,21 @@ export function resolveStrategyOwner(strategy, parties = []) {
     : { id: ownerPartyId, name: "Unknown owner", missing: true };
 }
 
+export function archiveOpenStrategyInCase(caseItem, strategyId) {
+  const strategies = Array.isArray(caseItem?.strategy) ? caseItem.strategy : [];
+  if (!strategies.some((strategy) => strategy?.id === strategyId && strategy.status === "open")) return caseItem;
+  return {
+    ...caseItem,
+    strategy: strategies.map((strategy) => strategy.id === strategyId ? { ...strategy, status: "archived" } : strategy),
+  };
+}
+
+export function confirmAndArchiveOpenStrategy(caseItem, strategyId, confirm) {
+  const strategy = Array.isArray(caseItem?.strategy) ? caseItem.strategy.find((item) => item?.id === strategyId) : null;
+  if (!strategy || strategy.status !== "open" || !confirm()) return { caseData: caseItem, archived: false };
+  return { caseData: archiveOpenStrategyInCase(caseItem, strategyId), archived: true };
+}
+
 export function getStrategySummary(strategies = [], now = Date.now()) {
   const today = getLocalCalendarDate(now);
   return strategies.reduce((summary, strategy) => {
