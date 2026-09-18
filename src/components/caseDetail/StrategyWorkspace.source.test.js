@@ -20,4 +20,11 @@ test("strategy workspace exposes structured filters, sorts, summary metrics, and
   assert.match(source, /Current Strategy/);
   assert.match(source, /All Strategy Records/);
   assert.match(source, /getStrategiesForGoal/);
+  assert.match(source, /Work with AI/);
+  assert.match(source, /Copy Strategy Context/);
+  assert.match(source, /Download Strategy Context JSON/);
+  assert.match(source, /buildStrategyContextPayload/);
+  assert.match(source, /serializeStrategyContext/);
+  assert.match(source, /copyStrategyContext[\s\S]*buildFocusedStrategyContext/);
+  assert.match(source, /downloadStrategyContext[\s\S]*buildFocusedStrategyContext/);
 });

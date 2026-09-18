@@ -9,6 +9,8 @@ import {
 } from "./strategyWorkspaceHelpers.js";
 import GoalWorkspace from "./GoalWorkspace.jsx";
 import { getStrategiesForGoal } from "./strategyGoalHelpers.js";
+import { downloadJson } from "../../browser/downloadJson.js";
+import { buildStrategyContextPayload, getStrategyContextFilename, serializeStrategyContext } from "../../export/strategyContextExport.js";
 
 export default function StrategyWorkspace({ caseItem, strategies = [], onAddStrategy, onUpdateCase, renderStrategyCard }) {
   const [search, setSearch] = useState("");
@@ -18,6 +20,7 @@ export default function StrategyWorkspace({ caseItem, strategies = [], onAddStra
   const [reviewStateFilter, setReviewStateFilter] = useState("all");
   const [sortMode, setSortMode] = useState("newest");
   const [focusedGoalId, setFocusedGoalId] = useState("");
+  const [strategyContextFeedback, setStrategyContextFeedback] = useState("");
   const goals = Array.isArray(caseItem?.goals) ? caseItem.goals : [];
   const focusedGoal = goals.find((goal) => goal.id === focusedGoalId) || null;
   const focusedStrategies = useMemo(() => getStrategiesForGoal(strategies, focusedGoalId), [focusedGoalId, strategies]);
@@ -53,6 +56,19 @@ export default function StrategyWorkspace({ caseItem, strategies = [], onAddStra
     setPriorityFilter("all");
     setReviewStateFilter("all");
   };
+  const buildFocusedStrategyContext = () => focusedGoal ? buildStrategyContextPayload(caseItem, focusedGoal.id) : null;
+  const copyStrategyContext = async () => {
+    const payload = buildFocusedStrategyContext();
+    if (!payload) return;
+    try { await navigator.clipboard.writeText(serializeStrategyContext(payload)); setStrategyContextFeedback("Strategy Context JSON copied."); }
+    catch (error) { console.error("Could not copy Strategy Context JSON", error); setStrategyContextFeedback("Could not copy Strategy Context JSON."); }
+  };
+  const downloadStrategyContext = () => {
+    const payload = buildFocusedStrategyContext();
+    if (!payload) return;
+    downloadJson(payload, getStrategyContextFilename(caseItem, focusedGoal), { space: 2 });
+    setStrategyContextFeedback("Strategy Context JSON downloaded.");
+  };
 
   return (
     <div className="space-y-6">
@@ -63,6 +79,16 @@ export default function StrategyWorkspace({ caseItem, strategies = [], onAddStra
           {focusedGoal && <span className="rounded-full border border-lime-300 bg-white px-3 py-1 text-xs font-semibold text-lime-900">{focusedStrategies.length} linked</span>}
         </div>
         {focusedGoal && (focusedStrategies.length > 0 ? <div className="mt-4 space-y-4">{focusedStrategies.map((strategy) => <div key={strategy.id}>{renderStrategyCard(strategy)}</div>)}</div> : <div className="mt-4 rounded-xl border border-dashed border-lime-300 bg-white/70 p-4 text-sm text-neutral-700">No Strategies are linked to this Goal yet. Open a Strategy record to link it to this Goal.</div>)}
+        <div className="mt-4 rounded-xl border border-lime-200 bg-white/80 p-3">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-lime-800">Work with AI</div>
+          <p className="mt-1 text-xs text-neutral-600">Create a focused, read-only Strategy Context package for external strategic analysis.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" disabled={!focusedGoal} onClick={copyStrategyContext} className="rounded-lg border border-lime-500 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-800 hover:bg-lime-50 disabled:cursor-not-allowed disabled:opacity-50">Copy Strategy Context</button>
+            <button type="button" disabled={!focusedGoal} onClick={downloadStrategyContext} className="rounded-lg border border-lime-500 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-800 hover:bg-lime-50 disabled:cursor-not-allowed disabled:opacity-50">Download Strategy Context JSON</button>
+          </div>
+          {!focusedGoal && <p className="mt-2 text-xs text-neutral-500">Focus a Goal above to create its Strategy Context. ProveIt will not export the whole case from here.</p>}
+          {strategyContextFeedback && <p className="mt-2 text-xs font-medium text-lime-900" role="status">{strategyContextFeedback}</p>}
+        </div>
       </section>
       <section className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
