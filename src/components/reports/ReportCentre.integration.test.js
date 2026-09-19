@@ -63,10 +63,12 @@ function renderPreview(reportType, scopeType, scopeLabel) {
   }));
 }
 
-test("active Reports Centre groups every report selector by publishing purpose", () => {
+test("active Reports Centre groups every report selector into the three primary report purposes", () => {
   const html = renderControls();
   for (const definition of REPORT_CENTRE_TYPES) assert.match(html, new RegExp(definition.label));
-  for (const heading of ["Primary Reports", "Reference Reports", "Case Quality", "Case Management", "Advanced"]) assert.match(html, new RegExp(heading));
+  for (const heading of ["Case Reports", "Schedules &amp; Evidence", "Audit &amp; Actions", "Advanced &amp; Legacy"]) assert.match(html, new RegExp(heading));
+  assert.match(html, /Issue Audit/);
+  assert.doesNotMatch(html, /Unavailable Reports/);
   assert.match(html, /Configure selected report/);
   assert.match(html, /Audience/);
   assert.match(html, /Completeness/);
@@ -185,9 +187,9 @@ test("Document and Ledger packs share one factual model and retain their existin
   assert.match(caseDetailSource, /<LedgerPackReportArticle/);
 });
 
-test("Internal Report and Lawyer Pack cannot be selected as working destinations", () => {
-  assert.match(caseDetailSource, /Internal Report — Unavailable/);
-  assert.match(caseDetailSource, /id: "lawyer", label: "Lawyer Pack — Unavailable", available: false/);
-  assert.match(caseDetailSource, /disabled={!mode\.available}/);
-  assert.match(caseDetailSource, /This future destination is not selectable/);
+test("disabled placeholder reports do not appear in the Reports Centre or Print Pack navigation", () => {
+  const html = renderControls();
+  assert.doesNotMatch(html, /Unavailable Reports/);
+  assert.doesNotMatch(caseDetailSource, /Internal Report — Unavailable/);
+  assert.doesNotMatch(caseDetailSource, /id: "lawyer", label: "Lawyer Pack — Unavailable", available: false/);
 });

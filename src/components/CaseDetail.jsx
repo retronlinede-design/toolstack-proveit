@@ -324,7 +324,6 @@ export default function CaseDetail({
     strategyActions: true,
     diagnosticsSummary: true,
   });
-  const [internalReportGeneratorOpen, setInternalReportGeneratorOpen] = useState(false);
   const [caseStructureReportText, setCaseStructureReportText] = useState("");
   const [caseStructureReportFeedback, setCaseStructureReportFeedback] = useState("");
   const [sequenceGroupManagerOpen, setSequenceGroupManagerOpen] = useState(false);
@@ -604,7 +603,6 @@ export default function CaseDetail({
     if (activeTab !== "generate-report") return;
     const timeout = window.setTimeout(() => {
       setClientReportGeneratorOpen(false);
-      setInternalReportGeneratorOpen(false);
       setCaseStructureReportOpen(false);
       setThreadIssueReportOpen(false);
       setEvidencePackReportOpen(false);
@@ -5247,7 +5245,7 @@ ${ungroupedSequenceText}
 
                 <details id="advanced-reports" className="scroll-mt-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden dark:border-neutral-700 dark:bg-neutral-900">
                   <summary className="cursor-pointer text-sm font-bold uppercase tracking-wider text-neutral-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 dark:text-neutral-400">
-                    Advanced &amp; Legacy Reports
+                    Advanced &amp; Legacy
                   </summary>
                   <div className="mt-5 space-y-5">
 
@@ -5365,13 +5363,13 @@ ${ungroupedSequenceText}
                             className="mt-2 w-full min-w-44 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
                           >
                             <option value="case">Whole case</option>
-                            <option value="sequenceGroup">sequenceGroup</option>
+                            <option value="sequenceGroup">Issue</option>
                           </select>
                         </div>
                         {caseBundleScopeType === "sequenceGroup" && (
                           <div>
                             <label className="text-xs font-bold uppercase tracking-wider text-neutral-500" htmlFor="case-bundle-sequence-group">
-                              sequenceGroup
+                              Issue
                             </label>
                             {threadIssueReportSequenceOptions.length > 0 ? (
                               <select
@@ -5453,7 +5451,7 @@ ${ungroupedSequenceText}
                       <div className="flex flex-col gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4 print:hidden sm:flex-row sm:items-end sm:justify-between">
                         <div className="min-w-0">
                           <label className="text-xs font-bold uppercase tracking-wider text-neutral-500" htmlFor="thread-issue-report-sequence-group">
-                            sequenceGroup
+                            Issue
                           </label>
                           {threadIssueReportSequenceOptions.length > 0 ? (
                             <select
@@ -5507,7 +5505,7 @@ ${ungroupedSequenceText}
                         />
                       ) : (
                         <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-                          Select a case and sequenceGroup to preview the thread report.
+                          Select a case and Issue to preview the thread report.
                         </div>
                       )}
                     </div>
@@ -5544,13 +5542,13 @@ ${ungroupedSequenceText}
                             className="mt-2 w-full min-w-44 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
                           >
                             <option value="case">Whole case</option>
-                            <option value="sequenceGroup">sequenceGroup</option>
+                            <option value="sequenceGroup">Issue</option>
                           </select>
                         </div>
                         {ledgerPackScopeType === "sequenceGroup" && (
                           <div>
                             <label className="text-xs font-bold uppercase tracking-wider text-neutral-500" htmlFor="ledger-pack-sequence-group">
-                              sequenceGroup
+                              Issue
                             </label>
                             {threadIssueReportSequenceOptions.length > 0 ? (
                               <select
@@ -5621,13 +5619,13 @@ ${ungroupedSequenceText}
                             className="mt-2 w-full min-w-44 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
                           >
                             <option value="case">Whole case</option>
-                            <option value="sequenceGroup">sequenceGroup</option>
+                            <option value="sequenceGroup">Issue</option>
                           </select>
                         </div>
                         {documentPackScopeType === "sequenceGroup" && (
                           <div>
                             <label className="text-xs font-bold uppercase tracking-wider text-neutral-500" htmlFor="document-pack-sequence-group">
-                              sequenceGroup
+                              Issue
                             </label>
                             {threadIssueReportSequenceOptions.length > 0 ? (
                               <select
@@ -5698,13 +5696,13 @@ ${ungroupedSequenceText}
                             className="mt-2 w-full min-w-44 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
                           >
                             <option value="case">Whole case</option>
-                            <option value="sequenceGroup">sequenceGroup</option>
+                            <option value="sequenceGroup">Issue</option>
                           </select>
                         </div>
                         {evidencePackScopeType === "sequenceGroup" && (
                           <div>
                             <label className="text-xs font-bold uppercase tracking-wider text-neutral-500" htmlFor="evidence-pack-sequence-group">
-                              sequenceGroup
+                              Issue
                             </label>
                             {threadIssueReportSequenceOptions.length > 0 ? (
                               <select
@@ -5933,31 +5931,6 @@ ${ungroupedSequenceText}
                   )}
                 </section>
 
-                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden">
-                  <button
-                    type="button"
-                    disabled
-                    aria-disabled="true"
-                    className="flex cursor-not-allowed items-center gap-2 text-left opacity-70"
-                  >
-                    {internalReportGeneratorOpen ? (
-                      <ChevronDown className="h-4 w-4 text-neutral-400" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 text-neutral-400" />
-                    )}
-                    <span className="text-sm font-bold uppercase tracking-wider text-neutral-500">
-                      Internal Report — Unavailable
-                    </span>
-                  </button>
-                  <p className="mt-2 text-sm text-neutral-500">
-                    This future destination is not selectable. The existing Internal View remains available in Print Pack.
-                  </p>
-                  {internalReportGeneratorOpen && (
-                    <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600">
-                      Internal report output is available in the Print Pack internal view.
-                    </div>
-                  )}
-                </section>
                   </div>
                 </details>
               </div>
@@ -6588,7 +6561,6 @@ ${ungroupedSequenceText}
                     {[
                       { id: "internal", label: "Internal View", available: true },
                       { id: "client", label: "Client Report", available: true },
-                      { id: "lawyer", label: "Lawyer Pack — Unavailable", available: false },
                     ].map((mode) => (
                       <button
                         key={mode.id}
