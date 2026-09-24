@@ -4,36 +4,31 @@ import { readFileSync } from "node:fs";
 
 const source = readFileSync("src/components/caseDetail/RecordsTab.jsx", "utf8");
 
-test("Records tab tracking record cards use per-record expandable table previews", () => {
-  assert.match(source, /const TRACKING_RECORD_PREVIEW_ROW_COUNT = 5/);
-  assert.match(source, /const \[expandedRecordIds, setExpandedRecordIds\] = useState\(\{\}\)/);
-  assert.match(source, /function toggleRecordExpansion\(recordId\)/);
-  assert.match(source, /\[recordId\]: !prev\[recordId\]/);
-  assert.match(source, /const isExpanded = Boolean\(expandedRecordIds\[record\.id\]\)/);
-  assert.match(source, /const hasHiddenRows = tableRows\.length > TRACKING_RECORD_PREVIEW_ROW_COUNT/);
-  assert.match(source, /const visibleRows = hasHiddenRows && !isExpanded/);
-  assert.match(source, /tableRows\.slice\(0, TRACKING_RECORD_PREVIEW_ROW_COUNT\)/);
+test("Records tab renders a compact selectable record list and one selected-record workspace", () => {
+  assert.match(source, /lg:grid-cols-\[minmax\(15rem,0\.8fr\)_minmax\(0,2fr\)\]/);
+  assert.match(source, /Tracking Records/);
+  assert.match(source, /aria-pressed=\{isSelected\}/);
+  assert.match(source, /setRequestedSelectedRecordId\(record\.id\)/);
+  assert.match(source, /resolveSelectedTrackingRecordId\(trackingRecords, requestedSelectedRecordId\)/);
+  assert.match(source, /<RecordTable record=\{selectedRecord\} \/>/);
+  assert.doesNotMatch(source, /TRACKING_RECORD_PREVIEW_ROW_COUNT/);
+  assert.doesNotMatch(source, /Show more/);
 });
 
-test("Records tab shows expand control only for records with hidden rows", () => {
-  assert.match(source, /\{hasHiddenRows && \(/);
-  assert.match(source, /onClick=\{\(\) => toggleRecordExpansion\(record\.id\)\}/);
-  assert.match(source, /aria-expanded=\{isExpanded\}/);
-  assert.match(source, /\{isExpanded \? "Show less" : "Show more"\}/);
-  assert.match(source, /Showing all \$\{tableRows\.length\} rows/);
-  assert.match(source, /\$\{hiddenRowCount\} more row/);
-});
-
-test("Records tab keeps long row text readable inside table cells", () => {
-  assert.match(source, /className=\{`break-words \$\{isDifference/);
-  assert.match(source, /overflow-x-auto rounded-xl border/);
-});
-
-test("Records tab exposes GPT copy utilities for individual and all tracking records", () => {
-  assert.match(source, /buildTrackingRecordGptExport/);
-  assert.match(source, /buildAllTrackingRecordsGptExport/);
-  assert.match(source, /function handleCopyRecordGptData/);
-  assert.match(source, /function handleCopyAllRecordsGptData/);
+test("Records tab keeps selected-record actions and GPT exports wired to existing callbacks", () => {
+  assert.match(source, /onClick=\{\(\) => onOpenRecord\(selectedRecord\)\}/);
+  assert.match(source, /onClick=\{\(\) => onConvertRecord\?\.\(selectedRecord\)\}/);
+  assert.match(source, /onClick=\{\(\) => onDeleteRecord\(selectedRecord\)\}/);
+  assert.match(source, /onClick=\{\(\) => onViewPayments\(selectedRecord\)\}/);
+  assert.match(source, /handleCopyRecordGptData\(selectedRecord/);
+  assert.match(source, /handleCopyAllRecordsGptData/);
   assert.match(source, /Copy Record GPT JSON/);
   assert.match(source, /Copy All Records GPT JSON/);
+});
+
+test("Records tab has a clear empty state and preserves the add-record action", () => {
+  assert.match(source, /trackingRecords\.length === 0/);
+  assert.match(source, /No Case Records yet/);
+  assert.match(source, /onClick=\{onAddRecord\}/);
+  assert.match(source, /No rows yet\. Open this record to add its table data\./);
 });

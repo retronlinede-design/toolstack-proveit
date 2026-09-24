@@ -14,8 +14,7 @@ import {
   buildAllTrackingRecordsGptExport,
   buildTrackingRecordGptExport,
 } from "./recordsGptExport";
-
-const TRACKING_RECORD_PREVIEW_ROW_COUNT = 5;
+import { resolveSelectedTrackingRecordId } from "./recordsWorkspaceHelpers";
 
 function renderCompactLinkRow(label, items, renderChip) {
   if (!items || items.length === 0) return null;
@@ -27,15 +26,11 @@ function renderCompactLinkRow(label, items, renderChip) {
   if (renderedChips.length === 0 && missingCount === 0) return null;
 
   return (
-    <div className="mt-1 flex items-start gap-2">
-      <div className="w-24 shrink-0 pt-0.5 text-[11px] text-neutral-500">{label}</div>
+    <div className="mt-3 flex items-start gap-2 border-t border-neutral-100 pt-3">
+      <div className="w-28 shrink-0 pt-0.5 text-[11px] text-neutral-500">{label}</div>
       <div className="flex flex-wrap gap-1">
         {visibleChips}
-        {remainingCount > 0 && (
-          <span className={getLinkChipClasses("neutral")}>
-            +{remainingCount}
-          </span>
-        )}
+        {remainingCount > 0 && <span className={getLinkChipClasses("neutral")}>+{remainingCount}</span>}
         {missingCount > 0 && (
           <span className={getLinkChipClasses("neutral", "cursor-default opacity-70")}>
             {missingCount} missing link{missingCount === 1 ? "" : "s"}
@@ -46,15 +41,68 @@ function renderCompactLinkRow(label, items, renderChip) {
   );
 }
 
-function renderSequenceGroupChip(value) {
-  const sequenceGroup = typeof value === "string" ? value.trim() : "";
-  if (!sequenceGroup) return null;
+function renderIssueChip(value) {
+  const issueName = typeof value === "string" ? value.trim() : "";
+  if (!issueName) return null;
 
   return (
     <span className="inline-flex max-w-full items-center gap-1 rounded border border-neutral-200 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-600">
       <Tags className="h-3 w-3 shrink-0 text-neutral-400" aria-hidden="true" />
-      <span className="truncate">{sequenceGroup}</span>
+      <span className="truncate">{issueName}</span>
     </span>
+  );
+}
+
+function RecordTable({ record }) {
+  const tableRows = record.table || [];
+  const tableHeaders = getRecordTableHeaders(tableRows);
+
+  if (tableRows.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-500">
+        No rows yet. Open this record to add its table data.
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-neutral-200">
+      <table className="min-w-full border-collapse text-left text-xs">
+        <thead className="bg-neutral-50 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+          <tr>
+            {tableHeaders.map((header) => (
+              <th key={header} className="border-b border-neutral-200 px-3 py-2 whitespace-nowrap">
+                {formatRecordTableHeader(header)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-neutral-100 bg-white">
+          {tableRows.map((row, index) => (
+            <tr key={`${record.id}-row-${index}`} className="align-top">
+              {tableHeaders.map((header) => {
+                const value = row[header] ?? "";
+                const isStatus = header.toLowerCase() === "status";
+                const isDifference = header.toLowerCase() === "difference";
+                return (
+                  <td key={header} className="px-3 py-2 text-neutral-700">
+                    {isStatus && value ? (
+                      <span className={`inline-flex rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${getRecordStatusClasses(value)}`}>
+                        {value}
+                      </span>
+                    ) : (
+                      <span className={`break-words ${isDifference ? `font-semibold ${getDifferenceClasses(value)}` : ""}`}>
+                        {value || "—"}
+                      </span>
+                    )}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -71,15 +119,10 @@ export default function RecordsTab({
   getBasedOnEvidence,
   onOpenLinkedRecord,
 }) {
-  const [expandedRecordIds, setExpandedRecordIds] = useState({});
+  const [requestedSelectedRecordId, setRequestedSelectedRecordId] = useState("");
   const [gptCopyFeedback, setGptCopyFeedback] = useState("");
-
-  function toggleRecordExpansion(recordId) {
-    setExpandedRecordIds((prev) => ({
-      ...prev,
-      [recordId]: !prev[recordId],
-    }));
-  }
+  const selectedRecordId = resolveSelectedTrackingRecordId(trackingRecords, requestedSelectedRecordId);
+  const selectedRecord = trackingRecords.find((record) => record.id === selectedRecordId) || null;
 
   async function copyText(text) {
     if (navigator?.clipboard?.writeText) {
@@ -117,235 +160,119 @@ export default function RecordsTab({
     setGptCopyFeedback(`Copied ${trackingRecords.length} tracking record${trackingRecords.length === 1 ? "" : "s"} for GPT.`);
   }
 
+  const selectedTableRows = selectedRecord?.table || [];
+  const selectedUsedByIncidents = selectedRecord ? getUsedByIncidents(selectedRecord.id) : [];
+  const selectedBasedOnEvidence = selectedRecord ? getBasedOnEvidence(selectedRecord) : [];
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold">Records</h3>
-          <p className="mt-1 text-sm text-neutral-500">
-            Table-based tracking records live here. Source documents stay in Documents.
-          </p>
+          <p className="mt-1 text-sm text-neutral-500">Select a record · review its table and links. Source documents stay in Documents.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            onClick={handleCopyAllRecordsGptData}
-            disabled={trackingRecords.length === 0}
-            className="rounded-lg border border-blue-300 bg-white px-3 py-1 text-sm font-bold text-blue-800 shadow-sm transition-all hover:bg-blue-50 active:scale-95 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:hover:bg-white"
-          >
+          <button onClick={handleCopyAllRecordsGptData} disabled={trackingRecords.length === 0} className="rounded-lg border border-blue-300 bg-white px-3 py-1 text-sm font-bold text-blue-800 shadow-sm transition-all hover:bg-blue-50 active:scale-95 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:hover:bg-white">
             Copy All Records GPT JSON
           </button>
-          <button
-            onClick={onAddRecord}
-            className="rounded-lg border border-blue-400 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md hover:bg-blue-50 transition-all active:scale-95"
-          >
+          <button onClick={onAddRecord} className="rounded-lg border border-blue-400 bg-white px-3 py-1 text-sm font-bold text-neutral-900 shadow-md transition-all hover:bg-blue-50 active:scale-95">
             Add Record
           </button>
         </div>
       </div>
 
-      {gptCopyFeedback && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800">
-          {gptCopyFeedback}
-        </div>
-      )}
+      {gptCopyFeedback && <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800">{gptCopyFeedback}</div>}
 
-      <section className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
-        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-blue-900">Tracking Records</h3>
-            <p className="mt-1 text-xs text-blue-800">
-              Structured tables parsed from tracking-record text. Generated payment previews are temporary and do not update the Ledger yet.
-            </p>
-          </div>
-          <span className="shrink-0 rounded-lg border border-blue-200 bg-white px-2 py-1 text-xs font-semibold text-blue-700">
-            {trackingRecords.length} tracking record{trackingRecords.length === 1 ? "" : "s"} · {generatedLedgerEntries.length} generated payment preview{generatedLedgerEntries.length === 1 ? "" : "s"}
-          </span>
-        </div>
-
-        {trackingRecords.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-blue-200 bg-white/70 p-5 text-sm text-blue-800">
-            No tracking records yet.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {trackingRecords.map((record) => {
-              const tableRows = record.table || [];
-              const tableHeaders = getRecordTableHeaders(tableRows);
-              const isExpanded = Boolean(expandedRecordIds[record.id]);
-              const hasHiddenRows = tableRows.length > TRACKING_RECORD_PREVIEW_ROW_COUNT;
-              const visibleRows = hasHiddenRows && !isExpanded
-                ? tableRows.slice(0, TRACKING_RECORD_PREVIEW_ROW_COUNT)
-                : tableRows;
-              const hiddenRowCount = Math.max(0, tableRows.length - TRACKING_RECORD_PREVIEW_ROW_COUNT);
-              const usedByIncidents = getUsedByIncidents(record.id);
-              const basedOnEvidence = getBasedOnEvidence(record);
-              const gptContext = { usedByIncidents, basedOnEvidence };
-
-              return (
-              <div key={record.id} className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-base font-semibold text-neutral-900">{record.title}</span>
-                      <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
-                        {getRecordTypeLabel(record.meta.type)}
-                      </span>
-                      {record.meta.status && (
-                        <span className={`rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${getRecordStatusClasses(record.meta.status)}`}>
-                          {record.meta.status}
-                        </span>
-                      )}
-                      {renderSequenceGroupChip(record.rawDocument?.sequenceGroup)}
+      {trackingRecords.length === 0 ? (
+        <section className="rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-6 text-center">
+          <h4 className="text-base font-semibold text-blue-950">No Case Records yet</h4>
+          <p className="mx-auto mt-2 max-w-md text-sm text-blue-800">Create a tracking record to keep a table of the facts you want to monitor.</p>
+          <button onClick={onAddRecord} className="mt-4 rounded-lg border border-blue-400 bg-white px-3 py-1.5 text-sm font-bold text-neutral-900 shadow-sm hover:bg-blue-50">Add Record</button>
+        </section>
+      ) : (
+        <section className="grid gap-5 lg:grid-cols-[minmax(15rem,0.8fr)_minmax(0,2fr)]">
+          <aside className="rounded-2xl border border-blue-200 bg-blue-50 p-3">
+            <div className="mb-2 flex items-center justify-between gap-2 px-1">
+              <h4 className="text-sm font-bold uppercase tracking-wider text-blue-900">Tracking Records</h4>
+              <span className="rounded-md border border-blue-200 bg-white px-2 py-0.5 text-[10px] font-bold text-blue-700">{trackingRecords.length}</span>
+            </div>
+            <div className="space-y-1">
+              {trackingRecords.map((record) => {
+                const isSelected = record.id === selectedRecordId;
+                return (
+                  <button
+                    key={record.id}
+                    type="button"
+                    onClick={() => setRequestedSelectedRecordId(record.id)}
+                    aria-pressed={isSelected}
+                    className={`w-full rounded-xl border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 ${isSelected ? "border-lime-500 bg-white shadow-sm" : "border-transparent hover:border-blue-200 hover:bg-white/70"}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="min-w-0 truncate text-sm font-semibold text-neutral-900">{record.title}</span>
+                      <span className="shrink-0 rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-blue-700">{getRecordTypeLabel(record.meta.type)}</span>
                     </div>
-
-                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-600">
-                      <span><span className="font-medium text-neutral-800">Purpose:</span> {record.meta.subject || "—"}</span>
-                      {record.meta.period && <span><span className="font-medium text-neutral-800">Period:</span> {record.meta.period}</span>}
-                      <span>{tableRows.length} row{tableRows.length === 1 ? "" : "s"}</span>
-                      {record.fileLinks.length > 0 && <span>{record.fileLinks.length} file link{record.fileLinks.length === 1 ? "" : "s"}</span>}
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-neutral-600">
+                      {record.meta.status && <span className={getRecordStatusClasses(record.meta.status)}>{record.meta.status}</span>}
+                      {record.meta.period && <span>{record.meta.period}</span>}
+                      {renderIssueChip(record.rawDocument?.sequenceGroup)}
                     </div>
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
+
+          {selectedRecord && (
+            <article className="min-w-0 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
+              <header className="flex flex-col gap-3 border-b border-neutral-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="text-lg font-semibold text-neutral-900">{selectedRecord.title}</h4>
+                    <span className="rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">{getRecordTypeLabel(selectedRecord.meta.type)}</span>
+                    {selectedRecord.meta.status && <span className={`rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${getRecordStatusClasses(selectedRecord.meta.status)}`}>{selectedRecord.meta.status}</span>}
+                    {renderIssueChip(selectedRecord.rawDocument?.sequenceGroup)}
                   </div>
-
-                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleCopyRecordGptData(record, gptContext)}
-                      className="rounded-lg border border-blue-300 bg-white px-2 py-0.5 text-[10px] font-bold text-blue-800 shadow-sm hover:bg-blue-50 transition-colors"
-                    >
-                      Copy Record GPT JSON
-                    </button>
-                    <button
-                      onClick={() => onViewPayments(record)}
-                      className="rounded-lg border border-blue-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-blue-50 transition-colors"
-                    >
-                      View Payments
-                    </button>
-                    <button
-                      onClick={() => onOpenRecord(record)}
-                      className="rounded-lg border border-lime-500 bg-white px-2 py-0.5 text-[10px] font-bold text-neutral-700 shadow-sm hover:bg-lime-50 transition-colors"
-                    >
-                      Open / Edit
-                    </button>
-                    <button
-                      onClick={() => onConvertRecord?.(record)}
-                      className="rounded-lg border border-blue-300 bg-white px-2 py-0.5 text-[10px] font-bold text-blue-700 shadow-sm hover:bg-blue-50 transition-colors"
-                    >
-                      Convert
-                    </button>
-                    <button
-                      onClick={() => onDeleteRecord(record)}
-                      className="rounded-lg border border-red-300 bg-white px-2 py-0.5 text-[10px] font-bold text-red-700 shadow-sm hover:bg-red-50 transition-colors"
-                    >
-                      Delete
-                    </button>
+                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-neutral-600">
+                    {selectedRecord.meta.period && <span><span className="font-medium text-neutral-800">Period:</span> {selectedRecord.meta.period}</span>}
+                    <span>{selectedTableRows.length} row{selectedTableRows.length === 1 ? "" : "s"}</span>
+                    {selectedRecord.fileLinks.length > 0 && <span>{selectedRecord.fileLinks.length} file link{selectedRecord.fileLinks.length === 1 ? "" : "s"}</span>}
                   </div>
                 </div>
+                <div className="flex flex-wrap gap-2 sm:justify-end">
+                  <button type="button" onClick={() => onOpenRecord(selectedRecord)} className="rounded-lg border border-lime-500 bg-white px-2.5 py-1 text-xs font-bold text-neutral-800 shadow-sm hover:bg-lime-50">Open / Edit</button>
+                  <button type="button" onClick={() => onConvertRecord?.(selectedRecord)} className="rounded-lg border border-blue-300 bg-white px-2.5 py-1 text-xs font-bold text-blue-700 shadow-sm hover:bg-blue-50">Convert</button>
+                  <button type="button" onClick={() => onDeleteRecord(selectedRecord)} className="rounded-lg border border-red-300 bg-white px-2.5 py-1 text-xs font-bold text-red-700 shadow-sm hover:bg-red-50">Delete</button>
+                  <button type="button" onClick={() => onViewPayments(selectedRecord)} className="rounded-lg border border-blue-500 bg-white px-2.5 py-1 text-xs font-bold text-neutral-700 shadow-sm hover:bg-blue-50">View Payments</button>
+                  <button type="button" onClick={() => handleCopyRecordGptData(selectedRecord, { usedByIncidents: selectedUsedByIncidents, basedOnEvidence: selectedBasedOnEvidence })} className="rounded-lg border border-blue-200 bg-white px-2.5 py-1 text-xs font-bold text-blue-700 shadow-sm hover:bg-blue-50">Copy Record GPT JSON</button>
+                </div>
+              </header>
 
-                {record.summary && (
-                  <p className="mt-3 border-l-2 border-blue-100 pl-3 text-sm text-neutral-700 line-clamp-3">{record.summary}</p>
-                )}
-                <PartyLinksRow linkedPartyIds={record.rawDocument?.linkedPartyIds} parties={caseItem?.parties || []} />
+              <section className="mt-5">
+                <h5 className="mb-2 text-xs font-bold uppercase tracking-wider text-neutral-500">Tracking Table</h5>
+                <RecordTable record={selectedRecord} />
+              </section>
 
-                {basedOnEvidence.length > 0 && (
-                  <div className="mt-1 border-t border-neutral-100 pt-1">
-                    {renderCompactLinkRow("Based on Evidence", basedOnEvidence, (evidenceItem) => (
-                      <LinkedChip
-                        key={evidenceItem.id}
-                        onClick={() => onOpenLinkedRecord(evidenceItem.id)}
-                        titleText={evidenceItem.title || "Untitled evidence"}
-                        variant="evidence"
-                        className="flex items-center gap-1 text-left transition-colors"
-                        leading={<span className="font-bold uppercase opacity-50">Evidence</span>}
-                      >
-                        {evidenceItem.title || "Untitled evidence"}
-                      </LinkedChip>
-                    ))}
-                  </div>
-                )}
+              <section className="mt-5">
+                {selectedRecord.meta.subject && <p className="border-l-2 border-blue-100 pl-3 text-sm text-neutral-700"><span className="font-medium text-neutral-800">Purpose:</span> {selectedRecord.meta.subject}</p>}
+                {selectedRecord.summary && <p className="mt-3 border-l-2 border-blue-100 pl-3 text-sm text-neutral-700">{selectedRecord.summary}</p>}
+                <PartyLinksRow linkedPartyIds={selectedRecord.rawDocument?.linkedPartyIds} parties={caseItem?.parties || []} />
+                {renderCompactLinkRow("Based on Evidence", selectedBasedOnEvidence, (evidenceItem) => (
+                  <LinkedChip key={evidenceItem.id} onClick={() => onOpenLinkedRecord(evidenceItem.id)} titleText={evidenceItem.title || "Untitled evidence"} variant="evidence" className="flex items-center gap-1 text-left transition-colors" leading={<span className="font-bold uppercase opacity-50">Evidence</span>}>
+                    {evidenceItem.title || "Untitled evidence"}
+                  </LinkedChip>
+                ))}
+                {renderCompactLinkRow("Used By", selectedUsedByIncidents, (incident) => (
+                  <LinkedChip key={incident.id} onClick={() => onOpenLinkedRecord(incident.id)} titleText={incident.title || "Untitled incident"} variant="incident" className="flex items-center gap-1 text-left transition-colors" leading={<span className="font-bold uppercase opacity-50">Incident</span>}>
+                    {incident.title || "Untitled incident"}
+                  </LinkedChip>
+                ))}
+              </section>
+            </article>
+          )}
+        </section>
+      )}
 
-                {usedByIncidents.length > 0 && (
-                  <div className="mt-1 border-t border-neutral-100 pt-1">
-                    {renderCompactLinkRow("Used By", usedByIncidents, (incident) => (
-                      <LinkedChip
-                        key={incident.id}
-                        onClick={() => onOpenLinkedRecord(incident.id)}
-                        titleText={incident.title || "Untitled incident"}
-                        variant="incident"
-                        className="flex items-center gap-1 text-left transition-colors"
-                        leading={<span className="font-bold uppercase opacity-50">Incident</span>}
-                      >
-                        {incident.title || "Untitled incident"}
-                      </LinkedChip>
-                    ))}
-                  </div>
-                )}
-
-                {visibleRows.length > 0 ? (
-                  <div className="mt-4 overflow-x-auto rounded-xl border border-neutral-200">
-                    <table className="min-w-full border-collapse text-left text-xs">
-                      <thead className="bg-neutral-50 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                        <tr>
-                          {tableHeaders.map((header) => (
-                            <th key={header} className="border-b border-neutral-200 px-3 py-2 whitespace-nowrap">
-                              {formatRecordTableHeader(header)}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-neutral-100 bg-white">
-                        {visibleRows.map((row, index) => (
-                          <tr key={`${record.id}-row-${index}`} className="align-top">
-                            {tableHeaders.map((header) => {
-                              const value = row[header] || "";
-                              const isStatus = header.toLowerCase() === "status";
-                              const isDifference = header.toLowerCase() === "difference";
-                              return (
-                                <td key={header} className="px-3 py-2 text-neutral-700">
-                                  {isStatus && value ? (
-                                    <span className={`inline-flex rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${getRecordStatusClasses(value)}`}>
-                                      {value}
-                                    </span>
-                                  ) : (
-                                    <span className={`break-words ${isDifference ? `font-semibold ${getDifferenceClasses(value)}` : ""}`}>
-                                      {value || "—"}
-                                    </span>
-                                  )}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {hasHiddenRows && (
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-neutral-100 bg-neutral-50 px-3 py-2">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
-                          {isExpanded
-                            ? `Showing all ${tableRows.length} rows`
-                            : `${hiddenRowCount} more row${hiddenRowCount === 1 ? "" : "s"}`}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => toggleRecordExpansion(record.id)}
-                          className="rounded-md border border-blue-200 bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-700 hover:bg-blue-50"
-                          aria-expanded={isExpanded}
-                        >
-                          {isExpanded ? "Show less" : "Show more"}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="mt-4 rounded-xl border border-dashed border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-500">
-                    No table rows parsed yet.
-                  </div>
-                )}
-              </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
+      {generatedLedgerEntries.length > 0 && <p className="text-xs text-neutral-500">{generatedLedgerEntries.length} generated payment preview{generatedLedgerEntries.length === 1 ? "" : "s"}; these do not update the Ledger.</p>}
     </div>
   );
 }
