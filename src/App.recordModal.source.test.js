@@ -8,6 +8,7 @@ test("record mode initializes and saves documents with a valid tracking record m
   assert.match(source, /function hasTrackingRecordMarker/);
   assert.match(source, /if \(!hasTrackingRecordMarker\(nextForm\.textContent\)\)/);
   assert.match(source, /nextForm\.textContent = buildTrackingRecordText/);
+  assert.match(source, /import \{ buildTrackingRecordText, DEFAULT_TRACKING_RECORD_TABLE_TEXT \} from "\.\/domain\/trackingRecordFormat\.js"/);
   assert.match(source, /const documentInput = documentModalMode === "record"/);
   assert.match(source, /ensureRecordDocumentForm\(documentForm\)/);
   assert.match(source, /Repairing tracking record textContent before save/);
@@ -30,6 +31,8 @@ test("record modal exposes the cleaned section layout and labels", () => {
   assert.match(source, /Links/);
   assert.match(source, /Notes \/ Interpretation/);
   assert.match(source, /Advanced \/ Metadata/);
+  assert.doesNotMatch(source, /Copy Record Prompt/);
+  assert.match(source, /Copy Legacy GPT Formatting Prompt/);
   assert.doesNotMatch(source, /Table \/ Structured Record Text/);
   assert.doesNotMatch(source, /Notes \/ Summary/);
 });

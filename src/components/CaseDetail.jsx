@@ -6152,34 +6152,7 @@ ${ungroupedSequenceText}
                         {parsedTrackingRecords.length} record{parsedTrackingRecords.length === 1 ? "" : "s"}
                       </span>
                       <button
-                        onClick={() => openDocumentModal({
-                          title: "New Tracking Record",
-                          textContent: `[TRACK RECORD]
-
-    meta:
-    type:
-    subject:
-    period:
-    status:
-
-    --- TABLE ---
-
-    | Date       | Amount € | Direction | Status    | Notes |
-    |------------|----------|-----------|-----------|-------|
-
-    --- SUMMARY (GPT READY) ---
-
-
-
-    --- FILE LINKS ---
-
-
-
-    --- NOTES ---
-
-
-    `
-                        })}
+                        onClick={() => openDocumentModal({ title: "New Tracking Record" }, null, "record")}
                         className="rounded-lg border border-blue-400 bg-white px-3 py-1 text-xs font-bold text-neutral-900 shadow-sm hover:bg-blue-50 transition-all active:scale-95"
                       >
                         Add Tracking Record
@@ -6258,34 +6231,7 @@ ${ungroupedSequenceText}
                 caseItem={selectedCase}
                 trackingRecords={parsedTrackingRecords}
                 generatedLedgerEntries={derivedTrackingLedger}
-                onAddRecord={() => openDocumentModal({
-                  title: "New Tracking Record",
-                  textContent: `[TRACK RECORD]
-
-    meta:
-    type:
-    subject:
-    period:
-    status:
-
-    --- TABLE ---
-
-    | Date       | Amount € | Direction | Status    | Notes |
-    |------------|----------|-----------|-----------|-------|
-
-    --- SUMMARY (GPT READY) ---
-
-
-
-    --- FILE LINKS ---
-
-
-
-    --- NOTES ---
-
-
-    `
-                }, null, "record")}
+                onAddRecord={() => openDocumentModal({ title: "New Tracking Record" }, null, "record")}
                 onViewPayments={setActiveLedgerRecord}
                 onOpenRecord={(record) => openDocumentModal(record.rawDocument, record.rawDocument.id, "record")}
                 onConvertRecord={(record) => openRecordConversion("documents", record.rawDocument)}

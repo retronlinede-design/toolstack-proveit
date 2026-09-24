@@ -81,6 +81,7 @@ import proveItLogo from "./assets/proveit-logo.png";
 import { normalizeCaseIssues } from "./domain/issueDomain.js";
 import { mergeImportedCases } from "./domain/caseImport.js";
 import { normalizeStoredCase } from "./domain/caseNormalization.js";
+import { buildTrackingRecordText, DEFAULT_TRACKING_RECORD_TABLE_TEXT } from "./domain/trackingRecordFormat.js";
 
 const lastUsedGroupByType = {};
 const SHOW_REVIEW_QUEUE = false;
@@ -493,8 +494,7 @@ Purpose:
 <what this tracks and why>
 
 --- TABLE ---
-| Period/Date | Expected | Actual | Difference | Unit | Status | Notes |
-|-------------|----------|--------|------------|------|--------|-------|
+${DEFAULT_TRACKING_RECORD_TABLE_TEXT}
 | ...         | ...      | ...    | ...        | ...  | ...    | ...   |
 
 --- SUMMARY (GPT READY) ---
@@ -597,47 +597,6 @@ function getRecordPeriodText(form = {}) {
 
 function getRecordStatusText(form = {}) {
   return getTrackingMetaValue(form.textContent, "status");
-}
-
-function getDefaultTrackingTableText() {
-  return `| Period/Date | Expected | Actual | Difference | Unit | Status | Notes |
-|-------------|----------|--------|------------|------|--------|-------|`;
-}
-
-function buildTrackingRecordText({
-  recordType = "financial",
-  purpose = "",
-  period = "",
-  status = "",
-  tableText = "",
-  summary = "",
-  fileLinks = "",
-  notes = "",
-} = {}) {
-  return `[TRACK RECORD]
-
-meta:
-type: ${getRecordMetaType(recordType)}
-subject: ${purpose}
-period: ${period}
-status: ${status}
-
---- TABLE ---
-
-${tableText || getDefaultTrackingTableText()}
-
---- SUMMARY (GPT READY) ---
-
-${summary || ""}
-
---- FILE LINKS ---
-
-${fileLinks || ""}
-
---- NOTES ---
-
-${notes || ""}
-`;
 }
 
 async function fileToSerializable(file, recordId) {
@@ -1637,7 +1596,7 @@ export default function ProveItApp() {
     if (mode === "record") {
       if (!hasTrackingRecordMarker(nextForm.textContent)) {
         nextForm.textContent = buildTrackingRecordText({
-          recordType: getRecordFormType(nextForm),
+          metaType: getRecordMetaType(getRecordFormType(nextForm)),
           purpose: getRecordFormPurpose(nextForm),
           summary: nextForm.summary || "",
         });
@@ -1649,7 +1608,7 @@ export default function ProveItApp() {
       nextForm.source = purpose;
       nextForm.summary = summary;
       nextForm.textContent = buildTrackingRecordText({
-        recordType,
+        metaType: getRecordMetaType(recordType),
         purpose,
         period: getRecordPeriodText(nextForm),
         status: getRecordStatusText(nextForm),
@@ -1698,7 +1657,16 @@ export default function ProveItApp() {
         category: recordType,
         source: purpose,
         summary,
-        textContent: buildTrackingRecordText({ recordType, purpose, period, status, tableText, summary, fileLinks, notes }),
+        textContent: buildTrackingRecordText({
+          metaType: getRecordMetaType(recordType),
+          purpose,
+          period,
+          status,
+          tableText,
+          summary,
+          fileLinks,
+          notes,
+        }),
       };
     });
   };
@@ -1716,7 +1684,7 @@ export default function ProveItApp() {
     return {
       ...form,
       textContent: buildTrackingRecordText({
-        recordType: getRecordFormType(form),
+        metaType: getRecordMetaType(getRecordFormType(form)),
         purpose: getRecordFormPurpose(form),
         period: getRecordPeriodText(form),
         status: getRecordStatusText(form),
@@ -5279,18 +5247,6 @@ const handleRecordFiles = async (event) => {
                 <div>
                   <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                     <label className="block text-xs font-bold uppercase text-neutral-400">Tracking Table</label>
-                    <div className="flex items-center gap-2">
-                      {recordPromptCopied && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-lime-700">Copied</span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={copyRecordGptPrompt}
-                        className="rounded-lg border border-neutral-300 bg-white px-2 py-1 text-[10px] font-bold text-neutral-600 shadow-sm hover:bg-neutral-50 transition-colors"
-                      >
-                        Copy Record Prompt
-                      </button>
-                    </div>
                   </div>
                   <textarea
                     value={getRecordTableText(documentForm)}
@@ -5359,6 +5315,19 @@ const handleRecordFiles = async (event) => {
                   </button>
                   {recordAdvancedOpen && (
                     <div className="mt-4 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs text-neutral-500">Use the generated table for normal entry. The legacy GPT formatting prompt remains optional.</p>
+                        <div className="flex items-center gap-2">
+                          {recordPromptCopied && <span className="text-[10px] font-bold uppercase tracking-wider text-lime-700">Copied</span>}
+                          <button
+                            type="button"
+                            onClick={copyRecordGptPrompt}
+                            className="rounded-lg border border-neutral-300 bg-white px-2 py-1 text-[10px] font-bold text-neutral-600 shadow-sm hover:bg-neutral-50 transition-colors"
+                          >
+                            Copy Legacy GPT Formatting Prompt
+                          </button>
+                        </div>
+                      </div>
                       <p className="text-xs text-neutral-500">
                         Raw tracking-record text is kept for compatibility with existing records and exports.
                       </p>
