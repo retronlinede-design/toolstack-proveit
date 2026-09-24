@@ -246,7 +246,6 @@ export default function CaseDetail({
   supabaseReasoningExportMessage = "",
 }) {
   const isCaseRecordsWorkspace = activeTab === "records" || activeTab === "ledger";
-  const activeCaseRecordsView = activeTab === "ledger" ? "ledger" : "records";
   const [expandedGroups, setExpandedGroups] = useState({});
   const [overviewWatchItem, setOverviewWatchItem] = useState(undefined);
   const [ideas, setIdeas] = useState([]);
@@ -2341,7 +2340,6 @@ ${strategyFocus.join("\n") || "—"}`;
     { label: "Evidence", tabId: "evidence", count: (selectedCase?.evidence || []).length },
     { label: "Documents", tabId: "documents", count: (selectedCase?.documents || []).length },
     { label: "Records", tabId: "records", count: (selectedCase?.records || []).length },
-    { label: "Ledger", tabId: "ledger", count: (selectedCase?.ledger || []).length },
     { label: "Timeline", tabId: "timeline", count: timelineItems.length },
   ];
   const incidentIdsWithEvidence = new Set([
@@ -5930,18 +5928,11 @@ ${ungroupedSequenceText}
               </div>
             )}
 
-            {isCaseRecordsWorkspace && (
-              <section aria-labelledby="case-records-heading" className="mb-5 rounded-2xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-900">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h3 id="case-records-heading" className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Case Records</h3>
-                    <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">Choose tracking Records or the financial Ledger. Their data and editors remain separate.</p>
-                  </div>
-                  <div className="inline-flex rounded-lg border border-neutral-200 bg-white p-1 dark:border-neutral-700 dark:bg-neutral-950" role="tablist" aria-label="Case Records view">
-                    {[{ id: "records", label: "Records" }, { id: "ledger", label: "Ledger" }].map((view) => (
-                      <button key={view.id} type="button" role="tab" aria-selected={activeCaseRecordsView === view.id} onClick={() => setActiveTab(view.id)} className={`rounded-md px-3 py-1.5 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 ${activeCaseRecordsView === view.id ? "bg-lime-500 text-white" : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"}`}>{view.label}</button>
-                    ))}
-                  </div>
+            {activeTab === "ledger" && (
+              <section aria-labelledby="legacy-ledger-heading" className="mb-5 rounded-2xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-900">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div><h3 id="legacy-ledger-heading" className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Ledger</h3><p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">This existing workspace remains available for saved links and legacy navigation.</p></div>
+                  <button type="button" onClick={() => setActiveTab("records")} className="rounded-lg border border-lime-500 bg-white px-3 py-1.5 text-sm font-bold text-neutral-800 hover:bg-lime-50 dark:bg-neutral-950 dark:text-neutral-100">Back to Case Records</button>
                 </div>
               </section>
             )}
