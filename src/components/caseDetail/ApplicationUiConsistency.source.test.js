@@ -35,7 +35,7 @@ test("incident and evidence search icons are decorative", () => {
 
 test("active Ledger and Records UI contains no known malformed display characters", () => {
   assert.doesNotMatch(ledger, /â–¶|â–¼|Â|�/);
-  assert.match(ledger, /"▶" : "▼"/);
+  assert.match(ledger, /Date \/ Period/);
   assert.doesNotMatch(records, /Â·|â€”|�/);
   assert.match(records, / · /);
   assert.match(records, /"—"/);

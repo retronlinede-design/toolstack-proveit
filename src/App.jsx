@@ -4977,6 +4977,9 @@ const handleRecordFiles = async (event) => {
                   />
                 </div>
 
+                <details className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                  <summary className="cursor-pointer text-sm font-semibold text-neutral-700">More details</summary>
+                  <div className="mt-3 space-y-4">
                 <div>
                   <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Group</label>
                   <select
@@ -5019,6 +5022,8 @@ const handleRecordFiles = async (event) => {
                     />
                   </div>
                 )}
+                  </div>
+                </details>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>

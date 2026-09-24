@@ -271,7 +271,6 @@ export default function CaseDetail({
   const [evidenceSequenceGroupFilter, setEvidenceSequenceGroupFilter] = useState("all");
   const [evidenceQuickFilter, setEvidenceQuickFilter] = useState("all");
   const [expandedDocuments, setExpandedDocuments] = useState({});
-  const [collapsedLedgerGroups, setCollapsedLedgerGroups] = useState({});
   const [showVerifiedEvidence, setShowVerifiedEvidence] = useState(false);
   const [activeLedgerRecord, setActiveLedgerRecord] = useState(null);
   const [showStructuredRecords, setShowStructuredRecords] = useState(false);
@@ -627,13 +626,6 @@ export default function CaseDetail({
 
   const toggleDocumentExpanded = (id) => {
     setExpandedDocuments(prev => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  const toggleLedgerGroup = (batchLabel) => {
-    setCollapsedLedgerGroups(prev => ({
-      ...prev,
-      [batchLabel]: !prev[batchLabel],
-    }));
   };
 
   const toggleGroup = (cat) => setExpandedGroups((prev) => ({ ...prev, [cat]: !prev[cat] }));
@@ -5940,9 +5932,7 @@ ${ungroupedSequenceText}
               <LedgerTab
                 ledgerEntries={selectedCase?.ledger || []}
                 ledgerFilter={ledgerFilter}
-                collapsedLedgerGroups={collapsedLedgerGroups}
                 onChangeFilter={setLedgerFilter}
-                onToggleGroup={toggleLedgerGroup}
                 onOpenLedgerModal={openLedgerModal}
                 onDuplicateLedgerEntry={duplicateLedgerEntry}
                 onDeleteLedgerEntry={deleteLedgerEntry}
