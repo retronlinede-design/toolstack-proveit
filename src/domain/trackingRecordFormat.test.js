@@ -12,6 +12,9 @@ test("a newly generated tracking record uses the shared valid empty table and su
   const textContent = buildTrackingRecordText({
     metaType: "payment_tracker",
     purpose: "Rent payments",
+    period: "January 2026",
+    status: "open",
+    summary: "Awaiting bank-statement review",
   });
   const updatedCase = upsertDocumentEntryInCase({ id: "case-1", documents: [] }, {
     id: "record-1",
@@ -26,6 +29,9 @@ test("a newly generated tracking record uses the shared valid empty table and su
   assert.match(savedDocument.textContent, new RegExp(escapeRegex(DEFAULT_TRACKING_RECORD_TABLE_TEXT)));
   assert.equal(parsed.meta.type, "payment_tracker");
   assert.equal(parsed.meta.subject, "Rent payments");
+  assert.equal(parsed.meta.period, "January 2026");
+  assert.equal(parsed.meta.status, "open");
+  assert.equal(parsed.summary, "Awaiting bank-statement review");
   assert.deepEqual(parsed.table, []);
 });
 

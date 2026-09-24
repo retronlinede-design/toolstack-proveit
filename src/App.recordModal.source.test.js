@@ -12,6 +12,7 @@ test("record mode initializes and saves documents with a valid tracking record m
   assert.match(source, /const documentInput = documentModalMode === "record"/);
   assert.match(source, /ensureRecordDocumentForm\(documentForm\)/);
   assert.match(source, /Repairing tracking record textContent before save/);
+  assert.doesNotMatch(source, /\| Period\/Date \| Expected \| Actual \| Difference \| Unit \| Status \| Notes \|/);
 });
 
 test("record mode preserves tracking metadata sections when rebuilding textContent", () => {
@@ -25,12 +26,14 @@ test("record mode preserves tracking metadata sections when rebuilding textConte
   assert.match(source, /notes: getRecordNotesText\(nextForm\)/);
 });
 
-test("record modal exposes the cleaned section layout and labels", () => {
+test("new record creation keeps table editing out of the normal workflow while existing records retain it as an advanced compatibility control", () => {
   assert.match(source, /Record Basics/);
-  assert.match(source, /Tracking Table/);
   assert.match(source, /Links/);
   assert.match(source, /Notes \/ Interpretation/);
   assert.match(source, /Advanced \/ Metadata/);
+  assert.match(source, /\{editingDocumentId && \(/);
+  assert.match(source, /Raw Tracking Table/);
+  assert.match(source, /updateRecordDocumentForm\(\{ tableText: e\.target\.value \}\)/);
   assert.doesNotMatch(source, /Copy Record Prompt/);
   assert.match(source, /Copy Legacy GPT Formatting Prompt/);
   assert.doesNotMatch(source, /Table \/ Structured Record Text/);

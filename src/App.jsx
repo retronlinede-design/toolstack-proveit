@@ -5245,19 +5245,6 @@ const handleRecordFiles = async (event) => {
                 </section>
 
                 <div>
-                  <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-                    <label className="block text-xs font-bold uppercase text-neutral-400">Tracking Table</label>
-                  </div>
-                  <textarea
-                    value={getRecordTableText(documentForm)}
-                    onChange={(e) => updateRecordDocumentForm({ tableText: e.target.value })}
-                    placeholder="Paste or write the tracking table rows here..."
-                    rows={12}
-                    className="w-full rounded-xl border border-neutral-300 p-3 focus:border-lime-500 outline-none font-mono text-sm"
-                  />
-                </div>
-
-                <div>
                   <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Notes / Interpretation</label>
                   <textarea
                     value={getRecordSummaryText(documentForm)}
@@ -5315,6 +5302,19 @@ const handleRecordFiles = async (event) => {
                   </button>
                   {recordAdvancedOpen && (
                     <div className="mt-4 space-y-3">
+                      {editingDocumentId && (
+                        <div>
+                          <label className="mb-1 block text-xs font-bold uppercase text-neutral-400">Raw Tracking Table</label>
+                          <p className="mb-2 text-xs text-neutral-500">Edit table text directly only when maintaining an existing custom or legacy record.</p>
+                          <textarea
+                            value={getRecordTableText(documentForm)}
+                            onChange={(e) => updateRecordDocumentForm({ tableText: e.target.value })}
+                            placeholder="Paste or write the tracking table rows here..."
+                            rows={12}
+                            className="w-full rounded-xl border border-neutral-300 bg-white p-3 font-mono text-sm outline-none focus:border-lime-500"
+                          />
+                        </div>
+                      )}
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-xs text-neutral-500">Use the generated table for normal entry. The legacy GPT formatting prompt remains optional.</p>
                         <div className="flex items-center gap-2">
