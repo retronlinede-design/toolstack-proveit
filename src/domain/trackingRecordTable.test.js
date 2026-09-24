@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_TRACKING_RECORD_TABLE_TEXT } from "./trackingRecordFormat.js";
-import { parseTrackingRecordTable, serializeTrackingRecordTable } from "./trackingRecordTable.js";
+import { parseTrackingRecordTable, removeTrackingRecordTableRow, serializeTrackingRecordTable } from "./trackingRecordTable.js";
 
 test("parses the shared default table as an editable zero-row model", () => {
   const model = parseTrackingRecordTable(DEFAULT_TRACKING_RECORD_TABLE_TEXT);
@@ -78,4 +78,30 @@ test("serializer validates row shape and unsafe cells instead of emitting malfor
     () => serializeTrackingRecordTable({ headers: ["A"], rows: [["line one\nline two"]] }),
     /newline_in_cell/,
   );
+});
+test("removes only the chosen first, middle, or final row while preserving a serializable table", () => {
+  const model = {
+    headers: ["Period", "Value"],
+    rows: [["first", "1"], ["middle", "2"], ["last", "3"]],
+  };
+
+  assert.deepEqual(removeTrackingRecordTableRow(model, 0).rows, [["middle", "2"], ["last", "3"]]);
+  assert.deepEqual(removeTrackingRecordTableRow(model, 1).rows, [["first", "1"], ["last", "3"]]);
+  assert.deepEqual(removeTrackingRecordTableRow(model, 2).rows, [["first", "1"], ["middle", "2"]]);
+  assert.deepEqual(model.rows, [["first", "1"], ["middle", "2"], ["last", "3"]]);
+
+  const finalRowDeleted = removeTrackingRecordTableRow({ headers: ["Period"], rows: [["January"]] }, 0);
+  assert.deepEqual(finalRowDeleted, { headers: ["Period"], rows: [] });
+  assert.deepEqual(parseTrackingRecordTable(serializeTrackingRecordTable(finalRowDeleted)), {
+    status: "ok",
+    reason: null,
+    headers: ["Period"],
+    rows: [],
+  });
+});
+
+test("row removal rejects invalid indexes without changing the original model", () => {
+  const model = { headers: ["A"], rows: [["one"]] };
+  assert.throws(() => removeTrackingRecordTableRow(model, 1), /invalid_row_index/);
+  assert.deepEqual(model, { headers: ["A"], rows: [["one"]] });
 });

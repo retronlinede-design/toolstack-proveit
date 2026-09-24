@@ -78,6 +78,19 @@ export function parseTrackingRecordTable(tableText) {
   return { status: "ok", reason: null, headers, rows };
 }
 
+export function removeTrackingRecordTableRow({ headers, rows } = {}, rowIndex) {
+  if (!Array.isArray(headers) || !Array.isArray(rows)) {
+    throw new Error("Cannot remove Tracking Record table row: invalid_table_model");
+  }
+  if (!Number.isInteger(rowIndex) || rowIndex < 0 || rowIndex >= rows.length) {
+    throw new Error("Cannot remove Tracking Record table row: invalid_row_index");
+  }
+
+  return {
+    headers: [...headers],
+    rows: rows.filter((_, index) => index !== rowIndex).map((row) => [...row]),
+  };
+}
 function normalizeSerializableCell(value, options) {
   const reason = validateCell(value, options);
   if (reason) throw new Error(`Cannot serialize Tracking Record table: ${reason}`);

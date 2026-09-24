@@ -81,7 +81,7 @@ import proveItLogo from "./assets/proveit-logo.png";
 import { normalizeCaseIssues } from "./domain/issueDomain.js";
 import { mergeImportedCases } from "./domain/caseImport.js";
 import { normalizeStoredCase } from "./domain/caseNormalization.js";
-import { buildTrackingRecordText, DEFAULT_TRACKING_RECORD_TABLE_TEXT } from "./domain/trackingRecordFormat.js";
+import { buildTrackingRecordText, DEFAULT_TRACKING_RECORD_TABLE_TEXT, replaceTrackingRecordTableText } from "./domain/trackingRecordFormat.js";
 
 const lastUsedGroupByType = {};
 const SHOW_REVIEW_QUEUE = false;
@@ -1502,6 +1502,28 @@ export default function ProveItApp() {
     setLedgerModalOpen(true);
   };
 
+  async function saveTrackingRecordTable(documentId, tableText) {
+    if (!selectedCaseId || !documentId) return false;
+
+    const currentCase = cases.find((caseItem) => caseItem.id === selectedCaseId);
+    const existingDocument = currentCase?.documents?.find((document) => document.id === documentId);
+    if (!currentCase || !existingDocument) return false;
+
+    const updatedDocument = replaceTrackingRecordTableText(existingDocument, tableText);
+    const updatedCase = upsertDocumentEntryInCase(currentCase, updatedDocument, documentId);
+
+    try {
+      await saveCase(updatedCase, { operation: "updateTrackingRecordTable" });
+      setCases((previousCases) => previousCases.map((caseItem) => (
+        caseItem.id === updatedCase.id ? updatedCase : caseItem
+      )));
+      return true;
+    } catch (error) {
+      console.error("Failed to save tracking record table", error);
+      showAppNotice("error", error.message || "Could not save this tracking record table.");
+      return false;
+    }
+  }
   async function deleteDocumentEntry(entryId) {
     if (!selectedCaseId || !entryId) return;
 
@@ -4576,6 +4598,7 @@ const handleRecordFiles = async (event) => {
             deleteParty={deleteParty}
             openDocumentModal={openDocumentModal}
             deleteDocumentEntry={deleteDocumentEntry}
+            saveTrackingRecordTable={saveTrackingRecordTable}
             reviewQueueSection={SHOW_REVIEW_QUEUE ? (
               <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
                 <div className="mb-4 flex items-start justify-between gap-3">

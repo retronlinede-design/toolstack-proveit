@@ -239,6 +239,7 @@ export default function CaseDetail({
   deleteParty,
   openDocumentModal,
   deleteDocumentEntry,
+  saveTrackingRecordTable,
   reviewQueueSection,
   syncStatus = "idle",
   syncMessage = "",
@@ -6236,6 +6237,7 @@ ${ungroupedSequenceText}
                 onOpenRecord={(record) => openDocumentModal(record.rawDocument, record.rawDocument.id, "record")}
                 onConvertRecord={(record) => openRecordConversion("documents", record.rawDocument)}
                 onDeleteRecord={(record) => deleteDocumentEntry(record.rawDocument.id)}
+                onSaveTrackingRecordTable={saveTrackingRecordTable}
                 getUsedByIncidents={(recordId) => getIncidentsUsingRecord(selectedCase, recordId)}
                 getBasedOnEvidence={getBasedOnEvidenceForTrackingRecord}
                 onOpenLinkedRecord={openLinkedRecord}

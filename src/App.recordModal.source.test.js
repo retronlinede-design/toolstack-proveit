@@ -8,7 +8,7 @@ test("record mode initializes and saves documents with a valid tracking record m
   assert.match(source, /function hasTrackingRecordMarker/);
   assert.match(source, /if \(!hasTrackingRecordMarker\(nextForm\.textContent\)\)/);
   assert.match(source, /nextForm\.textContent = buildTrackingRecordText/);
-  assert.match(source, /import \{ buildTrackingRecordText, DEFAULT_TRACKING_RECORD_TABLE_TEXT \} from "\.\/domain\/trackingRecordFormat\.js"/);
+  assert.match(source, /import \{ buildTrackingRecordText, DEFAULT_TRACKING_RECORD_TABLE_TEXT, replaceTrackingRecordTableText \} from "\.\/domain\/trackingRecordFormat\.js"/);
   assert.match(source, /const documentInput = documentModalMode === "record"/);
   assert.match(source, /ensureRecordDocumentForm\(documentForm\)/);
   assert.match(source, /Repairing tracking record textContent before save/);
