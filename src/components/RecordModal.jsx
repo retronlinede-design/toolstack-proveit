@@ -520,6 +520,36 @@ export default function RecordModal({
       return nextForm;
     });
   };
+
+  const updateEvidenceLocation = (index, patch) => {
+    setRecordForm((currentForm) => {
+      const locations = Array.isArray(currentForm.locations) ? currentForm.locations : [];
+      return {
+        ...currentForm,
+        locations: locations.map((location, locationIndex) => (
+          locationIndex === index ? { ...location, ...patch } : location
+        )),
+      };
+    });
+  };
+
+  const addEvidenceLocation = (type) => {
+    setRecordForm((currentForm) => ({
+      ...currentForm,
+      locations: [
+        ...(Array.isArray(currentForm.locations) ? currentForm.locations : []),
+        { type, label: "", reference: "", coverage: "", notes: "", ...(type === "physical" ? { physicalState: "" } : {}) },
+      ],
+    }));
+  };
+
+  const removeEvidenceLocation = (index) => {
+    setRecordForm((currentForm) => ({
+      ...currentForm,
+      locations: (Array.isArray(currentForm.locations) ? currentForm.locations : []).filter((_, locationIndex) => locationIndex !== index),
+    }));
+  };
+
   const handleSubmitRecord = () => {
     const preparedForm = prepareRecordFormForSave(recordForm, recordType, caseParties);
     const payload = {
@@ -1290,6 +1320,59 @@ export default function RecordModal({
               {(recordForm.attachments || []).length > 0 ? "Yes" : "No"}
             </div>
           </div>
+        )}
+
+        {recordType === "evidence" && (
+          <section className="mb-4 space-y-3 rounded-2xl border border-neutral-200 bg-white p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Evidence Locations</h3>
+                <p className="mt-1 text-sm text-neutral-600">Reference where supporting material can be retrieved. These references are advisory; ProveIt does not open or verify them.</p>
+              </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => addEvidenceLocation("external_digital")} className="rounded-lg border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Add External</button>
+                <button type="button" onClick={() => addEvidenceLocation("physical")} className="rounded-lg border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Add Physical</button>
+              </div>
+            </div>
+            {(Array.isArray(recordForm.locations) ? recordForm.locations : []).map((location, index) => (
+              <div key={`${location.type || "location"}-${index}`} className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="rounded-full border border-neutral-200 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-600">{location.type === "physical" ? "Physical" : "External digital"}</span>
+                  <button type="button" onClick={() => removeEvidenceLocation(index)} className="text-xs font-semibold text-red-700 hover:text-red-800">Remove</button>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="text-xs font-semibold text-neutral-600">Label</label>
+                    <input value={location.label || ""} onChange={(e) => updateEvidenceLocation(index, { label: e.target.value })} className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm" placeholder={location.type === "physical" ? "Blue Binder — Financial Records" : "Bank statement folder"} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-neutral-600">{location.type === "physical" ? "Physical location / reference" : "File or folder reference"}</label>
+                    <input value={location.reference || ""} onChange={(e) => updateEvidenceLocation(index, { reference: e.target.value })} className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm" placeholder={location.type === "physical" ? "Box 3 — Shelf 2" : "C:\\Evidence\\Bank Statements"} />
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="text-xs font-semibold text-neutral-600">Coverage</label>
+                    <input value={location.coverage || ""} onChange={(e) => updateEvidenceLocation(index, { coverage: e.target.value })} className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm" placeholder="Jan 2024 – Sep 2026" />
+                  </div>
+                  {location.type === "physical" && (
+                    <div>
+                      <label className="text-xs font-semibold text-neutral-600">Material</label>
+                      <select value={location.physicalState || ""} onChange={(e) => updateEvidenceLocation(index, { physicalState: e.target.value })} className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm">
+                        <option value="">Not specified</option>
+                        <option value="original">Original</option>
+                        <option value="copy">Copy</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-neutral-600">Notes</label>
+                  <textarea value={location.notes || ""} onChange={(e) => updateEvidenceLocation(index, { notes: e.target.value })} className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm" rows={2} />
+                </div>
+              </div>
+            ))}
+          </section>
         )}
 
         {recordType === "incidents" ? (

@@ -231,6 +231,32 @@ export function normalizeEvidenceType(value, attachments = []) {
   return Array.isArray(attachments) && attachments.length > 0 ? "documented" : "observed";
 }
 
+const EVIDENCE_LOCATION_TYPES = new Set(["external_digital", "physical"]);
+const PHYSICAL_LOCATION_STATES = new Set(["original", "copy"]);
+
+export function normalizeEvidenceLocations(value) {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((location) => {
+    if (!location || typeof location !== "object" || Array.isArray(location)) return [];
+    const type = safeString(location.type).trim();
+    if (!EVIDENCE_LOCATION_TYPES.has(type)) return [];
+
+    const normalized = {
+      type,
+      label: safeString(location.label).trim(),
+      reference: safeString(location.reference).trim(),
+      coverage: safeString(location.coverage).trim(),
+      notes: safeString(location.notes).trim(),
+    };
+    const physicalState = safeString(location.physicalState).trim();
+    if (type === "physical" && PHYSICAL_LOCATION_STATES.has(physicalState)) {
+      normalized.physicalState = physicalState;
+    }
+    return [normalized];
+  });
+}
+
 export function normalizeIncidentEvidenceStatus(value, linkedEvidenceIds = []) {
   if (INCIDENT_EVIDENCE_STATUSES.includes(value)) return value;
   return normalizeLinkedRecordIds(linkedEvidenceIds).length > 0 ? "documented" : "needs_evidence";
@@ -538,8 +564,12 @@ export function normalizeRecord(item, recordType) {
   if (recordType === "evidence") {
     const avail = item?.availability || {};
     const timelineData = normalizeTimelineFields(item);
+    const locations = Object.prototype.hasOwnProperty.call(item || {}, "locations")
+      ? { locations: normalizeEvidenceLocations(item?.locations) }
+      : {};
     return {
       ...base,
+      ...locations,
       ...timelineData,
       isMilestone: !!item?.isMilestone,
       sourceType: item?.sourceType || "other",

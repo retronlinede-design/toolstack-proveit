@@ -124,6 +124,40 @@ test("normalizeRecord preserves valid evidence structural fields", () => {
   assert.deepEqual(record.usedIn, ["Legacy use"]);
 });
 
+test("normalizeRecord preserves optional normalized Evidence locations without changing legacy availability", () => {
+  const record = normalizeRecord({
+    id: "ev-location-1",
+    title: "Bank statements",
+    availability: {
+      physical: { hasOriginal: true, location: "Cabinet A", notes: "Legacy original reference" },
+      digital: { hasDigital: false, files: [] },
+    },
+    locations: [
+      { type: "external_digital", label: "Bank statement folder", reference: "C:\\Evidence\\Bank Statements", coverage: "Jan 2024 – Sep 2026", notes: "Read-only folder" },
+      { type: "physical", label: "Blue binder", reference: "Shelf 2", coverage: "2025", notes: "Filed by month", physicalState: "original" },
+    ],
+  }, "evidence");
+
+  assert.deepEqual(record.locations, [
+    { type: "external_digital", label: "Bank statement folder", reference: "C:\\Evidence\\Bank Statements", coverage: "Jan 2024 – Sep 2026", notes: "Read-only folder" },
+    { type: "physical", label: "Blue binder", reference: "Shelf 2", coverage: "2025", notes: "Filed by month", physicalState: "original" },
+  ]);
+  assert.deepEqual(record.availability.physical, { hasOriginal: true, location: "Cabinet A", notes: "Legacy original reference" });
+  assert.deepEqual(record.attachments, []);
+});
+
+test("normalizeRecord omits absent Evidence locations and safely discards malformed entries", () => {
+  const legacy = normalizeRecord({ id: "ev-legacy", title: "Legacy evidence" }, "evidence");
+  assert.equal(Object.hasOwn(legacy, "locations"), false);
+
+  const record = normalizeRecord({
+    id: "ev-location-2",
+    title: "Locations",
+    locations: [null, { type: "unknown", reference: "Ignored" }, { type: "physical", label: 42, reference: " Box 3 ", coverage: null, notes: ["Ignored"], physicalState: "copy" }],
+  }, "evidence");
+  assert.deepEqual(record.locations, [{ type: "physical", label: "", reference: "Box 3", coverage: "", notes: "", physicalState: "copy" }]);
+});
+
 test("normalizeRecord defaults evidenceType from attachments", () => {
   const withoutAttachment = normalizeRecord({
     id: "ev-1",
@@ -1935,6 +1969,37 @@ test("upsertRecordInCase persists evidence structural fields on edit", () => {
   assert.deepEqual(updated.evidence[0].linkedIncidentIds, ["inc-1"]);
   assert.deepEqual(updated.incidents[0].linkedEvidenceIds, ["ev-1"]);
   assert.equal(updated.evidence[0].edited, true);
+});
+
+test("upsertRecordInCase preserves Evidence locations independently of attachments and availability", () => {
+  const attachment = { id: "att-1", name: "statement.pdf" };
+  const editingRecord = {
+    id: "ev-location-1",
+    title: "Statements",
+    date: "2024-02-01",
+    description: "Statement evidence",
+    notes: "",
+    attachments: [attachment],
+    locations: [{ type: "external_digital", label: "PC folder", reference: "C:\\Evidence", coverage: "2024", notes: "External only" }],
+    availability: { physical: { hasOriginal: true, location: "Binder", notes: "Original" }, digital: { hasDigital: true, files: [attachment] } },
+    linkedIncidentIds: [],
+  };
+  const caseItem = { id: "case-1", evidence: [editingRecord], incidents: [], parties: [{ id: "party-1", name: "Tenant" }] };
+
+  const updated = upsertRecordInCase(caseItem, "evidence", {
+    ...editingRecord,
+    title: "Updated statements",
+    description: "Updated statement evidence",
+    notes: "",
+    attachments: [attachment],
+    linkedPartyIds: ["party-1"],
+  }, editingRecord);
+
+  assert.deepEqual(updated.evidence[0].locations, editingRecord.locations);
+  assert.deepEqual(updated.evidence[0].attachments, [attachment]);
+  assert.deepEqual(updated.evidence[0].availability.physical, editingRecord.availability.physical);
+  assert.deepEqual(updated.evidence[0].availability.digital.files, [attachment]);
+  assert.deepEqual(updated.evidence[0].linkedPartyIds, ["party-1"]);
 });
 
 test("upsertRecordInCase forces evidence digital availability false when attachments are empty", () => {

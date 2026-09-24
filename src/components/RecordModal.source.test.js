@@ -26,6 +26,16 @@ test("evidence modal renders linked parties selector from case parties", () => {
   assert.match(source, /linkedPartyIds=\{recordForm\.linkedPartyIds\}/);
 });
 
+test("evidence modal manages advisory physical and external location references separately from attachments", () => {
+  assert.match(source, /Evidence Locations/);
+  assert.match(source, /addEvidenceLocation\("external_digital"\)/);
+  assert.match(source, /addEvidenceLocation\("physical"\)/);
+  assert.match(source, /const updateEvidenceLocation = \(index, patch\) =>/);
+  assert.match(source, /const removeEvidenceLocation = \(index\) =>/);
+  assert.match(source, /ProveIt does not open or verify them/);
+  assert.match(source, /physicalState/);
+});
+
 test("record editors use Issue terminology and explain the record choice", () => {
   assert.match(source, />Issue<\/label>/);
   assert.match(source, /Assign this record to the Issue or case thread it belongs to\./);

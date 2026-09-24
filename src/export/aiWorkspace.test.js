@@ -9,7 +9,7 @@ const fixture = () => ({
   issues: [{ id: "issue-1", reference: "ISS-001", name: "Habitability", description: "Repairs", status: "open", priority: "high", ownerPartyId: "party-1", reviewDate: "2026-10-01" }],
   parties: [{ id: "party-1", name: "Tenant", roles: ["tenant"], contact: { email: "tenant@example.test" } }],
   incidents: [{ id: "inc-1", type: "incidents", title: "Leak", eventDate: "2026-02-01", sequenceGroupId: "issue-1", sequenceGroup: "Habitability", linkedEvidenceIds: ["ev-1"], linkedRecordIds: ["missing-record"], linkedIncidentRefs: [{ incidentId: "inc-2", type: "RELATED_TO" }], attachments: [attachment] }, { id: "inc-2", type: "incidents", title: "Notice", date: "2026-02-02" }],
-  evidence: [{ id: "ev-1", type: "evidence", title: "Photo", capturedAt: "2026-02-03", sequenceGroupId: "issue-1", linkedIncidentIds: ["inc-1"], attachments: [attachment], availability: { digital: { hasDigital: true, files: [attachment] } } }],
+  evidence: [{ id: "ev-1", type: "evidence", title: "Photo", capturedAt: "2026-02-03", sequenceGroupId: "issue-1", linkedIncidentIds: ["inc-1"], attachments: [attachment], locations: [{ type: "external_digital", label: "Private bank folder", reference: "C:\\Users\\Example\\Bank Statements", coverage: "2026", notes: "Local reference" }], availability: { digital: { hasDigital: true, files: [attachment] } } }],
   documents: [{ id: "doc-1", title: "Letter", documentDate: "2026-02-04", textContent: "Full letter text", basedOnEvidenceIds: ["ev-1"], linkedRecordIds: ["inc-1"], attachments: [attachment] }],
   ledger: [{ id: "led-1", label: "Rent", expectedAmount: 1000, paidAmount: 750, differenceAmount: 250, currency: "EUR", paymentDate: "2026-02-05", linkedRecordIds: ["doc-1"] }, { id: "led-2", label: "USD", expectedAmount: 10, paidAmount: 8, differenceAmount: 2, currency: "USD" }],
   tasks: [{ id: "task-open", type: "tasks", title: "Request repair", status: "open", dueDate: "2026-02-06", description: "Ask landlord", linkedRecordIds: ["inc-1"] }, { id: "task-done", type: "tasks", title: "Legacy complete", status: "done", description: "Keep this record" }],
@@ -40,6 +40,13 @@ test("AI Workspace includes safe attachment metadata only and strips credentials
   const snapshot = buildAiWorkspaceCurrentCase(fixture()); const serialized = JSON.stringify(snapshot); const output = snapshot.projection.canonical.evidence[0].attachments[0];
   assert.equal(output.name, "email.pdf"); assert.equal(output.emailMeta.subject, "Repair"); assert.equal(output.emailMeta.dataUrl, undefined); assert.equal(output.dataUrl, undefined); assert.equal(output.storage, undefined);
   for (const forbidden of ["1234", "privacyLock", "dataUrl", "backupDataUrl", "internal-cache-id", "auditLog", "generatedReportText"]) assert.equal(serialized.includes(forbidden), false, forbidden);
+});
+
+test("AI Workspace does not project advisory local Evidence locations", () => {
+  const snapshot = buildAiWorkspaceCurrentCase(fixture());
+  const evidence = snapshot.projection.canonical.evidence.find((item) => item.id === "ev-1");
+  assert.equal(Object.hasOwn(evidence, "locations"), false);
+  assert.equal(JSON.stringify(snapshot).includes("C:\\Users\\Example\\Bank Statements"), false);
 });
 
 test("AI Workspace separates canonical, derived, and context data and keeps complete task/actions", () => {

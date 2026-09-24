@@ -404,6 +404,19 @@ test("buildCaseReasoningExportPayload evidenceSummary includes structured eviden
   });
 });
 
+test("buildCaseReasoningExportPayload does not include advisory Evidence locations", () => {
+  const caseItem = buildReasoningCase();
+  caseItem.evidence[0] = {
+    ...caseItem.evidence[0],
+    locations: [{ type: "external_digital", label: "Private folder", reference: "C:\\Users\\Example\\Bank Statements", coverage: "2024", notes: "Local reference" }],
+  };
+
+  const payload = buildCaseReasoningExportPayload(caseItem);
+  const evidence = payload.data.evidenceSummary.find((item) => item.id === "ev-1");
+  assert.equal(Object.hasOwn(evidence, "locations"), false);
+  assert.equal(JSON.stringify(payload).includes("C:\\Users\\Example\\Bank Statements"), false);
+});
+
 test("buildCaseReasoningExportPayload evidenceSummary includes compact linkedIncidents from linkedIncidentIds", () => {
   const caseItem = buildReasoningCase();
   caseItem.evidence[0] = {

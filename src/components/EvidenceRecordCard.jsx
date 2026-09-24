@@ -90,6 +90,12 @@ export default function EvidenceRecordCard({
     const label = type.startsWith("image/") ? "Image" : type === "application/pdf" ? "PDF" : "File";
     return { key: attachment.id || `${label}-${index}`, label, variant: "attachment" };
   });
+  const locationItems = (Array.isArray(item.locations) ? item.locations : []).map((location, index) => {
+    const kind = location?.type === "physical" ? "Physical" : "External";
+    const label = location?.label || location?.reference || "Location reference";
+    const detail = [location?.reference, location?.coverage].filter(Boolean).join(" · ");
+    return { key: `location-${index}`, label: `${kind} · ${label}`, title: detail || "Advisory evidence location", variant: "neutral" };
+  });
 
   return <RecordCardShell
     id={`record-${item.id}`}
@@ -127,6 +133,7 @@ export default function EvidenceRecordCard({
   >
     <div className="space-y-3">
       {item.functionSummary && <p className="border-l-2 border-neutral-200 pl-3 text-sm text-neutral-700 dark:border-neutral-700 dark:text-neutral-300"><span className="font-semibold text-neutral-900 dark:text-neutral-100">Function:</span> {item.functionSummary}</p>}
+      {locationItems.length > 0 && <RecordLinksRow groups={[{ key: "evidence-locations", label: "Locations", items: locationItems }]} />}
       {attachmentItems.length > 0 && <RecordLinksRow groups={[{ key: "attachment-types", label: "Attachments", items: attachmentItems }]} />}
       {item.attachments?.length > 0 && <RecordLinksRow groups={[{ key: "attachment-preview", render: <AttachmentPreview attachments={item.attachments} imageCache={imageCache} onPreview={onPreviewFile} /> }]} />}
     </div>
