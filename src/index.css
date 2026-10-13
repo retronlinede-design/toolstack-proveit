@@ -1,5 +1,63 @@
 @import "tailwindcss";
 
+/* Theme tokens live on the shell so a later light-theme toggle only needs to swap these values. */
+.proveit-dark-shell {
+  --pi-bg: #07111f;
+  --pi-sidebar: #050c17;
+  --pi-surface: #101d2d;
+  --pi-surface-raised: #16263a;
+  --pi-border: #263a51;
+  --pi-text: #ecf3fb;
+  --pi-muted: #93a7bd;
+  --pi-accent: #5ed0ba;
+  min-height: 100vh;
+  background: var(--pi-bg);
+  color: var(--pi-text);
+}
+
+.proveit-main { min-height: 100vh; padding-left: 17rem; }
+.proveit-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 110; display: flex; width: 17rem; flex-direction: column; border-right: 1px solid #1b2c40; background: var(--pi-sidebar); color: #dce8f5; transition: width 180ms ease, transform 180ms ease; }
+.proveit-sidebar.is-collapsed { width: 4.75rem; }
+.proveit-sidebar-brand { display: flex; min-height: 5.25rem; align-items: center; justify-content: space-between; gap: .5rem; border-bottom: 1px solid #1b2c40; padding: 1.1rem; }
+.proveit-sidebar-collapse { display: inline-flex; height: 2rem; width: 2rem; align-items: center; justify-content: center; border: 1px solid #2b4058; border-radius: .5rem; color: #a7bed4; }
+.proveit-sidebar-nav { display: grid; gap: .3rem; padding: 1rem .65rem; }
+.proveit-sidebar-link { display: flex; min-height: 2.7rem; align-items: center; gap: .8rem; overflow: hidden; border-radius: .6rem; padding: .65rem .8rem; color: #a7bed4; font-size: .875rem; font-weight: 600; text-align: left; transition: background-color 160ms ease, color 160ms ease; }
+.proveit-sidebar-link:hover, .proveit-sidebar-link.is-active { background: #152a41; color: #f5fbff; }
+.proveit-sidebar-link.is-active { box-shadow: inset 3px 0 0 var(--pi-accent); }
+.proveit-sidebar-footer { margin-top: auto; border-top: 1px solid #1b2c40; padding: .7rem .65rem 1rem; }
+.proveit-sidebar-footer p { display: flex; align-items: center; gap: .45rem; padding: .65rem .8rem 0; color: #6f88a2; font-size: .7rem; }
+.proveit-sidebar-status-dot { width: .45rem; height: .45rem; border-radius: 999px; background: var(--pi-accent); }
+.proveit-sidebar.is-collapsed .proveit-sidebar-brand { justify-content: center; padding: .8rem; }
+.proveit-sidebar.is-collapsed .proveit-sidebar-brand img, .proveit-sidebar.is-collapsed .proveit-sidebar-link span, .proveit-sidebar.is-collapsed .proveit-sidebar-footer p { display: none; }
+.proveit-sidebar.is-collapsed .proveit-sidebar-link { justify-content: center; padding-inline: .5rem; }
+.proveit-sidebar.is-collapsed + .proveit-main { padding-left: 4.75rem; }
+.proveit-mobile-menu, .proveit-sidebar-scrim { display: none; }
+
+.proveit-dark-shell .front-page-header,
+.proveit-dark-shell .case-folder-panel,
+.proveit-dark-shell .case-management-card,
+.proveit-dark-shell .dashboard-summary,
+.proveit-dark-shell .dashboard-metric { border-color: var(--pi-border) !important; background: var(--pi-surface) !important; box-shadow: 0 12px 30px rgb(0 0 0 / .16) !important; }
+.proveit-dark-shell :is(.bg-white, .bg-neutral-50, .bg-neutral-100) { background-color: var(--pi-surface-raised) !important; }
+.proveit-dark-shell :is(.border-neutral-100, .border-neutral-200, .border-neutral-300) { border-color: var(--pi-border) !important; }
+.proveit-dark-shell :is(.text-neutral-950, .text-neutral-900, .text-neutral-800, .text-neutral-700) { color: var(--pi-text) !important; }
+.proveit-dark-shell :is(.text-neutral-600, .text-neutral-500, .text-neutral-400) { color: var(--pi-muted) !important; }
+.proveit-dark-shell input, .proveit-dark-shell select, .proveit-dark-shell textarea { color: var(--pi-text) !important; }
+.proveit-dark-shell .front-page-primary-action, .proveit-dark-shell .case-primary-action { border-color: var(--pi-accent) !important; background: var(--pi-accent) !important; color: #06211f !important; }
+.proveit-dark-shell .case-folder-card-active { border-left-color: var(--pi-accent) !important; background: #13293a !important; }
+.proveit-dark-shell.case-dashboard-shell { --case-app-bg: var(--pi-bg); --case-surface: var(--pi-surface); --case-border: var(--pi-border); --case-border-strong: #39556f; --case-text: var(--pi-text); --case-muted: var(--pi-muted); --case-accent: var(--pi-accent); --case-accent-hover: #83e5d2; }
+
+@media (max-width: 767px) {
+  .proveit-main, .proveit-sidebar.is-collapsed + .proveit-main { padding-left: 0; }
+  .proveit-sidebar { width: 17rem; transform: translateX(-100%); box-shadow: 18px 0 40px rgb(0 0 0 / .35); }
+  .proveit-sidebar.is-mobile-open { transform: translateX(0); }
+  .proveit-sidebar.is-collapsed { width: 17rem; }
+  .proveit-sidebar.is-collapsed .proveit-sidebar-brand img, .proveit-sidebar.is-collapsed .proveit-sidebar-link span, .proveit-sidebar.is-collapsed .proveit-sidebar-footer p { display: flex; }
+  .proveit-sidebar.is-collapsed .proveit-sidebar-link { justify-content: flex-start; padding-inline: .8rem; }
+  .proveit-mobile-menu { position: fixed; right: 1rem; top: 1rem; z-index: 105; display: inline-flex; height: 2.5rem; width: 2.5rem; align-items: center; justify-content: center; border: 1px solid var(--pi-border); border-radius: .65rem; background: var(--pi-surface); color: var(--pi-text); box-shadow: 0 6px 20px rgb(0 0 0 / .25); }
+  .proveit-sidebar-scrim { position: fixed; inset: 0; z-index: 109; display: block; background: rgb(0 0 0 / .5); }
+}
+
 .case-dashboard-shell {
   --case-app-bg: #f6f7f9;
   --case-surface: #ffffff;

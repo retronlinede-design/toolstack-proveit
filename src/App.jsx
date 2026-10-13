@@ -59,7 +59,7 @@ import {
 } from "./domain/quickCaptureDomain";
 import { getFileSizeWarning } from "./lib/fileSecurity.js";
 import { removeRecordAttachmentFromForm } from "./domain/recordFormDomain";
-import { Database, Download, FileJson, Folder, FolderOpen, Lock, Plus, Settings, Trash2, Upload, X } from "lucide-react";
+import { Activity, ChevronLeft, ChevronRight, Database, Download, FileJson, Folder, FolderOpen, House, Lock, Menu, MoreHorizontal, Plus, Settings, Trash2, Upload, X } from "lucide-react";
 import { getStorageDiagnostics } from "./storageDiagnostics";
 import { readRescueSnapshot, writeRescueSnapshot } from "./rescueSnapshot";
 import {
@@ -89,6 +89,7 @@ const CREATE_NEW_SEQUENCE_GROUP_OPTION = "__create_new_sequence_group__";
 const LAST_FULL_BACKUP_ALL_AT_KEY = "toolstack.proveit.v1.lastFullBackupAt";
 const LAST_BACKUP_META_KEY = "toolstack.proveit.v1.lastBackupMeta";
 const CASE_FOLDERS_STORAGE_KEY = "toolstack.proveit.v1.folders";
+const SIDEBAR_COLLAPSED_STORAGE_KEY = "toolstack.proveit.v1.sidebarCollapsed";
 const APP_LOCK_SESSION_UNLOCK_KEY = "toolstack.proveit.v1.appLock.sessionUnlocked";
 const FULL_BACKUP_ALL_RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const RISKY_ACTION_BACKUP_MESSAGE = "Before applying changes, download a Full App Backup. ProveIt stores data locally in this browser, and browser storage can be lost.";
@@ -342,6 +343,14 @@ function readCaseFolders() {
     return Array.isArray(parsed) ? parsed.map(normalizeCaseFolder).filter(Boolean) : [];
   } catch {
     return [];
+  }
+}
+
+function readSidebarCollapsed() {
+  try {
+    return localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true";
+  } catch {
+    return false;
   }
 }
 
@@ -667,6 +676,9 @@ export default function ProveItApp() {
   const [activeFolderId, setActiveFolderId] = useState(null);
   const [folderModalOpen, setFolderModalOpen] = useState(false);
   const [folderNameInput, setFolderNameInput] = useState("");
+  const [folderMenuId, setFolderMenuId] = useState(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readSidebarCollapsed());
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [editingCase, setEditingCase] = useState(null);
   const [imageCache, setImageCache] = useState({});
   const [attachmentDiagnosticImages, setAttachmentDiagnosticImages] = useState([]);
@@ -757,6 +769,21 @@ export default function ProveItApp() {
   const showAppNotice = (tone, message) => {
     if (!message) return;
     setAppNotice({ tone, message, id: `${Date.now()}-${Math.random().toString(36).slice(2)}` });
+  };
+
+  const setSidebarCollapsedPreference = (collapsed) => {
+    setSidebarCollapsed(collapsed);
+    try {
+      localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(collapsed));
+    } catch {
+      // The layout still works for this session when localStorage is unavailable.
+    }
+  };
+
+  const navigateDashboard = (folderId = null) => {
+    setSelectedCaseId(null);
+    setActiveFolderId(folderId);
+    setMobileSidebarOpen(false);
   };
 
   const showFileSizeWarnings = (files) => {
@@ -2161,6 +2188,8 @@ export default function ProveItApp() {
 
   const activeFolderName = !activeFolderId
     ? "Folders"
+    : activeFolderId === "all"
+    ? "All Cases"
     : activeFolderId === "unfiled"
     ? "Inbox"
     : caseFolders.find((folder) => folder.id === activeFolderId)?.name || "Folder";
@@ -2265,7 +2294,7 @@ export default function ProveItApp() {
   };
 
   const toggleFolderView = (folderId) => {
-    setActiveFolderId((currentFolderId) => currentFolderId === folderId ? null : folderId);
+    setActiveFolderId(folderId);
   };
 
   const renameFolderFromDashboard = (folder) => {
@@ -3285,39 +3314,33 @@ const handleRecordFiles = async (event) => {
                   </span>
                   <span>Last activity: {folder.lastActivity}</span>
                 </div>
-                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                <div className="relative mt-2.5 flex justify-end">
                   <button
                     type="button"
+                    aria-label={`Folder actions for ${folder.name}`}
+                    aria-expanded={folderMenuId === folder.id}
                     onClick={(event) => {
                       event.stopPropagation();
-                      renameFolderFromDashboard(folder);
+                      setFolderMenuId((current) => current === folder.id ? null : folder.id);
                     }}
-                    className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-[11px] font-medium text-neutral-700 hover:bg-neutral-100"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100"
                   >
-                    Rename
+                    <MoreHorizontal className="h-4 w-4" />
                   </button>
-                  <label
-                    onClick={(event) => event.stopPropagation()}
-                    className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 py-1 text-[11px] font-medium text-neutral-700 hover:bg-neutral-100"
-                  >
-                    Color
-                    <input
-                      type="color"
-                      value={/^#[0-9a-f]{6}$/i.test(folder.color || "") ? folder.color : "#737373"}
-                      onChange={(event) => updateFolder(folder.id, { color: event.target.value })}
-                      className="h-4 w-5 rounded border border-neutral-200 bg-white p-0"
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      deleteFolder(folder.id);
-                    }}
-                    className="rounded-md border border-red-100 bg-white px-2 py-1 text-[11px] font-medium text-red-700 hover:bg-red-50"
-                  >
-                    Delete
-                  </button>
+                  {folderMenuId === folder.id ? (
+                    <div
+                      role="menu"
+                      onClick={(event) => event.stopPropagation()}
+                      className="absolute right-0 top-9 z-20 w-40 rounded-lg border border-neutral-200 bg-white p-1 shadow-lg"
+                    >
+                      <button type="button" role="menuitem" onClick={() => { renameFolderFromDashboard(folder); setFolderMenuId(null); }} className="w-full rounded-md px-2.5 py-2 text-left text-xs font-medium text-neutral-700 hover:bg-neutral-100">Rename</button>
+                      <label className="flex cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-100">
+                        Color
+                        <input type="color" aria-label={`Color for ${folder.name}`} value={/^#[0-9a-f]{6}$/i.test(folder.color || "") ? folder.color : "#737373"} onChange={(event) => updateFolder(folder.id, { color: event.target.value })} className="h-5 w-6 rounded border border-neutral-200 bg-white p-0" />
+                      </label>
+                      <button type="button" role="menuitem" onClick={() => { setFolderMenuId(null); deleteFolder(folder.id); }} className="w-full rounded-md px-2.5 py-2 text-left text-xs font-medium text-red-700 hover:bg-red-50">Delete</button>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -3710,8 +3733,36 @@ const handleRecordFiles = async (event) => {
     );
   }
 
+  const sidebarItems = [
+    { label: "Home", icon: House, onClick: () => navigateDashboard(), active: onCaseListPage && !activeFolderId },
+    { label: "Cases", icon: FolderOpen, onClick: () => navigateDashboard("all"), active: onCaseListPage && activeFolderId === "all" },
+    { label: "Folders", icon: Folder, onClick: () => navigateDashboard(), active: onCaseListPage && !activeFolderId },
+    { label: "Export / Import", icon: Download, onClick: () => { setExportImportOpen(true); setMobileSidebarOpen(false); } },
+    { label: "Settings", icon: Settings, onClick: () => { setSettingsOpen(true); setMobileSidebarOpen(false); } },
+    { label: "Diagnostics", icon: Activity, onClick: () => { handleStorageDiagnostics(); setMobileSidebarOpen(false); } },
+  ];
+
   return (
-    <div className={`min-h-screen bg-neutral-50 text-neutral-800 ${onCaseListPage ? "case-dashboard-shell" : ""}`}>
+    <div data-theme="dark" className={`proveit-dark-shell min-h-screen ${onCaseListPage ? "case-dashboard-shell" : ""}`}>
+      <button type="button" aria-label="Open navigation" onClick={() => setMobileSidebarOpen(true)} className="proveit-mobile-menu print:hidden"><Menu className="h-5 w-5" /></button>
+      {mobileSidebarOpen ? <button type="button" aria-label="Close navigation" onClick={() => setMobileSidebarOpen(false)} className="proveit-sidebar-scrim print:hidden" /> : null}
+      <aside className={`proveit-sidebar print:hidden ${sidebarCollapsed ? "is-collapsed" : ""} ${mobileSidebarOpen ? "is-mobile-open" : ""}`} aria-label="Primary navigation">
+        <div className="proveit-sidebar-brand">
+          <img src={proveItLogo} alt="ProveIt" className="h-9 w-auto max-w-[8.5rem] object-contain" />
+          <button type="button" onClick={() => setSidebarCollapsedPreference(!sidebarCollapsed)} className="proveit-sidebar-collapse" aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}>{sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}</button>
+        </div>
+        <nav className="proveit-sidebar-nav">
+          {sidebarItems.map((item) => {
+            const SidebarIcon = item.icon;
+            return <button key={item.label} type="button" title={sidebarCollapsed ? item.label : undefined} onClick={item.onClick} className={`proveit-sidebar-link ${item.active ? "is-active" : ""}`}><SidebarIcon className="h-[18px] w-[18px] shrink-0" /><span>{item.label}</span></button>;
+          })}
+        </nav>
+        <div className="proveit-sidebar-footer">
+          <button type="button" title={sidebarCollapsed ? "Lock App" : undefined} onClick={appLockEnabled ? lockApp : () => { setSettingsOpen(true); setMobileSidebarOpen(false); }} className="proveit-sidebar-link"><Lock className="h-[18px] w-[18px] shrink-0" /><span>Lock App</span></button>
+          <p><span className="proveit-sidebar-status-dot" /> <span>Local and offline</span></p>
+        </div>
+      </aside>
+      <main className="proveit-main">
       {appNotice ? (
         <div className="fixed right-4 top-4 z-[120] max-w-md">
           <div
@@ -4340,7 +4391,7 @@ const handleRecordFiles = async (event) => {
           </div>
         </div>
       ) : null}
-      <div className="mx-auto max-w-7xl px-4 py-6">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         <header className="front-page-header proveit-app-header relative mb-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-3">
@@ -4377,20 +4428,6 @@ const handleRecordFiles = async (event) => {
               <button type="button" onClick={openCreateCaseModal} className="front-page-primary-action inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/20 sm:w-auto">
                 <Plus className="h-4 w-4 shrink-0" /><span>New Case</span>
               </button>
-              <button type="button" onClick={() => setExportImportOpen(true)} className="case-dashboard-secondary-action inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-colors hover:bg-neutral-100 sm:flex-none">
-                <Download className="h-3.5 w-3.5 shrink-0" /><span>Export / Import</span>
-              </button>
-              <button type="button" onClick={() => setSettingsOpen(true)} className="case-dashboard-secondary-action inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 shadow-sm transition-colors hover:bg-neutral-100 sm:flex-none">
-                <Settings className="h-3.5 w-3.5 shrink-0" /><span>Settings</span>
-              </button>
-              <button type="button" onClick={handleStorageDiagnostics} className="case-dashboard-secondary-action inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-100 sm:flex-none">
-                <Database className="h-3.5 w-3.5 shrink-0" /><span>Diagnostics</span>
-              </button>
-              {appLockEnabled ? (
-                <button type="button" onClick={lockApp} className="case-dashboard-secondary-action inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 shadow-sm transition-colors hover:bg-neutral-100 sm:flex-none">
-                  <Lock className="h-3.5 w-3.5 shrink-0" /><span>Lock App</span>
-                </button>
-              ) : null}
             </div>
           ) : null}
         </header>
@@ -5684,6 +5721,7 @@ const handleRecordFiles = async (event) => {
           />
         )}
       </div>
+      </main>
     </div>
     );
 }
