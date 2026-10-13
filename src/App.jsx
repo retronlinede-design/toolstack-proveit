@@ -3744,7 +3744,6 @@ const handleRecordFiles = async (event) => {
 
   const sidebarItems = [
     { label: "Home", icon: House, onClick: () => navigateDashboard(), active: onCaseListPage && !activeFolderId },
-    { label: "Cases", icon: FolderOpen, onClick: () => navigateDashboard("all"), active: onCaseListPage && activeFolderId === "all" },
     { label: "Folders", icon: Folder, onClick: () => navigateDashboard(), active: onCaseListPage && !activeFolderId },
     { label: "Export / Import", icon: Download, onClick: () => { setExportImportOpen(true); setMobileSidebarOpen(false); } },
     { label: "Settings", icon: Settings, onClick: () => { setSettingsOpen(true); setMobileSidebarOpen(false); } },
