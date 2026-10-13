@@ -59,7 +59,7 @@ import {
 } from "./domain/quickCaptureDomain";
 import { getFileSizeWarning } from "./lib/fileSecurity.js";
 import { removeRecordAttachmentFromForm } from "./domain/recordFormDomain";
-import { Activity, ChevronLeft, ChevronRight, Database, Download, FileJson, Folder, FolderOpen, House, Lock, Menu, MoreHorizontal, Plus, Settings, Trash2, Upload, X } from "lucide-react";
+import { Activity, ChevronLeft, ChevronRight, Download, FileJson, Folder, FolderOpen, House, Lock, Menu, MoreHorizontal, Plus, Settings, Trash2, Upload, X } from "lucide-react";
 import { getStorageDiagnostics } from "./storageDiagnostics";
 import { readRescueSnapshot, writeRescueSnapshot } from "./rescueSnapshot";
 import {
@@ -3747,7 +3747,6 @@ const handleRecordFiles = async (event) => {
     { label: "Folders", icon: Folder, onClick: () => navigateDashboard(), active: onCaseListPage && !activeFolderId },
     { label: "Export / Import", icon: Download, onClick: () => { setExportImportOpen(true); setMobileSidebarOpen(false); } },
     { label: "Settings", icon: Settings, onClick: () => { setSettingsOpen(true); setMobileSidebarOpen(false); } },
-    { label: "Diagnostics", icon: Activity, onClick: () => { handleStorageDiagnostics(); setMobileSidebarOpen(false); } },
   ];
 
   return (
@@ -3764,6 +3763,18 @@ const handleRecordFiles = async (event) => {
             </div>
           </div>
           <button type="button" onClick={() => setSidebarCollapsedPreference(!sidebarCollapsed)} className="proveit-sidebar-collapse" aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}>{sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}</button>
+        </div>
+        <div className="proveit-sidebar-new-case-wrap">
+          <button
+            type="button"
+            title={sidebarCollapsed ? "New Case" : undefined}
+            aria-label="New Case"
+            onClick={() => { openCreateCaseModal(); setMobileSidebarOpen(false); }}
+            className="proveit-sidebar-new-case"
+          >
+            <Plus className="h-[18px] w-[18px] shrink-0" strokeWidth={2.25} />
+            <span>New Case</span>
+          </button>
         </div>
         <nav className="proveit-sidebar-nav">
           {sidebarItems.map((item) => {
@@ -4275,7 +4286,10 @@ const handleRecordFiles = async (event) => {
               </section>
 
               <section className="rounded-xl border border-neutral-200 bg-white p-4">
-                <h3 className="text-sm font-bold text-neutral-900">Storage Diagnostics</h3>
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-neutral-500" aria-hidden="true" />
+                  <h3 className="text-sm font-bold text-neutral-900">Storage Diagnostics</h3>
+                </div>
                 <p className="mt-1 text-xs leading-5 text-neutral-500">
                   Open the existing read-only diagnostics panel for IndexedDB and localStorage status.
                 </p>
@@ -4287,7 +4301,7 @@ const handleRecordFiles = async (event) => {
                   }}
                   className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 sm:w-auto"
                 >
-                  <Database className="h-4 w-4" />
+                  <Activity className="h-4 w-4" />
                   Open Storage Diagnostics
                 </button>
               </section>
@@ -4431,13 +4445,6 @@ const handleRecordFiles = async (event) => {
 
             </div>
           </div>
-          {onCaseListPage ? (
-            <div className="front-page-actions mt-4 flex w-full flex-wrap gap-2 border-t border-neutral-100 pt-4 lg:justify-end print:hidden">
-              <button type="button" onClick={openCreateCaseModal} className="front-page-primary-action proveit-new-case-button inline-flex w-full items-center justify-center gap-2 sm:w-auto">
-                <Plus className="h-[18px] w-[18px] shrink-0" strokeWidth={2.25} /><span>New Case</span>
-              </button>
-            </div>
-          ) : null}
         </header>
 
         {onCaseListPage ? (
