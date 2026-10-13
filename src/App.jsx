@@ -686,6 +686,9 @@ export default function ProveItApp() {
   const [folderModalOpen, setFolderModalOpen] = useState(false);
   const [folderNameInput, setFolderNameInput] = useState("");
   const [folderMenuId, setFolderMenuId] = useState(null);
+  const [folderMenuPlacement, setFolderMenuPlacement] = useState("below");
+  const folderMenuRef = useRef(null);
+  const folderMenuTriggerRef = useRef(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readSidebarCollapsed());
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [editingCase, setEditingCase] = useState(null);
@@ -2315,6 +2318,36 @@ export default function ProveItApp() {
     updateFolder(folder.id, { name: trimmedName });
   };
 
+  const closeFolderMenu = useCallback((restoreFocus = false) => {
+    setFolderMenuId(null);
+    if (restoreFocus) requestAnimationFrame(() => folderMenuTriggerRef.current?.focus());
+  }, []);
+
+  useEffect(() => {
+    if (!folderMenuId) return undefined;
+    const handlePointerDown = (event) => {
+      if (folderMenuRef.current?.contains(event.target) || folderMenuTriggerRef.current?.contains(event.target)) return;
+      closeFolderMenu(true);
+    };
+    const handleKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      closeFolderMenu(true);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    requestAnimationFrame(() => {
+      const menu = folderMenuRef.current;
+      if (!menu) return;
+      setFolderMenuPlacement(menu.getBoundingClientRect().bottom > window.innerHeight - 8 ? "above" : "below");
+      menu.querySelector("[data-folder-menu-item]")?.focus();
+    });
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeFolderMenu, folderMenuId]);
+
   const mostRecentlyUpdatedCaseId = useMemo(() => {
     if (cases.length === 0) return null;
     return [...cases]
@@ -3301,7 +3334,7 @@ const handleRecordFiles = async (event) => {
                 toggleFolderView(folder.id);
               }
             }}
-            className={`case-folder-card min-w-0 rounded-xl border p-3.5 text-left transition-colors ${
+            className={`case-folder-card min-w-0 rounded-xl border p-3.5 text-left transition-colors ${folderMenuId === folder.id ? "relative z-20" : ""} ${
               isActive
                 ? "case-folder-card-active"
                 : "border-neutral-200 bg-neutral-50 hover:border-neutral-300 hover:bg-white"
@@ -3326,28 +3359,47 @@ const handleRecordFiles = async (event) => {
                 <div className="relative mt-2.5 flex justify-end">
                   <button
                     type="button"
+                    ref={folderMenuId === folder.id ? folderMenuTriggerRef : null}
                     aria-label={`Folder actions for ${folder.name}`}
                     aria-expanded={folderMenuId === folder.id}
+                    aria-controls={folderMenuId === folder.id ? `folder-actions-${folder.id}` : undefined}
                     onClick={(event) => {
                       event.stopPropagation();
-                      setFolderMenuId((current) => current === folder.id ? null : folder.id);
+                      if (folderMenuId === folder.id) closeFolderMenu(false);
+                      else {
+                        setFolderMenuPlacement("below");
+                        setFolderMenuId(folder.id);
+                      }
                     }}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100"
+                    onKeyDown={(event) => event.stopPropagation()}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#86dfcd]"
                   >
                     <MoreHorizontal className="h-4 w-4" />
                   </button>
                   {folderMenuId === folder.id ? (
                     <div
+                      id={`folder-actions-${folder.id}`}
+                      ref={folderMenuRef}
                       role="menu"
+                      aria-label={`Actions for ${folder.name}`}
                       onClick={(event) => event.stopPropagation()}
-                      className="absolute right-0 top-9 z-20 w-40 rounded-lg border border-neutral-200 bg-white p-1 shadow-lg"
+                      onKeyDown={(event) => {
+                        const items = [...event.currentTarget.querySelectorAll("[data-folder-menu-item]")];
+                        const currentIndex = items.indexOf(document.activeElement);
+                        if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+                          event.preventDefault();
+                          const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (currentIndex + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+                          items[nextIndex]?.focus();
+                        }
+                      }}
+                      className={`case-folder-action-menu absolute right-0 z-[60] max-h-[calc(100vh-1rem)] w-44 overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-lg ${folderMenuPlacement === "above" ? "bottom-9" : "top-9"}`}
                     >
-                      <button type="button" role="menuitem" onClick={() => { renameFolderFromDashboard(folder); setFolderMenuId(null); }} className="w-full rounded-md px-2.5 py-2 text-left text-xs font-medium text-neutral-700 hover:bg-neutral-100">Rename</button>
-                      <label className="flex cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-100">
+                      <button type="button" role="menuitem" data-folder-menu-item tabIndex={-1} onClick={() => { renameFolderFromDashboard(folder); closeFolderMenu(false); }} className="w-full rounded-md px-2.5 py-2 text-left text-xs font-medium text-neutral-700">Rename</button>
+                      <label role="menuitem" data-folder-menu-item tabIndex={-1} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.querySelector("input")?.click(); } }} className="flex cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-2 text-xs font-medium text-neutral-700">
                         Color
-                        <input type="color" aria-label={`Color for ${folder.name}`} value={/^#[0-9a-f]{6}$/i.test(folder.color || "") ? folder.color : "#737373"} onChange={(event) => updateFolder(folder.id, { color: event.target.value })} className="h-5 w-6 rounded border border-neutral-200 bg-white p-0" />
+                        <input type="color" aria-label={`Color for ${folder.name}`} tabIndex={-1} value={/^#[0-9a-f]{6}$/i.test(folder.color || "") ? folder.color : "#737373"} onChange={(event) => updateFolder(folder.id, { color: event.target.value })} className="h-5 w-6 rounded border border-neutral-200 bg-white p-0" />
                       </label>
-                      <button type="button" role="menuitem" onClick={() => { setFolderMenuId(null); deleteFolder(folder.id); }} className="w-full rounded-md px-2.5 py-2 text-left text-xs font-medium text-red-700 hover:bg-red-50">Delete</button>
+                      <button type="button" role="menuitem" data-folder-menu-item tabIndex={-1} onClick={() => { closeFolderMenu(false); deleteFolder(folder.id); }} className="folder-menu-delete w-full rounded-md px-2.5 py-2 text-left text-xs font-medium">Delete</button>
                     </div>
                   ) : null}
                 </div>

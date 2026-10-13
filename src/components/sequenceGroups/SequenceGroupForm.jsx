@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import RecordActions from "../shared/RecordActions.jsx";
 import { normalizeSequenceGroupInput, validateSequenceGroupInput } from "./sequenceGroupManagement.js";
@@ -11,6 +11,7 @@ export default function SequenceGroupForm({
   onSave,
   onCancel,
 }) {
+  const dialogRef = useRef(null);
   const initial = normalizeSequenceGroupInput(initialValue || {});
   const [form, setForm] = useState(initial);
   const [error, setError] = useState("");
@@ -27,9 +28,29 @@ export default function SequenceGroupForm({
     onSave(result.value);
   };
 
+  useEffect(() => {
+    const previousFocus = document.activeElement;
+    const dialog = dialogRef.current;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") return onCancel();
+      if (event.key !== "Tab" || !dialog) return;
+      const focusable = [...dialog.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href]')];
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previousFocus?.focus?.();
+    };
+  }, [onCancel]);
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="sequence-group-form-title">
-      <form onSubmit={handleSubmit} className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-neutral-200 bg-white p-5 shadow-xl dark:border-neutral-700 dark:bg-neutral-900">
+      <form ref={dialogRef} onSubmit={handleSubmit} className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-neutral-200 bg-white p-5 shadow-xl dark:border-neutral-700 dark:bg-neutral-900">
         <div>
           <h3 id="sequence-group-form-title" className="text-lg font-semibold text-neutral-950 dark:text-neutral-100">{title}</h3>
           <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Create a flat Issue. Its permanent internal ID and human reference are assigned automatically.</p>
@@ -65,13 +86,15 @@ export default function SequenceGroupForm({
           />
         </label>
 
-        <RecordActions
-          className="mt-5 flex flex-col-reverse gap-2 border-t border-neutral-100 pt-4 sm:flex-row sm:justify-end dark:border-neutral-800"
-          actions={[
-            { key: "cancel", label: "Cancel", onClick: onCancel },
-            { key: "save", label: mode === "edit" ? "Save Changes" : "Create Issue", variant: "primary", onClick: handleSubmit },
-          ]}
-        />
+        <div className="sticky bottom-0 -mx-5 mt-5 border-t border-neutral-100 bg-white/95 px-5 pb-1 pt-4 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95">
+          <RecordActions
+            className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"
+            actions={[
+              { key: "cancel", label: "Cancel", onClick: onCancel },
+              { key: "save", label: mode === "edit" ? "Save Changes" : "Create Issue", variant: "primary", onClick: handleSubmit },
+            ]}
+          />
+        </div>
       </form>
     </div>
   );

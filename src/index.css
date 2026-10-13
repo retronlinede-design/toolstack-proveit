@@ -80,6 +80,12 @@
 .proveit-dark-shell [role="menuitem"]:hover, .proveit-dark-shell [role="menuitem"]:focus-visible { background-color: var(--pi-control-hover) !important; color: #ffffff !important; outline: none; }
 .proveit-dark-shell [role="menuitem"]:focus-visible { box-shadow: inset 0 0 0 2px var(--pi-focus); }
 .proveit-dark-shell [role="menuitem"][aria-disabled="true"], .proveit-dark-shell [role="menuitem"]:disabled { background-color: var(--pi-control-disabled) !important; color: var(--pi-muted) !important; cursor: not-allowed; }
+.proveit-dark-shell .case-folder-action-menu { border-color: var(--pi-border) !important; background-color: var(--pi-control) !important; color: var(--pi-text); }
+.proveit-dark-shell .case-folder-action-menu [role="menuitem"] { color: var(--pi-text) !important; }
+.proveit-dark-shell .case-folder-action-menu [role="menuitem"]:hover, .proveit-dark-shell .case-folder-action-menu [role="menuitem"]:focus-visible { background-color: var(--pi-control-hover) !important; color: #ffffff !important; outline: none; }
+.proveit-dark-shell .case-folder-action-menu [role="menuitem"]:focus-visible { box-shadow: inset 0 0 0 2px var(--pi-focus); }
+.proveit-dark-shell .case-folder-action-menu .folder-menu-delete { color: #ffb7c5 !important; }
+.proveit-dark-shell .case-folder-action-menu .folder-menu-delete:hover, .proveit-dark-shell .case-folder-action-menu .folder-menu-delete:focus-visible { background-color: #4d2535 !important; color: #ffffff !important; }
 .proveit-dark-shell [data-proveit-menu] { border-color: var(--pi-border) !important; background-color: var(--pi-control) !important; color: var(--pi-text); }
 .proveit-dark-shell [data-proveit-menu] :is(button, [role="menuitem"]) { color: var(--pi-text) !important; }
 .proveit-dark-shell [data-proveit-menu] :is(button, [role="menuitem"]):hover { background-color: var(--pi-control-hover) !important; color: #ffffff !important; }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import RecordActions from "../shared/RecordActions.jsx";
 import RecordBadge from "../shared/RecordBadge.jsx";
 import {
@@ -165,9 +165,32 @@ export default function SequenceGroupManager({
   setSequenceRenameInputs,
   setSequenceTimelineSort,
 }) {
+  const dialogRef = useRef(null);
   const [sequenceDescriptionDraftState, setSequenceDescriptionDraftState] = useState({ key: "", value: "" });
   const [selectedSection, setSelectedSection] = useState("overview");
   const [groupForm, setGroupForm] = useState(null);
+  useEffect(() => {
+    if (groupForm) return undefined;
+    const previousFocus = document.activeElement;
+    const dialog = dialogRef.current;
+    const focusableSelector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href]';
+    dialog?.querySelector(focusableSelector)?.focus();
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") return onClose();
+      if (event.key !== "Tab" || !dialog) return;
+      const focusable = [...dialog.querySelectorAll(focusableSelector)];
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previousFocus?.focus?.();
+    };
+  }, [groupForm, onClose]);
   const sequenceGroupMeta = selectedCase?.id
     ? getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore())
     : {};
@@ -444,12 +467,12 @@ export default function SequenceGroupManager({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-2 print:hidden sm:p-4">
-      <div className="flex max-h-[calc(100vh-1rem)] w-full max-w-[90rem] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-950 sm:max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-2 print:hidden sm:p-4" role="dialog" aria-modal="true" aria-labelledby="sequence-group-manager-title">
+      <div ref={dialogRef} className="flex max-h-[calc(100vh-1rem)] w-full max-w-[90rem] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-950 sm:max-h-[92vh]">
         <div className="flex items-start justify-between gap-4 border-b border-neutral-200 p-4 dark:border-neutral-700 sm:p-5">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Investigation Structure</div>
-            <h3 className="mt-1 text-xl font-semibold text-neutral-950 dark:text-neutral-100">Issue Manager</h3>
+            <h3 id="sequence-group-manager-title" className="mt-1 text-xl font-semibold text-neutral-950 dark:text-neutral-100">Issue Manager</h3>
             <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
               Organise related records into flat Issues, then review their records, links, and chronology here.
             </p>
