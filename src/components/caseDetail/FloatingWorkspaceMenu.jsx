@@ -27,7 +27,7 @@ export default function FloatingWorkspaceMenu({
             className="fixed inset-0 z-0 cursor-default"
             onClick={onClose}
           />
-          <div className="relative z-10 mb-2 overflow-hidden rounded-xl border border-neutral-200 bg-white p-2 shadow-lg">
+          <div data-proveit-menu className="relative z-10 mb-2 overflow-hidden rounded-xl border border-neutral-200 bg-white p-2 shadow-lg">
             <div className="px-2 pb-1 pt-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">AI</div>
             <button
               type="button"

@@ -10,9 +10,15 @@
   --pi-text: #ecf3fb;
   --pi-muted: #93a7bd;
   --pi-accent: #5ed0ba;
+  --pi-control: #16263a;
+  --pi-control-hover: #1d354d;
+  --pi-control-active: #294863;
+  --pi-control-disabled: #0d1928;
+  --pi-focus: #9aeee0;
   min-height: 100vh;
   background: var(--pi-bg);
   color: var(--pi-text);
+  color-scheme: dark;
 }
 
 .proveit-main { min-height: 100vh; padding-left: 17rem; }
@@ -61,6 +67,24 @@
 .proveit-dark-shell :is(.text-neutral-950, .text-neutral-900, .text-neutral-800, .text-neutral-700) { color: var(--pi-text) !important; }
 .proveit-dark-shell :is(.text-neutral-600, .text-neutral-500, .text-neutral-400) { color: var(--pi-muted) !important; }
 .proveit-dark-shell input, .proveit-dark-shell select, .proveit-dark-shell textarea { color: var(--pi-text) !important; }
+/* Native select popups have limited browser-level theming, so color-scheme and option colors are set together. */
+.proveit-dark-shell select { border-color: var(--pi-border) !important; background-color: var(--pi-control) !important; color: var(--pi-text) !important; }
+.proveit-dark-shell select:hover { background-color: var(--pi-control-hover) !important; }
+.proveit-dark-shell select:focus-visible { outline: 2px solid var(--pi-focus); outline-offset: 2px; }
+.proveit-dark-shell select:disabled { border-color: var(--pi-border) !important; background-color: var(--pi-control-disabled) !important; color: var(--pi-muted) !important; cursor: not-allowed; opacity: .72; }
+.proveit-dark-shell select option, .proveit-dark-shell select optgroup { background-color: var(--pi-control); color: var(--pi-text); }
+.proveit-dark-shell select option:hover, .proveit-dark-shell select option:focus, .proveit-dark-shell select option:checked { background-color: var(--pi-control-active); color: #ffffff; }
+.proveit-dark-shell select option:disabled { background-color: var(--pi-control-disabled); color: var(--pi-muted); }
+.proveit-dark-shell [role="menu"] { border-color: var(--pi-border) !important; background-color: var(--pi-control) !important; color: var(--pi-text); }
+.proveit-dark-shell [role="menuitem"] { color: var(--pi-text) !important; }
+.proveit-dark-shell [role="menuitem"]:hover, .proveit-dark-shell [role="menuitem"]:focus-visible { background-color: var(--pi-control-hover) !important; color: #ffffff !important; outline: none; }
+.proveit-dark-shell [role="menuitem"]:focus-visible { box-shadow: inset 0 0 0 2px var(--pi-focus); }
+.proveit-dark-shell [role="menuitem"][aria-disabled="true"], .proveit-dark-shell [role="menuitem"]:disabled { background-color: var(--pi-control-disabled) !important; color: var(--pi-muted) !important; cursor: not-allowed; }
+.proveit-dark-shell [data-proveit-menu] { border-color: var(--pi-border) !important; background-color: var(--pi-control) !important; color: var(--pi-text); }
+.proveit-dark-shell [data-proveit-menu] :is(button, [role="menuitem"]) { color: var(--pi-text) !important; }
+.proveit-dark-shell [data-proveit-menu] :is(button, [role="menuitem"]):hover { background-color: var(--pi-control-hover) !important; color: #ffffff !important; }
+.proveit-dark-shell [data-proveit-menu] :is(button, [role="menuitem"]):focus-visible { outline: 2px solid var(--pi-focus); outline-offset: -2px; background-color: var(--pi-control-active) !important; color: #ffffff !important; }
+.proveit-dark-shell [data-proveit-menu] :is(button, [role="menuitem"]):disabled { background-color: var(--pi-control-disabled) !important; color: var(--pi-muted) !important; }
 .proveit-dark-shell .front-page-primary-action, .proveit-dark-shell .case-primary-action { border-color: var(--pi-accent) !important; background: var(--pi-accent) !important; color: #06211f !important; }
 .proveit-dark-shell.case-dashboard-shell .proveit-new-case-button { min-height: 2.75rem; border: 1px solid color-mix(in srgb, var(--pi-accent) 72%, #fff) !important; border-radius: .7rem; background: #d7fbf4 !important; padding: .65rem 1rem; color: #0b2b2a !important; font-size: .875rem; font-weight: 750; letter-spacing: -.01em; box-shadow: 0 4px 14px rgb(0 0 0 / .14); transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease; }
 .proveit-dark-shell.case-dashboard-shell .proveit-new-case-button:hover { background: #bff4e9 !important; box-shadow: 0 7px 18px rgb(0 0 0 / .22); transform: translateY(-1px); }
