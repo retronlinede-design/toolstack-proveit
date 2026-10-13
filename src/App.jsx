@@ -77,7 +77,6 @@ import {
   mergeSequenceGroupMetaStoreToStorage,
   readSequenceGroupMetaStore,
 } from "./sequenceGroupMeta.js";
-import proveItLogo from "./assets/proveit-logo.png";
 import { normalizeCaseIssues } from "./domain/issueDomain.js";
 import { mergeImportedCases } from "./domain/caseImport.js";
 import { normalizeStoredCase } from "./domain/caseNormalization.js";
@@ -352,6 +351,16 @@ function readSidebarCollapsed() {
   } catch {
     return false;
   }
+}
+
+function ProveItMark({ className = "" }) {
+  return (
+    <svg viewBox="0 0 32 32" aria-hidden="true" className={className} fill="none">
+      <path d="M16 2.8 26.1 7v8.1c0 6.15-4.15 11.63-10.1 14.1C10.05 26.73 5.9 21.25 5.9 15.1V7L16 2.8Z" fill="currentColor" opacity=".18" />
+      <path d="M16 2.8 26.1 7v8.1c0 6.15-4.15 11.63-10.1 14.1C10.05 26.73 5.9 21.25 5.9 15.1V7L16 2.8Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <path d="m10.8 15.9 3.35 3.35 7.1-7.25" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
 const EVIDENCE_TYPE_LABELS = {
@@ -3748,7 +3757,13 @@ const handleRecordFiles = async (event) => {
       {mobileSidebarOpen ? <button type="button" aria-label="Close navigation" onClick={() => setMobileSidebarOpen(false)} className="proveit-sidebar-scrim print:hidden" /> : null}
       <aside className={`proveit-sidebar print:hidden ${sidebarCollapsed ? "is-collapsed" : ""} ${mobileSidebarOpen ? "is-mobile-open" : ""}`} aria-label="Primary navigation">
         <div className="proveit-sidebar-brand">
-          <img src={proveItLogo} alt="ProveIt" className="h-9 w-auto max-w-[8.5rem] object-contain" />
+          <div className="proveit-brand-lockup">
+            <span className="proveit-brand-mark"><ProveItMark /></span>
+            <div className="proveit-brand-copy">
+              <span className="proveit-brand-wordmark">Prove<span>It</span></span>
+              <span className="proveit-brand-caption">Case intelligence</span>
+            </div>
+          </div>
           <button type="button" onClick={() => setSidebarCollapsedPreference(!sidebarCollapsed)} className="proveit-sidebar-collapse" aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}>{sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}</button>
         </div>
         <nav className="proveit-sidebar-nav">
@@ -4394,18 +4409,12 @@ const handleRecordFiles = async (event) => {
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         <header className="front-page-header proveit-app-header relative mb-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex min-w-0 items-center gap-3">
-              <img
-                src={proveItLogo}
-                alt="ProveIt"
-                className={onCaseListPage ? "block h-12 w-auto max-w-[9rem] shrink-0 object-contain sm:h-14 sm:max-w-[11rem]" : "block h-auto max-h-[5.25rem] w-auto max-w-[min(82vw,33rem)] object-contain sm:max-h-[7.5rem] sm:max-w-[42rem]"}
-              />
-              {onCaseListPage ? (
-                <div className="min-w-0 border-l border-neutral-200 pl-3">
-                  <h1 className="text-xl font-semibold tracking-tight text-neutral-950 sm:text-2xl">ProveIt</h1>
-                  <p className="mt-0.5 text-sm text-neutral-500">Professional Case Management</p>
-                </div>
-              ) : <h1 className="sr-only">ProveIt</h1>}
+            <div className="proveit-header-brand">
+              <span className="proveit-header-mark"><ProveItMark /></span>
+              <div className="min-w-0">
+                <h1 className="proveit-header-wordmark">Prove<span>It</span></h1>
+                <p className="proveit-header-caption">Professional Case Management</p>
+              </div>
             </div>
 
             <div className="flex flex-col gap-2 lg:items-end print:hidden">
@@ -4425,8 +4434,8 @@ const handleRecordFiles = async (event) => {
           </div>
           {onCaseListPage ? (
             <div className="front-page-actions mt-4 flex w-full flex-wrap gap-2 border-t border-neutral-100 pt-4 lg:justify-end print:hidden">
-              <button type="button" onClick={openCreateCaseModal} className="front-page-primary-action inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm transition-colors hover:bg-lime-400/20 sm:w-auto">
-                <Plus className="h-4 w-4 shrink-0" /><span>New Case</span>
+              <button type="button" onClick={openCreateCaseModal} className="front-page-primary-action proveit-new-case-button inline-flex w-full items-center justify-center gap-2 sm:w-auto">
+                <Plus className="h-[18px] w-[18px] shrink-0" strokeWidth={2.25} /><span>New Case</span>
               </button>
             </div>
           ) : null}
