@@ -7020,9 +7020,9 @@ ${ungroupedSequenceText}
             aria-modal="true"
             aria-labelledby="ai-tools-modal-title"
             tabIndex={-1}
-            className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl outline-none"
+            className="ai-workspace-modal flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl outline-none"
           >
-            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-neutral-100 bg-white p-4 sm:p-5">
+            <div data-ai-workspace-header className="flex shrink-0 items-start justify-between gap-4 border-b border-neutral-100 bg-white p-4 sm:p-5">
               <div>
                 <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-700">AI command center</div>
                 <h3 id="ai-tools-modal-title" className="mt-1 text-lg font-semibold text-neutral-900">AI Workspace</h3>
@@ -7040,12 +7040,12 @@ ${ungroupedSequenceText}
             </div>
 
             <div className="grid min-h-0 flex-1 overflow-hidden md:grid-cols-[21rem_1fr]">
-              <aside className="max-h-56 overflow-y-auto overscroll-contain border-b border-neutral-100 bg-neutral-50/60 p-3 md:max-h-none md:border-b-0 md:border-r">
+              <aside data-ai-workspace-navigation className="max-h-56 overflow-y-auto overscroll-contain border-b border-neutral-100 bg-neutral-50/60 p-3 md:max-h-none md:border-b-0 md:border-r">
                 <div className="space-y-3">
                   {aiWorkspaceSections.map((section) => {
                     const SectionIcon = aiWorkspaceIconMap[section.icon] || FileText;
                     return (
-                      <section key={section.id} className="rounded-xl border border-neutral-200 bg-white p-3">
+                      <section key={section.id} data-ai-workspace-section className="rounded-xl border border-neutral-200 bg-white p-3">
                         <div className="flex items-start gap-2">
                           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700">
                             <SectionIcon className="h-4 w-4" aria-hidden="true" />
@@ -7061,6 +7061,8 @@ ${ungroupedSequenceText}
                               <button
                                 key={`${section.id}-${task.id}`}
                                 type="button"
+                                data-ai-workspace-task
+                                aria-current={activeAiTask === task.id ? "page" : undefined}
                                 onClick={() => {
                                   setActiveAiTask(task.id);
                                   if (task.toolId) setActiveAiTool(task.toolId);
@@ -7089,9 +7091,9 @@ ${ungroupedSequenceText}
                 </div>
               </aside>
 
-              <section className="min-h-0 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-5">
+              <section data-ai-workspace-details className="min-h-0 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-5">
                 {aiToolsFeedback && (
-                  <div className="rounded-md border border-lime-200 bg-lime-50 p-3 text-sm font-medium text-lime-800">
+                  <div data-ai-workspace-feedback role="status" aria-live="polite" className="rounded-md border border-lime-200 bg-lime-50 p-3 text-sm font-medium text-lime-800">
                     {aiToolsFeedback}
                   </div>
                 )}
@@ -7099,7 +7101,7 @@ ${ungroupedSequenceText}
                 <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
                   <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-700">Selected Task</div>
                   <h4 className="mt-1 text-2xl font-semibold text-neutral-950">{activeAiTaskOption.title}</h4>
-                  <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-xs leading-5 text-neutral-600">
+                  <div data-ai-workspace-metadata className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-xs leading-5 text-neutral-600">
                     <div>
                       <div className="font-bold uppercase tracking-wider text-neutral-400">Technical Tool</div>
                       <p className="mt-1 text-sm font-semibold text-neutral-900">{activeAiTaskOption.technicalTool}</p>
@@ -7200,7 +7202,7 @@ ${ungroupedSequenceText}
                   </label>
                 )}
 
-                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                  <div data-ai-workspace-guidance className="mt-4 grid gap-3 lg:grid-cols-2">
                     <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
                       <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Workflow</div>
                       <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm leading-6 text-neutral-700">
@@ -7258,7 +7260,7 @@ ${ungroupedSequenceText}
                   </div>
 
                   <div className="mt-4 text-xs leading-5 text-neutral-500">This task uses {activeAiTaskOption.technicalTool}.</div>
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div data-ai-workspace-actions className="ai-workspace-actions sticky bottom-0 z-10 mt-3 flex flex-wrap gap-2">
                     {activeAiTaskActionKind === "reasoning-snapshot" && (
                       <button
                         type="button"
