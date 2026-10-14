@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { BookOpen, Briefcase, ChevronDown, ChevronRight, Download, FileText, Network, Search, ShieldCheck, Tags, Target, Users, Waypoints } from "lucide-react";
+import { BookOpen, Briefcase, ChevronDown, ChevronRight, Download, FileText, GripVertical, Network, Search, ShieldCheck, Tags, Target, Users, Waypoints } from "lucide-react";
 import proveItHeaderLogo from "../assets/proveitheader.png";
 import { isTimelineCapable, getCaseHealthReport } from "../lib/caseHealth";
 import {
@@ -3711,6 +3711,21 @@ ${ungroupedSequenceText}
     const movedTab = caseWorkspaceTabs.find((tab) => tab.id === tabId);
     updateCaseNavigationOrder(nextOrder, `${movedTab?.label || "Section"} moved ${direction < 0 ? "left" : "right"}.`);
   };
+  const clearCaseNavigationDrag = () => {
+    setDraggedCaseNavigationId("");
+    setCaseNavigationDropTarget("");
+  };
+  const handleCaseNavigationReorderKeyDown = (event, tab) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      clearCaseNavigationDrag();
+      setCaseNavigationAnnouncement("Section reordering cancelled.");
+      return;
+    }
+    if (!event.altKey || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
+    event.preventDefault();
+    moveCaseNavigationTab(tab.id, event.key === "ArrowLeft" ? -1 : 1);
+  };
   const resetCaseNavigation = () => {
     resetCaseNavigationOrder();
     setCaseNavigationOrder([]);
@@ -3973,20 +3988,9 @@ ${ungroupedSequenceText}
                       const isActive = tab.id === "records" ? isCaseRecordsWorkspace : activeTab === tab.id;
                       const TabIcon = tab.icon;
                       return (
-                        <button
+                        <div
                           key={tab.id}
-                          onClick={() => setActiveTab(tab.id)}
-                          onKeyDown={(event) => {
-                            if (!event.altKey || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
-                            event.preventDefault();
-                            moveCaseNavigationTab(tab.id, event.key === "ArrowLeft" ? -1 : 1);
-                          }}
-                          draggable
-                          onDragStart={(event) => {
-                            setDraggedCaseNavigationId(tab.id);
-                            event.dataTransfer.effectAllowed = "move";
-                            event.dataTransfer.setData("text/plain", tab.id);
-                          }}
+                          className={`case-file-navigation-cell ${caseNavigationDropTarget === tab.id ? "is-drop-target " : ""}${draggedCaseNavigationId === tab.id ? "is-dragging" : ""}`}
                           onDragOver={(event) => {
                             event.preventDefault();
                             if (draggedCaseNavigationId && draggedCaseNavigationId !== tab.id) setCaseNavigationDropTarget(tab.id);
@@ -4004,28 +4008,46 @@ ${ungroupedSequenceText}
                               const draggedTab = workspaceTabs.find((item) => item.id === draggedId);
                               updateCaseNavigationOrder(nextOrder, `${draggedTab?.label || "Section"} moved before ${tab.label}.`);
                             }
-                            setDraggedCaseNavigationId("");
-                            setCaseNavigationDropTarget("");
+                            clearCaseNavigationDrag();
                           }}
-                          onDragEnd={() => {
-                            setDraggedCaseNavigationId("");
-                            setCaseNavigationDropTarget("");
-                          }}
-                          aria-describedby="case-navigation-reorder-help"
-                          aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
-                          aria-current={isActive ? "page" : undefined}
-                          className={`case-file-navigation-item relative inline-flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-center text-xs font-semibold leading-tight transition-colors duration-200 focus:outline-none focus-visible:z-10 ${caseNavigationDropTarget === tab.id ? "is-drop-target " : ""}${draggedCaseNavigationId === tab.id ? "is-dragging " : ""}${
-                            isActive
-                              ? "is-active text-neutral-950 dark:text-neutral-100"
-                              : tab.secondary
-                                ? "is-secondary text-neutral-500 dark:text-neutral-400"
-                                : "text-neutral-700 dark:text-neutral-300"
-                          }`}
                         >
-                          {TabIcon && <TabIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
-                          <span>{tab.label}</span>
-                          {isActive && <span className="case-workspace-tab-indicator absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-lime-500" />}
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab(tab.id)}
+                            onKeyDown={(event) => handleCaseNavigationReorderKeyDown(event, tab)}
+                            aria-describedby="case-navigation-reorder-help"
+                            aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
+                            aria-current={isActive ? "page" : undefined}
+                            className={`case-file-navigation-item relative inline-flex min-h-10 min-w-0 w-full items-center justify-center gap-1.5 rounded-lg border py-2 pl-5 pr-2 text-center text-xs font-semibold leading-tight transition-colors duration-200 focus:outline-none focus-visible:z-10 ${
+                              isActive
+                                ? "is-active text-neutral-950 dark:text-neutral-100"
+                                : tab.secondary
+                                  ? "is-secondary text-neutral-500 dark:text-neutral-400"
+                                  : "text-neutral-700 dark:text-neutral-300"
+                            }`}
+                          >
+                            {TabIcon && <TabIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+                            <span>{tab.label}</span>
+                            {isActive && <span className="case-workspace-tab-indicator absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-lime-500" />}
+                          </button>
+                          <button
+                            type="button"
+                            draggable
+                            aria-label={`Reorder ${tab.label}`}
+                            aria-describedby="case-navigation-reorder-help"
+                            aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
+                            className="case-file-navigation-grip"
+                            onKeyDown={(event) => handleCaseNavigationReorderKeyDown(event, tab)}
+                            onDragStart={(event) => {
+                              setDraggedCaseNavigationId(tab.id);
+                              event.dataTransfer.effectAllowed = "move";
+                              event.dataTransfer.setData("text/plain", tab.id);
+                            }}
+                            onDragEnd={clearCaseNavigationDrag}
+                          >
+                            <GripVertical className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        </div>
                       );
                     })}
                     </div>
