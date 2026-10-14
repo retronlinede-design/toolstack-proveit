@@ -20,6 +20,11 @@ test("case file navigation is a labelled responsive grid with a mobile select fa
   assert.match(caseDetail, /case-file-mobile-navigation/);
   assert.match(caseDetail, /case-file-navigation-item/);
   assert.match(caseDetail, /aria-current=\{isActive \? "page" : undefined\}/);
+  assert.match(caseDetail, /draggable/);
+  assert.match(caseDetail, /onDragStart/);
+  assert.match(caseDetail, /onDrop/);
+  assert.match(caseDetail, /aria-keyshortcuts="Alt\+ArrowLeft Alt\+ArrowRight"/);
+  assert.match(caseDetail, /case-file-navigation-reset/);
   assert.doesNotMatch(caseDetail, /hidden grid-cols-12 md:grid/);
   assert.doesNotMatch(caseDetail, /case-file-navigation-list/);
 });
@@ -35,5 +40,6 @@ test("case file dark styling stays inside the dedicated case-file scope", () => 
   assert.match(styles, /\.proveit-dark-shell \.case-file-header \{/);
   assert.match(styles, /\.proveit-dark-shell \.case-file-navigation-item\.is-active \{/);
   assert.match(styles, /\.proveit-dark-shell \.case-file-navigation-grid \{/);
+  assert.match(styles, /\.proveit-dark-shell \.case-file-navigation-item\.is-drop-target/);
   assert.doesNotMatch(styles, /\.case-file-navigation-list/);
 });

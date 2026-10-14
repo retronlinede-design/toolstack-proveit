@@ -195,10 +195,34 @@
   width: 100%;
   max-width: 100%;
 }
+.proveit-dark-shell .case-file-navigation-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .15rem .25rem .55rem;
+  color: var(--case-file-muted);
+  font-size: .72rem;
+  line-height: 1.25rem;
+}
+.proveit-dark-shell .case-file-navigation-controls p { max-width: 44rem; }
+.proveit-dark-shell .case-file-navigation-reset {
+  flex: 0 0 auto;
+  border: 1px solid var(--case-file-border);
+  border-radius: .45rem;
+  background: transparent;
+  padding: .28rem .55rem;
+  color: var(--case-file-muted);
+  font-size: .72rem;
+  font-weight: 650;
+}
+.proveit-dark-shell .case-file-navigation-reset:hover { border-color: color-mix(in srgb, var(--case-file-accent) 45%, var(--case-file-border)); color: var(--case-file-text); }
+.proveit-dark-shell .case-file-navigation-reset:focus-visible { outline: 2px solid var(--case-file-focus); outline-offset: 2px; }
 .proveit-dark-shell .case-file-navigation-item {
   color: var(--case-file-muted) !important;
   border-color: var(--case-file-border) !important;
   background: var(--pi-control) !important;
+  cursor: grab;
 }
 .proveit-dark-shell .case-file-navigation-item:hover {
   border-color: color-mix(in srgb, var(--case-file-accent) 42%, var(--case-file-border)) !important;
@@ -211,6 +235,8 @@
   background: color-mix(in srgb, var(--case-file-accent) 13%, var(--pi-control)) !important;
   color: #e8fffa !important;
 }
+.proveit-dark-shell .case-file-navigation-item.is-drop-target { border-color: var(--case-file-accent) !important; box-shadow: inset 0 0 0 1px var(--case-file-accent); }
+.proveit-dark-shell .case-file-navigation-item.is-dragging { cursor: grabbing; opacity: .52; }
 .proveit-dark-shell .case-file .case-workspace-tab-indicator { background: var(--case-file-accent) !important; }
 .proveit-dark-shell .case-file-mobile-navigation select { border-color: var(--case-file-border) !important; }
 

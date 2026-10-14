@@ -73,6 +73,13 @@ import { buildLedgerScheduleDocument, projectLedgerDocumentToLegacyViewModel } f
 import { buildActiveReportDocument } from "../report/buildActiveReportDocument.js";
 import { buildReportOutput } from "../report/reportOutputs.js";
 import { getLinkChipClasses } from "./linkChipStyles";
+import {
+  moveCaseNavigationItem,
+  normaliseCaseNavigationOrder,
+  readCaseNavigationOrder,
+  resetCaseNavigationOrder,
+  saveCaseNavigationOrder,
+} from "./caseDetail/caseNavigationOrder.js";
 import LinkedChip from "./LinkedChip";
 import RecordCard from "./RecordCard";
 import CaseBundleReportArticle from "./reports/CaseBundleReportArticle";
@@ -247,6 +254,10 @@ export default function CaseDetail({
   supabaseReasoningExportMessage = "",
 }) {
   const isCaseRecordsWorkspace = activeTab === "records" || activeTab === "ledger";
+  const [caseNavigationOrder, setCaseNavigationOrder] = useState(() => readCaseNavigationOrder());
+  const [draggedCaseNavigationId, setDraggedCaseNavigationId] = useState("");
+  const [caseNavigationDropTarget, setCaseNavigationDropTarget] = useState("");
+  const [caseNavigationAnnouncement, setCaseNavigationAnnouncement] = useState("");
   const [expandedGroups, setExpandedGroups] = useState({});
   const [overviewWatchItem, setOverviewWatchItem] = useState(undefined);
   const [ideas, setIdeas] = useState([]);
@@ -3661,6 +3672,50 @@ ${ungroupedSequenceText}
     { label: "Timeline", value: timelineItems.length },
     { label: "Issues", value: sequenceGroupDetails.groups.length },
   ];
+  const caseWorkspaceTabs = tabs
+      .flatMap((tab) => tab.id === "documents" ? [tab, { id: "records", label: "Case Records" }] : tab.id === "ledger" ? [] : [tab])
+      .map((tab) => ({
+        ...tab,
+        label: tab.id === "generate-report" ? "Reports" : tab.label,
+        secondary: ["strategy", "narrative", "pack"].includes(tab.id),
+        icon: {
+          overview: BookOpen,
+          parties: Users,
+          incidents: ShieldCheck,
+          evidence: Search,
+          watch: Waypoints,
+          documents: FileText,
+          records: BookOpen,
+          timeline: Waypoints,
+          "generate-report": Download,
+          strategy: Target,
+          narrative: FileText,
+          pack: Download,
+        }[tab.id],
+      }));
+  const caseWorkspaceTabIds = caseWorkspaceTabs.map((tab) => tab.id);
+  const orderedCaseWorkspaceTabs = (() => {
+    const tabById = new Map(caseWorkspaceTabs.map((tab) => [tab.id, tab]));
+    return normaliseCaseNavigationOrder(caseNavigationOrder, caseWorkspaceTabIds).map((id) => tabById.get(id)).filter(Boolean);
+  })();
+  const updateCaseNavigationOrder = (nextOrder, announcement) => {
+    const normalisedOrder = normaliseCaseNavigationOrder(nextOrder, caseWorkspaceTabIds);
+    setCaseNavigationOrder(normalisedOrder);
+    saveCaseNavigationOrder(normalisedOrder);
+    if (announcement) setCaseNavigationAnnouncement(announcement);
+  };
+  const moveCaseNavigationTab = (tabId, direction) => {
+    const currentOrder = orderedCaseWorkspaceTabs.map((tab) => tab.id);
+    const nextOrder = moveCaseNavigationItem(currentOrder, tabId, direction);
+    if (nextOrder === currentOrder) return;
+    const movedTab = caseWorkspaceTabs.find((tab) => tab.id === tabId);
+    updateCaseNavigationOrder(nextOrder, `${movedTab?.label || "Section"} moved ${direction < 0 ? "left" : "right"}.`);
+  };
+  const resetCaseNavigation = () => {
+    resetCaseNavigationOrder();
+    setCaseNavigationOrder([]);
+    setCaseNavigationAnnouncement("Case navigation order restored.");
+  };
 
   return (
     <div className="case-file space-y-6">
@@ -3888,27 +3943,7 @@ ${ungroupedSequenceText}
         <div className={`${reviewQueueSection ? "lg:col-span-8" : "lg:col-span-12"} space-y-6`}>
           <div className="case-workspace-tabs border-b border-neutral-200 bg-white print:hidden dark:border-neutral-700 dark:bg-neutral-950">
             {(() => {
-              const workspaceTabs = tabs
-                .flatMap((tab) => tab.id === "documents" ? [tab, { id: "records", label: "Case Records" }] : tab.id === "ledger" ? [] : [tab])
-                .map((tab) => ({
-                  ...tab,
-                  label: tab.id === "generate-report" ? "Reports" : tab.label,
-                  secondary: ["strategy", "narrative", "pack"].includes(tab.id),
-                  icon: {
-                    overview: BookOpen,
-                    parties: Users,
-                    incidents: ShieldCheck,
-                    evidence: Search,
-                    watch: Waypoints,
-                    documents: FileText,
-                    records: BookOpen,
-                    timeline: Waypoints,
-                    "generate-report": Download,
-                    strategy: Target,
-                    narrative: FileText,
-                    pack: Download,
-                  }[tab.id],
-                }));
+              const workspaceTabs = orderedCaseWorkspaceTabs;
 
               return (
                 <>
@@ -3924,7 +3959,15 @@ ${ungroupedSequenceText}
                       ))}
                     </select>
                   </label>
+                  <div className="case-file-mobile-navigation-actions flex justify-end pb-3 md:hidden">
+                    <button type="button" onClick={resetCaseNavigation} className="case-file-navigation-reset">Reset order</button>
+                  </div>
                   <nav className="case-file-navigation hidden md:block" aria-label="Case file sections">
+                    <div className="case-file-navigation-controls">
+                      <p id="case-navigation-reorder-help">Drag sections to reorder them. With a section focused, press Alt + Left or Right Arrow to move it.</p>
+                      <button type="button" onClick={resetCaseNavigation} className="case-file-navigation-reset">Reset order</button>
+                    </div>
+                    <p className="sr-only" role="status" aria-live="polite">{caseNavigationAnnouncement}</p>
                     <div className="case-file-navigation-grid grid grid-cols-3 gap-2 lg:grid-cols-4 xl:grid-cols-6">
                     {workspaceTabs.map((tab) => {
                       const isActive = tab.id === "records" ? isCaseRecordsWorkspace : activeTab === tab.id;
@@ -3933,8 +3976,45 @@ ${ungroupedSequenceText}
                         <button
                           key={tab.id}
                           onClick={() => setActiveTab(tab.id)}
+                          onKeyDown={(event) => {
+                            if (!event.altKey || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
+                            event.preventDefault();
+                            moveCaseNavigationTab(tab.id, event.key === "ArrowLeft" ? -1 : 1);
+                          }}
+                          draggable
+                          onDragStart={(event) => {
+                            setDraggedCaseNavigationId(tab.id);
+                            event.dataTransfer.effectAllowed = "move";
+                            event.dataTransfer.setData("text/plain", tab.id);
+                          }}
+                          onDragOver={(event) => {
+                            event.preventDefault();
+                            if (draggedCaseNavigationId && draggedCaseNavigationId !== tab.id) setCaseNavigationDropTarget(tab.id);
+                          }}
+                          onDrop={(event) => {
+                            event.preventDefault();
+                            const draggedId = event.dataTransfer.getData("text/plain") || draggedCaseNavigationId;
+                            if (draggedId && draggedId !== tab.id) {
+                              const currentOrder = workspaceTabs.map((item) => item.id);
+                              const fromIndex = currentOrder.indexOf(draggedId);
+                              const targetIndex = currentOrder.indexOf(tab.id);
+                              const nextOrder = [...currentOrder];
+                              nextOrder.splice(fromIndex, 1);
+                              nextOrder.splice(fromIndex < targetIndex ? targetIndex - 1 : targetIndex, 0, draggedId);
+                              const draggedTab = workspaceTabs.find((item) => item.id === draggedId);
+                              updateCaseNavigationOrder(nextOrder, `${draggedTab?.label || "Section"} moved before ${tab.label}.`);
+                            }
+                            setDraggedCaseNavigationId("");
+                            setCaseNavigationDropTarget("");
+                          }}
+                          onDragEnd={() => {
+                            setDraggedCaseNavigationId("");
+                            setCaseNavigationDropTarget("");
+                          }}
+                          aria-describedby="case-navigation-reorder-help"
+                          aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
                           aria-current={isActive ? "page" : undefined}
-                          className={`case-file-navigation-item relative inline-flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-center text-xs font-semibold leading-tight transition-colors duration-200 focus:outline-none focus-visible:z-10 ${
+                          className={`case-file-navigation-item relative inline-flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-center text-xs font-semibold leading-tight transition-colors duration-200 focus:outline-none focus-visible:z-10 ${caseNavigationDropTarget === tab.id ? "is-drop-target " : ""}${draggedCaseNavigationId === tab.id ? "is-dragging " : ""}${
                             isActive
                               ? "is-active text-neutral-950 dark:text-neutral-100"
                               : tab.secondary
