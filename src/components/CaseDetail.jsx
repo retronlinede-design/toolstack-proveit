@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Briefcase, ChevronDown, ChevronRight, Download, FileText, Network, Search, ShieldCheck, Tags } from "lucide-react";
+import { BookOpen, Briefcase, ChevronDown, ChevronRight, Download, FileText, Network, Search, ShieldCheck, Tags, Target, Users, Waypoints } from "lucide-react";
 import proveItHeaderLogo from "../assets/proveitheader.png";
 import { isTimelineCapable, getCaseHealthReport } from "../lib/caseHealth";
 import {
@@ -3650,7 +3650,6 @@ ${ungroupedSequenceText}
       : "Case Workspace";
   const caseHeaderMetadata = [
     selectedCase.category ? { label: "Category", value: selectedCase.category } : null,
-    selectedCase.status ? { label: "Status", value: selectedCase.status } : null,
     formatCaseHeaderDate(selectedCase.createdAt) ? { label: "Created", value: formatCaseHeaderDate(selectedCase.createdAt) } : null,
     formatCaseHeaderDate(selectedCase.updatedAt) ? { label: "Updated", value: formatCaseHeaderDate(selectedCase.updatedAt) } : null,
   ].filter(Boolean);
@@ -3664,28 +3663,29 @@ ${ungroupedSequenceText}
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="case-workspace-header rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5 print:hidden">
+    <div className="case-file space-y-6">
+      <div className="case-file-header case-workspace-header rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5 print:hidden">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <div className="min-w-0">
-          <button onClick={() => setSelectedCaseId(null)} className="mb-2 text-sm font-medium text-neutral-500 underline-offset-4 hover:underline">
+          <button onClick={() => setSelectedCaseId(null)} className="case-file-back-link mb-3 text-sm font-medium text-neutral-500 underline-offset-4 hover:underline">
             ← Back to Cases
           </button>
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2.5">
             <h2 className="min-w-0 text-2xl font-semibold leading-tight text-neutral-950 sm:text-3xl">{selectedCase.name}</h2>
-            <button onClick={() => openEditCaseModal(selectedCase)} className="rounded-lg border border-neutral-200 bg-white px-2.5 py-1 text-xs font-semibold text-neutral-600 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1">
+            {selectedCase.status && <span className="case-file-status rounded-full px-2.5 py-1 text-[11px] font-semibold">{selectedCase.status}</span>}
+            <button onClick={() => openEditCaseModal(selectedCase)} className="case-file-header-action rounded-lg border border-neutral-200 bg-white px-2.5 py-1 text-xs font-semibold text-neutral-600 transition-colors">
               Edit
             </button>
             <button
               onClick={() => onOpenPinManager?.(selectedCase)}
-              className="rounded-lg border border-neutral-200 bg-white px-2.5 py-1 text-xs font-semibold text-neutral-600 transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
+              className="case-file-header-action rounded-lg border border-neutral-200 bg-white px-2.5 py-1 text-xs font-semibold text-neutral-600 transition-colors"
             >
               {isPinLocked ? "Manage PIN" : "Set PIN"}
             </button>
           </div>
           <p className="mt-1 text-sm font-medium text-neutral-500">{caseHeaderSubtitle}</p>
           {caseHeaderMetadata.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="case-file-metadata mt-3 flex flex-wrap gap-2">
               {caseHeaderMetadata.map((item) => (
                 <span key={item.label} className="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-medium text-neutral-600">
                   <span className="text-neutral-400">{item.label}:</span> {item.value}
@@ -3693,11 +3693,11 @@ ${ungroupedSequenceText}
               ))}
             </div>
           )}
-          <p className="mt-2 text-xs font-medium text-neutral-500">
+          <p className="case-file-privacy mt-2 text-xs font-medium text-neutral-500">
             {isPinLocked ? "Privacy lock: PIN enabled" : "Privacy lock: off"}
           </p>
           {selectedCase.notes ? <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-700">{selectedCase.notes}</p> : null}
-          <div className="case-workspace-metrics mt-4 flex flex-wrap gap-1.5" aria-label="Case metrics">
+          <div className="case-file-metrics case-workspace-metrics mt-4 flex flex-wrap gap-1.5" aria-label="Case metrics">
             {caseHeaderMetrics.map((metric) => (
               <span key={metric.label} className="case-workspace-metric inline-flex items-baseline gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs text-neutral-500">
                 <strong className="font-semibold text-neutral-900">{metric.value}</strong>
@@ -3706,7 +3706,7 @@ ${ungroupedSequenceText}
             ))}
           </div>
         </div>
-        <div className="case-workspace-toolbar flex flex-col items-start gap-2 lg:items-end">
+        <div className="case-file-toolbar case-workspace-toolbar flex flex-col items-start gap-2 lg:items-end">
           <div className="flex flex-wrap items-end gap-3 lg:justify-end">
           <div className="case-toolbar-group">
             <div className="case-toolbar-label">Case</div>
@@ -3740,7 +3740,7 @@ ${ungroupedSequenceText}
                   </div>
                   <button
                     type="button"
-                    onClick={() => { setActiveTab("reports"); setShowExportMenu(false); }}
+                    onClick={() => { setActiveTab("generate-report"); setShowExportMenu(false); }}
                     className="block min-h-11 w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-neutral-50"
                   >
                     <span className="block text-sm font-semibold leading-snug text-neutral-800">Open Reports</span>
@@ -3829,7 +3829,7 @@ ${ungroupedSequenceText}
               <button
                 type="button"
                 onClick={openSequenceGroupManager}
-                className="case-toolbar-critical flex min-h-9 items-center justify-center rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
+                className="case-file-issue-manager case-toolbar-critical flex min-h-9 items-center justify-center rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors"
               >
                 Issue Manager
               </button>
@@ -3894,11 +3894,25 @@ ${ungroupedSequenceText}
                   ...tab,
                   label: tab.id === "generate-report" ? "Reports" : tab.label,
                   secondary: ["strategy", "narrative", "pack"].includes(tab.id),
+                  icon: {
+                    overview: BookOpen,
+                    parties: Users,
+                    incidents: ShieldCheck,
+                    evidence: Search,
+                    watch: Waypoints,
+                    documents: FileText,
+                    records: BookOpen,
+                    timeline: Waypoints,
+                    "generate-report": Download,
+                    strategy: Target,
+                    narrative: FileText,
+                    pack: Download,
+                  }[tab.id],
                 }));
 
               return (
                 <>
-                  <label className="block pb-3 text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 md:hidden">
+                  <label className="case-file-mobile-navigation block pb-3 text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 md:hidden">
                     Workspace View
                     <select
                       value={isCaseRecordsWorkspace ? "records" : activeTab}
@@ -3910,28 +3924,32 @@ ${ungroupedSequenceText}
                       ))}
                     </select>
                   </label>
-                  <div className="hidden grid-cols-12 md:grid">
+                  <nav className="case-file-navigation hidden md:block" aria-label="Case file sections">
+                    <div className="case-file-navigation-list flex min-w-max items-stretch gap-1 overflow-x-auto pb-1">
                     {workspaceTabs.map((tab) => {
                       const isActive = tab.id === "records" ? isCaseRecordsWorkspace : activeTab === tab.id;
+                      const TabIcon = tab.icon;
                       return (
                         <button
                           key={tab.id}
                           onClick={() => setActiveTab(tab.id)}
                           aria-current={isActive ? "page" : undefined}
-                          className={`relative min-w-0 border-r border-neutral-100 px-1.5 py-2 text-center text-[11px] font-semibold leading-tight transition-colors duration-200 last:border-r-0 hover:rounded-md hover:bg-lime-500/30 focus:outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1 lg:px-2 lg:text-xs xl:px-3 xl:text-sm ${
+                          className={`case-file-navigation-item relative inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold leading-tight transition-colors duration-200 focus:outline-none focus-visible:z-10 ${
                             isActive
-                              ? "text-neutral-950 dark:text-neutral-100"
+                              ? "is-active text-neutral-950 dark:text-neutral-100"
                               : tab.secondary
-                                ? "text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
-                                : "text-neutral-700 hover:text-neutral-950 dark:text-neutral-300 dark:hover:text-white"
+                                ? "is-secondary text-neutral-500 dark:text-neutral-400"
+                                : "text-neutral-700 dark:text-neutral-300"
                           }`}
                         >
-                          <span className="block truncate">{tab.label}</span>
-                          {isActive && <span className="case-workspace-tab-indicator absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-lime-500" />}
+                          {TabIcon && <TabIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+                          <span>{tab.label}</span>
+                          {isActive && <span className="case-workspace-tab-indicator absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-lime-500" />}
                         </button>
                       );
                     })}
-                  </div>
+                    </div>
+                  </nav>
                 </>
               );
             })()}

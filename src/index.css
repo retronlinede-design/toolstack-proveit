@@ -131,6 +131,86 @@
 .proveit-dark-shell .case-folder-card-active { border-left-color: var(--pi-accent) !important; background: #13293a !important; }
 .proveit-dark-shell.case-dashboard-shell { --case-app-bg: var(--pi-bg); --case-surface: var(--pi-surface); --case-border: var(--pi-border); --case-border-strong: #39556f; --case-text: var(--pi-text); --case-muted: var(--pi-muted); --case-accent: var(--pi-accent); --case-accent-hover: #83e5d2; }
 
+/* Open case files intentionally use a separate scope so dashboard and workspace styling stay isolated. */
+.proveit-dark-shell .case-file {
+  --case-file-surface: var(--pi-surface);
+  --case-file-raised: var(--pi-surface-raised);
+  --case-file-border: var(--pi-border);
+  --case-file-text: var(--pi-text);
+  --case-file-muted: var(--pi-muted);
+  --case-file-accent: var(--pi-accent);
+  --case-file-focus: var(--pi-focus);
+}
+
+.proveit-dark-shell .case-file-header {
+  border-color: var(--case-file-border) !important;
+  background: var(--case-file-surface) !important;
+  box-shadow: 0 14px 34px rgb(0 0 0 / .18) !important;
+}
+
+.proveit-dark-shell .case-file-back-link { color: var(--case-file-muted) !important; }
+.proveit-dark-shell .case-file-back-link:hover { color: var(--case-file-text) !important; }
+.proveit-dark-shell .case-file-status {
+  border: 1px solid color-mix(in srgb, var(--case-file-accent) 42%, var(--case-file-border));
+  background: color-mix(in srgb, var(--case-file-accent) 14%, var(--case-file-surface));
+  color: #c9f6ed;
+  text-transform: capitalize;
+}
+.proveit-dark-shell .case-file-metadata > span,
+.proveit-dark-shell .case-file-metrics .case-workspace-metric {
+  border-color: var(--case-file-border) !important;
+  background: color-mix(in srgb, var(--case-file-raised) 82%, var(--case-file-surface)) !important;
+}
+.proveit-dark-shell .case-file-metadata > span > span,
+.proveit-dark-shell .case-file-privacy { color: var(--case-file-muted) !important; }
+.proveit-dark-shell .case-file-header-action,
+.proveit-dark-shell .case-file-toolbar button {
+  border-color: var(--case-file-border) !important;
+  background: var(--pi-control) !important;
+  color: var(--case-file-text) !important;
+}
+.proveit-dark-shell .case-file-header-action:hover,
+.proveit-dark-shell .case-file-toolbar button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--case-file-accent) 55%, var(--case-file-border)) !important;
+  background: var(--pi-control-hover) !important;
+}
+.proveit-dark-shell .case-file-header-action:focus-visible,
+.proveit-dark-shell .case-file-toolbar button:focus-visible,
+.proveit-dark-shell .case-file-navigation-item:focus-visible {
+  outline: 2px solid var(--case-file-focus);
+  outline-offset: 2px;
+}
+.proveit-dark-shell .case-file-issue-manager {
+  border-color: color-mix(in srgb, var(--case-file-accent) 58%, var(--case-file-border)) !important;
+  background: color-mix(in srgb, var(--case-file-accent) 13%, var(--pi-control)) !important;
+}
+.proveit-dark-shell .case-file-toolbar .case-toolbar-label { color: var(--case-file-muted); }
+
+.proveit-dark-shell .case-file .case-workspace-tabs {
+  border-color: var(--case-file-border) !important;
+  background: var(--case-file-surface) !important;
+  padding: .4rem;
+}
+.case-file-navigation-list { scrollbar-color: #49647e transparent; scrollbar-width: thin; }
+.case-file-navigation-list::-webkit-scrollbar { height: .45rem; }
+.case-file-navigation-list::-webkit-scrollbar-thumb { border-radius: 999px; background: #49647e; }
+.proveit-dark-shell .case-file-navigation-item {
+  color: var(--case-file-muted) !important;
+  background: transparent;
+  white-space: nowrap;
+}
+.proveit-dark-shell .case-file-navigation-item:hover {
+  background: var(--pi-control-hover);
+  color: var(--case-file-text) !important;
+}
+.proveit-dark-shell .case-file-navigation-item.is-secondary { color: #b5c5d6 !important; }
+.proveit-dark-shell .case-file-navigation-item.is-active {
+  background: color-mix(in srgb, var(--case-file-accent) 13%, var(--pi-control)) !important;
+  color: #e8fffa !important;
+}
+.proveit-dark-shell .case-file .case-workspace-tab-indicator { background: var(--case-file-accent) !important; }
+.proveit-dark-shell .case-file-mobile-navigation select { border-color: var(--case-file-border) !important; }
+
 @media (max-width: 767px) {
   .proveit-main, .proveit-sidebar.is-collapsed + .proveit-main { padding-left: 0; }
   .proveit-sidebar { width: 17rem; transform: translateX(-100%); box-shadow: 18px 0 40px rgb(0 0 0 / .35); }
