@@ -15,6 +15,8 @@
   --pi-control-active: #294863;
   --pi-control-disabled: #0d1928;
   --pi-focus: #9aeee0;
+  /* Application dialogs start at z-index 40, keeping the full viewport above navigation. */
+  --pi-z-dialog-min: 40;
   min-height: 100vh;
   background: var(--pi-bg);
   color: var(--pi-text);
@@ -22,7 +24,7 @@
 }
 
 .proveit-main { min-height: 100vh; padding-left: 17rem; }
-.proveit-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 110; display: flex; width: 17rem; flex-direction: column; border-right: 1px solid #1b2c40; background: var(--pi-sidebar); color: #dce8f5; transition: width 180ms ease, transform 180ms ease; }
+.proveit-sidebar { position: fixed; inset: 0 auto 0 0; z-index: calc(var(--pi-z-dialog-min) - 10); display: flex; width: 17rem; flex-direction: column; border-right: 1px solid #1b2c40; background: var(--pi-sidebar); color: #dce8f5; transition: width 180ms ease, transform 180ms ease; }
 .proveit-sidebar.is-collapsed { width: 4.75rem; }
 .proveit-sidebar-brand { display: flex; min-height: 5.25rem; align-items: center; justify-content: space-between; gap: .5rem; border-bottom: 1px solid #1b2c40; padding: 1.1rem; }
 .proveit-sidebar-collapse { display: inline-flex; height: 2rem; width: 2rem; align-items: center; justify-content: center; border: 1px solid #2b4058; border-radius: .5rem; color: #a7bed4; }
@@ -106,8 +108,8 @@
   .proveit-sidebar.is-collapsed .proveit-brand-copy, .proveit-sidebar.is-collapsed .proveit-sidebar-link span, .proveit-sidebar.is-collapsed .proveit-sidebar-footer p, .proveit-sidebar.is-collapsed .proveit-sidebar-new-case span { display: flex; }
   .proveit-sidebar.is-collapsed .proveit-sidebar-link { justify-content: flex-start; padding-inline: .8rem; }
   .proveit-sidebar.is-collapsed .proveit-sidebar-new-case { width: 100%; padding-inline: .8rem; }
-  .proveit-mobile-menu { position: fixed; right: 1rem; top: 1rem; z-index: 105; display: inline-flex; height: 2.5rem; width: 2.5rem; align-items: center; justify-content: center; border: 1px solid var(--pi-border); border-radius: .65rem; background: var(--pi-surface); color: var(--pi-text); box-shadow: 0 6px 20px rgb(0 0 0 / .25); }
-  .proveit-sidebar-scrim { position: fixed; inset: 0; z-index: 109; display: block; background: rgb(0 0 0 / .5); }
+  .proveit-mobile-menu { position: fixed; right: 1rem; top: 1rem; z-index: calc(var(--pi-z-dialog-min) - 15); display: inline-flex; height: 2.5rem; width: 2.5rem; align-items: center; justify-content: center; border: 1px solid var(--pi-border); border-radius: .65rem; background: var(--pi-surface); color: var(--pi-text); box-shadow: 0 6px 20px rgb(0 0 0 / .25); }
+  .proveit-sidebar-scrim { position: fixed; inset: 0; z-index: calc(var(--pi-z-dialog-min) - 11); display: block; background: rgb(0 0 0 / .5); }
 }
 
 .case-dashboard-shell {
