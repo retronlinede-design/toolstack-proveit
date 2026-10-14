@@ -14,13 +14,14 @@ test("case file navigation preserves every canonical visible tab identifier", ()
   assert.match(caseDetail, /tab\.id === "ledger" \? \[\] : \[tab\]/);
 });
 
-test("case file navigation is a labelled, horizontally scrollable navigation with a mobile select fallback", () => {
+test("case file navigation is a labelled responsive grid with a mobile select fallback", () => {
   assert.match(caseDetail, /className="case-file-navigation hidden md:block" aria-label="Case file sections"/);
-  assert.match(caseDetail, /case-file-navigation-list flex min-w-max items-stretch gap-1 overflow-x-auto/);
+  assert.match(caseDetail, /case-file-navigation-grid grid grid-cols-3 gap-2 lg:grid-cols-4 xl:grid-cols-6/);
   assert.match(caseDetail, /case-file-mobile-navigation/);
   assert.match(caseDetail, /case-file-navigation-item/);
   assert.match(caseDetail, /aria-current=\{isActive \? "page" : undefined\}/);
   assert.doesNotMatch(caseDetail, /hidden grid-cols-12 md:grid/);
+  assert.doesNotMatch(caseDetail, /case-file-navigation-list/);
 });
 
 test("Open Reports uses the canonical report tab id", () => {
@@ -33,5 +34,6 @@ test("case file dark styling stays inside the dedicated case-file scope", () => 
   assert.match(styles, /\.proveit-dark-shell \.case-file \{/);
   assert.match(styles, /\.proveit-dark-shell \.case-file-header \{/);
   assert.match(styles, /\.proveit-dark-shell \.case-file-navigation-item\.is-active \{/);
-  assert.match(styles, /\.case-file-navigation-list \{ scrollbar-color:/);
+  assert.match(styles, /\.proveit-dark-shell \.case-file-navigation-grid \{/);
+  assert.doesNotMatch(styles, /\.case-file-navigation-list/);
 });

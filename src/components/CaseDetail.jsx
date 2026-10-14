@@ -3925,7 +3925,7 @@ ${ungroupedSequenceText}
                     </select>
                   </label>
                   <nav className="case-file-navigation hidden md:block" aria-label="Case file sections">
-                    <div className="case-file-navigation-list flex min-w-max items-stretch gap-1 overflow-x-auto pb-1">
+                    <div className="case-file-navigation-grid grid grid-cols-3 gap-2 lg:grid-cols-4 xl:grid-cols-6">
                     {workspaceTabs.map((tab) => {
                       const isActive = tab.id === "records" ? isCaseRecordsWorkspace : activeTab === tab.id;
                       const TabIcon = tab.icon;
@@ -3934,7 +3934,7 @@ ${ungroupedSequenceText}
                           key={tab.id}
                           onClick={() => setActiveTab(tab.id)}
                           aria-current={isActive ? "page" : undefined}
-                          className={`case-file-navigation-item relative inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold leading-tight transition-colors duration-200 focus:outline-none focus-visible:z-10 ${
+                          className={`case-file-navigation-item relative inline-flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-center text-xs font-semibold leading-tight transition-colors duration-200 focus:outline-none focus-visible:z-10 ${
                             isActive
                               ? "is-active text-neutral-950 dark:text-neutral-100"
                               : tab.secondary
@@ -3944,7 +3944,7 @@ ${ungroupedSequenceText}
                         >
                           {TabIcon && <TabIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
                           <span>{tab.label}</span>
-                          {isActive && <span className="case-workspace-tab-indicator absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-lime-500" />}
+                          {isActive && <span className="case-workspace-tab-indicator absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-lime-500" />}
                         </button>
                       );
                     })}
