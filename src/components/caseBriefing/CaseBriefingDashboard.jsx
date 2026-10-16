@@ -1,7 +1,4 @@
-const surface = "rounded-2xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-900";
-const nested = "rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-700 dark:bg-neutral-950";
-const button = "min-h-11 rounded-xl border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm transition-colors hover:bg-lime-400/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 dark:bg-neutral-950 dark:text-neutral-100";
-const muted = "text-sm text-neutral-600 dark:text-neutral-300";
+const today = () => new Date().toISOString().slice(0, 10);
 
 function dateLabel(value) {
   if (!value) return "Not recorded";
@@ -9,8 +6,76 @@ function dateLabel(value) {
   return Number.isNaN(parsed.getTime()) ? value : new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(parsed);
 }
 
-function Section({ title, children, className = "" }) {
-  return <section className={`${surface} min-w-0 ${className}`}><h2 className="text-lg font-semibold text-neutral-950 dark:text-neutral-100">{title}</h2>{children}</section>;
+function titleCase(value, fallback) {
+  const text = String(value || "").trim();
+  return text ? text.replaceAll("_", " ") : fallback;
+}
+
+function reviewLabel(issue) {
+  if (!issue.reviewDate) return "No review date";
+  return issue.reviewDate < today() ? `Review overdue · ${dateLabel(issue.reviewDate)}` : `Review ${dateLabel(issue.reviewDate)}`;
+}
+
+function OverviewSection({ title, description, children, className = "" }) {
+  return (
+    <section className={`case-file-overview-section ${className}`}>
+      <div className="case-file-overview-section-heading">
+        <h2>{title}</h2>
+        {description && <p>{description}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function IssueCard({ issue, onOpenIssue }) {
+  const recordCounts = Object.entries(issue.counts || {});
+  const issueName = issue.displayLabel || issue.name;
+  const attentionLabel = issue.warningCount
+    ? `Requires attention: ${issue.warningCount} finding${issue.warningCount === 1 ? "" : "s"}.`
+    : "No linked findings requiring attention.";
+  const accessibleSummary = [
+    `Open Issue Manager for ${issueName}.`,
+    `Status: ${titleCase(issue.status, "unavailable")}.`,
+    `Priority: ${titleCase(issue.priority, "not set")}.`,
+    issue.owner ? `Owner: ${issue.owner}.` : "No owner recorded.",
+    reviewLabel(issue),
+    `${issue.directRecordCount} direct record${issue.directRecordCount === 1 ? "" : "s"}.`,
+    attentionLabel,
+  ].join(" ");
+
+  return (
+    <li>
+      <button type="button" onClick={() => onOpenIssue?.(issue.name)} className="case-file-overview-issue-card" aria-label={accessibleSummary}>
+        <span className="case-file-overview-issue-card-topline">
+          <span className="case-file-overview-issue-name">{issueName}</span>
+          <span className="case-file-overview-open-label" aria-hidden="true">Open Issue Manager</span>
+        </span>
+        <span className="case-file-overview-badges" aria-hidden="true">
+          <span className="case-file-overview-badge">Status: {titleCase(issue.status, "unavailable")}</span>
+          <span className="case-file-overview-badge">Priority: {titleCase(issue.priority, "not set")}</span>
+          {issue.warningCount > 0 && <span className="case-file-overview-badge is-attention">Attention: {issue.warningCount}</span>}
+        </span>
+        {issue.currentPosition && <span className="case-file-overview-issue-position">{issue.currentPosition}</span>}
+        {(issue.purpose || issue.description) && (
+          <span className="case-file-overview-issue-context">
+            {issue.purpose && <span><strong>Purpose:</strong> {issue.purpose}</span>}
+            {issue.description && <span>{issue.description}</span>}
+          </span>
+        )}
+        <span className="case-file-overview-issue-meta">
+          {issue.owner && <span>Owner: {issue.owner}</span>}
+          <span className={issue.reviewDate && issue.reviewDate < today() ? "is-overdue" : ""}>{reviewLabel(issue)}</span>
+          {issue.latestActivity && <span>Latest activity {dateLabel(issue.latestActivity)}</span>}
+        </span>
+        <span className="case-file-overview-counts">
+          <span>{issue.directRecordCount} direct record{issue.directRecordCount === 1 ? "" : "s"}</span>
+          {recordCounts.map(([name, count]) => <span key={name}>{count} {name}</span>)}
+        </span>
+        {issue.warningCount > 0 && <span className="case-file-overview-attention-text">{attentionLabel}</span>}
+      </button>
+    </li>
+  );
 }
 
 export default function CaseBriefingDashboard({ model, onOpenIssue, onOpenItem, getItemLaunch, onOpenTab, onAddIncident, onAddEvidence, onAddDocument, onOpenFullBriefing }) {
@@ -18,29 +83,72 @@ export default function CaseBriefingDashboard({ model, onOpenIssue, onOpenItem, 
   const act = (item) => item ? onOpenItem?.(item) : undefined;
   const launchFor = (item) => getItemLaunch?.(item) || { handled: false, reason: "No direct record available" };
   const directAction = (item, label = "Open") => launchFor(item).handled
-    ? <button className={button} onClick={() => act(item)}>{label}</button>
-    : <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">No direct record available</span>;
+    ? <button type="button" className="case-file-overview-button is-compact" onClick={() => act(item)}>{label}</button>
+    : <span className="case-file-overview-unavailable">No direct record available</span>;
   const visibleImmediateActions = immediateActions.slice(0, 5);
   const visibleScheduledReviews = scheduledReviews.slice(0, 5);
+
   return (
-    <main className="space-y-5" aria-labelledby="case-briefing-heading">
-      <div><p className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Overview</p><h1 id="case-briefing-heading" className="mt-1 text-2xl font-semibold text-neutral-950 dark:text-neutral-100">Case Briefing</h1><p className={`mt-1 ${muted}`}>A factual daily view of this case, its Issues, and recorded next steps.</p></div>
-      <details className={`${surface} px-4 py-3`}>
-        <summary className="cursor-pointer font-semibold text-neutral-950 dark:text-neutral-100">Where does this belong?</summary>
-        <dl className="mt-3 grid gap-2 border-t border-neutral-200 pt-3 text-sm leading-5 dark:border-neutral-700 sm:grid-cols-2">
-          <div><dt className="font-semibold text-neutral-900 dark:text-neutral-100">Incident vs Evidence</dt><dd className={muted}>Incident is what happened; Evidence is material supporting, challenging, or contextualising it.</dd></div>
-          <div><dt className="font-semibold text-neutral-900 dark:text-neutral-100">Document vs Evidence</dt><dd className={muted}>Document is the original source or correspondence; Evidence is the assessed significance of source material.</dd></div>
-          <div><dt className="font-semibold text-neutral-900 dark:text-neutral-100">Strategy vs Action</dt><dd className={muted}>Strategy is the considered position and approach; an Action is executable work that should happen now.</dd></div>
-          <div><dt className="font-semibold text-neutral-900 dark:text-neutral-100">To Watch vs Incident</dt><dd className={muted}>To Watch is an uncertain development or trigger being monitored; an Incident is something that has happened.</dd></div>
+    <main className="case-file-overview space-y-5" aria-labelledby="case-briefing-heading">
+      <section className="case-file-overview-position" aria-labelledby="case-briefing-heading">
+        <div className="case-file-overview-position-copy">
+          <p className="case-file-overview-eyebrow">Overview</p>
+          <h1 id="case-briefing-heading">Case Briefing</h1>
+          <p>A factual daily view of this case, its Issues, and recorded next steps.</p>
+        </div>
+        <div className="case-file-overview-focus">
+          <span>Current position</span>
+          <strong>{currentFocus.text || "No current focus is recorded in the Action Summary."}</strong>
+        </div>
+        <button type="button" className="case-file-overview-button" onClick={() => onOpenIssue?.("")}>Open Issue Manager</button>
+      </section>
+
+      <details className="case-file-overview-guide">
+        <summary>Where does this belong?</summary>
+        <dl>
+          <div><dt>Incident vs Evidence</dt><dd>Incident is what happened; Evidence is material supporting, challenging, or contextualising it.</dd></div>
+          <div><dt>Document vs Evidence</dt><dd>Document is the original source or correspondence; Evidence is the assessed significance of source material.</dd></div>
+          <div><dt>Strategy vs Action</dt><dd>Strategy is the considered position and approach; an Action is executable work that should happen now.</dd></div>
+          <div><dt>To Watch vs Incident</dt><dd>To Watch is an uncertain development or trigger being monitored; an Incident is something that has happened.</dd></div>
         </dl>
       </details>
-      {model.isEmptyCase && <div className={`${surface} border-lime-300`}><h2 className="text-lg font-semibold dark:text-white">Start building this case</h2><p className={`mt-1 ${muted}`}>Add the people involved, record the first Incident, and attach any supporting material.</p><div className="mt-3 flex flex-wrap gap-2"><button className={button} onClick={() => onOpenTab?.("parties")}>Add Party</button><button className={button} onClick={onAddIncident}>Add Incident</button><button className={button} onClick={onAddEvidence}>Add Evidence</button><button className={button} onClick={onAddDocument}>Add Document</button></div></div>}
-      <Section title="Current Position"><p className={`mt-3 ${currentFocus.text ? "font-medium text-neutral-900 dark:text-neutral-100" : muted}`}>{currentFocus.text || "No current focus is recorded in the Action Summary."}</p>{issues.length ? <ul className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-2">{issues.map((issue)=><li key={issue.name}><button type="button" onClick={() => onOpenIssue?.(issue.name)} className={`${nested} min-h-24 w-full text-left transition-colors hover:border-lime-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500`}><span className="block break-words font-semibold text-neutral-950 dark:text-white">{issue.displayLabel || issue.name}</span><span className="mt-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">{issue.status ? issue.status.replaceAll("_", " ") : "Status unavailable"}{issue.priority ? ` · ${issue.priority} priority` : ""}{issue.owner ? ` · Owner: ${issue.owner}` : ""}{issue.reviewDate ? ` · Review ${dateLabel(issue.reviewDate)}` : ""}</span>{issue.currentPosition && <span className={`mt-1 block ${muted}`}>{issue.currentPosition}</span>}<span className="mt-2 block text-xs text-neutral-500 dark:text-neutral-400">{issue.directRecordCount} direct record{issue.directRecordCount === 1 ? "" : "s"}{Object.entries(issue.counts).length ? ` · ${Object.entries(issue.counts).map(([name,count])=>`${count} ${name}`).join(" · ")}` : ""}</span></button></li>)}</ul>:<div className={`${nested} mt-3`}><p className="font-semibold dark:text-white">No active Issues are recorded.</p><button className={`${button} mt-3`} onClick={() => onOpenIssue?.("")}>Open Issue Manager</button></div>}</Section>
-      <Section title="Immediate Work">{immediateActions.length ? <ul className="mt-3 space-y-2">{visibleImmediateActions.map((item)=><li className={nested} key={item.id}><div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="font-semibold dark:text-white">{item.title}</h3><p className={muted}>{item.dueDate ? `Due ${dateLabel(item.dueDate)}` : "No due date recorded"}</p></div>{directAction(item, "Edit Action Summary")}</div></li>)}</ul>:<p className={`${nested} ${muted} mt-3`}>No active Action Summary items are recorded.</p>}<button type="button" className={`${button} mt-3`} onClick={onOpenFullBriefing}>Edit Action Summary</button></Section>
-      <Section title="Scheduled Reviews">{scheduledReviews.length ? <ul className="mt-3 space-y-2">{visibleScheduledReviews.map((item)=><li className={nested} key={item.id}><div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="font-semibold dark:text-white">{item.title}</h3><p className={muted}>{item.dueState === "overdue" ? `Overdue · ${dateLabel(item.dueDate)}` : item.dueState === "today" ? "Due today" : `Due ${dateLabel(item.dueDate)}`}</p></div>{directAction(item)}</div></li>)}</ul>:<p className={`${nested} ${muted} mt-3`}>No dated reviews are recorded.</p>}</Section>
-      <Section title="Risks & Gaps"><p className={`mt-1 ${muted}`}>{snapshot.findingCount} deterministic case-quality finding{snapshot.findingCount === 1 ? "" : "s"}; showing up to 7.</p>{attentionItems.length ? <ul className="mt-3 space-y-2">{attentionItems.map((item)=><li key={item.id} className={nested}><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0 flex-1"><span className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300">{item.severity} · {item.recordType}</span><h3 className="break-words font-semibold text-neutral-900 dark:text-white">{item.title}</h3><p className={muted}>{item.reason}</p></div>{directAction(item)}</div></li>)}</ul>:<p className={`${nested} ${muted} mt-3`}>No high-priority case-quality findings are currently detected.</p>}</Section>
-      <Section title="Recent Changes">{recentActivity.length ? <ul className="mt-3 space-y-2">{recentActivity.map((item)=><li className={nested} key={`${item.recordType}:${item.id}`}><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0 flex-1"><span className="text-xs font-bold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">{item.typeLabel}</span><h3 className="break-words font-semibold dark:text-white">{item.title}</h3><p className={muted}>{item.changeType} {dateLabel(item.timestamp)}{item.issue ? ` · Issue: ${item.issue}` : ""}</p></div>{directAction(item)}</div></li>)}</ul>:<p className={`${nested} ${muted} mt-3`}>No changed or created records are available.</p>}</Section>
-      <details className={surface}><summary className="cursor-pointer font-semibold text-neutral-950 dark:text-neutral-100">Case Snapshot</summary><div className={`mt-3 ${muted}`}>{snapshot.name} · {snapshot.category} · {snapshot.status} · {snapshot.folder}</div><dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">{[["Active records", snapshot.activeRecordCount],["Archived", snapshot.archivedRecordCount],["Issues", snapshot.issueCount],["Findings", snapshot.findingCount],["Parties", snapshot.partyCount],["Record scope", "Excludes Parties"]].map(([label,value])=><div key={label} className={nested}><dt className="text-xs font-medium text-neutral-500 dark:text-neutral-400">{label}</dt><dd className="mt-1 break-words text-lg font-semibold text-neutral-900 dark:text-neutral-100">{value}</dd></div>)}</dl></details>
+
+      {model.isEmptyCase && (
+        <section className="case-file-overview-empty-state" aria-labelledby="overview-empty-case-title">
+          <h2 id="overview-empty-case-title">Start building this case</h2>
+          <p>Add the people involved, record the first Incident, and attach any supporting material.</p>
+          <div><button type="button" className="case-file-overview-button" onClick={() => onOpenTab?.("parties")}>Add Party</button><button type="button" className="case-file-overview-button" onClick={onAddIncident}>Add Incident</button><button type="button" className="case-file-overview-button" onClick={onAddEvidence}>Add Evidence</button><button type="button" className="case-file-overview-button" onClick={onAddDocument}>Add Document</button></div>
+        </section>
+      )}
+
+      <OverviewSection title="Active Issues" description="Issues organise related Incidents, Evidence, and other case records.">
+        {issues.length ? <ul className="case-file-overview-issue-grid" aria-label="Active Issues">{issues.map((issue) => <IssueCard key={issue.name} issue={issue} onOpenIssue={onOpenIssue} />)}</ul> : <div className="case-file-overview-empty-list"><p>No active Issues are recorded.</p><button type="button" className="case-file-overview-button is-compact" onClick={() => onOpenIssue?.("")}>Open Issue Manager</button></div>}
+      </OverviewSection>
+
+      <div className="case-file-overview-operational-grid">
+        <OverviewSection title="Immediate Work">
+          {immediateActions.length ? <ul className="case-file-overview-list">{visibleImmediateActions.map((item) => <li key={item.id}><div><h3>{item.title}</h3><p>{item.dueDate ? `Due ${dateLabel(item.dueDate)}` : "No due date recorded"}</p></div>{directAction(item, "Edit Action Summary")}</li>)}</ul> : <p className="case-file-overview-empty-list">No active Action Summary items are recorded.</p>}
+          <button type="button" className="case-file-overview-button is-compact" onClick={onOpenFullBriefing}>Edit Action Summary</button>
+        </OverviewSection>
+        <OverviewSection title="Scheduled Reviews">
+          {scheduledReviews.length ? <ul className="case-file-overview-list">{visibleScheduledReviews.map((item) => <li key={item.id}><div><h3>{item.title}</h3><p className={item.dueState === "overdue" ? "is-overdue" : ""}>{item.dueState === "overdue" ? `Overdue · ${dateLabel(item.dueDate)}` : item.dueState === "today" ? "Due today" : `Due ${dateLabel(item.dueDate)}`}</p></div>{directAction(item)}</li>)}</ul> : <p className="case-file-overview-empty-list">No dated reviews are recorded.</p>}
+        </OverviewSection>
+      </div>
+
+      <div className="case-file-overview-support-grid">
+        <OverviewSection title="Risks & Gaps" description={`${snapshot.findingCount} deterministic case-quality finding${snapshot.findingCount === 1 ? "" : "s"}; showing up to 7.`}>
+          {attentionItems.length ? <ul className="case-file-overview-list">{attentionItems.map((item) => <li key={item.id}><div><span className="case-file-overview-finding-label">{item.severity} · {item.recordType}</span><h3>{item.title}</h3><p>{item.reason}</p></div>{directAction(item)}</li>)}</ul> : <p className="case-file-overview-empty-list">No high-priority case-quality findings are currently detected.</p>}
+        </OverviewSection>
+        <OverviewSection title="Recent Changes">
+          {recentActivity.length ? <ul className="case-file-overview-list">{recentActivity.map((item) => <li key={`${item.recordType}:${item.id}`}><div><span className="case-file-overview-finding-label">{item.typeLabel}</span><h3>{item.title}</h3><p>{item.changeType} {dateLabel(item.timestamp)}{item.issue ? ` · Issue: ${item.issue}` : ""}</p></div>{directAction(item)}</li>)}</ul> : <p className="case-file-overview-empty-list">No changed or created records are available.</p>}
+        </OverviewSection>
+      </div>
+
+      <details className="case-file-overview-snapshot">
+        <summary>Case Snapshot</summary>
+        <div className="case-file-overview-snapshot-summary">{snapshot.name} · {snapshot.category} · {snapshot.status} · {snapshot.folder}</div>
+        <dl>{[["Active records", snapshot.activeRecordCount], ["Archived", snapshot.archivedRecordCount], ["Issues", snapshot.issueCount], ["Findings", snapshot.findingCount], ["Parties", snapshot.partyCount], ["Record scope", "Excludes Parties"]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+      </details>
     </main>
   );
 }

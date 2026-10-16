@@ -262,6 +262,93 @@
 .proveit-dark-shell .case-file .case-workspace-tab-indicator { background: var(--case-file-accent) !important; }
 .proveit-dark-shell .case-file-mobile-navigation select { border-color: var(--case-file-border) !important; }
 
+/* Overview is deliberately scoped to the open-case workspace, not the dashboard or Action Summary panel. */
+.proveit-dark-shell .case-file-overview { color: var(--case-file-text); }
+.proveit-dark-shell .case-file-overview-position,
+.proveit-dark-shell .case-file-overview-section,
+.proveit-dark-shell .case-file-overview-guide,
+.proveit-dark-shell .case-file-overview-empty-state,
+.proveit-dark-shell .case-file-overview-snapshot {
+  border: 1px solid var(--case-file-border);
+  border-radius: .9rem;
+  background: var(--case-file-surface);
+  box-shadow: 0 10px 24px rgb(0 0 0 / .12);
+}
+.proveit-dark-shell .case-file-overview-position { display: grid; gap: 1rem; padding: 1rem; }
+.proveit-dark-shell .case-file-overview-position-copy { min-width: 0; }
+.proveit-dark-shell .case-file-overview-eyebrow,
+.proveit-dark-shell .case-file-overview-focus > span,
+.proveit-dark-shell .case-file-overview-finding-label { color: var(--case-file-muted); font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.proveit-dark-shell .case-file-overview-position h1 { margin: .18rem 0 0; color: var(--case-file-text); font-size: 1.45rem; font-weight: 700; letter-spacing: -.025em; line-height: 1.2; }
+.proveit-dark-shell .case-file-overview-position-copy > p:last-child { margin: .35rem 0 0; color: var(--case-file-muted); font-size: .9rem; line-height: 1.4; }
+.proveit-dark-shell .case-file-overview-focus { min-width: 0; border-left: 2px solid var(--case-file-accent); padding-left: .75rem; }
+.proveit-dark-shell .case-file-overview-focus strong { display: block; margin-top: .25rem; color: var(--case-file-text); font-size: .9rem; font-weight: 600; line-height: 1.4; }
+.proveit-dark-shell .case-file-overview-button { display: inline-flex; min-height: 2.3rem; align-items: center; justify-content: center; border: 1px solid color-mix(in srgb, var(--case-file-accent) 52%, var(--case-file-border)); border-radius: .55rem; background: color-mix(in srgb, var(--case-file-accent) 13%, var(--pi-control)); padding: .45rem .75rem; color: #dcfff8; font-size: .78rem; font-weight: 700; line-height: 1.15; transition: background-color 160ms ease, border-color 160ms ease; }
+.proveit-dark-shell .case-file-overview-button:hover { border-color: var(--case-file-accent); background: color-mix(in srgb, var(--case-file-accent) 22%, var(--pi-control)); }
+.proveit-dark-shell .case-file-overview-button.is-compact { min-height: 2rem; padding: .35rem .6rem; font-size: .72rem; }
+.proveit-dark-shell .case-file-overview :is(button, summary):focus-visible { outline: 2px solid var(--case-file-focus); outline-offset: 2px; }
+.proveit-dark-shell .case-file-overview-guide { padding: .75rem 1rem; }
+.proveit-dark-shell .case-file-overview-guide summary,
+.proveit-dark-shell .case-file-overview-snapshot summary { cursor: pointer; color: var(--case-file-text); font-size: .84rem; font-weight: 650; }
+.proveit-dark-shell .case-file-overview-guide dl { display: grid; gap: .75rem; margin-top: .75rem; border-top: 1px solid var(--case-file-border); padding-top: .75rem; color: var(--case-file-muted); font-size: .8rem; line-height: 1.4; }
+.proveit-dark-shell .case-file-overview-guide dt { color: var(--case-file-text); font-weight: 650; }
+.proveit-dark-shell .case-file-overview-guide dd { margin: .16rem 0 0; }
+.proveit-dark-shell .case-file-overview-empty-state { padding: 1rem; border-color: color-mix(in srgb, var(--case-file-accent) 45%, var(--case-file-border)); }
+.proveit-dark-shell .case-file-overview-empty-state h2 { margin: 0; color: var(--case-file-text); font-size: 1rem; font-weight: 700; }
+.proveit-dark-shell .case-file-overview-empty-state p { margin: .35rem 0 0; color: var(--case-file-muted); font-size: .86rem; }
+.proveit-dark-shell .case-file-overview-empty-state > div { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .8rem; }
+.proveit-dark-shell .case-file-overview-section { min-width: 0; padding: 1rem; }
+.proveit-dark-shell .case-file-overview-section-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .35rem .75rem; }
+.proveit-dark-shell .case-file-overview-section h2 { margin: 0; color: var(--case-file-text); font-size: 1rem; font-weight: 700; }
+.proveit-dark-shell .case-file-overview-section-heading p { margin: 0; color: var(--case-file-muted); font-size: .76rem; line-height: 1.35; }
+.proveit-dark-shell .case-file-overview-issue-grid { display: grid; gap: .65rem; margin: .8rem 0 0; padding: 0; list-style: none; }
+.proveit-dark-shell .case-file-overview-issue-card { display: block; width: 100%; border: 1px solid var(--case-file-border); border-radius: .7rem; background: var(--case-file-raised); padding: .8rem; color: var(--case-file-text); text-align: left; transition: border-color 160ms ease, background-color 160ms ease; }
+.proveit-dark-shell .case-file-overview-issue-card:hover { border-color: color-mix(in srgb, var(--case-file-accent) 64%, var(--case-file-border)); background: color-mix(in srgb, var(--case-file-accent) 7%, var(--case-file-raised)); }
+.proveit-dark-shell .case-file-overview-issue-card:focus-visible { outline: 2px solid var(--case-file-focus); outline-offset: 2px; }
+.proveit-dark-shell .case-file-overview-issue-card-topline { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }
+.proveit-dark-shell .case-file-overview-issue-name { min-width: 0; overflow-wrap: anywhere; color: var(--case-file-text); font-size: .9rem; font-weight: 700; }
+.proveit-dark-shell .case-file-overview-open-label { flex: 0 0 auto; color: var(--case-file-accent); font-size: .68rem; font-weight: 650; }
+.proveit-dark-shell .case-file-overview-badges,
+.proveit-dark-shell .case-file-overview-counts { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .55rem; }
+.proveit-dark-shell .case-file-overview-badge,
+.proveit-dark-shell .case-file-overview-counts span { border: 1px solid var(--case-file-border); border-radius: 999px; background: var(--pi-control); padding: .2rem .42rem; color: var(--case-file-muted); font-size: .68rem; font-weight: 600; line-height: 1.2; }
+.proveit-dark-shell .case-file-overview-badge.is-attention { border-color: #8a6441; background: #2a2118; color: #ffd9a2; }
+.proveit-dark-shell .case-file-overview-issue-position { display: block; margin-top: .6rem; color: var(--case-file-text); font-size: .82rem; font-weight: 600; line-height: 1.4; }
+.proveit-dark-shell .case-file-overview-issue-context,
+.proveit-dark-shell .case-file-overview-issue-meta { display: flex; flex-wrap: wrap; gap: .3rem .65rem; margin-top: .45rem; color: var(--case-file-muted); font-size: .75rem; line-height: 1.4; }
+.proveit-dark-shell .case-file-overview-issue-context strong { color: var(--case-file-text); font-weight: 600; }
+.proveit-dark-shell .case-file-overview .is-overdue { color: #ffd09b; font-weight: 700; }
+.proveit-dark-shell .case-file-overview-attention-text { display: block; margin-top: .5rem; color: #ffd9a2; font-size: .72rem; font-weight: 650; }
+.proveit-dark-shell .case-file-overview-operational-grid,
+.proveit-dark-shell .case-file-overview-support-grid { display: grid; gap: .75rem; }
+.proveit-dark-shell .case-file-overview-list { display: grid; gap: .5rem; margin: .75rem 0; padding: 0; list-style: none; }
+.proveit-dark-shell .case-file-overview-list > li { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: .6rem; border: 1px solid var(--case-file-border); border-radius: .6rem; background: var(--case-file-raised); padding: .65rem .7rem; }
+.proveit-dark-shell .case-file-overview-list > li > div { min-width: 0; flex: 1 1 12rem; }
+.proveit-dark-shell .case-file-overview-list h3 { margin: 0; overflow-wrap: anywhere; color: var(--case-file-text); font-size: .82rem; font-weight: 650; line-height: 1.35; }
+.proveit-dark-shell .case-file-overview-list p { margin: .2rem 0 0; color: var(--case-file-muted); font-size: .74rem; line-height: 1.35; }
+.proveit-dark-shell .case-file-overview-finding-label { display: block; color: #ffd09b; font-size: .64rem; }
+.proveit-dark-shell .case-file-overview-empty-list { margin: .75rem 0 0; color: var(--case-file-muted); font-size: .8rem; }
+.proveit-dark-shell .case-file-overview-section > .case-file-overview-button { margin-top: .75rem; }
+.proveit-dark-shell .case-file-overview-unavailable { align-self: center; color: var(--case-file-muted); font-size: .7rem; font-weight: 600; }
+.proveit-dark-shell .case-file-overview-snapshot { padding: .8rem 1rem 1rem; }
+.proveit-dark-shell .case-file-overview-snapshot-summary { margin-top: .7rem; color: var(--case-file-muted); font-size: .8rem; }
+.proveit-dark-shell .case-file-overview-snapshot dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; margin: .75rem 0 0; }
+.proveit-dark-shell .case-file-overview-snapshot dl > div { min-width: 0; border: 1px solid var(--case-file-border); border-radius: .55rem; background: var(--case-file-raised); padding: .55rem; }
+.proveit-dark-shell .case-file-overview-snapshot dt { color: var(--case-file-muted); font-size: .68rem; font-weight: 600; }
+.proveit-dark-shell .case-file-overview-snapshot dd { margin: .2rem 0 0; overflow-wrap: anywhere; color: var(--case-file-text); font-size: .9rem; font-weight: 700; }
+
+@media (min-width: 640px) {
+  .proveit-dark-shell .case-file-overview-guide dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .proveit-dark-shell .case-file-overview-issue-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .proveit-dark-shell .case-file-overview-snapshot dl { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 1024px) {
+  .proveit-dark-shell .case-file-overview-position { grid-template-columns: minmax(0, 1.15fr) minmax(14rem, .85fr) auto; align-items: center; }
+  .proveit-dark-shell .case-file-overview-operational-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .proveit-dark-shell .case-file-overview-support-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .proveit-dark-shell .case-file-overview-snapshot dl { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+
 @media (max-width: 767px) {
   .proveit-main, .proveit-sidebar.is-collapsed + .proveit-main { padding-left: 0; }
   .proveit-sidebar { width: 17rem; transform: translateX(-100%); box-shadow: 18px 0 40px rgb(0 0 0 / .35); }
