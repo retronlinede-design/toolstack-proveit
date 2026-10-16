@@ -24,7 +24,7 @@ test("Incident preserves badge visibility and ordering", () => {
   assert.match(source, /variant=\{milestone \? "milestone" : isNew \? "new" : "default"\}/);
 });
 
-test("Incident preserves action labels order and exact handlers", () => {
+test("Incident preserves action labels, accessible names, order, and exact handlers", () => {
   const actions = source.slice(source.indexOf("actions={"), source.indexOf("metadata={"));
   for (const key of ['key: "open"', 'key: "convert"', 'key: "delete"']) assert.match(actions, new RegExp(key));
   assert.ok(actions.indexOf('key: "open"') < actions.indexOf('key: "convert"'));
@@ -32,15 +32,17 @@ test("Incident preserves action labels order and exact handlers", () => {
   assert.match(actions, /openEditRecordModal\("incidents", item\)/);
   assert.match(actions, /onConvertRecord\?\.\("incidents", item\)/);
   assert.match(actions, /deleteRecord\("incidents", item\.id\)/);
+  assert.match(actions, /"aria-label": `Open \$\{incidentTitle\}`/);
+  assert.match(actions, /"aria-label": `Delete \$\{incidentTitle\}`/);
 });
 
-test("Incident preserves chronology formatting and narrative truncation", () => {
+test("Incident preserves chronology formatting and uses a compact description preview", () => {
   assert.match(source, /value: item\.eventDate \|\| item\.date/);
   assert.match(source, /formatLoggedAt\(item\.createdAt\)/);
   assert.match(source, /toLocaleDateString/);
   assert.match(source, /toLocaleTimeString/);
-  assert.match(source, /item\.description\.length > 160/);
-  assert.match(source, /item\.notes\.length > 100/);
+  assert.match(source, /item\.description\.length > 220/);
+  assert.match(source, /expanded \|\| isTimeline/);
 });
 
 test("Incident preserves attachment preview data and handler", () => {
@@ -57,9 +59,19 @@ test("Incident preserves relationship ordering handlers and missing indicators",
   assert.doesNotMatch(source, /label:.*record\.id|label:.*evidence\.id/);
 });
 
-test("Incident retains mobile wrapping dark classes and expanded content", () => {
+test("Incident uses a compact accessible disclosure and retains expandable content", () => {
   assert.match(source, /grid grid-cols-2 gap-1 sm:min-w-44/);
-  assert.match(source, /dark:text-neutral-300/);
-  assert.match(source, /dark:text-neutral-400/);
-  assert.match(source, /expanded/);
+  assert.match(source, /const \[expanded, setExpanded\] = useState\(isTimeline\)/);
+  assert.match(source, /aria-expanded=\{expanded\}/);
+  assert.match(source, /aria-controls=\{detailId\}/);
+  assert.match(source, /Show details/);
+  assert.match(source, /expanded && <>/);
+});
+
+test("Incident resolves canonical Issue labels and presents status metadata", () => {
+  assert.match(source, /resolveCaseIssue\(selectedCase, \{ issueId: item\.sequenceGroupId, issueName: sequenceGroup \}\)/);
+  assert.match(source, /getIssueDisplayLabel\(issue\)/);
+  assert.match(source, /Status: \{titleCase\(item\.status, "open"\)\}/);
+  assert.match(source, /Evidence: \{titleCase\(item\.evidenceStatus, "needs evidence"\)\}/);
+  assert.match(source, /relationship-count/);
 });

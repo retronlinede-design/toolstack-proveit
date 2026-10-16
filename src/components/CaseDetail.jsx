@@ -4757,15 +4757,17 @@ ${ungroupedSequenceText}
               </div>
             )}
             {activeTab === "incidents" && (
-              <div className="space-y-6">
-                <section className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm">
+              <div className="case-file-incidents space-y-6">
+                <section className="case-file-incidents-header rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Investigation Command Centre</div>
-                      <h3 className="mt-1 text-xl font-semibold text-neutral-950">Incident Summary</h3>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Case records</div>
+                      <h3 className="mt-1 text-xl font-semibold text-neutral-950">Incidents</h3>
+                      <p className="mt-1 text-sm text-neutral-600">Record what happened, organise it by Issue, and connect supporting material.</p>
                     </div>
-                    <div className="text-xs font-medium text-neutral-500">
-                      {filteredIncidents.length} shown of {allIncidents.length}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-medium text-neutral-500">{filteredIncidents.length} shown of {allIncidents.length}</span>
+                      <button type="button" onClick={() => openRecordModal("incidents")} className="case-file-incidents-primary-action">+ New Incident</button>
                     </div>
                   </div>
                   <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
@@ -4778,7 +4780,7 @@ ${ungroupedSequenceText}
                   </div>
                 </section>
 
-                <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+                <section className="case-file-incidents-operations grid gap-4 lg:grid-cols-[1fr_1fr]">
                   <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Needs Attention</div>
                     <div className="mt-3 space-y-2">
@@ -4804,13 +4806,6 @@ ${ungroupedSequenceText}
                   <div className="rounded-xl border border-neutral-200 bg-neutral-50/70 p-3">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Quick Actions</div>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openRecordModal("incidents")}
-                        className="min-h-9 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
-                      >
-                        New Incident
-                      </button>
                       <button
                         type="button"
                         onClick={() => {
@@ -4855,7 +4850,7 @@ ${ungroupedSequenceText}
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                <section className="case-file-incidents-controls rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Filters</div>
                     <div className="text-xs font-medium text-neutral-500">
@@ -4953,6 +4948,7 @@ ${ungroupedSequenceText}
                         <button
                           key={chip.id}
                           type="button"
+                          aria-pressed={selected}
                           onClick={() => applyIncidentQuickFilter(chip.id)}
                           className={`min-h-8 rounded-full border px-3 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1 ${
                             selected

@@ -56,3 +56,13 @@ test("case file dark styling stays inside the dedicated case-file scope", () => 
   assert.match(styles, /case-file-navigation-cell\.is-dragging \.case-file-navigation-grip \{ cursor: grabbing/);
   assert.doesNotMatch(styles, /\.case-file-navigation-list/);
 });
+
+test("Incidents presentation is scoped and keeps native filter controls accessible", () => {
+  assert.match(caseDetail, /className="case-file-incidents space-y-6"/);
+  assert.match(caseDetail, /className="case-file-incidents-primary-action">\+ New Incident/);
+  assert.match(caseDetail, /aria-pressed=\{selected\}/);
+  assert.match(styles, /\.proveit-dark-shell \.case-file-incidents \{/);
+  assert.match(styles, /\.proveit-dark-shell \.case-file-incidents \[aria-pressed="true"\]/);
+  assert.match(styles, /case-file-incident-disclosure/);
+  assert.match(styles, /case-file-incident-card :is\(\[data-record-badge-variant\], \[data-record-link-variant\]\)/);
+});

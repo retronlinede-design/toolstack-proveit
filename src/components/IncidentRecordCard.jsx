@@ -1,7 +1,9 @@
-import { Tags } from "lucide-react";
+import { ChevronDown, Tags } from "lucide-react";
+import { useState } from "react";
 
 import { getIncidentLinkGroups } from "../domain/caseDomain.js";
 import { getEvidenceDisplayMeta, getRecordDisplayMeta } from "../domain/linkingResolvers.js";
+import { getIssueDisplayLabel, resolveCaseIssue } from "../domain/issueDomain.js";
 import AttachmentPreview from "./AttachmentPreview.jsx";
 import RecordActions from "./shared/RecordActions.jsx";
 import RecordBadge from "./shared/RecordBadge.jsx";
@@ -35,6 +37,11 @@ function buildIncidentRelationshipItems(title, links, indicator, badge, onOpen) 
   })).concat((links || []).length > 4 ? [{ key: `${title}-remaining`, label: `+${links.length - 4}`, variant: "neutral" }] : []);
 }
 
+function titleCase(value, fallback) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return text ? text.replaceAll("_", " ") : fallback;
+}
+
 export default function IncidentRecordCard({
   item,
   selectedCase,
@@ -49,9 +56,12 @@ export default function IncidentRecordCard({
   isMilestone = false,
   isActionItem = false,
 }) {
+  const [expanded, setExpanded] = useState(isTimeline);
   const milestone = Boolean(item.isMilestone || isMilestone);
   const isNew = item.edited !== true;
   const sequenceGroup = typeof item.sequenceGroup === "string" ? item.sequenceGroup.trim() : "";
+  const issue = resolveCaseIssue(selectedCase, { issueId: item.sequenceGroupId, issueName: sequenceGroup });
+  const issueLabel = issue ? getIssueDisplayLabel(issue) : sequenceGroup;
   const incidentLinks = getIncidentLinkGroups(selectedCase, item.id);
   const partyById = new Map((selectedCase?.parties || []).map((party) => [party.id, party]));
   const partyItems = buildCompactItems(item.linkedPartyIds, (id) => partyById.get(id), (_id, party) => ({ key: party.id, label: `Party · ${party.displayName || "Untitled Party"}`, title: party.displayName || "Untitled Party", variant: "party" }));
@@ -64,37 +74,55 @@ export default function IncidentRecordCard({
     { key: "outcomes", label: "Outcomes", items: buildIncidentRelationshipItems("Outcomes", incidentLinks.outcomes, "→", "OUTCOME", openLinkedRecord) },
     { key: "related", label: "Related", items: buildIncidentRelationshipItems("Related", incidentLinks.related, "↔", "RELATED", openLinkedRecord) },
   ];
+  const relationshipCount = new Set([
+    ...(Array.isArray(item.linkedPartyIds) ? item.linkedPartyIds : []),
+    ...(Array.isArray(item.linkedEvidenceIds) ? item.linkedEvidenceIds : []),
+    ...(Array.isArray(item.linkedRecordIds) ? item.linkedRecordIds : []),
+    ...incidentLinks.causes.map(({ incident }) => incident.id),
+    ...incidentLinks.outcomes.map(({ incident }) => incident.id),
+    ...incidentLinks.related.map(({ incident }) => incident.id),
+  ]).size;
+  const incidentTitle = item.title || "Untitled incident";
+  const descriptionPreview = item.description && item.description.length > 220 ? `${item.description.slice(0, 220)}…` : item.description;
+  const detailId = `incident-details-${item.id}`;
 
   return (
     <RecordCardShell
       id={`record-${item.id}`}
-      title={item.title}
+      title={incidentTitle}
       variant={milestone ? "milestone" : isNew ? "new" : "default"}
-      expanded
+      expanded={expanded}
+      className="case-file-incident-card"
       badges={<>
         {milestone && <RecordBadge variant="milestone" className="uppercase tracking-wider">Milestone</RecordBadge>}
         {isActionItem && <RecordBadge variant="status-warning" className="uppercase tracking-wider">Action Required</RecordBadge>}
         {showTypeBadge && <RecordBadge variant="type" className="uppercase tracking-wider">Incident</RecordBadge>}
         {isNew && <RecordBadge variant="new" className="uppercase tracking-wider">New</RecordBadge>}
-        {sequenceGroup && <RecordLinksRow groups={[{ key: "sequence-group", items: [{ key: "sequence", label: sequenceGroup, icon: <Tags />, variant: "sequence" }] }]} />}
+        {issueLabel && <RecordLinksRow groups={[{ key: "sequence-group", items: [{ key: "sequence", label: issueLabel, icon: <Tags />, variant: "sequence" }] }]} />}
+        <RecordBadge variant="status-neutral">Status: {titleCase(item.status, "open")}</RecordBadge>
+        <RecordBadge variant={item.evidenceStatus === "documented" ? "verification-verified" : item.evidenceStatus === "needs_evidence" ? "verification-partial" : "verification-unverified"}>Evidence: {titleCase(item.evidenceStatus, "needs evidence")}</RecordBadge>
       </>}
-      actions={<RecordActions className="grid grid-cols-2 gap-1 sm:min-w-44" actions={[
-        { key: "open", label: "Open", variant: "primary", onClick: () => openEditRecordModal("incidents", item) },
-        { key: "convert", label: "Convert", variant: "secondary", onClick: () => onConvertRecord?.("incidents", item) },
-        { key: "delete", label: "Delete", variant: "danger", onClick: () => deleteRecord("incidents", item.id) },
+      actions={<RecordActions className="case-file-incident-actions grid grid-cols-2 gap-1 sm:min-w-44" actions={[
+        { key: "open", label: "Open", "aria-label": `Open ${incidentTitle}`, variant: "primary", onClick: () => openEditRecordModal("incidents", item) },
+        { key: "convert", label: "Convert", "aria-label": `Convert ${incidentTitle}`, variant: "secondary", onClick: () => onConvertRecord?.("incidents", item) },
+        { key: "delete", label: "Delete", "aria-label": `Delete ${incidentTitle}`, variant: "danger", onClick: () => deleteRecord("incidents", item.id) },
       ]} />}
       metadata={<RecordMetadataRow items={[
         { key: "incident-date", label: "Date", value: item.eventDate || item.date },
         { key: "logged-date", label: "Logged", value: formatLoggedAt(item.createdAt) },
+        { key: "relationship-count", label: "Relationships", value: `${relationshipCount}` },
       ]} />}
       links={<RecordLinksRow groups={[{ key: "linked-parties", label: "Linked Parties", items: partyItems }]} />}
     >
-      <div className="space-y-3">
-        {item.description && <p className={`text-sm text-neutral-700 dark:text-neutral-300 ${isTimeline ? "line-clamp-2" : ""}`}>{isTimeline && item.description.length > 160 ? `${item.description.substring(0, 160)}...` : item.description}</p>}
-        {item.notes && <p className={`text-sm italic text-neutral-500 dark:text-neutral-400 ${isTimeline ? "line-clamp-1" : ""}`}>{isTimeline && item.notes.length > 100 ? `${item.notes.substring(0, 100)}...` : item.notes}</p>}
-        <RecordLinksRow groups={[{ key: "attachment-preview", render: <AttachmentPreview attachments={item.attachments || []} imageCache={imageCache} onPreview={onPreviewFile} /> }]} />
-        <RecordLinksRow aria-label="Incident relationships" groups={relationshipGroups} />
+      <div id={detailId} className="space-y-3">
+        {item.description && <p className={`case-file-incident-description text-sm ${isTimeline ? "line-clamp-2" : ""}`}>{expanded || isTimeline ? item.description : descriptionPreview}</p>}
+        {expanded && item.notes && <p className="case-file-incident-notes text-sm italic">{item.notes}</p>}
+        {expanded && <>
+          <RecordLinksRow groups={[{ key: "attachment-preview", render: <AttachmentPreview attachments={item.attachments || []} imageCache={imageCache} onPreview={onPreviewFile} /> }]} />
+          <RecordLinksRow aria-label="Incident relationships" groups={relationshipGroups} />
+        </>}
       </div>
+      <button type="button" className="case-file-incident-disclosure" aria-expanded={expanded} aria-controls={detailId} onClick={() => setExpanded((current) => !current)}><ChevronDown className={expanded ? "is-expanded" : ""} aria-hidden="true" />{expanded ? "Hide details" : "Show details"}</button>
     </RecordCardShell>
   );
 }
