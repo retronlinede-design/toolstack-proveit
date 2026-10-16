@@ -21,219 +21,115 @@ export default function ActionSummaryPanel({
   onAddQuickAction,
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [feedback, setFeedback] = useState("");
   const activeActionCount = nextActions.length;
+  const topNextAction = getActionText(nextActions[0]) || "No active actions.";
   const indicatorItems = [
     ["Active Actions", activeActionCount],
     ["Completed Actions", completedNextActions.length],
     ["Reminders", importantReminders.length],
     ["Deadlines", criticalDeadlines.length],
   ];
+  const announce = (message) => setFeedback(message);
 
   return (
-    <section id="case-action-summary" className="case-briefing mb-6 w-full scroll-mt-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-950 sm:p-5 print:hidden" aria-labelledby="case-briefing-title">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h3 id="case-briefing-title" className="text-lg font-semibold text-neutral-900">Case Briefing</h3>
-          <p className="text-sm text-neutral-600">Manually maintained focus, actions, reminders, and deadlines.</p>
+    <section id="case-action-summary" className="case-file-action-summary mb-6 w-full scroll-mt-4 print:hidden" aria-labelledby="case-briefing-title">
+      <p className="sr-only" role="status" aria-live="polite">{feedback}</p>
+      <header className="case-file-action-summary-header">
+        <div className="case-file-action-summary-title">
+          <p>Case-wide operational summary</p>
+          <h3 id="case-briefing-title">Case Briefing</h3>
+          <span>Manually maintained focus, actions, reminders, and deadlines.</span>
         </div>
-        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-          <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 text-xs font-medium text-neutral-500">
-            Updated: {updatedAt ? new Date(updatedAt).toLocaleString() : "Never"}
-          </div>
-          <button type="button" onClick={onEdit} className="case-briefing-control rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500">Edit</button>
-          <button type="button" onClick={onCopy} className="case-briefing-control rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500">Copy</button>
+        <div className="case-file-action-summary-actions">
+          <span className="case-file-action-summary-updated">Updated: {updatedAt ? new Date(updatedAt).toLocaleString() : "Never"}</span>
+          <button type="button" onClick={() => { onEdit(); announce("Case Briefing editor opened."); }} className="case-file-action-summary-control">Edit</button>
+          <button type="button" onClick={() => { onCopy(); announce("Case Briefing copied to the clipboard."); }} className="case-file-action-summary-control">Copy</button>
           <button
             type="button"
-            onClick={() => setExpanded((value) => !value)}
+            onClick={() => setExpanded((value) => { const next = !value; announce(next ? "Case Briefing expanded." : "Case Briefing collapsed."); return next; })}
             aria-expanded={expanded}
             aria-controls="case-briefing-details"
-            className="case-briefing-disclosure inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500"
+            className="case-file-action-summary-control is-disclosure"
           >
             {expanded ? "Collapse Briefing" : "Expand Briefing"}
             <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
           </button>
         </div>
-      </div>
+      </header>
 
       {!expanded ? (
-        <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-          <div className="min-w-0">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Current Focus</div>
-            <p className="mt-1 text-sm font-medium leading-5 text-neutral-900">{currentFocus || "No current focus has been set."}</p>
+        <div className="case-file-action-summary-compact">
+          <div className="case-file-action-summary-focus">
+            <span>Current Focus</span>
+            <strong>{currentFocus || "No current focus has been set."}</strong>
           </div>
-          <div className="min-w-0 border-t border-neutral-100 pt-3 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Top Next Action</div>
-            <p className="mt-1 truncate text-sm font-medium text-neutral-900">{getActionText(nextActions[0]) || "No active actions."}</p>
+          <div className="case-file-action-summary-top-action">
+            <span>Top Next Action</span>
+            <p title={topNextAction}>{topNextAction}</p>
           </div>
-          <div className="flex flex-wrap gap-1.5 lg:col-span-2" aria-label="Case briefing indicators">
-            {indicatorItems.map(([label, count]) => (
-              <span key={label} className="case-briefing-chip rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs text-neutral-500">
-                <strong className="font-semibold text-neutral-900">{count}</strong> {label}
-              </span>
-            ))}
+          <div className="case-file-action-summary-indicators" aria-label="Case briefing indicators">
+            {indicatorItems.map(([label, count]) => <span key={label}><strong>{count}</strong> {label}</span>)}
           </div>
         </div>
       ) : (
-      <div id="case-briefing-details" className="mt-4 grid gap-4 border-t border-neutral-100 pt-4 lg:grid-cols-12">
-        <section className="space-y-3 rounded-lg border border-neutral-200 bg-neutral-50 p-4 lg:col-span-5">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Current Focus</h4>
-          <p className="text-sm font-medium leading-6 text-neutral-900">
-            {currentFocus || "No current focus set."}
-          </p>
-          <div className="border-t border-neutral-200 pt-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Strategy Focus</h4>
-            {strategyFocus.length > 0 ? (
-              <ul className="mt-2 space-y-1.5">
-                {strategyFocus.map((item, index) => <li key={index} className="text-sm text-neutral-700">- {item}</li>)}
-              </ul>
-            ) : <p className="mt-2 text-sm italic text-neutral-500">No strategy focus set.</p>}
-          </div>
-        </section>
+        <div id="case-briefing-details" className="case-file-action-summary-details">
+          <section className="case-file-action-summary-focus-card">
+            <h4>Current Focus</h4>
+            <p>{currentFocus || "No current focus set."}</p>
+            <div>
+              <h4>Strategy Focus</h4>
+              {strategyFocus.length > 0 ? <ul>{strategyFocus.map((item, index) => <li key={index}>{item}</li>)}</ul> : <p className="is-empty">No strategy focus set.</p>}
+            </div>
+          </section>
 
-        <section className="lg:col-span-7 space-y-3 rounded-lg border border-lime-200 bg-lime-50 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-600">Next Actions</h4>
-            {activeActionCount > 0 && (
-              <span className="rounded-md bg-white px-2 py-1 text-[10px] font-bold uppercase text-lime-700 border border-lime-200">
-                Priority
-              </span>
-            )}
-          </div>
-          {activeActionCount > 0 ? (
-            <ul className="space-y-2">
-              {nextActions.map((action, i) => {
-                const actionText = getActionText(action);
-
-                return (
-                <li key={`${actionText}-${i}`} className={`flex items-start justify-between gap-3 rounded-lg border bg-white px-3 py-2 text-sm ${i === 0 ? "border-lime-300 font-semibold text-neutral-900 shadow-sm" : "border-neutral-200 text-neutral-700"}`}>
-                  <span className="flex min-w-0 items-start gap-2 break-words">
-                    <input
-                      type="checkbox"
-                      checked={false}
-                      onChange={() => onToggleNextActionCompleted(action, true)}
-                      className="mt-1 h-4 w-4 shrink-0 rounded border-neutral-300 text-lime-600 focus:ring-lime-500"
-                      aria-label={`Mark action ${i + 1} complete`}
-                    />
-                    <span className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${i === 0 ? "bg-lime-100 text-lime-700" : "bg-neutral-100 text-neutral-500"}`}>
-                      {i + 1}
-                    </span>
-                    <span>
-                      {i === 0 && <span className="mr-2 text-[10px] font-bold uppercase text-lime-700">Top</span>}
-                      {actionText}
-                    </span>
-                  </span>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => onMoveNextAction(i, i - 1)}
-                      disabled={i === 0}
-                      className="rounded-md border border-neutral-200 bg-white px-1.5 py-1 text-[10px] font-bold text-neutral-500 transition-all hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-30"
-                      title="Move up"
-                    >
-                      Up
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onMoveNextAction(i, i + 1)}
-                      disabled={i === activeActionCount - 1}
-                      className="rounded-md border border-neutral-200 bg-white px-1.5 py-1 text-[10px] font-bold text-neutral-500 transition-all hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-30"
-                      title="Move down"
-                    >
-                      Down
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onRemoveNextAction(i)}
-                      aria-label={`Remove action ${i + 1}: ${actionText}`}
-                      className="rounded-md border border-neutral-200 bg-white p-1 text-neutral-400 transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-500"
-                      title="Remove"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p className="text-sm text-neutral-600 italic">List the next steps to move this case forward.</p>
-          )}
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Add next action and press Enter"
-              value={quickActionInput}
-              onChange={(e) => onQuickActionInputChange(e.target.value)}
-              onKeyDown={onQuickActionKeyDown}
-              className="min-w-0 flex-1 border-b border-lime-200 bg-transparent py-1 text-xs transition-colors focus:border-lime-600 focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={onAddQuickAction}
-              className="rounded-md border border-lime-500 bg-white px-3 py-1 text-xs font-bold text-neutral-800 shadow-sm hover:bg-lime-100"
-            >
-              Add
-            </button>
-          </div>
-          {completedNextActions.length > 0 && (
-            <details className="rounded-lg border border-neutral-200 bg-white px-3 py-2">
-              <summary className="cursor-pointer text-xs font-bold uppercase tracking-wider text-neutral-500">
-                Completed Actions ({completedNextActions.length})
-              </summary>
-              <ul className="mt-3 space-y-2">
-                {completedNextActions.map((action, i) => {
+          <section className="case-file-action-summary-work">
+            <div className="case-file-action-summary-section-heading">
+              <h4>Next Actions</h4>
+              {activeActionCount > 0 && <span>{activeActionCount} active</span>}
+            </div>
+            {activeActionCount > 0 ? (
+              <ul className="case-file-action-summary-action-list">
+                {nextActions.map((action, i) => {
                   const actionText = getActionText(action);
-                  const completedDate = action.completedAt ? new Date(action.completedAt).toLocaleString() : "";
-
                   return (
-                    <li key={`${actionText}-completed-${i}`} className="flex items-start justify-between gap-3 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600">
-                      <span className="flex min-w-0 items-start gap-2 break-words">
-                        <input
-                          type="checkbox"
-                          checked
-                          onChange={() => onToggleNextActionCompleted(action, false)}
-                          className="mt-1 h-4 w-4 shrink-0 rounded border-neutral-300 text-lime-600 focus:ring-lime-500"
-                          aria-label={`Mark completed action ${i + 1} active`}
-                        />
-                        <span className="line-through">{actionText}</span>
-                      </span>
-                      {completedDate && (
-                        <span className="shrink-0 text-xs font-medium text-neutral-500">{completedDate}</span>
-                      )}
+                    <li key={`${actionText}-${i}`}>
+                      <label>
+                        <input type="checkbox" checked={false} onChange={() => { onToggleNextActionCompleted(action, true); announce(`Action ${i + 1} marked complete.`); }} aria-label={`Mark action ${i + 1} complete: ${actionText}`} />
+                        <span className="case-file-action-summary-action-number">{i + 1}</span>
+                        <span>{i === 0 && <em>Top</em>}{actionText}</span>
+                      </label>
+                      <div className="case-file-action-summary-row-actions">
+                        <button type="button" onClick={() => { onMoveNextAction(i, i - 1); announce(`Action ${i + 1} moved up.`); }} disabled={i === 0} aria-label={`Move action ${i + 1}: ${actionText} up`}>Up</button>
+                        <button type="button" onClick={() => { onMoveNextAction(i, i + 1); announce(`Action ${i + 1} moved down.`); }} disabled={i === activeActionCount - 1} aria-label={`Move action ${i + 1}: ${actionText} down`}>Down</button>
+                        <button type="button" onClick={() => { onRemoveNextAction(i); announce(`Action ${i + 1} removed.`); }} aria-label={`Remove action ${i + 1}: ${actionText}`} title="Remove action"><X className="h-3.5 w-3.5" aria-hidden="true" /></button>
+                      </div>
                     </li>
                   );
                 })}
               </ul>
-            </details>
-          )}
-        </section>
+            ) : <p className="case-file-action-summary-empty">List the next steps to move this case forward.</p>}
+            <div className="case-file-action-summary-quick-add">
+              <input type="text" placeholder="Add next action and press Enter" value={quickActionInput} onChange={(event) => onQuickActionInputChange(event.target.value)} onKeyDown={(event) => { onQuickActionKeyDown(event); if (event.key === "Enter" && quickActionInput.trim()) announce("Next action added."); }} aria-label="Add next action" />
+              <button type="button" onClick={() => { if (!quickActionInput.trim()) return; onAddQuickAction(); announce("Next action added."); }}>Add</button>
+            </div>
+            {completedNextActions.length > 0 && (
+              <details className="case-file-action-summary-completed">
+                <summary>Completed Actions ({completedNextActions.length})</summary>
+                <ul>{completedNextActions.map((action, i) => {
+                  const actionText = getActionText(action);
+                  const completedDate = action.completedAt ? new Date(action.completedAt).toLocaleString() : "";
+                  return <li key={`${actionText}-completed-${i}`}><label><input type="checkbox" checked onChange={() => { onToggleNextActionCompleted(action, false); announce(`Action ${i + 1} reactivated.`); }} aria-label={`Mark completed action ${i + 1} active: ${actionText}`} /><span>{actionText}</span></label>{completedDate && <time>{completedDate}</time>}</li>;
+                })}</ul>
+              </details>
+            )}
+          </section>
 
-        <section className="lg:col-span-6 space-y-2 border-t border-neutral-200 pt-4">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Important Reminders</h4>
-          {importantReminders.length > 0 ? (
-            <ul className="space-y-1.5">
-              {importantReminders.map((reminder, i) => (
-                <li key={i} className="text-sm text-neutral-700">- {reminder}</li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-neutral-500 italic">Add anything that must not be forgotten.</p>
-          )}
-        </section>
-
-        <section className="lg:col-span-6 space-y-2 border-t border-neutral-200 pt-4">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Critical Deadlines</h4>
-          {criticalDeadlines.length > 0 ? (
-            <ul className="space-y-1.5">
-              {criticalDeadlines.map((deadline, i) => (
-                <li key={i} className="text-sm text-neutral-700">- {deadline}</li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-neutral-500 italic">No critical deadlines set.</p>
-          )}
-        </section>
-      </div>
+          <section className="case-file-action-summary-notes">
+            <div><h4>Important Reminders</h4>{importantReminders.length > 0 ? <ul>{importantReminders.map((reminder, i) => <li key={i}>{reminder}</li>)}</ul> : <p className="is-empty">Add anything that must not be forgotten.</p>}</div>
+            <div><h4>Critical Deadlines</h4>{criticalDeadlines.length > 0 ? <ul>{criticalDeadlines.map((deadline, i) => <li key={i}>{deadline}</li>)}</ul> : <p className="is-empty">No critical deadlines set.</p>}</div>
+          </section>
+        </div>
       )}
     </section>
   );
