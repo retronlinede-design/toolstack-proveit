@@ -362,13 +362,14 @@
   box-shadow: 0 10px 24px rgb(0 0 0 / .12);
 }
 .proveit-dark-shell .case-file-overview-position { display: grid; gap: 1rem; padding: 1rem; }
+.proveit-dark-shell .case-file-overview-position-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: .75rem 1rem; }
 .proveit-dark-shell .case-file-overview-position-copy { min-width: 0; }
 .proveit-dark-shell .case-file-overview-eyebrow,
 .proveit-dark-shell .case-file-overview-focus > span,
 .proveit-dark-shell .case-file-overview-finding-label { color: var(--case-file-muted); font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .proveit-dark-shell .case-file-overview-position h1 { margin: .18rem 0 0; color: var(--case-file-text); font-size: 1.45rem; font-weight: 700; letter-spacing: -.025em; line-height: 1.2; }
 .proveit-dark-shell .case-file-overview-position-copy > p:last-child { margin: .35rem 0 0; color: var(--case-file-muted); font-size: .9rem; line-height: 1.4; }
-.proveit-dark-shell .case-file-overview-focus { min-width: 0; border-left: 2px solid var(--case-file-accent); padding-left: .75rem; }
+.proveit-dark-shell .case-file-overview-focus { min-width: 0; border-top: 1px solid var(--case-file-border); border-left: 2px solid var(--case-file-accent); padding: .75rem 0 0 .75rem; }
 .proveit-dark-shell .case-file-overview-focus strong { display: block; margin-top: .25rem; color: var(--case-file-text); font-size: .9rem; font-weight: 600; line-height: 1.4; }
 .proveit-dark-shell .case-file-overview-button { display: inline-flex; min-height: 2.3rem; align-items: center; justify-content: center; border: 1px solid color-mix(in srgb, var(--case-file-accent) 52%, var(--case-file-border)); border-radius: .55rem; background: color-mix(in srgb, var(--case-file-accent) 13%, var(--pi-control)); padding: .45rem .75rem; color: #dcfff8; font-size: .78rem; font-weight: 700; line-height: 1.15; transition: background-color 160ms ease, border-color 160ms ease; }
 .proveit-dark-shell .case-file-overview-button:hover { border-color: var(--case-file-accent); background: color-mix(in srgb, var(--case-file-accent) 22%, var(--pi-control)); }
@@ -430,7 +431,8 @@
   .proveit-dark-shell .case-file-overview-snapshot dl { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (min-width: 1024px) {
-  .proveit-dark-shell .case-file-overview-position { grid-template-columns: minmax(0, 1.15fr) minmax(14rem, .85fr) auto; align-items: center; }
+  .proveit-dark-shell .case-file-overview-position-header { flex-wrap: nowrap; }
+  .proveit-dark-shell .case-file-overview-position-header > .case-file-overview-button { flex: 0 0 auto; }
   .proveit-dark-shell .case-file-overview-operational-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .proveit-dark-shell .case-file-overview-support-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .proveit-dark-shell .case-file-overview-snapshot dl { grid-template-columns: repeat(6, minmax(0, 1fr)); }

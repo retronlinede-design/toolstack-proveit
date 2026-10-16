@@ -91,16 +91,18 @@ export default function CaseBriefingDashboard({ model, onOpenIssue, onOpenItem, 
   return (
     <main className="case-file-overview space-y-5" aria-labelledby="case-briefing-heading">
       <section className="case-file-overview-position" aria-labelledby="case-briefing-heading">
-        <div className="case-file-overview-position-copy">
-          <p className="case-file-overview-eyebrow">Overview</p>
-          <h1 id="case-briefing-heading">Case Briefing</h1>
-          <p>A factual daily view of this case, its Issues, and recorded next steps.</p>
+        <div className="case-file-overview-position-header">
+          <div className="case-file-overview-position-copy">
+            <p className="case-file-overview-eyebrow">Overview</p>
+            <h1 id="case-briefing-heading">Case Briefing</h1>
+            <p>A factual daily view of this case, its Issues, and recorded next steps.</p>
+          </div>
+          <button type="button" className="case-file-overview-button" onClick={() => onOpenIssue?.("")}>Open Issue Manager</button>
         </div>
         <div className="case-file-overview-focus">
           <span>Current position</span>
           <strong>{currentFocus.text || "No current focus is recorded in the Action Summary."}</strong>
         </div>
-        <button type="button" className="case-file-overview-button" onClick={() => onOpenIssue?.("")}>Open Issue Manager</button>
       </section>
 
       <details className="case-file-overview-guide">
