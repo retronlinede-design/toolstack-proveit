@@ -147,6 +147,14 @@
   background: var(--case-file-surface) !important;
   box-shadow: 0 14px 34px rgb(0 0 0 / .18) !important;
 }
+.proveit-dark-shell .case-file-header-layout,
+.proveit-dark-shell .case-file-header-main { min-width: 0; }
+.proveit-dark-shell .case-file-description { max-width: none; color: var(--case-file-text) !important; }
+.proveit-dark-shell .case-file-toolbar { width: 100%; }
+@media (min-width: 1024px) {
+  .proveit-dark-shell .case-file-toolbar { flex-direction: row; align-items: center; justify-content: space-between; }
+  .proveit-dark-shell .case-file-toolbar > :last-child { align-items: flex-end; }
+}
 
 .proveit-dark-shell .case-file-back-link { color: var(--case-file-muted) !important; }
 .proveit-dark-shell .case-file-back-link:hover { color: var(--case-file-text) !important; }
@@ -278,9 +286,11 @@
 .proveit-dark-shell .case-file-action-summary-row-actions button:hover:not(:disabled) { border-color: color-mix(in srgb, var(--case-file-accent) 60%, var(--case-file-border)); background: var(--pi-control-hover); }
 .proveit-dark-shell .case-file-action-summary-control.is-disclosure { border-color: color-mix(in srgb, var(--case-file-accent) 46%, var(--case-file-border)); background: color-mix(in srgb, var(--case-file-accent) 10%, var(--pi-control)); color: #dffdf7; }
 .proveit-dark-shell .case-file-action-summary :is(button, input, summary):focus-visible { outline: 2px solid var(--case-file-focus); outline-offset: 2px; }
-.proveit-dark-shell .case-file-action-summary-compact { display: grid; gap: .65rem; border-top: 1px solid var(--case-file-border); padding: .75rem 1rem .9rem; }
+.proveit-dark-shell .case-file-action-summary-compact { display: grid; grid-template-areas: "focus" "action" "indicators"; gap: .65rem; border-top: 1px solid var(--case-file-border); padding: .75rem 1rem .9rem; }
 .proveit-dark-shell .case-file-action-summary-focus,
 .proveit-dark-shell .case-file-action-summary-top-action { min-width: 0; }
+.proveit-dark-shell .case-file-action-summary-focus { grid-area: focus; }
+.proveit-dark-shell .case-file-action-summary-top-action { grid-area: action; }
 .proveit-dark-shell .case-file-action-summary-focus > span,
 .proveit-dark-shell .case-file-action-summary-top-action > span,
 .proveit-dark-shell .case-file-action-summary-section-heading h4,
@@ -288,7 +298,7 @@
 .proveit-dark-shell .case-file-action-summary-notes h4 { color: var(--case-file-muted); font-size: .65rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .proveit-dark-shell .case-file-action-summary-focus strong,
 .proveit-dark-shell .case-file-action-summary-top-action p { display: block; margin: .22rem 0 0; overflow-wrap: anywhere; color: var(--case-file-text); font-size: .82rem; font-weight: 600; line-height: 1.4; }
-.proveit-dark-shell .case-file-action-summary-indicators { display: flex; flex-wrap: wrap; gap: .35rem; }
+.proveit-dark-shell .case-file-action-summary-indicators { display: flex; grid-area: indicators; flex-wrap: wrap; gap: .35rem; }
 .proveit-dark-shell .case-file-action-summary-indicators span { border: 1px solid var(--case-file-border); border-radius: 999px; background: var(--case-file-raised); padding: .2rem .45rem; color: var(--case-file-muted); font-size: .68rem; }
 .proveit-dark-shell .case-file-action-summary-indicators strong { color: var(--case-file-text); }
 .proveit-dark-shell .case-file-action-summary-details { display: grid; gap: .75rem; border-top: 1px solid var(--case-file-border); padding: .85rem 1rem 1rem; }
@@ -330,8 +340,8 @@
 .proveit-dark-shell .case-file-action-summary-notes { display: grid; gap: .75rem; }
 
 @media (min-width: 640px) {
-  .proveit-dark-shell .case-file-action-summary-compact { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; }
-  .proveit-dark-shell .case-file-action-summary-indicators { justify-content: flex-end; }
+  .proveit-dark-shell .case-file-action-summary-compact { grid-template-areas: "focus action" "indicators indicators"; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); align-items: start; }
+  .proveit-dark-shell .case-file-action-summary-indicators { justify-content: flex-start; }
   .proveit-dark-shell .case-file-action-summary-notes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (min-width: 1024px) {

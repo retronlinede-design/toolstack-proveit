@@ -43,8 +43,11 @@ test("Open Reports uses the canonical report tab id", () => {
 
 test("case file dark styling stays inside the dedicated case-file scope", () => {
   assert.match(caseDetail, /className="case-file space-y-6"/);
+  assert.match(caseDetail, /case-file-header-layout grid gap-4/);
+  assert.match(caseDetail, /case-file-description mt-3/);
   assert.match(styles, /\.proveit-dark-shell \.case-file \{/);
   assert.match(styles, /\.proveit-dark-shell \.case-file-header \{/);
+  assert.match(styles, /\.proveit-dark-shell \.case-file-description \{ max-width: none/);
   assert.match(styles, /\.proveit-dark-shell \.case-file-navigation-item\.is-active \{/);
   assert.match(styles, /\.proveit-dark-shell \.case-file-navigation-grid \{/);
   assert.match(styles, /\.proveit-dark-shell \.case-file-navigation-cell\.is-drop-target \.case-file-navigation-item/);

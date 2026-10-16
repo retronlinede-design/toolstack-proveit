@@ -33,7 +33,8 @@ test("expanded Case Briefing retains operational controls and live feedback", ()
 test("Action Summary styling is scoped to the open case file tokens", () => {
   assert.match(styles, /\.proveit-dark-shell \.case-file-action-summary \{/);
   assert.match(styles, /case-file-action-summary :is\(button, input, summary\):focus-visible/);
-  assert.match(styles, /case-file-action-summary-compact \{ grid-template-columns/);
+  assert.match(styles, /case-file-action-summary-compact \{[\s\S]*?grid-template-areas: "focus" "action" "indicators"/);
+  assert.match(styles, /grid-template-columns: minmax\(0, 1\.65fr\) minmax\(0, 1fr\)/);
   assert.doesNotMatch(source, /lime-/);
   assert.doesNotMatch(source, /case-briefing-control/);
 });

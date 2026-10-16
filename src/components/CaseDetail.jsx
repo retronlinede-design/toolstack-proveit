@@ -3735,8 +3735,8 @@ ${ungroupedSequenceText}
   return (
     <div className="case-file space-y-6">
       <div className="case-file-header case-workspace-header rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5 print:hidden">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-        <div className="min-w-0">
+        <div className="case-file-header-layout grid gap-4">
+        <div className="case-file-header-main min-w-0">
           <button onClick={() => setSelectedCaseId(null)} className="case-file-back-link mb-3 text-sm font-medium text-neutral-500 underline-offset-4 hover:underline">
             ← Back to Cases
           </button>
@@ -3766,7 +3766,7 @@ ${ungroupedSequenceText}
           <p className="case-file-privacy mt-2 text-xs font-medium text-neutral-500">
             {isPinLocked ? "Privacy lock: PIN enabled" : "Privacy lock: off"}
           </p>
-          {selectedCase.notes ? <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-700">{selectedCase.notes}</p> : null}
+          {selectedCase.notes ? <p className="case-file-description mt-3 text-sm leading-6 text-neutral-700">{selectedCase.notes}</p> : null}
           <div className="case-file-metrics case-workspace-metrics mt-4 flex flex-wrap gap-1.5" aria-label="Case metrics">
             {caseHeaderMetrics.map((metric) => (
               <span key={metric.label} className="case-workspace-metric inline-flex items-baseline gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-xs text-neutral-500">
