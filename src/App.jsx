@@ -5001,6 +5001,7 @@ const handleRecordFiles = async (event) => {
 
         {recordType && selectedCase && (
           <RecordModal
+            key={`${selectedCase.id}:${recordType}:${recordForm.id || "new"}`}
             recordType={recordType}
             selectedCase={selectedCase}
             caseParties={selectedCase.parties || []}

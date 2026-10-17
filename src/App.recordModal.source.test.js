@@ -65,3 +65,7 @@ test("record saves pass through the established canonical Issue normalization bo
   assert.match(source, /sequenceGroupMeta: getSequenceGroupMetaForCase\(updatedCase\.id, readSequenceGroupMetaStore\(\)\)/);
   assert.match(source, /updatedCase = issueResult\.caseData;/);
 });
+
+test("each RecordModal editing session mounts with an independent draft baseline", () => {
+  assert.match(source, /key=\{`\$\{selectedCase\.id\}:\$\{recordType\}:\$\{recordForm\.id \|\| "new"\}`\}/);
+});

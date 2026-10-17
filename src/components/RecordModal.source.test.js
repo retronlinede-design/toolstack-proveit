@@ -51,3 +51,21 @@ test("Strategy Issue selector uses canonical Issue IDs and labels", () => {
   assert.match(source, /sequenceGroupId: issue\.id, sequenceGroup: issue\.name/);
   assert.match(source, /sequenceGroupId: "", sequenceGroup: ""/);
 });
+
+test("record editor uses the shared dialog shell without changing its submit boundary", () => {
+  assert.match(source, /import DialogShell from "\.\/shared\/DialogShell"/);
+  assert.match(source, /<DialogShell/);
+  assert.match(source, /dismissOnBackdrop=\{false\}/);
+  assert.match(source, /initialFocusRef=\{titleInputRef\}/);
+  assert.match(source, /const preparedForm = prepareRecordFormForSave\(recordForm, recordType, caseParties\)/);
+  assert.match(source, /saveRecord\(payload\)/);
+});
+
+test("record editor protects unsaved local changes on ordinary dismissal", () => {
+  assert.match(source, /initialFormFingerprintRef = useRef\(JSON\.stringify\(recordForm\)\)/);
+  assert.match(source, /const requestRecordClose = \(\) =>/);
+  assert.match(source, /initialFormFingerprintRef\.current !== JSON\.stringify\(recordForm\)/);
+  assert.match(source, /Discard unsaved changes\?/);
+  assert.match(source, /Keep editing/);
+  assert.match(source, /onClick=\{requestRecordClose\}/);
+});

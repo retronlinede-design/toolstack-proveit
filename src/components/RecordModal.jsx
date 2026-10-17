@@ -4,6 +4,7 @@ import { prepareRecordFormForSave, suggestEvidenceMetadataForForm } from "../dom
 import { getCaseIssueSelectionOptions, resolveCaseIssue } from "../domain/issueDomain.js";
 import LinkedPartiesSelector from "./caseDetail/LinkedPartiesSelector";
 import StrategyEditorSection from "./StrategyEditorSection";
+import DialogShell from "./shared/DialogShell";
 
 const INCIDENT_EVIDENCE_STATUS_OPTIONS = [
   { value: "documented", label: "Documented" },
@@ -277,6 +278,8 @@ export default function RecordModal({
   const [sequenceGroupMode, setSequenceGroupMode] = useState("");
   const [selectedEvidenceTemplate, setSelectedEvidenceTemplate] = useState("");
   const titleInputRef = useRef(null);
+  const initialFormFingerprintRef = useRef(JSON.stringify(recordForm));
+  const [discardPromptOpen, setDiscardPromptOpen] = useState(false);
   const dateInputRef = useRef(null);
   const descriptionTextareaRef = useRef(null);
   const initialAutoSuggestInputsRef = useRef({
@@ -559,6 +562,16 @@ export default function RecordModal({
     saveRecord(payload);
   };
 
+  const requestRecordClose = () => {
+    if (isLinking) {
+      setIsLinking(false);
+    } else if (initialFormFingerprintRef.current !== JSON.stringify(recordForm)) {
+      setDiscardPromptOpen(true);
+    } else {
+      closeRecordModal();
+    }
+  };
+
   const isEdit = !!recordForm.id;
   const typeLabelMap = {
     evidence: "Evidence",
@@ -760,25 +773,53 @@ export default function RecordModal({
     </div>
   );
 
+  const footer = discardPromptOpen ? (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" role="alert">
+      <p className="text-sm text-amber-100">Discard unsaved changes? This record has not been saved.</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => setDiscardPromptOpen(false)} className="proveit-record-secondary-action">Keep editing</button>
+        <button type="button" onClick={closeRecordModal} className="proveit-record-danger-action">Discard changes</button>
+      </div>
+    </div>
+  ) : (
+    <>
+      {recordType === "evidence" && evidenceQualityHints.length > 0 && (
+        <div className="mb-3 space-y-1 text-xs text-slate-300">{evidenceQualityHints.map((hint) => <p key={hint}>• {hint}</p>)}</div>
+      )}
+      <div className="flex flex-wrap justify-end gap-2">
+        {isLinking ? (
+          <>
+            <button type="button" onClick={handleConfirmLinks} className="proveit-record-primary-action">Link selected ({tempSelection.length})</button>
+            <button type="button" onClick={() => setIsLinking(false)} className="proveit-record-secondary-action">Back</button>
+          </>
+        ) : (
+          <>
+            <button type="button" onClick={handleSubmitRecord} className="proveit-record-primary-action">{isEdit ? "Save changes" : `Create ${typeLabel}`}</button>
+            <button type="button" onClick={requestRecordClose} className="proveit-record-secondary-action">Cancel</button>
+          </>
+        )}
+      </div>
+    </>
+  );
+
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-3xl bg-white shadow-xl flex flex-col max-h-[90vh]">
-        <div className="p-6 pb-0">
-          <h2 className="text-xl font-semibold">
-            {isLinking ? "Link Existing Evidence" : `${isEdit ? "Edit" : "Add"} ${typeLabel}`}
-          </h2>
-          <p className="mb-4 text-sm text-neutral-600">Case: {selectedCase.name}</p>
+    <DialogShell
+      title={isLinking ? "Link Existing Evidence" : `${isEdit ? "Edit" : "Add"} ${typeLabel}`}
+      description={`Case: ${selectedCase.name}`}
+      width={recordType === "strategy" ? "wide" : "standard"}
+      onRequestClose={requestRecordClose}
+      dismissOnBackdrop={false}
+      initialFocusRef={titleInputRef}
+      statusMessage={!isLinking ? focusHint : ""}
+      footer={footer}
+      className="proveit-record-dialog"
+    >
+      <div>
+        <div className="mb-5">
           {!isLinking && recordType === "incidents" && <p className="mb-4 text-sm text-neutral-600">Record something that happened.</p>}
           {!isLinking && recordType === "evidence" && <p className="mb-4 text-sm text-neutral-600">Record material that supports or challenges a point.</p>}
           {!isLinking && recordType === "strategy" && <p className="mb-4 text-sm text-neutral-600">Record the considered approach, position, risks, and planned response.</p>}
-          {focusHint && !isLinking && (
-            <p className="mb-4 rounded-lg border border-lime-100 bg-lime-50 px-3 py-2 text-xs text-lime-800">
-              Also needed: {focusHint}
-            </p>
-          )}
         </div>
-
-        <div className="p-6 pt-0 overflow-y-auto flex-1">
         {isLinking ? (
           <div className="space-y-3">
             <p className="text-sm text-neutral-600 mb-4">
@@ -1760,44 +1801,7 @@ export default function RecordModal({
         )}
         </>
         )}
-        </div>
-
-        <div className="border-t border-neutral-100 p-6 pt-4">
-          {recordType === "evidence" && evidenceQualityHints.length > 0 && (
-            <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-amber-800">Quality Check</div>
-              <div className="mt-2 space-y-2 text-sm text-amber-900">
-                {evidenceQualityHints.map((hint) => (
-                  <p key={hint}>{hint}</p>
-                ))}
-              </div>
-              <p className="mt-3 text-xs text-amber-800">These are guidance only. You can still save this evidence item.</p>
-            </div>
-          )}
-
-          <div className="flex gap-2">
-          {isLinking ? (
-            <>
-              <button onClick={handleConfirmLinks} className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
-                Link Selected ({tempSelection.length})
-              </button>
-              <button onClick={() => setIsLinking(false)} className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
-                Back
-              </button>
-            </>
-          ) : (
-            <>
-              <button onClick={handleSubmitRecord} className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
-                {isEdit ? "Save Changes" : "Create"}
-              </button>
-              <button onClick={closeRecordModal} className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">
-                Cancel
-              </button>
-            </>
-          )}
-          </div>
-        </div>
       </div>
-    </div>
+    </DialogShell>
   );
 }

@@ -23,6 +23,40 @@
   color-scheme: dark;
 }
 
+/* Shared modal presentation, scoped to the migrated Incident/Evidence/Strategy editor. */
+.proveit-record-dialog { background: #0b172a; }
+.proveit-record-dialog .bg-white,
+.proveit-record-dialog .bg-neutral-50,
+.proveit-record-dialog .bg-neutral-100 { background-color: #12213a; }
+.proveit-record-dialog .border-neutral-100,
+.proveit-record-dialog .border-neutral-200,
+.proveit-record-dialog .border-neutral-300 { border-color: #334155; }
+.proveit-record-dialog .text-neutral-800,
+.proveit-record-dialog .text-neutral-700 { color: #e2e8f0; }
+.proveit-record-dialog .text-neutral-600,
+.proveit-record-dialog .text-neutral-500 { color: #cbd5e1; }
+.proveit-record-dialog input:not([type="checkbox"]):not([type="radio"]),
+.proveit-record-dialog select,
+.proveit-record-dialog textarea { border-color: #475569; background-color: #0f1f35; color: #f1f5f9; }
+.proveit-record-dialog input::placeholder,
+.proveit-record-dialog textarea::placeholder { color: #94a3b8; }
+.proveit-record-dialog input:focus,
+.proveit-record-dialog select:focus,
+.proveit-record-dialog textarea:focus { border-color: #2dd4bf; outline: 2px solid transparent; box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.45); }
+.proveit-record-primary-action,
+.proveit-record-secondary-action,
+.proveit-record-danger-action { min-height: 2.5rem; border-radius: 0.625rem; padding: 0.55rem 0.9rem; font-size: 0.875rem; font-weight: 600; }
+.proveit-record-primary-action { background: #0f766e; color: #f0fdfa; }
+.proveit-record-primary-action:hover:not(:disabled) { background: #115e59; }
+.proveit-record-primary-action:disabled { cursor: not-allowed; opacity: 0.5; }
+.proveit-record-secondary-action { border: 1px solid #475569; background: #172554; color: #e2e8f0; }
+.proveit-record-secondary-action:hover { background: #1e3a5f; }
+.proveit-record-danger-action { border: 1px solid #b91c1c; background: #7f1d1d; color: #fef2f2; }
+.proveit-record-danger-action:hover { background: #991b1b; }
+.proveit-record-primary-action:focus-visible,
+.proveit-record-secondary-action:focus-visible,
+.proveit-record-danger-action:focus-visible { outline: 2px solid #2dd4bf; outline-offset: 2px; }
+
 /* Case Records stays scoped to the open-case tracking-record workspace. */
 .proveit-dark-shell .case-file-records { color: var(--case-file-text); }
 .proveit-dark-shell .case-file-records :is(.case-file-records-header, .case-file-records-controls, .case-file-records-empty, .case-file-records-list, .case-file-records-detail) { border-color: var(--case-file-border) !important; background: var(--case-file-surface) !important; box-shadow: 0 10px 24px rgb(0 0 0 / .12) !important; }
