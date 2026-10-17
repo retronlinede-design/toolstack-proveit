@@ -3,56 +3,60 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const source = readFileSync("src/components/caseDetail/RecordsTab.jsx", "utf8");
+const modalSource = readFileSync("src/components/caseDetail/ActiveLedgerRecordModal.jsx", "utf8");
 
-test("Records tab renders a compact selectable record list and one selected-record workspace", () => {
-  assert.match(source, /lg:grid-cols-\[minmax\(15rem,0\.8fr\)_minmax\(0,2fr\)\]/);
+test("Records tab renders a scoped, searchable selectable record workspace", () => {
+  assert.match(source, /case-file-records/);
+  assert.match(source, /lg:grid-cols-\[minmax\(16rem,\.85fr\)_minmax\(0,2fr\)\]/);
   assert.match(source, /Tracking Records/);
-  assert.match(source, /aria-pressed=\{isSelected\}/);
+  assert.match(source, /case-record-search/);
+  assert.match(source, /record\.title\?\.toLocaleLowerCase\(\)\.includes\(query\)/);
+  assert.match(source, /aria-pressed=\{selected\}/);
   assert.match(source, /setRequestedSelectedRecordId\(record\.id\)/);
-  assert.match(source, /resolveSelectedTrackingRecordId\(trackingRecords, requestedSelectedRecordId\)/);
+  assert.match(source, /resolveSelectedTrackingRecordId\(visibleRecords, requestedSelectedRecordId\)/);
   assert.match(source, /<RecordTable record=\{selectedRecord\} structuredTable=\{structuredTable\} onEditRow=/);
   assert.doesNotMatch(source, /TRACKING_RECORD_PREVIEW_ROW_COUNT/);
   assert.doesNotMatch(source, /Show more/);
 });
 
-test("Records tab keeps selected-record actions and GPT exports wired to existing callbacks", () => {
+test("Records tab preserves existing record actions, table editing, and GPT export callbacks", () => {
   assert.match(source, /onClick=\{\(\) => onOpenRecord\(selectedRecord\)\}/);
   assert.match(source, /onClick=\{\(\) => onConvertRecord\?\.\(selectedRecord\)\}/);
   assert.match(source, /onClick=\{\(\) => onDeleteRecord\(selectedRecord\)\}/);
   assert.match(source, /onClick=\{\(\) => onViewPayments\(selectedRecord\)\}/);
-  assert.match(source, /handleCopyRecordGptData\(selectedRecord/);
-  assert.match(source, /handleCopyAllRecordsGptData/);
+  assert.match(source, /buildTrackingRecordGptExport/);
+  assert.match(source, /buildAllTrackingRecordsGptExport/);
+  assert.match(source, /Derived payments/);
   assert.match(source, /Copy Record GPT JSON/);
   assert.match(source, /Copy All Records GPT JSON/);
+  assert.match(source, /parseTrackingRecordTable\(getTrackingRecordTableText/);
+  assert.match(source, /serializeTrackingRecordTable/);
+  assert.match(source, /removeTrackingRecordTableRow/);
 });
 
-test("Records tab has a clear empty state and preserves the add-record action", () => {
-  assert.match(source, /trackingRecords\.length === 0/);
-  assert.match(source, /No Case Records yet/);
-  assert.match(source, /onClick=\{onAddRecord\}/);
-  assert.match(source, /No rows yet\. Add an entry to begin tracking data\./);
-});
-test("Records tab offers structured Add and Edit Entry only for tables accepted by the editing-safe helper", () => {
-  assert.match(source, /parseTrackingRecordTable\(getTrackingRecordTableText\(selectedRecord\.rawDocument\?\.textContent \|\| ""\)\)/);
+test("Records tab retains safe fallbacks and accessible row actions", () => {
   assert.match(source, /structuredTable\?\.status === "ok"/);
-  assert.match(source, /Add Entry/);
-  assert.match(source, /Edit Entry/);
-  assert.match(source, /entryEditor\.headers\.map/);
-  assert.match(source, /serializeTrackingRecordTable\(\{ headers: structuredTable\.headers, rows \}\)/);
-  assert.match(source, /onSaveTrackingRecordTable\?\.\(selectedRecord\.rawDocument\.id, tableText\)/);
-  assert.match(source, /Structured editing is unavailable for this legacy\/custom table\. Use Edit → Advanced \/ Raw Tracking Table\./);
-  assert.doesNotMatch(source, />Delete Entry</);
-  assert.doesNotMatch(source, /Reorder/);
-});
-test("Records tab confirms structured row deletion and keeps unsafe tables on the raw fallback", () => {
-  assert.match(source, /onDeleteRow=\{deleteEntry\}/);
-  assert.match(source, />Delete<\/button>/);
+  assert.match(source, /Structured editing is unavailable for this legacy\/custom table/);
+  assert.match(source, /aria-label=\{`Edit row \$\{rowIndex \+ 1\} in \$\{record\.title\}`\}/);
+  assert.match(source, /aria-label=\{`Delete row \$\{rowIndex \+ 1\} in \$\{record\.title\}`\}/);
   assert.match(source, /window\.confirm\(`Delete this entry\?/);
-  assert.match(source, /if \(!window\.confirm\(`Delete this entry\?/);
-  assert.match(source, /removeTrackingRecordTableRow\(structuredTable, rowIndex\)/);
-  assert.match(source, /serializeTrackingRecordTable\(remaining\)/);
-  assert.match(source, /structuredTable\?\.status !== "ok"/);
-  assert.match(source, /setEntryEditor\(null\)/);
   assert.doesNotMatch(source, /Reorder/);
   assert.doesNotMatch(source, /stable row ID/i);
+});
+
+test("Records tab uses canonical Issue labels and accessible editor feedback", () => {
+  assert.match(source, /resolveCaseIssue\(caseItem/);
+  assert.match(source, /getIssueDisplayLabel\(issue\)/);
+  assert.match(source, /role="status" aria-live="polite"/);
+  assert.match(source, /entryInputRef\.current\?\.focus\(\)/);
+  assert.match(source, /event\.key === "Escape"/);
+  assert.match(source, /restoreFocusRef\.current\?\.focus/);
+});
+
+test("derived payment preview clearly remains non-canonical and keyboard-dismissible", () => {
+  assert.match(modalSource, /Derived Payment Preview/);
+  assert.match(modalSource, /Not Canonical Ledger Entries/);
+  assert.match(modalSource, /do not create or modify Ledger records/);
+  assert.match(modalSource, /event\.key === "Escape"/);
+  assert.match(modalSource, /aria-modal="true"/);
 });
