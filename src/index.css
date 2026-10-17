@@ -70,6 +70,15 @@
 .proveit-case-editor-dialog .proveit-case-editor-input::placeholder { color: #94a3b8; }
 .proveit-case-editor-dialog .proveit-case-editor-input:focus { border-color: #2dd4bf; outline: 2px solid transparent; box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.45); }
 
+/* The Issue create/edit form retains its existing fields inside the shared dialog frame. */
+.proveit-issue-form-dialog input:not([type="checkbox"]):not([type="radio"]),
+.proveit-issue-form-dialog select,
+.proveit-issue-form-dialog textarea { width: 100%; border-color: #475569; background-color: #0f1f35; color: #f1f5f9; }
+.proveit-issue-form-dialog input::placeholder,
+.proveit-issue-form-dialog textarea::placeholder { color: #94a3b8; }
+.proveit-issue-form-dialog :is(input, select, textarea, button):focus-visible { outline: 2px solid #2dd4bf; outline-offset: 2px; }
+.proveit-issue-form-dialog :is(input, select, textarea):focus { border-color: #2dd4bf; box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.35); }
+
 /* Keep the legacy Document and Case Record fields visually inside their shared dialog scope. */
 .proveit-document-editor-dialog .bg-white,
 .proveit-document-editor-dialog .bg-neutral-50,

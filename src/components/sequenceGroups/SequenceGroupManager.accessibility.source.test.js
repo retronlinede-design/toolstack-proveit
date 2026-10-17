@@ -14,11 +14,13 @@ test("Issue Manager has labelled modal semantics, keyboard dismissal, focus trap
   assert.match(manager, /previousFocus\?\.focus\?\.\(\)/);
 });
 
-test("Issue forms retain their existing callbacks behind visible sticky action areas", () => {
-  assert.match(form, /sticky bottom-0/);
-  assert.match(form, /onClick: onCancel/);
-  assert.match(form, /onClick: handleSubmit/);
-  assert.match(form, /event\.key === "Escape"\) return onCancel\(\)/);
+test("Issue create/edit form delegates accessible dialog behavior to DialogShell and guards edits", () => {
+  assert.match(form, /<DialogShell/);
+  assert.match(form, /onRequestClose=\{requestClose\}/);
+  assert.match(form, /dismissOnBackdrop=\{false\}/);
+  assert.match(form, /initialFocusRef=\{nameInputRef\}/);
+  assert.match(form, /Discard unsaved changes\?/);
+  assert.match(form, /onClick=\{handleSubmit\}/);
   assert.match(detailsForm, /sticky bottom-0/);
   assert.match(detailsForm, /onClick: submit/);
 });

@@ -1087,6 +1087,7 @@ export default function SequenceGroupManager({
       </div>
       {groupForm?.mode === "create" && (
         <SequenceGroupForm
+          key={`${groupForm.mode}:${groupForm.initialValue?.id || groupForm.initialValue?.name || "new"}`}
           mode={groupForm.mode}
           initialValue={groupForm.initialValue}
           existingNames={groupOptions}

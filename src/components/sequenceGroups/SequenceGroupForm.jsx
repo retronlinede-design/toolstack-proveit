@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
-import RecordActions from "../shared/RecordActions.jsx";
+import DialogShell from "../shared/DialogShell.jsx";
 import { normalizeSequenceGroupInput, validateSequenceGroupInput } from "./sequenceGroupManagement.js";
 
 export default function SequenceGroupForm({
@@ -11,10 +11,12 @@ export default function SequenceGroupForm({
   onSave,
   onCancel,
 }) {
-  const dialogRef = useRef(null);
   const initial = normalizeSequenceGroupInput(initialValue || {});
   const [form, setForm] = useState(initial);
   const [error, setError] = useState("");
+  const [discardPromptOpen, setDiscardPromptOpen] = useState(false);
+  const initialFormFingerprintRef = useRef(JSON.stringify(initial));
+  const nameInputRef = useRef(null);
   const title = mode === "edit" ? "Edit Issue" : "New Issue";
 
   const handleSubmit = (event) => {
@@ -28,38 +30,46 @@ export default function SequenceGroupForm({
     onSave(result.value);
   };
 
-  useEffect(() => {
-    const previousFocus = document.activeElement;
-    const dialog = dialogRef.current;
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") return onCancel();
-      if (event.key !== "Tab" || !dialog) return;
-      const focusable = [...dialog.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href]')];
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable.at(-1);
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      previousFocus?.focus?.();
-    };
-  }, [onCancel]);
+  const requestClose = () => {
+    if (initialFormFingerprintRef.current !== JSON.stringify(form)) {
+      setDiscardPromptOpen(true);
+      return;
+    }
+    onCancel();
+  };
+
+  const footer = discardPromptOpen ? (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" role="alert">
+      <p className="text-sm text-amber-100">Discard unsaved changes? This Issue has not been saved.</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => setDiscardPromptOpen(false)} className="proveit-record-secondary-action">Keep editing</button>
+        <button type="button" onClick={onCancel} className="proveit-record-danger-action">Discard changes</button>
+      </div>
+    </div>
+  ) : (
+    <div className="flex flex-wrap justify-end gap-2">
+      <button type="button" onClick={requestClose} className="proveit-record-secondary-action">Cancel</button>
+      <button type="button" onClick={handleSubmit} className="proveit-record-primary-action">{mode === "edit" ? "Save changes" : "Create Issue"}</button>
+    </div>
+  );
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="sequence-group-form-title">
-      <form ref={dialogRef} onSubmit={handleSubmit} className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-neutral-200 bg-white p-5 shadow-xl dark:border-neutral-700 dark:bg-neutral-900">
-        <div>
-          <h3 id="sequence-group-form-title" className="text-lg font-semibold text-neutral-950 dark:text-neutral-100">{title}</h3>
-          <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Create a flat Issue. Its permanent internal ID and human reference are assigned automatically.</p>
-        </div>
+    <DialogShell
+      title={title}
+      description="Create a flat Issue. Its permanent internal ID and human reference are assigned automatically."
+      width="compact"
+      onRequestClose={requestClose}
+      dismissOnBackdrop={false}
+      initialFocusRef={nameInputRef}
+      footer={footer}
+      className="proveit-issue-form-dialog"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
 
-        <label className="mt-5 block">
+        <label className="block">
           <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Name</span>
           <input
-            autoFocus
+            ref={nameInputRef}
             value={form.name}
             onChange={(event) => {
               setForm((current) => ({ ...current, name: event.target.value }));
@@ -86,16 +96,7 @@ export default function SequenceGroupForm({
           />
         </label>
 
-        <div className="sticky bottom-0 -mx-5 mt-5 border-t border-neutral-100 bg-white/95 px-5 pb-1 pt-4 backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95">
-          <RecordActions
-            className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"
-            actions={[
-              { key: "cancel", label: "Cancel", onClick: onCancel },
-              { key: "save", label: mode === "edit" ? "Save Changes" : "Create Issue", variant: "primary", onClick: handleSubmit },
-            ]}
-          />
-        </div>
       </form>
-    </div>
+    </DialogShell>
   );
 }

@@ -15,10 +15,16 @@ test("SequenceGroupForm shares create and edit fields and validates before savin
   assert.match(source, /onSave\(result\.value\)/);
 });
 
-test("create and management cancellation close their modal without saving", () => {
-  assert.match(source, /key: "cancel", label: "Cancel", onClick: onCancel/);
+test("Issue create/edit uses the shared guarded dialog with isolated sessions", () => {
+  assert.match(source, /<DialogShell/);
+  assert.match(source, /dismissOnBackdrop=\{false\}/);
+  assert.match(source, /initialFocusRef=\{nameInputRef\}/);
+  assert.match(source, /initialFormFingerprintRef\.current !== JSON\.stringify\(form\)/);
+  assert.match(source, /Discard unsaved changes\?/);
+  assert.match(source, /onClick=\{requestClose\}/);
   assert.match(managerSource, /onCancel=\{\(\) => setGroupForm\(null\)\}/);
   assert.match(managerSource, /setGroupForm\(\{ mode: "create", initialValue: null \}\)/);
+  assert.match(managerSource, /key=\{`\$\{groupForm\.mode\}:\$\{groupForm\.initialValue\?\.id \|\| groupForm\.initialValue\?\.name \|\| "new"\}`\}/);
   assert.match(managerSource, /mode: "manage"/);
   assert.match(managerSource, /<SequenceGroupManagementModal/);
 });

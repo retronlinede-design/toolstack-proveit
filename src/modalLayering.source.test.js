@@ -5,13 +5,11 @@ import test from "node:test";
 const css = readFileSync(new URL("./index.css", import.meta.url), "utf8");
 const app = readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
 const issueManager = readFileSync(new URL("./components/sequenceGroups/SequenceGroupManager.jsx", import.meta.url), "utf8");
-const issueForm = readFileSync(new URL("./components/sequenceGroups/SequenceGroupForm.jsx", import.meta.url), "utf8");
 const dialogShell = readFileSync(new URL("./components/shared/DialogShell.jsx", import.meta.url), "utf8");
 const caseDetail = readFileSync(new URL("./components/CaseDetail.jsx", import.meta.url), "utf8");
 const modalSources = [
   app,
   issueManager,
-  issueForm,
   dialogShell,
   caseDetail,
   readFileSync(new URL("./components/FilePreviewModal.jsx", import.meta.url), "utf8"),
