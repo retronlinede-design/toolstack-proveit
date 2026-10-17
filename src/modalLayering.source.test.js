@@ -9,7 +9,6 @@ const dialogShell = readFileSync(new URL("./components/shared/DialogShell.jsx", 
 const caseDetail = readFileSync(new URL("./components/CaseDetail.jsx", import.meta.url), "utf8");
 const modalSources = [
   app,
-  issueManager,
   dialogShell,
   caseDetail,
   readFileSync(new URL("./components/FilePreviewModal.jsx", import.meta.url), "utf8"),
@@ -36,6 +35,13 @@ test("modal families remain viewport-fixed above the navigation layer", () => {
       assert.match(overlay, /z-(?:[4-9][0-9]|\[(?:[4-9][0-9]|[1-9][0-9]{2})\])/);
     }
   }
+});
+
+test("Issue Manager delegates its viewport layer to DialogShell below its child dialogs", () => {
+  assert.match(issueManager, /<DialogShell/);
+  assert.match(issueManager, /layer="manager"/);
+  assert.match(dialogShell, /layer === "manager" \? "z-\[50\]"/);
+  assert.match(dialogShell, /layer === "nested" \? "z-\[70\]"/);
 });
 
 test("the dashboard content area does not create a fixed-position containing block", () => {

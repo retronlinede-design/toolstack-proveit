@@ -4,6 +4,7 @@ import test from "node:test";
 
 const manager = readFileSync(new URL("./SequenceGroupManager.jsx", import.meta.url), "utf8");
 const modal = readFileSync(new URL("./SequenceGroupManagementModal.jsx", import.meta.url), "utf8");
+const css = readFileSync(new URL("../../index.css", import.meta.url), "utf8");
 
 test("manager uses three desktop regions and responsive stacking", () => {
   assert.match(manager, /lg:grid-cols-\[18rem_minmax\(0,1fr\)\]/);
@@ -23,8 +24,9 @@ test("group list renders count descriptions and an announced selected state", ()
 
 test("selected records use a non-colour-only selected treatment", () => {
   assert.match(manager, /data-selected-record=/);
-  assert.match(manager, /ring-2 ring-\[#7a263a\]\/15/);
-  assert.match(manager, /dark:ring-\[#d17a91\]\/20/);
+  assert.match(manager, /data-active=\{group\.name === activeGroupName\}/);
+  assert.match(css, /\.proveit-issue-manager \[data-active="true"\]/);
+  assert.match(css, /border-color: #2dd4bf/);
 });
 
 test("actions are grouped and destructive actions are isolated", () => {
@@ -39,11 +41,12 @@ test("manager metrics and empty states remain available", () => {
   for (const empty of ["No Issues yet", "Create your first Issue", "No ungrouped records", "No matching records"]) assert.match(manager, new RegExp(empty));
 });
 
-test("manager surfaces include explicit dark mode treatments", () => {
-  assert.match(manager, /dark:border-neutral-700 dark:bg-neutral-950/);
-  assert.match(manager, /dark:border-neutral-700 dark:bg-neutral-900/);
-  assert.match(manager, /dark:border-red-900 dark:bg-red-950\/20/);
-  assert.match(manager, /dark:text-neutral-100/);
+test("manager surfaces use the scoped navy and teal presentation", () => {
+  assert.match(manager, /className="proveit-issue-manager"/);
+  assert.match(css, /\.proveit-issue-manager \{/);
+  assert.match(css, /\.proveit-issue-manager \.proveit-dialog-body/);
+  assert.match(css, /\.proveit-issue-manager \.proveit-issue-manager-section-button\[aria-pressed="true"\]/);
+  assert.match(css, /outline: 2px solid #2dd4bf/);
 });
 
 test("action shortcuts open the existing management sections", () => {

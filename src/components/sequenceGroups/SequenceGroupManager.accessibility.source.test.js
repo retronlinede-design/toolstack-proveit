@@ -7,12 +7,21 @@ const form = readFileSync(new URL("./SequenceGroupForm.jsx", import.meta.url), "
 const detailsForm = readFileSync(new URL("./SequenceGroupDetailsForm.jsx", import.meta.url), "utf8");
 const managementModal = readFileSync(new URL("./SequenceGroupManagementModal.jsx", import.meta.url), "utf8");
 
-test("Issue Manager has labelled modal semantics, keyboard dismissal, focus trapping, and restoration", () => {
-  assert.match(manager, /role="dialog" aria-modal="true" aria-labelledby="sequence-group-manager-title"/);
-  assert.match(manager, /id="sequence-group-manager-title"/);
-  assert.match(manager, /event\.key === "Escape"\) return onClose\(\)/);
-  assert.match(manager, /event\.key !== "Tab"/);
-  assert.match(manager, /previousFocus\?\.focus\?\.\(\)/);
+test("Issue Manager delegates labelled dialog semantics, keyboard dismissal, focus trapping, and restoration", () => {
+  assert.match(manager, /<DialogShell/);
+  assert.match(manager, /title="Issue Manager"/);
+  assert.match(manager, /layer="manager"/);
+  assert.match(manager, /onRequestClose=\{requestClose\}/);
+  assert.match(manager, /suspendFocusManagement=\{Boolean\(groupForm\)\}/);
+  assert.match(manager, /dismissOnBackdrop=\{false\}/);
+  assert.doesNotMatch(manager, /document\.addEventListener\("keydown"/);
+});
+
+test("Issue Manager announces feedback and exposes section state without incomplete tab semantics", () => {
+  assert.match(manager, /statusMessage=\{sequenceGroupFeedback\}/);
+  assert.match(manager, /aria-pressed=\{selectedSection === section\}/);
+  assert.match(manager, /aria-label=\{`Show Issue \$\{section\}`\}/);
+  assert.doesNotMatch(manager, /role="tablist"/);
 });
 
 test("Issue create form delegates accessible dialog behavior to DialogShell and guards edits", () => {

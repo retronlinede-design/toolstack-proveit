@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import DialogShell from "../shared/DialogShell.jsx";
 import RecordActions from "../shared/RecordActions.jsx";
 import RecordBadge from "../shared/RecordBadge.jsx";
 import {
@@ -165,32 +166,10 @@ export default function SequenceGroupManager({
   setSequenceRenameInputs,
   setSequenceTimelineSort,
 }) {
-  const dialogRef = useRef(null);
-  const [sequenceDescriptionDraftState, setSequenceDescriptionDraftState] = useState({ key: "", value: "" });
+  const [sequenceDescriptionDraftState, setSequenceDescriptionDraftState] = useState({ key: "", value: "", baseline: "" });
   const [selectedSection, setSelectedSection] = useState("overview");
   const [groupForm, setGroupForm] = useState(null);
-  useEffect(() => {
-    if (groupForm) return undefined;
-    const previousFocus = document.activeElement;
-    const dialog = dialogRef.current;
-    const focusableSelector = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href]';
-    dialog?.querySelector(focusableSelector)?.focus();
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") return onClose();
-      if (event.key !== "Tab" || !dialog) return;
-      const focusable = [...dialog.querySelectorAll(focusableSelector)];
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable.at(-1);
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      previousFocus?.focus?.();
-    };
-  }, [groupForm, onClose]);
+  const [pendingDescriptionRequest, setPendingDescriptionRequest] = useState(null);
   const sequenceGroupMeta = selectedCase?.id
     ? getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore())
     : {};
@@ -204,9 +183,11 @@ export default function SequenceGroupManager({
   const savedSequenceDescription = selectedCase?.id && activeDescriptionGroupName
     ? getSequenceGroupDescription(selectedCase.id, activeDescriptionGroupName)
     : "";
-  const sequenceDescriptionDraft = sequenceDescriptionDraftState.key === sequenceDescriptionDraftKey
-    ? sequenceDescriptionDraftState.value
-    : savedSequenceDescription;
+  const activeDescriptionDraft = sequenceDescriptionDraftState.key === sequenceDescriptionDraftKey
+    ? sequenceDescriptionDraftState
+    : { key: sequenceDescriptionDraftKey, value: savedSequenceDescription, baseline: savedSequenceDescription };
+  const sequenceDescriptionDraft = activeDescriptionDraft.value;
+  const descriptionDraftDirty = sequenceDescriptionDraft !== activeDescriptionDraft.baseline;
 
   if (!selectedCase) return null;
 
@@ -272,16 +253,73 @@ export default function SequenceGroupManager({
   };
   const saveSelectedGroupDescription = () => {
     if (!activeGroupName) return;
-    saveSequenceGroupDescription(selectedCase.id, activeGroupName, sequenceDescriptionDraft);
-    setSequenceGroupFeedback(`Saved description for "${activeGroupName}".`);
+    try {
+      const savedStore = saveSequenceGroupDescription(selectedCase.id, activeGroupName, sequenceDescriptionDraft);
+      const savedDescription = savedStore?.[selectedCase.id]?.[activeGroupName]?.description || "";
+      setSequenceDescriptionDraftState({ key: sequenceDescriptionDraftKey, value: savedDescription, baseline: savedDescription });
+      setSequenceGroupFeedback(`Saved description for "${activeGroupName}".`);
+    } catch (error) {
+      setSequenceGroupFeedback(error?.message || "The Issue description could not be saved.");
+    }
   };
 
   const clearSelectedGroupDescription = () => {
     if (!activeGroupName) return;
-    saveSequenceGroupMeta(selectedCase.id, activeGroupName, { description: "" });
-    setSequenceDescriptionDraftState({ key: sequenceDescriptionDraftKey, value: "" });
-    setSequenceGroupFeedback(`Cleared description for "${activeGroupName}".`);
+    try {
+      saveSequenceGroupMeta(selectedCase.id, activeGroupName, { description: "" });
+      setSequenceDescriptionDraftState({ key: sequenceDescriptionDraftKey, value: "", baseline: "" });
+      setSequenceGroupFeedback(`Cleared description for "${activeGroupName}".`);
+    } catch (error) {
+      setSequenceGroupFeedback(error?.message || "The Issue description could not be cleared.");
+    }
   };
+
+  const completeDescriptionRequest = (request) => {
+    if (!request) return;
+    setPendingDescriptionRequest(null);
+    setSequenceDescriptionDraftState({ key: "", value: "", baseline: "" });
+    if (request.type === "close") onClose();
+    if (request.type === "issue") {
+      setSelectedGroupName(request.groupName);
+      setSelectedSection("overview");
+    }
+    if (request.type === "section") setSelectedSection(request.section);
+  };
+
+  const requestDescriptionNavigation = (request) => {
+    if (pendingDescriptionRequest) return;
+    if (descriptionDraftDirty) {
+      setPendingDescriptionRequest(request);
+      return;
+    }
+    completeDescriptionRequest(request);
+  };
+
+  const requestClose = () => requestDescriptionNavigation({ type: "close" });
+  const requestSelectedGroup = (groupName) => {
+    if (groupName === activeGroupName) return;
+    requestDescriptionNavigation({ type: "issue", groupName });
+  };
+  const requestSection = (section) => {
+    if (section === selectedSection) return;
+    if (selectedSection === "edit") requestDescriptionNavigation({ type: "section", section });
+    else setSelectedSection(section);
+  };
+
+  const managerFooter = pendingDescriptionRequest ? (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" role="alert">
+      <p className="text-sm text-amber-100">Discard unsaved Issue description changes?</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => setPendingDescriptionRequest(null)} className="proveit-record-secondary-action">Keep editing</button>
+        <button type="button" onClick={() => completeDescriptionRequest(pendingDescriptionRequest)} className="proveit-record-danger-action">Discard changes</button>
+      </div>
+    </div>
+  ) : (
+    <div className="flex flex-wrap justify-end gap-2">
+      <button type="button" onClick={requestClose} className="proveit-record-secondary-action">Close</button>
+      <button type="button" onClick={openCreateGroupForm} className="proveit-record-primary-action">New Issue</button>
+    </div>
+  );
 
   const renderRecordActions = (record, includeRemove = true) => {
     const key = getSequenceRecordKey(record);
@@ -467,31 +505,20 @@ export default function SequenceGroupManager({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-2 print:hidden sm:p-4" role="dialog" aria-modal="true" aria-labelledby="sequence-group-manager-title">
-      <div ref={dialogRef} className="flex max-h-[calc(100vh-1rem)] w-full max-w-[90rem] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-950 sm:max-h-[92vh]">
-        <div className="flex items-start justify-between gap-4 border-b border-neutral-200 p-4 dark:border-neutral-700 sm:p-5">
-          <div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Investigation Structure</div>
-            <h3 id="sequence-group-manager-title" className="mt-1 text-xl font-semibold text-neutral-950 dark:text-neutral-100">Issue Manager</h3>
-            <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-              Organise related records into flat Issues, then review their records, links, and chronology here.
-            </p>
-          </div>
-          <RecordActions
-            className="flex flex-wrap justify-end gap-2"
-            actions={[
-              { key: "new", label: "New Issue", variant: "primary", onClick: openCreateGroupForm },
-              { key: "close", label: "Close", onClick: onClose },
-            ]}
-          />
-        </div>
-
+    <>
+      <DialogShell
+        title="Issue Manager"
+        description="Organise related records into flat Issues, then review their records, links, and chronology here."
+        width="workspace"
+        layer="manager"
+        onRequestClose={requestClose}
+        dismissOnBackdrop={false}
+        suspendFocusManagement={Boolean(groupForm)}
+        statusMessage={sequenceGroupFeedback}
+        footer={managerFooter}
+        className="proveit-issue-manager"
+      >
         <div id="sequence-group-manager-scroll" className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-5">
-          {sequenceGroupFeedback && (
-            <div className="mb-4 rounded-md border border-lime-200 bg-lime-50 p-3 text-sm font-medium text-lime-800">
-              {sequenceGroupFeedback}
-            </div>
-          )}
 
           <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
@@ -536,6 +563,7 @@ export default function SequenceGroupManager({
                       return (
                         <div
                           key={group.name}
+                          data-active={group.name === activeGroupName}
                           className={`rounded-lg border bg-white p-3 transition-[border-color,box-shadow,background-color] dark:bg-neutral-950 ${
                             group.name === activeGroupName ? "border-[#7a263a] bg-[#7a263a]/5 ring-2 ring-[#7a263a]/15 dark:border-[#d17a91] dark:bg-[#d17a91]/10 dark:ring-[#d17a91]/20" : "border-neutral-200 hover:border-neutral-300 dark:border-neutral-700 dark:hover:border-neutral-600"
                           }`}
@@ -545,8 +573,7 @@ export default function SequenceGroupManager({
                               type="button"
                               aria-current={group.name === activeGroupName ? "true" : undefined}
                               onClick={() => {
-                                setSelectedGroupName(group.name);
-                                setSelectedSection("overview");
+                                requestSelectedGroup(group.name);
                               }}
                               className="min-w-0 flex-1 text-left"
                             >
@@ -571,8 +598,7 @@ export default function SequenceGroupManager({
                             <button
                               type="button"
                               onClick={() => {
-                                setSelectedGroupName(group.name);
-                                setSelectedSection("overview");
+                                requestSelectedGroup(group.name);
                               }}
                               className="rounded-md border border-lime-500 bg-lime-400/20 px-3 py-1.5 text-xs font-bold text-neutral-900 hover:bg-lime-400/30"
                             >
@@ -628,8 +654,10 @@ export default function SequenceGroupManager({
                         <button
                           key={section}
                           type="button"
-                          onClick={() => setSelectedSection(section)}
-                          className={`rounded-md border px-3 py-1.5 text-xs font-bold capitalize ${
+                          onClick={() => requestSection(section)}
+                          aria-pressed={selectedSection === section}
+                          aria-label={`Show Issue ${section}`}
+                          className={`proveit-issue-manager-section-button rounded-md border px-3 py-1.5 text-xs font-bold capitalize ${
                             selectedSection === section
                               ? "border-lime-400 bg-lime-400/30 text-neutral-900"
                               : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
@@ -1084,7 +1112,7 @@ export default function SequenceGroupManager({
             </aside>
           </div>
         </div>
-      </div>
+      </DialogShell>
       {groupForm?.mode === "create" && (
         <SequenceGroupForm
           key={`${groupForm.mode}:${groupForm.initialValue?.id || groupForm.initialValue?.name || "new"}`}
@@ -1112,6 +1140,6 @@ export default function SequenceGroupManager({
           onOperation={onManageGroupOperation}
         />
       )}
-    </div>
+    </>
   );
 }

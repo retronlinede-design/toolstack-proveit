@@ -35,6 +35,9 @@ test("SequenceGroupManager keeps grouped sections and required actions available
 });
 
 test("SequenceGroupManager uses the shared group form and management callbacks", () => {
+  assert.match(source, /<DialogShell/);
+  assert.match(source, /layer="manager"/);
+  assert.match(source, /suspendFocusManagement=\{Boolean\(groupForm\)\}/);
   assert.match(source, /<SequenceGroupForm/);
   assert.match(source, /<SequenceGroupManagementModal/);
   assert.match(source, /mode=\{groupForm\.mode\}/);
@@ -45,4 +48,15 @@ test("SequenceGroupManager uses the shared group form and management callbacks",
   assert.match(source, /SequenceGroupDescription/);
   assert.match(source, /RecordActions/);
   assert.match(source, /RecordBadge/);
+});
+
+test("SequenceGroupManager protects the local description draft during navigation", () => {
+  assert.match(source, /baseline: savedSequenceDescription/);
+  assert.match(source, /const descriptionDraftDirty = sequenceDescriptionDraft !== activeDescriptionDraft\.baseline/);
+  assert.match(source, /Discard unsaved Issue description changes\?/);
+  assert.match(source, /Keep editing/);
+  assert.match(source, /requestSelectedGroup\(group\.name\)/);
+  assert.match(source, /requestSection\(section\)/);
+  assert.match(source, /const savedStore = saveSequenceGroupDescription/);
+  assert.match(source, /setSequenceDescriptionDraftState\(\{ key: sequenceDescriptionDraftKey, value: savedDescription, baseline: savedDescription \}\)/);
 });

@@ -93,6 +93,56 @@
 .proveit-issue-management-dialog .sequence-group-details-form :is(.bg-white, .bg-neutral-50) { background-color: #12213a; }
 .proveit-issue-management-dialog .sequence-group-details-form :is(.text-neutral-500, .text-neutral-400) { color: #cbd5e1; }
 
+/* The main Issue Manager keeps its existing workspace content inside the shared dialog frame. */
+.proveit-issue-manager {
+  max-width: min(90rem, calc(100vw - 1rem));
+  background: var(--pi-surface);
+}
+.proveit-issue-manager .proveit-dialog-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+.proveit-issue-manager #sequence-group-manager-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.proveit-issue-manager :is(.bg-white, .bg-neutral-50, .bg-neutral-100, .bg-neutral-50\/50) { background-color: #12213a; }
+.proveit-issue-manager :is(.border-neutral-100, .border-neutral-200, .border-neutral-300) { border-color: #334155; }
+.proveit-issue-manager :is(.text-neutral-950, .text-neutral-900, .text-neutral-800, .text-neutral-700) { color: #e2e8f0; }
+.proveit-issue-manager :is(.text-neutral-600, .text-neutral-500, .text-neutral-400) { color: #cbd5e1; }
+.proveit-issue-manager :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  border-color: #475569;
+  background-color: #0f1f35;
+  color: #f1f5f9;
+}
+.proveit-issue-manager :is(input, textarea)::placeholder { color: #94a3b8; }
+.proveit-issue-manager :is(input, select, textarea):focus {
+  border-color: #2dd4bf;
+  outline: 2px solid transparent;
+  box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.35);
+}
+.proveit-issue-manager :is(button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid #2dd4bf;
+  outline-offset: 2px;
+}
+.proveit-issue-manager [data-active="true"] {
+  border-color: #2dd4bf;
+  background-color: #0f3d4a;
+  box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.2);
+}
+.proveit-issue-manager .proveit-issue-manager-section-button {
+  border-color: #334155;
+  background: #12213a;
+  color: #cbd5e1;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+.proveit-issue-manager .proveit-issue-manager-section-button:hover { border-color: #47748a; background: #1d354d; color: #f8fafc; }
+.proveit-issue-manager .proveit-issue-manager-section-button[aria-pressed="true"] { border-color: #2dd4bf; background: #115e59; color: #ecfdf5; }
+
 /* Keep the legacy Document and Case Record fields visually inside their shared dialog scope. */
 .proveit-document-editor-dialog .bg-white,
 .proveit-document-editor-dialog .bg-neutral-50,
