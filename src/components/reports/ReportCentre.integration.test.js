@@ -66,13 +66,15 @@ function renderPreview(reportType, scopeType, scopeLabel) {
 test("active Reports Centre groups every report selector into the Prepare, Create, Review, and Export workspace", () => {
   const html = renderControls();
   for (const definition of REPORT_CENTRE_TYPES) assert.match(html, new RegExp(definition.label));
-  for (const heading of ["Prepare · Create · Review · Export", "Set the report scope", "Share a reviewed copy", "Select a report type", "Case Reports", "Schedules &amp; Evidence", "Audit &amp; Actions", "Specialist tools"]) assert.match(html, new RegExp(heading));
+  for (const heading of ["Prepare · Create · Review · Export", "Set the report scope", "Share a reviewed copy", "Select a report type", "Case Reports", "Schedules &amp; Evidence", "Audit &amp; Actions", "Case documentation"]) assert.match(html, new RegExp(heading));
   assert.match(html, /Issue Audit/);
   assert.doesNotMatch(html, /Unavailable Reports/);
   assert.match(html, /does not approve or replace the case record/);
   assert.match(html, /Audience/);
   assert.match(html, /Completeness/);
   assert.match(html, /<details class="case-file-reports-specialist">/);
+  assert.match(html, /Case Bundle and specialist formats/);
+  assert.doesNotMatch(html, /Print Pack/);
 });
 
 test("changing report type changes the rendered preview description", () => {
@@ -172,6 +174,15 @@ test("the active CaseDetail Report Centre uses the rendered control boundary", (
   assert.doesNotMatch(caseDetailSource, /reportCentreType === "investigation"[\s\S]{0,200}<CaseBundleReportArticle/);
   assert.match(caseDetailSource, /className="case-file-reports space-y-5"/);
   assert.match(caseDetailSource, /Review the selected report/);
+  assert.match(caseDetailSource, /id="case-documentation"/);
+  assert.match(caseDetailSource, /id="internal-case-summary"/);
+  assert.match(caseDetailSource, /Internal Case Summary/);
+  assert.match(caseDetailSource, /Legacy Specialist Format/);
+  assert.match(caseDetailSource, /<CaseBundleReportArticle/);
+  assert.doesNotMatch(caseDetailSource, /activeTab === "pack"/);
+  assert.doesNotMatch(caseDetailSource, /onOpenPrintPack/);
+  assert.doesNotMatch(caseDetailSource, /\{ id: "client", label: "Client Report"/);
+  assert.doesNotMatch(caseDetailSource, /variant="pack"/);
 });
 
 test("the active Evidence Pack follows model document and unchanged renderer path", () => {
@@ -190,7 +201,7 @@ test("Document and Ledger packs share one factual model and retain their existin
   assert.match(caseDetailSource, /<LedgerPackReportArticle/);
 });
 
-test("disabled placeholder reports do not appear in the Reports Centre or Print Pack navigation", () => {
+test("disabled placeholder reports do not appear in Reports Centre navigation", () => {
   const html = renderControls();
   assert.doesNotMatch(html, /Unavailable Reports/);
   assert.doesNotMatch(caseDetailSource, /Internal Report — Unavailable/);

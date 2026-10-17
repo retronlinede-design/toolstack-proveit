@@ -10,7 +10,7 @@ import {
   saveCaseNavigationOrder,
 } from "./caseNavigationOrder.js";
 
-const canonicalIds = ["overview", "parties", "incidents", "evidence", "watch", "documents", "records", "timeline", "generate-report", "strategy", "pack"];
+const canonicalIds = ["overview", "parties", "incidents", "evidence", "watch", "documents", "records", "timeline", "generate-report", "strategy"];
 
 function createStorage(initial = {}) {
   const values = new Map(Object.entries(initial));
@@ -24,12 +24,12 @@ function createStorage(initial = {}) {
 test("normaliseCaseNavigationOrder keeps a valid preference and appends newly introduced tabs", () => {
   assert.deepEqual(
     normaliseCaseNavigationOrder(["strategy", "overview"], canonicalIds),
-    ["strategy", "overview", "parties", "incidents", "evidence", "watch", "documents", "records", "timeline", "generate-report", "pack"],
+    ["strategy", "overview", "parties", "incidents", "evidence", "watch", "documents", "records", "timeline", "generate-report"],
   );
 });
 
 test("normaliseCaseNavigationOrder safely removes duplicate, retired, stale, and malformed preferences", () => {
-  assert.deepEqual(normaliseCaseNavigationOrder(["strategy", "strategy", "narrative", "removed", 42], canonicalIds), ["strategy", ...canonicalIds.filter((id) => id !== "strategy")]);
+  assert.deepEqual(normaliseCaseNavigationOrder(["strategy", "strategy", "narrative", "pack", "removed", 42], canonicalIds), ["strategy", ...canonicalIds.filter((id) => id !== "strategy")]);
   assert.deepEqual(normaliseCaseNavigationOrder("not-an-array", canonicalIds), canonicalIds);
 });
 

@@ -15,7 +15,7 @@ import { getRecordDisplayMeta, resolveRecordById } from "../domain/linkingResolv
 import { buildNarrativeSections } from "../lib/narrativeBuilder.js";
 import { PROVEIT_REPORT_PROMPT_V1, parseProveItReportV1 } from "../lib/proveitReportFormat.js";
 import { CLIENT_REPORT_PROMPT_REVISION, validateClientReportNarrative } from "../report/clientReportValidation.js";
-import { DEFAULT_REPORT_DISPLAY_LANGUAGE, REPORT_DISPLAY_LANGUAGES, getReportHeadingLabel } from "../lib/reportHeadingLabels.js";
+import { DEFAULT_REPORT_DISPLAY_LANGUAGE, REPORT_DISPLAY_LANGUAGES } from "../lib/reportHeadingLabels.js";
 import { analyzeCaseDiagnostics, runAttachmentIntegrityCheck } from "../diagnostics/caseDiagnostics.js";
 import { runOperationalIntegrityCheck } from "../diagnostics/operationalIntegrity.js";
 import { repairIncidentEventDates, scanIncidentDateMismatches } from "../domain/incidentDateRepair.js";
@@ -2786,22 +2786,6 @@ ${strategyFocus.join("\n") || "—"}`;
       };
     });
   }, [clientGlobalConclusions, clientSelectedChains]);
-  const clientTopicGroups = useMemo(() => {
-    const groups = [];
-    const indexByLabel = new Map();
-
-    for (const section of clientChainSections) {
-      const label = safeText(section.trackLabel).trim() || "Other important issue";
-      if (!indexByLabel.has(label)) {
-        indexByLabel.set(label, groups.length);
-        groups.push({ label, sections: [section] });
-      } else {
-        groups[indexByLabel.get(label)].sections.push(section);
-      }
-    }
-
-    return groups;
-  }, [clientChainSections]);
   const clientSummary = useMemo(() => {
     const cleanSentence = (value) =>
       safeText(value)
@@ -3555,7 +3539,6 @@ ${ungroupedSequenceText}
     month: "2-digit",
     year: "numeric",
   });
-  const reportHeadingLabel = (key) => getReportHeadingLabel(key, reportDisplayLanguage);
   const reportHeaderMeta = `Case: ${selectedCase?.id || "-"} - ${reportDisplayDate}`;
   const reportCoverSubtitle = [selectedCase?.category, selectedCase?.status]
     .map((item) => safeText(item).trim())
@@ -3678,7 +3661,7 @@ ${ungroupedSequenceText}
       .map((tab) => ({
         ...tab,
         label: tab.id === "generate-report" ? "Reports" : tab.label,
-        secondary: ["strategy", "pack"].includes(tab.id),
+        secondary: ["strategy"].includes(tab.id),
         icon: {
           overview: BookOpen,
           parties: Users,
@@ -3690,7 +3673,6 @@ ${ungroupedSequenceText}
           timeline: Waypoints,
           "generate-report": Download,
           strategy: Target,
-          pack: Download,
         }[tab.id],
       }));
   const caseWorkspaceTabIds = caseWorkspaceTabs.map((tab) => tab.id);
@@ -5028,8 +5010,7 @@ ${ungroupedSequenceText}
                   onDownloadMarkdown={() => handleDownloadReportCentreOutput("markdown")}
                   onDownloadJson={() => handleDownloadReportCentreOutput("json")}
                   onOpenSequenceGroupAudit={openSequenceGroupAuditExport}
-                  onOpenAdvancedReports={() => document.getElementById("advanced-reports")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                  onOpenPrintPack={() => setActiveTab("pack")}
+                  onOpenAdvancedReports={() => document.getElementById("case-documentation")?.scrollIntoView({ behavior: "smooth", block: "start" })}
                 />
 
                 <section className="case-file-reports-review space-y-4" aria-labelledby="report-review-heading">
@@ -5215,11 +5196,14 @@ ${ungroupedSequenceText}
                   )}
                 </section>
 
-                <details id="advanced-reports" className="scroll-mt-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden dark:border-neutral-700 dark:bg-neutral-900">
+                <details id="case-documentation" className="case-file-reports-documentation scroll-mt-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden dark:border-neutral-700 dark:bg-neutral-900">
                   <summary className="cursor-pointer text-sm font-bold uppercase tracking-wider text-neutral-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 dark:text-neutral-400">
-                    Advanced &amp; Legacy
+                    Case Documentation &amp; Specialist Formats
                   </summary>
                   <div className="mt-5 space-y-5">
+                    <p className="text-sm leading-6 text-neutral-600 dark:text-neutral-300">
+                      Prepare deterministic case documentation here. Previews contain record summaries and references; they do not embed original attachments. Printing or downloading does not approve or permanently save a report.
+                    </p>
 
                 <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
                   <button
@@ -6492,13 +6476,18 @@ ${ungroupedSequenceText}
               </div>
             )}
 
-            {activeTab === "pack" && (
-              <div className="print-pack-shell space-y-4 text-neutral-800 print:bg-white print:text-black">
+            {activeTab === "generate-report" && (
+              <section id="internal-case-summary" className="case-file-reports-documentation print-pack-shell space-y-4 text-neutral-800 print:bg-white print:text-black" aria-labelledby="internal-case-summary-heading">
                 <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 print:hidden">
+                  <div>
+                    <p className="case-file-reports-eyebrow">Case documentation</p>
+                    <h4 id="internal-case-summary-heading" className="mt-1 text-lg font-bold text-neutral-900">Internal Case Summary</h4>
+                    <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-600">A derived internal summary of narrative chains, supporting record summaries, gaps, actions, and deadlines. Original attachments are not embedded.</p>
+                  </div>
                   <div className="inline-flex rounded-lg border border-neutral-200 bg-white p-1 shadow-sm">
                     {[
-                      { id: "internal", label: "Internal View", available: true },
-                      { id: "client", label: "Client Report", available: true },
+                      { id: "internal", label: "Internal Case Summary", available: true },
+                      { id: "lawyer", label: "Legacy Specialist Format", available: true },
                     ].map((mode) => (
                       <button
                         key={mode.id}
@@ -6532,7 +6521,7 @@ ${ungroupedSequenceText}
                       <ShieldCheck className="h-9 w-9 print:h-8 print:w-8" />
                     </div>
                     <div className="min-w-0">
-                      <div className="text-xs font-bold uppercase tracking-[0.18em] text-lime-700">Case Report</div>
+                      <div className="text-xs font-bold uppercase tracking-[0.18em] text-lime-700">Internal Case Summary</div>
                       <h1 className="mt-2 break-words text-3xl font-bold leading-tight text-neutral-950 print:text-2xl">
                         {selectedCase.name || "Untitled Case"}
                       </h1>
@@ -6752,222 +6741,6 @@ ${ungroupedSequenceText}
                 )}
                 </article>
                 )}
-                {reportMode === "client" && generatedReportHasVisibleContent && (
-                  <GeneratedClientReportArticle
-                    className="print-pack-article mx-auto max-w-4xl rounded-xl border border-neutral-200 bg-white px-7 py-8 shadow-sm shadow-neutral-100 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
-                    displayLanguage={reportDisplayLanguage}
-                    headerLogo={proveItHeaderLogo}
-                    parsedReport={parsedGeneratedReport}
-                    reportCoverSubtitle={reportCoverSubtitle}
-                    reportHeaderMeta={reportHeaderMeta}
-                    selectedCase={selectedCase}
-                    variant="pack"
-                  />
-                )}
-                {reportMode === "client" && !generatedReportHasVisibleContent && (
-                  <article className="print-pack-article mx-auto max-w-4xl rounded-xl border border-neutral-200 bg-white px-6 py-7 shadow-sm shadow-neutral-100 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
-                    <div className="proveit-print-cover proveit-print-cover-break print:block hidden">
-                      <div className="proveit-print-cover-brand">
-                        <img src={proveItHeaderLogo} alt="ProveIt" />
-                        <div>
-                          <div className="text-sm font-bold uppercase tracking-[0.18em] text-neutral-900">ProveIt</div>
-                          <div className="mt-1 text-[9pt] font-medium text-neutral-500">Evidence Management & Case Engine</div>
-                        </div>
-                      </div>
-                      <div className="proveit-print-cover-title">
-                        <div className="text-xs font-bold uppercase tracking-[0.24em] text-neutral-500">CLIENT REPORT</div>
-                        <h1 className="mt-5 text-4xl font-bold leading-tight text-neutral-950 print:text-[26pt]">Client Report</h1>
-                        <p className="mt-5 text-lg font-semibold text-neutral-800 print:text-[15pt]">
-                          {selectedCase?.name || selectedCase?.id || "Untitled Case"}
-                        </p>
-                        <p className="mt-3 text-sm font-medium text-neutral-500 print:text-[11pt]">{reportHeaderMeta}</p>
-                        {reportCoverSubtitle && (
-                          <p className="mt-6 text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500 print:text-[9pt]">
-                            {reportCoverSubtitle}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <header className="proveit-print-body-header print-pack-header break-inside-avoid border-b border-neutral-200 pb-6 print:hidden">
-                      <div className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-500">CLIENT REPORT</div>
-                      <div className="mt-2 flex items-center justify-between gap-4 print:mt-4">
-                        <h1 className="min-w-0 break-words text-3xl font-bold leading-tight text-neutral-950 print:text-[22pt]">
-                          {selectedCase.name || "Untitled Case"}
-                        </h1>
-                        <div className="shrink-0 whitespace-nowrap text-right text-base font-medium text-neutral-500 print:mt-2 print:text-[11pt]">
-                          {reportHeaderMeta}
-                        </div>
-                      </div>
-                    </header>
-                    <section className="print-pack-major break-inside-avoid py-6 print:py-5">
-                      <div className="border-b border-neutral-100 pb-3">
-                        <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">{reportHeadingLabel("YOUR_SITUATION")}</h4>
-                      </div>
-                      <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-neutral-700">
-                        {clientSummary}
-                      </p>
-                    </section>
-
-                    {clientConcernTracks.length > 0 && (
-                      <section className="print-pack-major break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
-                        <div className="border-b border-neutral-100 pb-3">
-                          <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">{reportHeadingLabel("MAIN_AREAS_OF_CONCERN")}</h4>
-                        </div>
-                        <ul className="mt-4 space-y-3">
-                          {clientConcernTracks.map((track) => (
-                            <li key={track} className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-700">
-                              {track}
-                            </li>
-                          ))}
-                        </ul>
-                      </section>
-                    )}
-
-                    {clientGlobalConclusions.length > 0 && (
-                      <section className="print-pack-major break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
-                        <div className="border-b border-neutral-100 pb-3">
-                          <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">{reportHeadingLabel("WHAT_THIS_REPORT_SHOWS")}</h4>
-                        </div>
-                        <ul className="mt-4 space-y-3">
-                          {clientGlobalConclusions.slice(0, 5).map((statement) => (
-                            <li key={statement} className="rounded-xl border border-lime-200 bg-lime-50 p-4 text-sm leading-6 text-lime-950">
-                              {statement}
-                            </li>
-                          ))}
-                        </ul>
-                      </section>
-                    )}
-
-                    <section className="print-pack-major break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
-                      <div className="border-b border-neutral-100 pb-3">
-                        <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Key Issues By Topic</h4>
-                      </div>
-                      {clientTopicGroups.length > 0 ? (
-                        <div className="mt-4 space-y-5">
-                          {clientTopicGroups.map((group) => (
-                            <section key={group.label} className="space-y-4">
-                              <div className="rounded-xl border border-neutral-200 bg-white px-4 py-3">
-                                <h5 className="text-sm font-semibold uppercase tracking-wider text-neutral-600">{group.label}</h5>
-                              </div>
-                              {group.sections.map((section, index) => (
-                                <section
-                                  key={`${group.label}-${section.incident.id}-${index}`}
-                                  className="print-pack-issue-section print-pack-narrative-section break-inside-avoid rounded-lg border border-l-4 border-neutral-200 border-l-lime-500 bg-white p-5"
-                                >
-                                  <div className="border-b border-neutral-100 pb-3">
-                                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{reportHeadingLabel("ISSUE")}</div>
-                                    <h5 className="mt-2 break-words text-xl font-semibold leading-tight text-neutral-950">
-                                      {section.incident.title || "Untitled incident"}
-                                    </h5>
-                                    {section.date && (
-                                      <p className="mt-2 text-sm text-neutral-500">{section.date}</p>
-                                    )}
-                                  </div>
-
-                                  <div className="mt-4">
-                                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{reportHeadingLabel("WHAT_HAPPENED")}</div>
-                                    <p className="mt-2 text-sm leading-6 text-neutral-700">
-                                      {section.shortWhatHappened || "There is not yet a clear written summary of what happened here."}
-                                    </p>
-                                  </div>
-
-                                  <div className="print-pack-support-grid mt-5 grid gap-4 lg:grid-cols-2">
-                                    <section className="proveit-print-avoid-break rounded-lg border border-neutral-200 bg-neutral-50/60 p-4">
-                                      <h6 className="text-xs font-bold uppercase tracking-wider text-neutral-500">{reportHeadingLabel("KEY_PROOF")}</h6>
-                                      {section.keyProof.length > 0 ? (
-                                        <div className="mt-3 space-y-3">
-                                          {section.keyProof.map((item) => (
-                                            <div key={item.id} className="rounded-lg border border-neutral-200 bg-white p-3">
-                                              <div className="font-semibold text-neutral-900">{item.title || "Untitled document"}</div>
-                                              <p className="mt-2 text-sm leading-6 text-neutral-700">
-                                                {item.summary || "There is not yet a clear explanation of why this matters."}
-                                              </p>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      ) : (
-                                        <p className="mt-3 text-sm italic text-neutral-500">There is not yet enough supporting material shown for this issue.</p>
-                                      )}
-                                    </section>
-
-                                    {section.supportingRecords.length > 0 && (
-                                      <section className="proveit-print-avoid-break rounded-lg border border-neutral-200 bg-neutral-50/60 p-4">
-                                        <h6 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Supporting document</h6>
-                                        <div className="mt-3 space-y-3">
-                                          {section.supportingRecords.slice(0, 1).map((item) => (
-                                            <div key={item.id} className="rounded-lg border border-neutral-200 bg-white p-3">
-                                              <div className="font-semibold text-neutral-900">{item.title || "Untitled record"}</div>
-                                              <p className="mt-2 text-sm leading-6 text-neutral-700">
-                                                {safeText(item.summary).trim() || "There is not yet a clear summary of this document."}
-                                              </p>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </section>
-                                    )}
-                                  </div>
-
-                                  {section.chainConclusions.length > 0 && (
-                                    <section className="proveit-print-avoid-break mt-5 rounded-lg border border-lime-200 bg-lime-50/70 p-4">
-                                      <h6 className="text-xs font-bold uppercase tracking-wider text-lime-800">{reportHeadingLabel("WHAT_THIS_MEANS")}</h6>
-                                      <ul className="mt-3 space-y-2 text-sm leading-6 text-lime-950">
-                                        {section.chainConclusions.slice(0, 3).map((statement) => (
-                                          <li key={statement}>- {statement}</li>
-                                        ))}
-                                      </ul>
-                                    </section>
-                                  )}
-                                </section>
-                              ))}
-                            </section>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="mt-4 text-sm text-neutral-500">
-                          The main issues are not yet clear enough to present here.
-                        </p>
-                      )}
-                    </section>
-
-                    {clientMetricItems.length > 0 && (
-                      <section className="proveit-print-section proveit-print-section-break print-pack-major break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
-                        <div className="border-b border-neutral-100 pb-3">
-                          <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">{reportHeadingLabel("KEY_FACTS")}</h4>
-                        </div>
-                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                          {clientMetricItems.map((item) => (
-                            <div key={item.label} className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-                              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{item.label}</div>
-                              <div className="mt-2 text-lg font-semibold text-neutral-950">{item.value}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </section>
-                    )}
-
-                    <section className="print-pack-major break-inside-avoid border-t border-neutral-200 py-6 print:py-5">
-                      <div className="border-b border-neutral-100 pb-3">
-                        <h4 className="text-sm font-bold uppercase tracking-wider text-neutral-500">{reportHeadingLabel("RECOMMENDED_NEXT_STEPS")}</h4>
-                      </div>
-                      {clientNextSteps.length > 0 ? (
-                        <ul className="mt-4 space-y-3">
-                          {clientNextSteps.map((item) => (
-                            <li key={item} className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-700">
-                              {item}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="mt-4 text-sm text-neutral-500">
-                          There are no clear next steps to show here yet.
-                        </p>
-                      )}
-                    </section>
-                    <footer className="proveit-print-footer">
-                      {reportHeaderMeta}
-                    </footer>
-                  </article>
-                )}
                 {reportMode === "lawyer" && (
                   <article className="print-pack-article mx-auto max-w-4xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
                     <header className="print-pack-header break-inside-avoid border-b border-neutral-200 pb-6 print:pb-5">
@@ -6983,7 +6756,7 @@ ${ungroupedSequenceText}
                     </section>
                   </article>
                 )}
-              </div>
+              </section>
             )}
           </div>
         </div>

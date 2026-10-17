@@ -63,9 +63,9 @@
 .proveit-dark-shell .case-file-derived-payment-empty { border: 1px dashed var(--case-file-border); border-radius: .75rem; padding: .9rem; }
 @media (max-width: 639px) { .proveit-dark-shell .case-file-records-header > div > div:last-child, .proveit-dark-shell .case-file-records-actions { width: 100%; } .proveit-dark-shell .case-file-records-primary-action { width: 100%; } }
 
-/* Reports Centre remains isolated from report rendering and Print Pack presentation. */
+/* Reports Centre remains isolated from report rendering and case-documentation presentation. */
 .proveit-dark-shell .case-file-reports { color: var(--case-file-text); }
-.proveit-dark-shell .case-file-reports :is(.case-file-reports-header, .case-file-reports-controls, .case-file-reports-configure, .case-file-reports-context, .case-file-reports-specialist) { border-color: var(--case-file-border) !important; background: var(--case-file-surface) !important; box-shadow: 0 10px 24px rgb(0 0 0 / .12); }
+.proveit-dark-shell .case-file-reports :is(.case-file-reports-header, .case-file-reports-controls, .case-file-reports-configure, .case-file-reports-context, .case-file-reports-specialist, .case-file-reports-documentation) { border-color: var(--case-file-border) !important; background: var(--case-file-surface) !important; box-shadow: 0 10px 24px rgb(0 0 0 / .12); }
 .proveit-dark-shell .case-file-reports :is(.text-neutral-950, .text-neutral-900, .text-neutral-800, .text-neutral-700, .text-neutral-600, h3, h4, h5, strong) { color: var(--case-file-text) !important; }
 .proveit-dark-shell .case-file-reports :is(.text-neutral-500, .text-neutral-400, p, dt) { color: var(--case-file-muted); }
 .proveit-dark-shell .case-file-reports-eyebrow, .proveit-dark-shell .case-file-reports-field-label { display: block; color: var(--case-file-muted); font-size: .68rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }

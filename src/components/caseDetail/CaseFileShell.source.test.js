@@ -7,11 +7,13 @@ const app = readFileSync(new URL("../../App.jsx", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../../index.css", import.meta.url), "utf8");
 
 test("case file navigation preserves every canonical visible tab identifier", () => {
-  for (const id of ["overview", "parties", "incidents", "evidence", "watch", "documents", "ledger", "timeline", "generate-report", "strategy", "pack"]) {
+  for (const id of ["overview", "parties", "incidents", "evidence", "watch", "documents", "ledger", "timeline", "generate-report", "strategy"]) {
     assert.match(app, new RegExp(`id: "${id}"`));
   }
   assert.match(caseDetail, /\{ id: "records", label: "Case Records" \}/);
   assert.match(caseDetail, /tab\.id === "ledger" \? \[\] : \[tab\]/);
+  assert.doesNotMatch(app, /id: "pack"/);
+  assert.doesNotMatch(caseDetail, /setActiveTab\("pack"\)/);
 });
 
 test("case file navigation is a labelled responsive grid with a mobile select fallback", () => {

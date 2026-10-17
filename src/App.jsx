@@ -1929,7 +1929,7 @@ export default function ProveItApp() {
     { step: "1", title: "Create your first case", text: "Start with one case file using a generic template or create your own custom case from scratch." },
     { step: "2", title: "Add core records", text: "Add your first evidence, incident, or strategy note. Upload a phone photo, PDF, screenshot, or document." },
     { step: "3", title: "Build the timeline", text: "Add dated incidents, evidence, documents, and records so the case story is easy to follow." },
-    { step: "4", title: "Prepare your print pack", text: "Use the Print Pack view when you need a printable case summary or want to save it as PDF." },
+    { step: "4", title: "Prepare reports and documentation", text: "Use Reports Centre when you need a printable case summary, report, or PDF." },
   ];
 
   const starterCases = [
@@ -1951,7 +1951,6 @@ export default function ProveItApp() {
     { id: "timeline", label: "Timeline" },
     { id: "generate-report", label: "Generate Report" },
     { id: "strategy", label: "Strategy" },
-    { id: "pack", label: "Print Pack" },
   ];
 
   const selectedCase = useMemo(
