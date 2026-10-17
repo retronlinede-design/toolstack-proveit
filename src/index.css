@@ -967,6 +967,27 @@
 .proveit-dark-shell .case-file-party-disclosure svg.is-expanded { transform: rotate(180deg); }
 @media (max-width: 639px) { .proveit-dark-shell .case-file-party-actions, .proveit-dark-shell .case-file-party-actions > * { width: 100%; } .proveit-dark-shell .case-file-parties-primary-action { width: 100%; } }
 
+/* Party Create/Edit remains a controlled form in PartiesTab and uses this scope only for dialog presentation. */
+.proveit-party-dialog { background: #0b172a; }
+.proveit-party-dialog :is(.bg-white, .bg-neutral-50, .bg-neutral-100) { background-color: #12213a; }
+.proveit-party-dialog :is(.border-neutral-100, .border-neutral-200, .border-neutral-300) { border-color: #334155; }
+.proveit-party-dialog :is(.text-neutral-950, .text-neutral-900, .text-neutral-800, .text-neutral-700) { color: #e2e8f0; }
+.proveit-party-dialog :is(.text-neutral-600, .text-neutral-500, .text-neutral-400) { color: #cbd5e1; }
+.proveit-party-dialog :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  width: 100%;
+  border-color: #475569;
+  background-color: #0f1f35;
+  color: #f1f5f9;
+}
+.proveit-party-dialog :is(input, textarea)::placeholder { color: #94a3b8; }
+.proveit-party-dialog :is(input, select, textarea):focus {
+  border-color: #2dd4bf;
+  outline: 2px solid transparent;
+  box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.35);
+}
+.proveit-party-dialog :is(input, select, textarea, button):focus-visible { outline: 2px solid #2dd4bf; outline-offset: 2px; }
+.proveit-party-dialog input[type="checkbox"] { accent-color: #2dd4bf; }
+
 @media (max-width: 767px) {
   .proveit-main, .proveit-sidebar.is-collapsed + .proveit-main { padding-left: 0; }
   .proveit-sidebar { width: 17rem; transform: translateX(-100%); box-shadow: 18px 0 40px rgb(0 0 0 / .35); }

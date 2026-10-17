@@ -15,7 +15,6 @@ const modalSources = [
   readFileSync(new URL("./components/gpt/GptDeltaModal.jsx", import.meta.url), "utf8"),
   readFileSync(new URL("./components/caseDetail/ActionSummaryModal.jsx", import.meta.url), "utf8"),
   readFileSync(new URL("./components/caseDetail/ActiveLedgerRecordModal.jsx", import.meta.url), "utf8"),
-  readFileSync(new URL("./components/caseDetail/PartiesTab.jsx", import.meta.url), "utf8"),
   readFileSync(new URL("./components/caseDetail/RecordsTab.jsx", import.meta.url), "utf8"),
   readFileSync(new URL("./components/caseDetail/StrategyDeltaModal.jsx", import.meta.url), "utf8"),
   readFileSync(new URL("./components/caseDetail/WatchWorkspace.jsx", import.meta.url), "utf8"),
@@ -42,6 +41,13 @@ test("Issue Manager delegates its viewport layer to DialogShell below its child 
   assert.match(issueManager, /layer="manager"/);
   assert.match(dialogShell, /layer === "manager" \? "z-\[50\]"/);
   assert.match(dialogShell, /layer === "nested" \? "z-\[70\]"/);
+});
+
+test("Party Create/Edit delegates its viewport layer to DialogShell", () => {
+  const parties = readFileSync(new URL("./components/caseDetail/PartiesTab.jsx", import.meta.url), "utf8");
+  assert.match(parties, /<DialogShell/);
+  assert.match(parties, /dismissOnBackdrop=\{false\}/);
+  assert.match(dialogShell, /z-\[60\]/);
 });
 
 test("the dashboard content area does not create a fixed-position containing block", () => {

@@ -33,3 +33,36 @@ test("Expanded Party details retain the existing identity, organisation, contact
   assert.match(source, /party\.aliases/);
   assert.match(source, /party\.notes/);
 });
+
+test("Party Create/Edit uses DialogShell with stable session baselines and guarded dismissal", () => {
+  assert.match(source, /import DialogShell from "\.\.\/shared\/DialogShell\.jsx"/);
+  assert.match(source, /<DialogShell/);
+  assert.match(source, /title=\{title\}/);
+  assert.match(source, /width="wide"/);
+  assert.match(source, /onRequestClose=\{requestClose\}/);
+  assert.match(source, /dismissOnBackdrop=\{false\}/);
+  assert.match(source, /initialFocusRef=\{displayNameInputRef\}/);
+  assert.match(source, /const initialFingerprintRef = useRef\(partyDraftFingerprint\(form\)\)/);
+  assert.match(source, /Discard unsaved Party changes\?/);
+  assert.match(source, /Keep editing/);
+  assert.match(source, /form="party-editor-form"/);
+  assert.doesNotMatch(source, /<div className="fixed inset-0 z-50 flex items-center justify-center bg-black\/30 p-4">/);
+});
+
+test("Party Create/Edit preserves every field and retains failed drafts", () => {
+  for (const label of ["Display Name", "Legal Name", "Entity Type", "Status", "Organisation", "Job Title", "Department", "Confidentiality", "Email", "Phone", "Website", "Tags", "Roles", "Aliases", "Relationship To Case", "Notes"]) {
+    assert.match(source, new RegExp(`>${label}<`));
+  }
+  assert.match(source, /formToPartyInput\(form\), editingParty\?\.id \|\| null/);
+  assert.match(source, /if \(saved !== false\) closeModal\(\)/);
+  assert.match(source, /The Party could not be saved\. Your changes are still available to review\./);
+  assert.match(source, /statusMessage=\{saveError\}/);
+  assert.match(source, /partyDraftFingerprint\(form\)/);
+});
+
+test("Party dialog styling remains scoped and uses the shared navy and teal controls", () => {
+  assert.match(source, /className="proveit-party-dialog"/);
+  assert.match(styles, /\.proveit-party-dialog \{/);
+  assert.match(styles, /\.proveit-party-dialog :is\(input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\), select, textarea\)/);
+  assert.match(styles, /outline: 2px solid #2dd4bf/);
+});

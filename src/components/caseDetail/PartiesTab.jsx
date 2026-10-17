@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ChevronDown, Search, UserPlus } from "lucide-react";
+import DialogShell from "../shared/DialogShell.jsx";
 import RecordActions from "../shared/RecordActions.jsx";
 import RecordBadge from "../shared/RecordBadge.jsx";
 import RecordMetadataRow from "../shared/RecordMetadataRow.jsx";
@@ -41,6 +42,10 @@ function getPartyStatusBadgeVariant(status) {
   return status === "active" ? "status-positive" : "status-neutral";
 }
 
+function partyDraftFingerprint(form) {
+  return JSON.stringify({ ...form, roles: [...(form.roles || [])].sort() });
+}
+
 function PartyModal({
   form,
   editingParty,
@@ -49,31 +54,56 @@ function PartyModal({
   onChange,
   onToggleRole,
   onSubmit,
+  saveError,
 }) {
+  const initialFingerprintRef = useRef(partyDraftFingerprint(form));
+  const displayNameInputRef = useRef(null);
+  const [discardPromptOpen, setDiscardPromptOpen] = useState(false);
+  const title = editingParty ? "Edit Party" : "Create Party";
+  const requestClose = () => {
+    if (saving) return;
+    if (initialFingerprintRef.current !== partyDraftFingerprint(form)) {
+      setDiscardPromptOpen(true);
+      return;
+    }
+    onCancel();
+  };
+  const footer = discardPromptOpen ? (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" role="alert">
+      <p className="text-sm text-amber-100">Discard unsaved Party changes?</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => setDiscardPromptOpen(false)} className="proveit-record-secondary-action">Keep editing</button>
+        <button type="button" onClick={onCancel} className="proveit-record-danger-action">Discard changes</button>
+      </div>
+    </div>
+  ) : (
+    <div className="flex flex-wrap justify-end gap-2">
+      <button type="button" onClick={requestClose} disabled={saving} className="proveit-record-secondary-action">Cancel</button>
+      <button type="submit" form="party-editor-form" disabled={saving || !form.displayName.trim()} className="proveit-record-primary-action">{saving ? "Saving…" : "Save Party"}</button>
+    </div>
+  );
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+    <DialogShell
+      title={title}
+      description="Store party details for this case. Record links are not part of this phase."
+      width="wide"
+      onRequestClose={requestClose}
+      dismissOnBackdrop={false}
+      initialFocusRef={displayNameInputRef}
+      statusMessage={saveError}
+      footer={footer}
+      className="proveit-party-dialog"
+    >
       <form
+        id="party-editor-form"
         onSubmit={onSubmit}
-        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-neutral-200 bg-white p-5 shadow-xl"
+        className="space-y-4"
       >
-        <div className="flex flex-col gap-3 border-b border-neutral-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-neutral-950">{editingParty ? "Edit Party" : "Add Party"}</h3>
-            <p className="mt-1 text-sm text-neutral-500">Store party details for this case. Record links are not part of this phase.</p>
-          </div>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
-          >
-            Cancel
-          </button>
-        </div>
-
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2">
           <label className="block">
             <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Display Name</span>
             <input
+              ref={displayNameInputRef}
               value={form.displayName}
               onChange={(event) => onChange("displayName", event.target.value)}
               required
@@ -228,24 +258,8 @@ function PartyModal({
           />
         </label>
 
-        <div className="mt-5 flex flex-col-reverse gap-2 border-t border-neutral-100 pt-4 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={saving || !form.displayName.trim()}
-            className="rounded-lg border border-lime-500 bg-white px-4 py-2 text-sm font-bold text-neutral-900 shadow-sm hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {saving ? "Saving..." : "Save Party"}
-          </button>
-        </div>
       </form>
-    </div>
+    </DialogShell>
   );
 }
 
@@ -263,6 +277,7 @@ export default function PartiesTab({
   const [editingParty, setEditingParty] = useState(null);
   const [form, setForm] = useState(createEmptyPartyForm);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [expandedPartyIds, setExpandedPartyIds] = useState({});
 
   const sortedParties = useMemo(() => sortPartiesByName(parties), [parties]);
@@ -278,12 +293,14 @@ export default function PartiesTab({
   const openAddModal = () => {
     setEditingParty(null);
     setForm(createEmptyPartyForm());
+    setSaveError("");
     setModalOpen(true);
   };
 
   const openEditModal = (party) => {
     setEditingParty(party);
     setForm(partyToForm(party));
+    setSaveError("");
     setModalOpen(true);
   };
 
@@ -291,6 +308,7 @@ export default function PartiesTab({
     setModalOpen(false);
     setEditingParty(null);
     setSaving(false);
+    setSaveError("");
   };
 
   const updateForm = (field, value) => {
@@ -311,9 +329,18 @@ export default function PartiesTab({
     if (!form.displayName.trim()) return;
 
     setSaving(true);
-    const saved = await onSaveParty?.(formToPartyInput(form), editingParty?.id || null);
-    if (saved !== false) closeModal();
-    else setSaving(false);
+    setSaveError("");
+    try {
+      const saved = await onSaveParty?.(formToPartyInput(form), editingParty?.id || null);
+      if (saved !== false) closeModal();
+      else {
+        setSaving(false);
+        setSaveError("The Party could not be saved. Your changes are still available to review.");
+      }
+    } catch (error) {
+      setSaving(false);
+      setSaveError(error?.message || "The Party could not be saved. Your changes are still available to review.");
+    }
   };
 
   const deleteParty = async (party) => {
@@ -403,6 +430,7 @@ export default function PartiesTab({
           onChange={updateForm}
           onToggleRole={toggleRole}
           onSubmit={submitParty}
+          saveError={saveError}
         />
       )}
     </div>
