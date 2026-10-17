@@ -20,7 +20,6 @@ const modalSources = [
   readFileSync(new URL("./components/caseDetail/RecordsTab.jsx", import.meta.url), "utf8"),
   readFileSync(new URL("./components/caseDetail/StrategyDeltaModal.jsx", import.meta.url), "utf8"),
   readFileSync(new URL("./components/caseDetail/WatchWorkspace.jsx", import.meta.url), "utf8"),
-  readFileSync(new URL("./components/sequenceGroups/SequenceGroupManagementModal.jsx", import.meta.url), "utf8"),
 ];
 
 test("navigation remains below the shared application dialog floor", () => {

@@ -79,6 +79,20 @@
 .proveit-issue-form-dialog :is(input, select, textarea, button):focus-visible { outline: 2px solid #2dd4bf; outline-offset: 2px; }
 .proveit-issue-form-dialog :is(input, select, textarea):focus { border-color: #2dd4bf; box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.35); }
 
+/* Per-Issue management remains layered above the main Issue Manager. */
+.proveit-issue-management-dialog { background: #0b172a; }
+.proveit-issue-management-dialog :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { border-color: #475569; background-color: #0f1f35; color: #f1f5f9; }
+.proveit-issue-management-dialog :is(input, textarea)::placeholder { color: #94a3b8; }
+.proveit-issue-management-dialog :is(input, select, textarea, button):focus-visible { outline: 2px solid #2dd4bf; outline-offset: 2px; }
+.proveit-issue-management-dialog :is(input, select, textarea):focus { border-color: #2dd4bf; box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.35); }
+.proveit-issue-management-tabs { border-color: #334155; }
+.proveit-issue-management-tabs button { color: #cbd5e1; transition: background-color 160ms ease, color 160ms ease; }
+.proveit-issue-management-tabs button:hover { background: #1e3a5f; color: #f8fafc; }
+.proveit-issue-management-tabs button.is-active { background: #115e59; color: #ecfdf5; }
+.proveit-issue-management-dialog .sequence-group-details-form :is(.border-neutral-200, .border-neutral-300) { border-color: #334155; }
+.proveit-issue-management-dialog .sequence-group-details-form :is(.bg-white, .bg-neutral-50) { background-color: #12213a; }
+.proveit-issue-management-dialog .sequence-group-details-form :is(.text-neutral-500, .text-neutral-400) { color: #cbd5e1; }
+
 /* Keep the legacy Document and Case Record fields visually inside their shared dialog scope. */
 .proveit-document-editor-dialog .bg-white,
 .proveit-document-editor-dialog .bg-neutral-50,
