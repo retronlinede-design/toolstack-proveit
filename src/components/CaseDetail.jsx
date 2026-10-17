@@ -4534,8 +4534,8 @@ ${ungroupedSequenceText}
             )}
             
             {activeTab === "evidence" && (
-              <div className="space-y-6">
-                <section className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm">
+              <div className="case-file-evidence space-y-6">
+                <section className="case-file-evidence-header rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Evidence Command Centre</div>
@@ -4555,7 +4555,7 @@ ${ungroupedSequenceText}
                   </div>
                 </section>
 
-                <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+                <section className="case-file-evidence-operations grid gap-4 lg:grid-cols-[1fr_1fr]">
                   <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Needs Attention</div>
                     <div className="mt-3 space-y-2">
@@ -4584,7 +4584,7 @@ ${ungroupedSequenceText}
                       <button
                         type="button"
                         onClick={() => openRecordModal("evidence")}
-                        className="min-h-9 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
+                        className="case-file-evidence-primary-action"
                       >
                         New Evidence
                       </button>
@@ -4594,7 +4594,7 @@ ${ungroupedSequenceText}
                           evidenceSearchInputRef.current?.focus();
                           scrollToEvidenceList();
                         }}
-                        className="min-h-9 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
+                        className="case-file-evidence-quick-action"
                       >
                         Search Evidence
                       </button>
@@ -4607,21 +4607,21 @@ ${ungroupedSequenceText}
                             scrollToEvidenceList();
                           }
                         }}
-                        className="min-h-9 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
+                        className="case-file-evidence-quick-action"
                       >
                         Review Needs Attention
                       </button>
                       <button
                         type="button"
                         onClick={() => applyEvidenceFilter("unlinked")}
-                        className="min-h-9 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
+                        className="case-file-evidence-quick-action"
                       >
                         Show Unlinked
                       </button>
                       <button
                         type="button"
                         onClick={() => applyEvidenceFilter("missing-summary")}
-                        className="min-h-9 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
+                        className="case-file-evidence-quick-action"
                       >
                         Show Missing Summaries
                       </button>
@@ -4629,7 +4629,7 @@ ${ungroupedSequenceText}
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                <section className="case-file-evidence-controls rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Filters</div>
                     <div className="text-xs font-medium text-neutral-500">
@@ -4660,7 +4660,7 @@ ${ungroupedSequenceText}
                         <select
                           value={evidenceSequenceGroupFilter}
                           onChange={(event) => setEvidenceSequenceGroupFilter(event.target.value)}
-                          className="mt-2 block w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 outline-none transition-colors focus:border-lime-500 sm:w-60"
+                          className="case-file-evidence-select mt-2 block w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 outline-none transition-colors sm:w-60"
                         >
                           <option value="all">All Issues</option>
                           <option value="__ungrouped__">Evidence without an Issue</option>
@@ -4676,7 +4676,7 @@ ${ungroupedSequenceText}
                         <select
                           value={evidenceFilter}
                           onChange={(event) => setEvidenceFilter(event.target.value)}
-                          className="mt-2 block w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 outline-none transition-colors focus:border-lime-500 sm:w-60"
+                          className="case-file-evidence-select mt-2 block w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 outline-none transition-colors sm:w-60"
                         >
                           <option value="all">All evidence</option>
                           <option value="needs_review">Needs review</option>
@@ -4696,7 +4696,7 @@ ${ungroupedSequenceText}
                             setEvidenceFilter("all");
                             setEvidenceSequenceGroupFilter("all");
                           }}
-                          className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-600 transition-colors hover:bg-neutral-50"
+                          className="case-file-evidence-clear rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-600 transition-colors"
                         >
                           Clear
                         </button>
@@ -4711,7 +4711,8 @@ ${ungroupedSequenceText}
                           key={chip.id}
                           type="button"
                           onClick={() => setEvidenceQuickFilter(chip.id)}
-                          className={`min-h-8 rounded-full border px-3 py-1 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1 ${
+                          aria-pressed={selected}
+                          className={`case-file-evidence-filter min-h-8 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
                             selected
                               ? "border-lime-500 bg-lime-50 text-lime-800"
                               : "border-neutral-200 bg-white text-neutral-600 hover:border-lime-300 hover:bg-lime-50"
@@ -4724,7 +4725,7 @@ ${ungroupedSequenceText}
                   </div>
                 </section>
 
-                <section id="evidence-list" className="space-y-8 scroll-mt-24">
+                <section id="evidence-list" className="case-file-evidence-list space-y-8 scroll-mt-24" aria-live="polite">
                     <div className="space-y-4">
                       <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Needs Review</h3>
                       {renderListBlock(

@@ -38,7 +38,7 @@ test("Evidence preserves metadata availability and descriptive content", () => {
   for (const key of ["availability", "evidence-date", "logged-date"]) assert.match(evidence, new RegExp(`key: "${key}"`));
   assert.match(evidence, /item\.eventDate \|\| item\.date/);
   assert.match(evidence, /formatLoggedAt\(item\.createdAt\)/);
-  assert.match(evidence, /What this shows:/);
+  assert.match(evidence, /descriptionPreview/);
   assert.match(evidence, /item\.functionSummary/);
   assert.match(evidence, /item\.availability\?\.physical\?\.hasOriginal/);
   assert.match(evidence, /item\.availability\?\.digital\?\.hasDigital/);
@@ -56,11 +56,37 @@ test("Evidence preserves relationships truncation missing indicators and handler
 });
 
 test("Evidence preserves attachment preview inputs and responsive dark presentation", () => {
-  assert.match(evidence, /attachments=\{item\.attachments\} imageCache=\{imageCache\} onPreview=\{onPreviewFile\}/);
+  assert.match(evidence, /attachments=\{attachments\} imageCache=\{imageCache\} onPreview=\{onPreviewFile\}/);
   assert.match(evidence, /type\.startsWith\("image\/"\)/);
   assert.match(evidence, /type === "application\/pdf"/);
   assert.match(evidence, /grid grid-cols-2 gap-1 sm:min-w-44/);
-  assert.match(evidence, /dark:border-neutral-700/);
-  assert.match(evidence, /dark:text-neutral-300/);
+  assert.match(evidence, /case-file-evidence-card/);
+  assert.match(evidence, /case-file-evidence-details/);
   assert.match(evidence, /expanded/);
+});
+
+test("Evidence has an accessible compact disclosure with full detail content", () => {
+  assert.match(evidence, /useState\(false\)/);
+  assert.match(evidence, /aria-expanded=\{expanded\}/);
+  assert.match(evidence, /aria-controls=\{detailId\}/);
+  assert.match(evidence, /Show evidence details/);
+  assert.match(evidence, /Hide evidence details/);
+  for (const label of ["Description:", "Function summary:", "Notes:", "Review notes"]) assert.match(evidence, new RegExp(label));
+});
+
+test("Evidence distinguishes local records, declared availability, and advisory locations", () => {
+  assert.match(evidence, /LOCAL ATTACHMENT RECORDS/);
+  assert.match(evidence, /DECLARED DIGITAL/);
+  assert.match(evidence, /Stored attachment:/);
+  assert.match(evidence, /Declared digital availability:/);
+  assert.match(evidence, /Physical evidence:/);
+  assert.match(evidence, /Advisory external locations:/);
+  assert.match(evidence, /does not open or verify these locations/);
+});
+
+test("Evidence preserves Issue and Incident relationship display", () => {
+  assert.match(evidence, /resolveCaseIssue/);
+  assert.match(evidence, /getIssueDisplayLabel/);
+  assert.match(evidence, /Linked incidents/);
+  assert.match(evidence, /linked-incidents/);
 });
