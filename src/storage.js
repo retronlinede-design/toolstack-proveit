@@ -135,8 +135,8 @@ export async function getAllCases() {
 
 export async function saveCaseToDb(db, caseItem, options = {}) {
   const operation = options.operation || "saveCase";
-  const save = async (store) => {
-    const existingCase = caseItem?.id ? await store.get(caseItem.id) : null;
+  const save = async (caseStore, imageStore) => {
+    const existingCase = caseItem?.id ? await caseStore.get(caseItem.id) : null;
     const expectedRevision = getCaseRevision(caseItem);
     const actualRevision = getCaseRevision(existingCase);
 
@@ -166,19 +166,60 @@ export async function saveCaseToDb(db, caseItem, options = {}) {
     }
 
     const committedCase = { ...caseItem, revision: getCommittedCaseRevision(existingCase, caseItem) };
-    await store.put(committedCase);
+    await caseStore.put(committedCase);
+
+    // Attachments can be shared by mirrored evidence fields, other records, or
+    // entirely different cases. Only IDs that disappeared from this persisted
+    // case are candidates, and they remain protected unless every persisted
+    // case has released them.
+    const previousImageIds = collectEmbeddedCaseImageIds(existingCase);
+    const committedImageIds = collectEmbeddedCaseImageIds(committedCase);
+    const candidateImageIds = [...previousImageIds].filter((imageId) => !committedImageIds.has(imageId));
+
+    if (imageStore && candidateImageIds.length > 0) {
+      const referencedImageIds = new Set();
+      const persistedCases = await caseStore.getAll();
+      for (const persistedCase of persistedCases) {
+        for (const imageId of collectEmbeddedCaseImageIds(persistedCase)) {
+          referencedImageIds.add(imageId);
+        }
+      }
+
+      for (const imageId of candidateImageIds) {
+        if (!referencedImageIds.has(imageId)) await imageStore.delete(imageId);
+      }
+    }
     return committedCase;
   };
 
   let committedCase;
   if (typeof db.transaction === "function") {
-    const tx = db.transaction(STORE_NAMES.cases, "readwrite");
-    committedCase = await save(tx.store);
-    await tx.done;
+    const tx = db.transaction([STORE_NAMES.cases, STORE_NAMES.images], "readwrite");
+    try {
+      committedCase = await save(
+        tx.objectStore(STORE_NAMES.cases),
+        tx.objectStore(STORE_NAMES.images)
+      );
+      await tx.done;
+    } catch (error) {
+      // A thrown application-level error after put() does not necessarily abort
+      // an IndexedDB transaction. Abort explicitly so the case and binaries
+      // always commit or roll back together.
+      try { tx.abort(); } catch { /* already completed or aborted */ }
+      try { await tx.done; } catch { /* preserve the originating error */ }
+      throw error;
+    }
   } else {
     // Test doubles retain the same conflict contract; production IndexedDB uses
     // the readwrite transaction above to make the read/check/put atomic.
-    committedCase = await save({ get: (id) => db.get(STORE_NAMES.cases, id), put: (item) => db.put(STORE_NAMES.cases, item) });
+    committedCase = await save(
+      {
+        get: (id) => db.get(STORE_NAMES.cases, id),
+        getAll: () => db.getAll(STORE_NAMES.cases),
+        put: (item) => db.put(STORE_NAMES.cases, item),
+      },
+      { delete: (id) => db.delete(STORE_NAMES.images, id) }
+    );
   }
   // Callers hold the canonical in-memory instance and use it immediately after
   // persistence. Reflect the committed revision without adding another save path.

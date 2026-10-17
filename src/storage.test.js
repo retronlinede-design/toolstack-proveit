@@ -42,6 +42,46 @@ function makeFakeDb({ cases = [], evidence = [], images = [] } = {}) {
   };
 }
 
+function makeTransactionalFakeDb(initialState, { failImageDelete = false } = {}) {
+  const db = makeFakeDb(initialState);
+  db.transaction = (storeNames, mode) => {
+    assert.deepEqual(storeNames, ["cases", "images"]);
+    assert.equal(mode, "readwrite");
+    const staged = {
+      cases: new Map(db.stores.cases),
+      images: new Map(db.stores.images),
+    };
+    let aborted = false;
+
+    const tx = {
+      objectStore(storeName) {
+        return {
+          async get(id) { return staged[storeName].get(id); },
+          async getAll() { return [...staged[storeName].values()]; },
+          async put(item) { staged[storeName].set(item.id, item); },
+          async delete(id) {
+            if (storeName === "images" && failImageDelete) throw new Error("simulated image cleanup failure");
+            staged[storeName].delete(id);
+          },
+        };
+      },
+      abort() { aborted = true; },
+      done: {
+        then(resolve, reject) {
+          if (aborted) return reject(new Error("transaction aborted"));
+          for (const storeName of ["cases", "images"]) {
+            db.stores[storeName].clear();
+            for (const [id, item] of staged[storeName]) db.stores[storeName].set(id, item);
+          }
+          return resolve();
+        },
+      },
+    };
+    return tx;
+  };
+  return db;
+}
+
 async function withPersistenceStubs(callback) {
   const originalLocalStorage = globalThis.localStorage;
   const originalWarn = console.warn;
@@ -217,6 +257,114 @@ test("deleteCaseFromDb ignores missing and empty embedded attachment structures"
 
   assert.equal(db.stores.cases.has("case-1"), false);
   assert.equal(db.stores.images.has("doc-img"), false);
+});
+
+test("saveCaseToDb removes a unique Evidence attachment binary but leaves unrelated historical orphans", async () => {
+  const existingCase = {
+    id: "case-1", revision: 1, incidents: [], documents: [], ledger: [], strategy: [], watchItems: [],
+    evidence: [{ id: "ev-1", attachments: [attachment("removed-image")] }],
+  };
+  const db = makeFakeDb({
+    cases: [existingCase],
+    images: [{ id: "removed-image" }, { id: "historical-orphan" }],
+  });
+
+  await saveCaseToDb(db, { ...existingCase, evidence: [{ id: "ev-1", attachments: [] }] });
+
+  assert.equal(db.stores.images.has("removed-image"), false);
+  assert.equal(db.stores.images.has("historical-orphan"), true);
+});
+
+test("saveCaseToDb retains an Evidence binary while its mirrored digital-file reference remains", async () => {
+  const existingCase = {
+    id: "case-1", revision: 1, incidents: [], documents: [], ledger: [], strategy: [], watchItems: [],
+    evidence: [{
+      id: "ev-1",
+      attachments: [attachment("mirrored-image")],
+      availability: { digital: { files: [attachment("mirrored-image")] } },
+    }],
+  };
+  const db = makeFakeDb({ cases: [existingCase], images: [{ id: "mirrored-image" }] });
+
+  await saveCaseToDb(db, {
+    ...existingCase,
+    evidence: [{ id: "ev-1", attachments: [], availability: { digital: { files: [attachment("mirrored-image")] } } }],
+  });
+
+  assert.equal(db.stores.images.has("mirrored-image"), true);
+});
+
+test("saveCaseToDb safely cleans attachment binaries for deleted Evidence, Incident, Document, and Strategy records", async () => {
+  const cases = [
+    ["evidence", { id: "ev-1", attachments: [attachment("evidence-image")] }],
+    ["incidents", { id: "inc-1", attachments: [attachment("incident-image")] }],
+    ["documents", { id: "doc-1", attachments: [attachment("document-image")] }],
+    ["strategy", { id: "strategy-1", attachments: [attachment("strategy-image")] }],
+  ];
+
+  for (const [collection, record] of cases) {
+    const existingCase = {
+      id: `case-${collection}`, revision: 1, incidents: [], evidence: [], documents: [], ledger: [], strategy: [], watchItems: [],
+      [collection]: [record],
+    };
+    const imageId = record.attachments[0].storage.imageId;
+    const db = makeFakeDb({ cases: [existingCase], images: [{ id: imageId }] });
+
+    await saveCaseToDb(db, { ...existingCase, [collection]: [] }, { allowSuspiciousOverwrite: true });
+
+    assert.equal(db.stores.images.has(imageId), false, `${collection} binary should be removed`);
+  }
+});
+
+test("saveCaseToDb preserves shared attachment IDs across records and cases", async () => {
+  const existingCase = {
+    id: "case-1", revision: 1, incidents: [], documents: [], ledger: [], strategy: [], watchItems: [],
+    evidence: [{ id: "ev-1", attachments: [attachment("shared-image")] }],
+  };
+  const otherCase = {
+    id: "case-2", revision: 1, incidents: [], evidence: [], ledger: [], strategy: [], watchItems: [],
+    documents: [{ id: "doc-1", attachments: [attachment("shared-image")] }],
+  };
+  const db = makeFakeDb({ cases: [existingCase, otherCase], images: [{ id: "shared-image" }] });
+
+  await saveCaseToDb(db, { ...existingCase, evidence: [] }, { allowSuspiciousOverwrite: true });
+
+  assert.equal(db.stores.images.has("shared-image"), true);
+});
+
+test("a rejected case save does not delete attachment binaries", async () => {
+  const existingCase = {
+    id: "case-1", revision: 2, incidents: [], documents: [], ledger: [], strategy: [], watchItems: [],
+    evidence: [{ id: "ev-1", attachments: [attachment("protected-image")] }],
+  };
+  const db = makeFakeDb({ cases: [existingCase], images: [{ id: "protected-image" }] });
+
+  await assert.rejects(
+    saveCaseToDb(db, { ...existingCase, revision: 1, evidence: [] }, { allowSuspiciousOverwrite: true }),
+    CaseRevisionConflictError
+  );
+
+  assert.equal(db.stores.images.has("protected-image"), true);
+  assert.equal(db.stores.cases.get("case-1").evidence.length, 1);
+});
+
+test("a transactional attachment cleanup failure rolls back the staged case write and binary deletion", async () => {
+  const existingCase = {
+    id: "case-1", revision: 1, incidents: [], documents: [], ledger: [], strategy: [], watchItems: [],
+    evidence: [{ id: "ev-1", attachments: [attachment("protected-image")] }],
+  };
+  const db = makeTransactionalFakeDb(
+    { cases: [existingCase], images: [{ id: "protected-image" }] },
+    { failImageDelete: true }
+  );
+
+  await assert.rejects(
+    saveCaseToDb(db, { ...existingCase, evidence: [] }, { allowSuspiciousOverwrite: true }),
+    /simulated image cleanup failure/
+  );
+
+  assert.equal(db.stores.cases.get("case-1").evidence.length, 1);
+  assert.equal(db.stores.images.has("protected-image"), true);
 });
 
 test("saveCaseToDb blocks suspicious overwrite that would erase non-empty core arrays", async () => {
