@@ -7,7 +7,7 @@ const app = readFileSync(new URL("../../App.jsx", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../../index.css", import.meta.url), "utf8");
 
 test("case file navigation preserves every canonical visible tab identifier", () => {
-  for (const id of ["overview", "parties", "incidents", "evidence", "watch", "documents", "ledger", "timeline", "generate-report", "strategy", "narrative", "pack"]) {
+  for (const id of ["overview", "parties", "incidents", "evidence", "watch", "documents", "ledger", "timeline", "generate-report", "strategy", "pack"]) {
     assert.match(app, new RegExp(`id: "${id}"`));
   }
   assert.match(caseDetail, /\{ id: "records", label: "Case Records" \}/);

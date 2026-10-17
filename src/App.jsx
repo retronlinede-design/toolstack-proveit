@@ -1951,7 +1951,6 @@ export default function ProveItApp() {
     { id: "timeline", label: "Timeline" },
     { id: "generate-report", label: "Generate Report" },
     { id: "strategy", label: "Strategy" },
-    { id: "narrative", label: "Narrative" },
     { id: "pack", label: "Print Pack" },
   ];
 

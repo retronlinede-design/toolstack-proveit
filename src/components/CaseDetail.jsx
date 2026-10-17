@@ -3678,7 +3678,7 @@ ${ungroupedSequenceText}
       .map((tab) => ({
         ...tab,
         label: tab.id === "generate-report" ? "Reports" : tab.label,
-        secondary: ["strategy", "narrative", "pack"].includes(tab.id),
+        secondary: ["strategy", "pack"].includes(tab.id),
         icon: {
           overview: BookOpen,
           parties: Users,
@@ -3690,7 +3690,6 @@ ${ungroupedSequenceText}
           timeline: Waypoints,
           "generate-report": Download,
           strategy: Target,
-          narrative: FileText,
           pack: Download,
         }[tab.id],
       }));
@@ -4999,149 +4998,6 @@ ${ungroupedSequenceText}
                 onDeleteParty={deleteParty}
               />
             )}
-            {activeTab === "narrative" && (
-              <div className="space-y-5">
-                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-900">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-neutral-900">Narrative</h3>
-                      <p className="mt-1 text-sm text-neutral-600">
-                        Generated live from the current case state using incidents, linked evidence, and linked records.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setActiveTab("narrative")}
-                      className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-xs font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
-                    >
-                      Refresh Narrative
-                    </button>
-                  </div>
-                </div>
-
-                {narrativeSections.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-                    No narrative output yet. Narrative sections are built from incidents and become stronger when linked evidence and records are attached.
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {narrativeSections.map((section, index) => (
-                      <article key={`${section.incident.id}-${section.date}-${index}`} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div>
-                            <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                              {section.date || "Undated incident"}
-                            </div>
-                            <h4 className="mt-1 text-lg font-semibold text-neutral-900">
-                              {section.incident.title || "Untitled incident"}
-                            </h4>
-                          </div>
-                          <span className="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-medium text-neutral-700">
-                            Incident anchor
-                          </span>
-                        </div>
-
-                        {section.incident.description ? (
-                          <p className="mt-4 text-sm leading-6 text-neutral-700">{section.incident.description}</p>
-                        ) : (
-                          <p className="mt-4 text-sm italic text-neutral-500">No incident description recorded.</p>
-                        )}
-
-                        {section.incident.notes ? (
-                          <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-                            <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Incident Notes</div>
-                            <p className="mt-1 text-sm text-neutral-700">{section.incident.notes}</p>
-                          </div>
-                        ) : null}
-
-                        <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                          <section className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-                            <div>
-                              <h5 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Supporting Evidence</h5>
-                              <p className="mt-1 text-sm text-neutral-600">Evidence linked to this incident anchor.</p>
-                            </div>
-                            {section.supportingEvidence.length > 0 ? (
-                              <div className="space-y-3">
-                                {section.supportingEvidence.map((item) => (
-                                  <div key={item.id} className="rounded-xl border border-neutral-200 bg-white p-3">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <span className="font-semibold text-neutral-900">{item.title || "Untitled evidence"}</span>
-                                      {item.evidenceRole && (
-                                        <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700">
-                                          {item.evidenceRole.replaceAll("_", " ")}
-                                        </span>
-                                      )}
-                                      {item.sequenceGroup && (
-                                        <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                                          {item.sequenceGroup}
-                                        </span>
-                                      )}
-                                    </div>
-                                    {item.functionSummary ? (
-                                      <p className="mt-2 text-sm text-neutral-700">{item.functionSummary}</p>
-                                    ) : (
-                                      <p className="mt-2 text-sm italic text-neutral-500">No function summary recorded.</p>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="text-sm italic text-neutral-500">No supporting evidence linked to this incident.</p>
-                            )}
-                          </section>
-
-                          <section className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-                            <div>
-                              <h5 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Supporting Records</h5>
-                              <p className="mt-1 text-sm text-neutral-600">Documents or records linked to this incident anchor.</p>
-                            </div>
-                            {section.supportingRecords.length > 0 ? (
-                              <div className="space-y-3">
-                                {section.supportingRecords.map((item) => (
-                                  <div key={item.id} className="rounded-xl border border-neutral-200 bg-white p-3">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <span className="font-semibold text-neutral-900">{item.title || "Untitled record"}</span>
-                                      {item.recordType && (
-                                        <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                                          {item.recordType}
-                                        </span>
-                                      )}
-                                    </div>
-                                    {item.summary ? (
-                                      <p className="mt-2 text-sm text-neutral-700">{item.summary}</p>
-                                    ) : (
-                                      <p className="mt-2 text-sm italic text-neutral-500">No summary recorded.</p>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="text-sm italic text-neutral-500">No supporting records linked to this incident.</p>
-                            )}
-                          </section>
-                        </div>
-
-                        <section className="mt-5 rounded-xl border border-lime-200 bg-lime-50 p-4">
-                          <div>
-                            <h5 className="text-xs font-bold uppercase tracking-wider text-lime-800">Establishes</h5>
-                            <p className="mt-1 text-sm text-lime-900">Conservative statements drawn from existing evidence summaries only.</p>
-                          </div>
-                          {section.establishes.length > 0 ? (
-                            <ul className="mt-3 space-y-2 text-sm text-lime-950">
-                              {section.establishes.map((statement) => (
-                                <li key={statement}>- {statement}</li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <p className="mt-3 text-sm italic text-lime-900/70">No derived narrative statements yet.</p>
-                          )}
-                        </section>
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
             {activeTab === "generate-report" && (
               <div className="space-y-6">
                 <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
