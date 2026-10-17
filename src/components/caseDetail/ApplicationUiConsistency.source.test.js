@@ -6,6 +6,7 @@ const caseDetail = readFileSync(new URL("../CaseDetail.jsx", import.meta.url), "
 const caseBriefingDashboard = readFileSync(new URL("../caseBriefing/CaseBriefingDashboard.jsx", import.meta.url), "utf8");
 const ledger = readFileSync(new URL("./LedgerTab.jsx", import.meta.url), "utf8");
 const records = readFileSync(new URL("./RecordsTab.jsx", import.meta.url), "utf8");
+const styles = readFileSync(new URL("../../index.css", import.meta.url), "utf8");
 
 test("the common workspace frame is responsive and explicitly dark compatible", () => {
   assert.match(caseDetail, /case-workspace-tabs[^\n]+dark:border-neutral-700 dark:bg-neutral-950/);
@@ -17,6 +18,22 @@ test("timeline filters expose state and an accessible selector name", () => {
   assert.match(caseDetail, /aria-pressed=\{timelineView === filter\.id\}/);
   assert.match(caseDetail, /aria-pressed=\{timelineMilestonesOnly\}/);
   assert.match(caseDetail, /aria-label="Filter timeline by Issue"/);
+});
+
+test("timeline retains scoped, accessible event controls and type-safe source navigation", () => {
+  assert.match(caseDetail, /case-file-timeline/);
+  for (const recordType of ["incident", "evidence", "document", "ledger", "strategy"]) {
+    assert.match(caseDetail, new RegExp(`toTimelineItems\\(selectedCase\\?\\.[^,]+, "${recordType}"\\)`));
+  }
+  assert.match(caseDetail, /String\(a\.date\)\.localeCompare\(String\(b\.date\)\)/);
+  assert.match(caseDetail, /timelineGroups\.push\(\{ date: dateLabel, items: \[item\] \}\)/);
+  assert.match(caseDetail, /aria-expanded=\{isExpanded\}/);
+  assert.match(caseDetail, /aria-controls=\{detailsId\}/);
+  assert.match(caseDetail, /openLinkedRecord\(item\.id, item\.recordType\)/);
+  assert.match(caseDetail, /renderSequenceGroupChip\(item\.source\?\.sequenceGroup\)/);
+  assert.match(caseDetail, /role="status"/);
+  assert.match(styles, /\.case-file-timeline-event \{[\s\S]*grid-template-columns/);
+  assert.match(styles, /@media \(max-width: 640px\)[\s\S]*\.case-file-timeline-event \{ grid-template-columns: 1fr/);
 });
 
 test("live overview provides compact record-choice guidance", () => {

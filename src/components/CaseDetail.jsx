@@ -273,6 +273,7 @@ export default function CaseDetail({
   const [timelineView, setTimelineView] = useState("all");
   const [timelineMilestonesOnly, setTimelineMilestonesOnly] = useState(false);
   const [timelineSequenceGroupFilter, setTimelineSequenceGroupFilter] = useState("all");
+  const [expandedTimelineItems, setExpandedTimelineItems] = useState(() => new Set());
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [ledgerFilter, setLedgerFilter] = useState("all");
   const [incidentSearch, setIncidentSearch] = useState("");
@@ -1790,8 +1791,8 @@ ${strategyFocus.join("\n") || "—"}`;
     }
   };
 
-  const openLinkedRecord = (recordId) => {
-    const found = resolveRecordById(selectedCase, recordId);
+  const openLinkedRecord = (recordId, expectedRecordType = "") => {
+    const found = resolveRecordById(selectedCase, recordId, expectedRecordType);
     if (!found) return;
     const editTypeMap = {
       incident: "incidents",
@@ -6433,54 +6434,50 @@ ${ungroupedSequenceText}
             )}
 
             {activeTab === "timeline" && (
-              <div className="space-y-5">
-                <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+              <div className="case-file-timeline space-y-4">
+                <section className="case-file-timeline-header rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm" aria-labelledby="case-timeline-heading">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div>
-                      <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Case Timeline</h3>
+                      <p className="case-file-timeline-eyebrow">Case chronology</p>
+                      <h3 id="case-timeline-heading" className="case-file-timeline-heading">Timeline</h3>
                       <p className="mt-1 text-sm text-neutral-600">
                         Incidents, evidence, documents, payments, and strategy in one chronological view.
                       </p>
                     </div>
-                    <div className="text-xs font-medium text-neutral-500">
+                    <div className="case-file-timeline-total text-xs font-medium text-neutral-500">
                       {timelineItems.length} item{timelineItems.length === 1 ? "" : "s"}
                     </div>
                   </div>
 
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {timelineFilterOptions.map((filter) => (
+                  <div className="case-file-timeline-filters mt-4" role="group" aria-label="Timeline filters">
+                    <div className="case-file-timeline-filter-types">
+                      {timelineFilterOptions.map((filter) => (
+                        <button
+                          key={filter.id}
+                          type="button"
+                          onClick={() => setTimelineView(filter.id)}
+                          aria-pressed={timelineView === filter.id}
+                          className={`case-file-timeline-filter ${timelineView === filter.id ? "is-selected" : ""}`}
+                        >
+                          {filter.label}
+                        </button>
+                      ))}
                       <button
-                        key={filter.id}
-                        onClick={() => setTimelineView(filter.id)}
-                        aria-pressed={timelineView === filter.id}
-                        className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                          timelineView === filter.id
-                            ? "border-lime-500 bg-lime-50 text-lime-800"
-                            : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
-                        }`}
+                        type="button"
+                        onClick={() => setTimelineMilestonesOnly((value) => !value)}
+                        aria-pressed={timelineMilestonesOnly}
+                        className={`case-file-timeline-filter ${timelineMilestonesOnly ? "is-selected" : ""}`}
                       >
-                        {filter.label}
+                        Milestones only
                       </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => setTimelineMilestonesOnly((value) => !value)}
-                      aria-pressed={timelineMilestonesOnly}
-                      className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                        timelineMilestonesOnly
-                          ? "border-amber-400 bg-amber-50 text-amber-800"
-                          : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
-                      }`}
-                    >
-                      Milestones only
-                    </button>
+                    </div>
                     {sequenceGroups.length > 0 && (
-                      <div className="flex items-center gap-2">
+                      <div className="case-file-timeline-issue-filter">
                         <select
                           aria-label="Filter timeline by Issue"
                           value={timelineSequenceGroupFilter}
                           onChange={(event) => setTimelineSequenceGroupFilter(event.target.value)}
-                          className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-600 outline-none transition-colors hover:bg-neutral-50 focus:border-lime-500"
+                          className="case-file-timeline-issue-select"
                         >
                           <option value="all">All Issues</option>
                           {sequenceGroups.map((group) => (
@@ -6493,15 +6490,15 @@ ${ungroupedSequenceText}
                           <button
                             type="button"
                             onClick={() => setTimelineSequenceGroupFilter("all")}
-                            className="rounded-lg border border-neutral-200 bg-white px-2 py-1.5 text-xs font-semibold text-neutral-500 transition-colors hover:bg-neutral-50"
+                            className="case-file-timeline-clear"
                           >
-                            Clear
+                            Clear Issue
                           </button>
                         )}
                       </div>
                     )}
                   </div>
-                </div>
+                </section>
 
                 {(() => {
                   const filteredTimelineItems = timelineItems.filter((item) => {
@@ -6516,11 +6513,7 @@ ${ungroupedSequenceText}
                   });
 
                   if (filteredTimelineItems.length === 0) {
-                    return (
-                      <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-                        No timeline records match this view.
-                      </div>
-                    );
+                    return <div className="case-file-timeline-empty rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">No timeline records match this view.</div>;
                   }
 
                   const timelineGroups = [];
@@ -6534,13 +6527,6 @@ ${ungroupedSequenceText}
                     }
                   });
 
-                  const badgeClassMap = {
-                    incident: "border-red-200 bg-red-50 text-red-700",
-                    evidence: "border-lime-200 bg-lime-50 text-lime-700",
-                    document: "border-sky-200 bg-sky-50 text-sky-700",
-                    ledger: "border-amber-200 bg-amber-50 text-amber-700",
-                    strategy: "border-neutral-300 bg-neutral-100 text-neutral-700",
-                  };
                   const labelMap = {
                     incident: "Incident",
                     evidence: "Evidence",
@@ -6554,59 +6540,86 @@ ${ungroupedSequenceText}
                   };
 
                   return (
-                    <div className="space-y-4">
+                    <div className="case-file-timeline-results space-y-4" aria-live="polite" aria-atomic="true">
+                      <p className="sr-only" role="status">
+                        {filteredTimelineItems.length} timeline item{filteredTimelineItems.length === 1 ? "" : "s"} shown.
+                      </p>
                       {timelineGroups.map((group) => (
-                        <section key={group.date} className="space-y-2">
-                          <div className="flex items-center justify-between gap-3 border-b border-neutral-200 pb-1">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">{group.date}</h4>
-                            <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                        <section key={group.date} className="case-file-timeline-date-group space-y-2" aria-label={`${group.date}, ${group.items.length} item${group.items.length === 1 ? "" : "s"}`}>
+                          <div className="case-file-timeline-date-heading flex items-center justify-between gap-3 border-b border-neutral-200 pb-1">
+                            <h4>{group.date}</h4>
+                            <span>
                               {group.items.length} item{group.items.length === 1 ? "" : "s"}
                             </span>
                           </div>
                           {group.items.map((item) => {
                             const isTimelineMilestone =
                               (item.recordType === "incident" || item.recordType === "evidence") && item.isMilestone === true;
+                            const itemKey = `${item.recordType}-${item.id}`;
+                            const detailsId = `timeline-details-${itemKey}`;
+                            const isExpanded = expandedTimelineItems.has(itemKey);
+                            const hasFullSummary = item.fullSummary && item.fullSummary !== item.summary;
                             return (
-                              <div
-                                key={`${item.recordType}-${item.id}`}
-                                className={`grid gap-3 rounded-xl border p-3 shadow-sm sm:grid-cols-[7.5rem_1fr] ${
-                                  isTimelineMilestone
-                                    ? "border-amber-300 border-l-4 bg-amber-50/50 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]"
-                                    : "border-neutral-200 bg-white"
-                                }`}
+                              <article
+                                key={itemKey}
+                                className={`case-file-timeline-event ${isTimelineMilestone ? "is-milestone" : ""}`}
                               >
-                                <div className="text-xs font-semibold text-neutral-500">
+                                <div className="case-file-timeline-event-date">
                                   {item.date || "No date"}
                                 </div>
-                                <div className="min-w-0">
-                                  {isTimelineMilestone && (
-                                    <div className="mb-2">
-                                      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-700">
-                                        Milestone
-                                      </span>
-                                    </div>
-                                  )}
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className={`rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${badgeClassMap[item.recordType] || "border-neutral-200 bg-neutral-50 text-neutral-600"}`}>
+                                <div className="case-file-timeline-event-content min-w-0">
+                                  <div className="case-file-timeline-event-meta">
+                                    <span className={`case-file-timeline-type type-${item.recordType}`}>
                                       {labelMap[item.recordType] || item.recordType}
                                     </span>
                                     {detailLabelMap[item.typeDetail] && detailLabelMap[item.typeDetail] !== labelMap[item.recordType] && (
-                                      <span className="rounded-md border border-neutral-200 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                                      <span className="case-file-timeline-detail">
                                         {detailLabelMap[item.typeDetail]}
                                       </span>
                                     )}
                                     {renderSequenceGroupChip(item.source?.sequenceGroup)}
-                                    <h4 className="min-w-0 flex-1 truncate text-sm font-semibold text-neutral-900">
-                                      {item.title}
-                                    </h4>
+                                    {isTimelineMilestone && <span className="case-file-timeline-milestone">Milestone</span>}
                                   </div>
+                                  <h5 className="case-file-timeline-event-title">{item.title}</h5>
                                   {item.summary ? (
-                                    <p className="mt-1 text-sm leading-5 text-neutral-600">{item.summary}</p>
+                                    <p className="case-file-timeline-event-summary">{item.summary}</p>
                                   ) : (
-                                    <p className="mt-1 text-sm text-neutral-400">No summary yet.</p>
+                                    <p className="case-file-timeline-event-summary is-empty">No summary yet.</p>
+                                  )}
+                                  <div className="case-file-timeline-event-actions">
+                                    {hasFullSummary && (
+                                      <button
+                                        type="button"
+                                        className="case-file-timeline-disclosure"
+                                        aria-expanded={isExpanded}
+                                        aria-controls={detailsId}
+                                        onClick={() => setExpandedTimelineItems((current) => {
+                                          const next = new Set(current);
+                                          if (next.has(itemKey)) next.delete(itemKey);
+                                          else next.add(itemKey);
+                                          return next;
+                                        })}
+                                      >
+                                        {isExpanded ? "Hide full summary" : "Read full summary"}
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      className="case-file-timeline-open-record"
+                                      onClick={() => openLinkedRecord(item.id, item.recordType)}
+                                      aria-label={`Open ${labelMap[item.recordType] || item.recordType}: ${item.title}`}
+                                    >
+                                      Open record
+                                    </button>
+                                  </div>
+                                  {hasFullSummary && isExpanded && (
+                                    <div id={detailsId} className="case-file-timeline-full-summary">
+                                      <span>Full summary</span>
+                                      <p>{item.fullSummary}</p>
+                                    </div>
                                   )}
                                 </div>
-                              </div>
+                              </article>
                             );
                           })}
                         </section>

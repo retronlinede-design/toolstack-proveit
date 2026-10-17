@@ -31,18 +31,22 @@ export function getTimelineTitle(recordType, item) {
   return item.title || "Untitled evidence";
 }
 
-export function getTimelineSummary(recordType, item) {
+export function getTimelineFullSummary(recordType, item) {
   if (recordType === "ledger") {
     const amounts = [
       item.expectedAmount !== undefined && item.expectedAmount !== "" ? `Expected ${item.expectedAmount} ${item.currency || ""}`.trim() : "",
       item.paidAmount !== undefined && item.paidAmount !== "" ? `Paid ${item.paidAmount} ${item.currency || ""}`.trim() : "",
       item.differenceAmount ? `Difference ${item.differenceAmount} ${item.currency || ""}`.trim() : "",
     ].filter(Boolean).join(" · ");
-    return truncateTimelineText([amounts, item.status, item.proofStatus, item.notes].filter(Boolean).join(" · "));
+    return [amounts, item.status, item.proofStatus, item.notes].filter(Boolean).join(" · ");
   }
-  if (recordType === "document") return truncateTimelineText(item.summary || item.textContent || item.notes);
-  if (recordType === "evidence") return truncateTimelineText(item.functionSummary || item.description || item.notes || item.reviewNotes);
-  return truncateTimelineText(item.summary || item.description || item.notes);
+  if (recordType === "document") return safeText(item.summary || item.textContent || item.notes);
+  if (recordType === "evidence") return safeText(item.functionSummary || item.description || item.notes || item.reviewNotes);
+  return safeText(item.summary || item.description || item.notes);
+}
+
+export function getTimelineSummary(recordType, item) {
+  return truncateTimelineText(getTimelineFullSummary(recordType, item));
 }
 
 export const toTimelineItems = (items, recordType) => (items || []).map((item) => ({
@@ -52,6 +56,7 @@ export const toTimelineItems = (items, recordType) => (items || []).map((item) =
   date: getTimelineDate(recordType, item),
   title: getTimelineTitle(recordType, item),
   summary: getTimelineSummary(recordType, item),
+  fullSummary: getTimelineFullSummary(recordType, item),
   isMilestone: (recordType === "incident" || recordType === "evidence") ? !!item?.isMilestone : false,
   source: item,
 }));

@@ -89,28 +89,29 @@ export function resolveEvidenceById(caseData, id) {
   return record ? buildDisplayMeta(record, "evidence", "Evidence", record.functionSummary || record.description || record.notes || "") : null;
 }
 
-export function resolveRecordById(caseData, id) {
+export function resolveRecordById(caseData, id, expectedRecordType = "") {
   if (!caseData || !id) return null;
+  const allows = (recordType) => !expectedRecordType || expectedRecordType === recordType;
 
-  const evidence = resolveEvidenceById(caseData, id);
+  const evidence = allows("evidence") ? resolveEvidenceById(caseData, id) : null;
   if (evidence) return evidence;
 
-  const incident = resolveIncidentById(caseData, id);
+  const incident = allows("incident") ? resolveIncidentById(caseData, id) : null;
   if (incident) return incident;
 
-  const strategy = (caseData.strategy || []).find((item) => item.id === id);
+  const strategy = allows("strategy") && (caseData.strategy || []).find((item) => item.id === id);
   if (strategy) return buildDisplayMeta(strategy, "strategy", "Strategy", strategy.description || strategy.notes || "");
 
-  const task = (caseData.tasks || []).find((item) => item.id === id);
+  const task = allows("task") && (caseData.tasks || []).find((item) => item.id === id);
   if (task) return buildDisplayMeta(task, "task", "Task", task.description || task.notes || "");
 
-  const document = (caseData.documents || []).find((item) => item.id === id);
+  const document = allows("document") && (caseData.documents || []).find((item) => item.id === id);
   if (document) return buildDocumentDisplayMeta(document);
 
-  const ledger = (caseData.ledger || []).find((item) => item.id === id);
+  const ledger = allows("ledger") && (caseData.ledger || []).find((item) => item.id === id);
   if (ledger) return buildDisplayMeta(ledger, "ledger", "Ledger", ledger.notes || ledger.counterparty || "");
 
-  const watch = (caseData.watchItems || []).find((item) => item.id === id);
+  const watch = allows("watch") && (caseData.watchItems || []).find((item) => item.id === id);
   if (watch) return buildDisplayMeta(watch, "watch", "To Watch", watch.latestObservation || watch.watchFor || watch.rationale || "");
 
   return null;

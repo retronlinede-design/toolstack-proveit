@@ -66,3 +66,23 @@ test("generic resolution supports watch items and missing targets", () => {
   const caseItem = { watchItems: [{ id: "w", title: "Watch", watchFor: "Change" }] };
   assert.equal(resolveRecordById(caseItem, "w").typeLabel, "To Watch"); assert.equal(resolveRecordById(caseItem, "missing"), null);
 });
+
+test("resolveRecordById keeps untyped precedence and resolves duplicate IDs by requested type", () => {
+  const caseItem = {
+    incidents: [{ id: "shared", title: "Incident" }],
+    evidence: [{ id: "shared", title: "Evidence" }],
+    documents: [{ id: "shared", title: "Document" }],
+    ledger: [{ id: "shared", label: "Ledger" }],
+    strategy: [{ id: "shared", title: "Strategy" }],
+  };
+
+  // The original untyped resolver checks evidence before every other collection.
+  assert.equal(resolveRecordById(caseItem, "shared")?.recordType, "evidence");
+  assert.equal(resolveRecordById(caseItem, "shared", "incident")?.recordType, "incident");
+  assert.equal(resolveRecordById(caseItem, "shared", "evidence")?.recordType, "evidence");
+  assert.equal(resolveRecordById(caseItem, "shared", "document")?.recordType, "document");
+  assert.equal(resolveRecordById(caseItem, "shared", "ledger")?.recordType, "ledger");
+  assert.equal(resolveRecordById(caseItem, "shared", "strategy")?.recordType, "strategy");
+  assert.equal(resolveRecordById(caseItem, "shared", "unsupported"), null);
+  assert.equal(resolveRecordById(caseItem, "missing", "incident"), null);
+});
