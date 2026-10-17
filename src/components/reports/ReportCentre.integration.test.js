@@ -63,15 +63,16 @@ function renderPreview(reportType, scopeType, scopeLabel) {
   }));
 }
 
-test("active Reports Centre groups every report selector into the three primary report purposes", () => {
+test("active Reports Centre groups every report selector into the Prepare, Create, Review, and Export workspace", () => {
   const html = renderControls();
   for (const definition of REPORT_CENTRE_TYPES) assert.match(html, new RegExp(definition.label));
-  for (const heading of ["Case Reports", "Schedules &amp; Evidence", "Audit &amp; Actions", "Advanced &amp; Legacy"]) assert.match(html, new RegExp(heading));
+  for (const heading of ["Prepare · Create · Review · Export", "Set the report scope", "Share a reviewed copy", "Select a report type", "Case Reports", "Schedules &amp; Evidence", "Audit &amp; Actions", "Specialist tools"]) assert.match(html, new RegExp(heading));
   assert.match(html, /Issue Audit/);
   assert.doesNotMatch(html, /Unavailable Reports/);
-  assert.match(html, /Configure selected report/);
+  assert.match(html, /does not approve or replace the case record/);
   assert.match(html, /Audience/);
   assert.match(html, /Completeness/);
+  assert.match(html, /<details class="case-file-reports-specialist">/);
 });
 
 test("changing report type changes the rendered preview description", () => {
@@ -169,6 +170,8 @@ test("the active CaseDetail Report Centre uses the rendered control boundary", (
   assert.match(caseDetailSource, /reportDocument={reportCentreActiveDocument}/);
   assert.match(caseDetailSource, /<InvestigationReportArticle reportDocument={reportCentreInvestigationDocument}/);
   assert.doesNotMatch(caseDetailSource, /reportCentreType === "investigation"[\s\S]{0,200}<CaseBundleReportArticle/);
+  assert.match(caseDetailSource, /className="case-file-reports space-y-5"/);
+  assert.match(caseDetailSource, /Review the selected report/);
 });
 
 test("the active Evidence Pack follows model document and unchanged renderer path", () => {

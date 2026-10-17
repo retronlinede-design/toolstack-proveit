@@ -21,10 +21,10 @@ export default function ReportContextHeader({ definition, scopeLabel, countLabel
   const fingerprint = reportDocument?.source?.sourceRevision?.fingerprint || "";
   const generatedAt = reportDocument?.report?.generatedAt || "";
   return (
-    <section aria-labelledby="selected-report-title" className="rounded-xl border border-neutral-200 bg-white px-4 py-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
+    <section aria-labelledby="selected-report-title" className="case-file-reports-context rounded-xl border border-neutral-200 bg-white px-4 py-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Selected report</p>
+          <p className="case-file-reports-eyebrow">Report context · Selected report</p>
           <h4 id="selected-report-title" className="mt-1 text-xl font-bold text-neutral-950 dark:text-neutral-50">{definition?.label || "Report"}</h4>
           <p className="mt-1 text-sm leading-6 text-neutral-600 dark:text-neutral-300">{definition?.description}</p>
           <p className="mt-1 text-sm font-semibold text-neutral-700 dark:text-neutral-200">{[completeness.label, scopeLabel, countLabel].filter(Boolean).join(" · ")}</p>

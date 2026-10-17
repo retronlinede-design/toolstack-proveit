@@ -4999,13 +4999,14 @@ ${ungroupedSequenceText}
               />
             )}
             {activeTab === "generate-report" && (
-              <div className="space-y-6">
-                <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+              <div className="case-file-reports space-y-5">
+                <div className="case-file-reports-header rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">Reports Centre</h3>
+                      <p className="case-file-reports-eyebrow">Case reporting</p>
+                      <h3 className="mt-1 text-lg font-semibold text-neutral-900 dark:text-neutral-50">Reports Centre</h3>
                       <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">
-                        Select, review, and publish case reports for a clear audience and purpose.
+                        Prepare a source-grounded report, review its scope, then export or print a copy. ProveIt remains the authoritative case record.
                       </p>
                     </div>
                   </div>
@@ -5031,7 +5032,11 @@ ${ungroupedSequenceText}
                   onOpenPrintPack={() => setActiveTab("pack")}
                 />
 
-                <section className="space-y-4">
+                <section className="case-file-reports-review space-y-4" aria-labelledby="report-review-heading">
+                  <div className="case-file-reports-section-heading">
+                    <p className="case-file-reports-eyebrow">Review</p>
+                    <h4 id="report-review-heading">Review the selected report</h4>
+                  </div>
                   <ReportContextHeader
                     definition={getReportDefinition(reportCentreType)}
                     scopeLabel={normalisedReportCentreScopeType === "sequenceGroup" ? `Issue: ${selectedReportCentreSequenceGroup || "Not selected"}` : getReportDefinition(reportCentreType).supportedScopes.length === 1 ? "Whole case only" : "Whole case"}
