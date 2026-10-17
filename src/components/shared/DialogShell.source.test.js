@@ -10,6 +10,8 @@ test("DialogShell supplies a labelled modal layer and standard sizing variants",
   assert.match(source, /aria-labelledby=\{titleId\}/);
   assert.match(source, /compact: "max-w-lg"/);
   assert.match(source, /workspace: "max-w-6xl"/);
+  assert.match(source, /layer = "default"/);
+  assert.match(source, /layer === "nested" \? "z-\[70\]" : "z-\[60\]"/);
   assert.match(source, /z-\[60\]/);
 });
 

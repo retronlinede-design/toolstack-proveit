@@ -1251,17 +1251,18 @@ export default function CaseDetail({
   }
 
   async function handleUpdateManagedSequenceGroup(currentName, value) {
-    if (!selectedCase) return;
+    if (!selectedCase) return false;
     const canonical = normalizeCaseIssues(selectedCase, { sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()) }).caseData;
     const issue = resolveCaseIssue(canonical, { issueName: currentName });
-    if (!issue) return setSequenceGroupFeedback("Issue could not be resolved safely.");
+    if (!issue) { setSequenceGroupFeedback("Issue could not be resolved safely."); return false; }
     const result = updateCaseIssue(canonical, issue.id, value);
-    if (!result.success) return setSequenceGroupFeedback(result.errors.join(" "));
+    if (!result.success) { setSequenceGroupFeedback(result.errors.join(" ")); return false; }
     if (result.issue.name !== currentName) renameSequenceGroupMeta(selectedCase.id, currentName, result.issue.name);
-    if (!(await onUpdateCase(result.caseData))) return;
+    if (!(await onUpdateCase(result.caseData))) return false;
     saveSequenceGroupMeta(selectedCase.id, result.issue.name, { description: result.issue.description });
     setSelectedSequenceGroupName(result.issue.name);
     setSequenceGroupFeedback(`Updated ${result.issue.reference} — ${result.issue.name}.`);
+    return true;
   }
 
   async function handleDeleteManagedSequenceGroup(group) {

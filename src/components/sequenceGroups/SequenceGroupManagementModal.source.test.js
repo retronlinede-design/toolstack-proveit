@@ -11,11 +11,11 @@ test("management modal exposes accessible full-management sections", () => {
   assert.match(modal, /role="tablist"/);
   assert.match(modal, /role="tab"/);
   assert.match(modal, /aria-selected/);
-  assert.match(modal, /event\.key === "Escape"/);
-  assert.match(modal, /event\.key !== "Tab"/);
-  assert.match(modal, /previousFocus\?\.focus/);
-  assert.match(modal, /max-w-5xl/);
-  assert.match(modal, /overflow-y-auto/);
+  assert.match(modal, /<DialogShell/);
+  assert.match(modal, /width="workspace"/);
+  assert.match(modal, /layer="nested"/);
+  assert.match(modal, /dismissOnBackdrop=\{false\}/);
+  assert.match(modal, /onRequestClose=\{requestClose\}/);
 });
 
 test("record manager keeps selection stable while exposing filters and grouping-only actions", () => {
