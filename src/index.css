@@ -63,6 +63,29 @@
 .proveit-dark-shell .case-file-derived-payment-empty { border: 1px dashed var(--case-file-border); border-radius: .75rem; padding: .9rem; }
 @media (max-width: 639px) { .proveit-dark-shell .case-file-records-header > div > div:last-child, .proveit-dark-shell .case-file-records-actions { width: 100%; } .proveit-dark-shell .case-file-records-primary-action { width: 100%; } }
 
+/* Strategy stays scoped to the open-case Goals and Strategy workspace. */
+.proveit-dark-shell .case-file-strategy { color: var(--case-file-text); }
+.proveit-dark-shell .case-file-strategy :is(.case-file-strategy-goals, .case-file-strategy-focus, .case-file-strategy-overview, .case-file-strategy-controls, .case-file-strategy-empty, .case-file-strategy-group) { border-color: var(--case-file-border) !important; background: var(--case-file-surface) !important; box-shadow: 0 10px 24px rgb(0 0 0 / .12) !important; }
+.proveit-dark-shell .case-file-strategy :is(.text-neutral-950, .text-neutral-900, .text-neutral-800, .text-neutral-700, .text-neutral-600) { color: var(--case-file-text) !important; }
+.proveit-dark-shell .case-file-strategy :is(.text-neutral-500, .text-neutral-400, .text-neutral-300) { color: var(--case-file-muted) !important; }
+.proveit-dark-shell .case-file-strategy-eyebrow, .proveit-dark-shell .case-file-strategy .text-lime-800 { color: var(--case-file-muted) !important; }
+.proveit-dark-shell .case-file-strategy :is(.case-file-strategy-focus-record, .case-file-strategy-export, .case-file-strategy-ai) { border-color: var(--case-file-border) !important; background: var(--case-file-raised) !important; }
+.proveit-dark-shell .case-file-strategy-focus-record { color: var(--case-file-text); }
+.proveit-dark-shell .case-file-strategy-focus-record p { color: var(--case-file-muted); }
+.proveit-dark-shell .case-file-strategy-focus-record span, .proveit-dark-shell .case-file-strategy-focus > div > div > span { border: 1px solid color-mix(in srgb, var(--case-file-accent) 45%, var(--case-file-border)); border-radius: 999px; background: color-mix(in srgb, var(--case-file-accent) 10%, var(--pi-control)); padding: .18rem .42rem; color: #dffff8; }
+.proveit-dark-shell .case-file-strategy :is(input, select, textarea) { border-color: var(--case-file-border) !important; background: var(--pi-control) !important; color: var(--case-file-text) !important; }
+.proveit-dark-shell .case-file-strategy :is(button, input, select, textarea):focus-visible { outline: 2px solid var(--case-file-focus); outline-offset: 2px; }
+.proveit-dark-shell .case-file-strategy :is(button:hover, select:hover) { border-color: color-mix(in srgb, var(--case-file-accent) 58%, var(--case-file-border)); }
+.proveit-dark-shell .case-file-strategy-record { border-color: var(--case-file-border) !important; background: var(--case-file-surface) !important; box-shadow: 0 8px 20px rgb(0 0 0 / .1); }
+.proveit-dark-shell .case-file-strategy-record :is(.bg-blue-50, .bg-blue-50\/60, .bg-lime-50\/50, .bg-neutral-50) { border-color: var(--case-file-border) !important; background: var(--case-file-raised) !important; }
+.proveit-dark-shell .case-file-strategy-record :is(.text-blue-700, .text-lime-700, .text-lime-800) { color: var(--case-file-muted) !important; }
+.proveit-dark-shell .case-file-strategy-disclosure, .proveit-dark-shell .case-file-strategy-record-actions button { display: inline-flex; min-height: 2rem; align-items: center; justify-content: center; border: 1px solid var(--case-file-border); border-radius: .55rem; background: var(--pi-control); padding: .38rem .62rem; color: var(--case-file-text); font-size: .75rem; font-weight: 700; transition: border-color 160ms ease, background-color 160ms ease; }
+.proveit-dark-shell .case-file-strategy-disclosure { border-color: color-mix(in srgb, var(--case-file-accent) 58%, var(--case-file-border)); background: color-mix(in srgb, var(--case-file-accent) 11%, var(--pi-control)); color: #dffff8; }
+.proveit-dark-shell .case-file-strategy :is(.case-file-strategy-disclosure, .case-file-strategy-record-actions button):hover { border-color: var(--case-file-accent); background: color-mix(in srgb, var(--case-file-accent) 18%, var(--pi-control)); }
+.proveit-dark-shell .case-file-strategy-record-actions button[aria-label*="Delete"] { border-color: color-mix(in srgb, #e07286 58%, var(--case-file-border)); color: #ffdce2; }
+.proveit-dark-shell .case-file-strategy-group > div:first-child > div { background: var(--case-file-border) !important; }
+@media (max-width: 639px) { .proveit-dark-shell .case-file-strategy :is(.case-file-strategy-focus, .case-file-strategy-overview, .case-file-strategy-controls) { padding: .85rem; } .proveit-dark-shell .case-file-strategy-record-actions { width: 100%; } .proveit-dark-shell .case-file-strategy-record-actions > * { flex: 1 1 auto; } }
+
 .proveit-main { min-height: 100vh; padding-left: 17rem; }
 .proveit-sidebar { position: fixed; inset: 0 auto 0 0; z-index: calc(var(--pi-z-dialog-min) - 10); display: flex; width: 17rem; flex-direction: column; border-right: 1px solid #1b2c40; background: var(--pi-sidebar); color: #dce8f5; transition: width 180ms ease, transform 180ms ease; }
 .proveit-sidebar.is-collapsed { width: 4.75rem; }

@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { CalendarDays, Clock3, Paperclip, Tags } from "lucide-react";
 
+import { getIssueDisplayLabel, resolveCaseIssue } from "../domain/issueDomain.js";
 import { getRecordDisplayMeta } from "../domain/linkingResolvers.js";
 import AttachmentPreview from "./AttachmentPreview";
 import { resolveStrategyOwner } from "./caseDetail/strategyWorkspaceHelpers.js";
@@ -95,6 +97,7 @@ export default function StrategyRecordCard({
   deleteRecord,
   openLinkedRecord,
 }) {
+  const [expanded, setExpanded] = useState(false);
   const linkedRecords = getLinkedRecords(item, selectedCase);
   const linkedReferenceCount = new Set([
     ...(Array.isArray(item?.linkedRecordIds) ? item.linkedRecordIds : []),
@@ -117,7 +120,10 @@ export default function StrategyRecordCard({
   ].filter(([, count]) => count > 0);
   const status = formatStatus(item?.status);
   const eventDate = item?.eventDate || item?.date || "";
-  const sequenceGroup = typeof item?.sequenceGroup === "string" ? item.sequenceGroup.trim() : "";
+  const issue = resolveCaseIssue(selectedCase, { issueId: item?.sequenceGroupId, issueName: item?.sequenceGroup });
+  const sequenceGroup = issue ? getIssueDisplayLabel(issue) : typeof item?.sequenceGroup === "string" ? item.sequenceGroup.trim() : "";
+  const goals = Array.isArray(selectedCase?.goals) ? selectedCase.goals : [];
+  const goalTitles = (Array.isArray(item?.goalIds) ? item.goalIds : []).map((goalId) => goals.find((goal) => goal.id === goalId)?.title).filter(Boolean);
   const updatedAt = formatTimestamp(item?.updatedAt);
   const attachmentCount = Array.isArray(item?.attachments) ? item.attachments.length : 0;
   const strategyType = formatStatus(item?.strategyType);
@@ -128,13 +134,16 @@ export default function StrategyRecordCard({
   const hasObjective = hasText(item?.objective);
   const hasDesiredOutcome = hasText(item?.desiredOutcome);
   const hasRationale = hasText(item?.rationale);
+  const hasRisks = hasText(item?.risks);
   const canArchive = item?.status === "open";
 
   return (
     <RecordCardShell
       id={`record-${item.id}`}
       title={item?.title || "Untitled Strategy"}
-      expanded
+      subtitle={item?.objective || item?.desiredOutcome || item?.description || "No objective or desired outcome recorded."}
+      expanded={expanded}
+      className="case-file-strategy-record"
       badges={<>
               {strategyType && <RecordBadge variant="type" className="uppercase tracking-wider">{strategyType}</RecordBadge>}
               {priority && <RecordBadge variant={getPriorityBadgeVariant(item.priority)} className="uppercase tracking-wider">{priority} priority</RecordBadge>}
@@ -144,6 +153,7 @@ export default function StrategyRecordCard({
                 </RecordBadge>
               )}
               {decisionStatus && <RecordBadge variant={getDecisionStatusBadgeVariant(item.decisionStatus)} className="uppercase tracking-wider">{decisionStatus}</RecordBadge>}
+              {hasRisks && <RecordBadge variant="status-warning" className="uppercase tracking-wider">Risks recorded</RecordBadge>}
               {eventDate && (
                 <RecordMetadataRow items={[{ key: "event-date", value: eventDate, icon: <CalendarDays className="h-3.5 w-3.5" />, emphasis: true }]} />
               )}
@@ -151,7 +161,7 @@ export default function StrategyRecordCard({
                 <RecordLinksRow groups={[{ key: "sequence-group", items: [{ key: "sequence", label: sequenceGroup, icon: <Tags />, variant: "sequence" }] }]} />
               )}
       </>}
-      actions={<RecordActions
+      actions={<div className="case-file-strategy-record-actions flex flex-wrap gap-2"><button type="button" className="case-file-strategy-disclosure" aria-expanded={expanded} aria-controls={`strategy-details-${item.id}`} onClick={() => setExpanded((current) => !current)}>{expanded ? "Collapse details" : "Expand details"}</button><RecordActions
             className="grid shrink-0 grid-cols-3 gap-2 sm:grid-cols-2"
             actions={[
               { key: "open", label: "Open", variant: "primary", onClick: () => openEditRecordModal("strategy", item) },
@@ -159,9 +169,10 @@ export default function StrategyRecordCard({
               { key: "archive", label: "Archive", variant: "secondary", hidden: !canArchive, onClick: () => onArchiveStrategy?.(item.id) },
               { key: "delete", label: "Delete", variant: "danger", onClick: () => deleteRecord("strategy", item.id) },
             ]}
-          />}
+          /></div>}
     >
-      <div className="space-y-4">
+      {goalTitles.length > 0 && <RecordLinksRow groups={[{ key: "strategy-goals", items: goalTitles.map((title, index) => ({ key: `${title}-${index}`, label: `Goal · ${title}`, variant: "sequence" })) }]} />}
+      {expanded && <div id={`strategy-details-${item.id}`} className="space-y-4">
         {hasObjective && (
           <section className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
             <div className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Objective</div>
@@ -242,7 +253,7 @@ export default function StrategyRecordCard({
         {updatedAt && (
           <RecordMetadataRow className="border-t border-neutral-100 pt-3 dark:border-neutral-800" items={[{ key: "last-updated", label: "Last updated", value: updatedAt, icon: <Clock3 className="h-3.5 w-3.5" /> }]} />
         )}
-      </div>
+      </div>}
     </RecordCardShell>
   );
 }

@@ -16,6 +16,11 @@ import { buildGoalsStrategyExport, getGoalsStrategyExportFilename } from "../../
 import { applyStrategyDelta, describeStrategyDeltaProposal, parseStrategyDeltaText, validateStrategyDelta } from "../../domain/strategyDelta.js";
 import StrategyDeltaModal from "./StrategyDeltaModal.jsx";
 
+function FocusedStrategySummary({ strategy }) {
+  const preview = strategy?.objective || strategy?.desiredOutcome || strategy?.description || "No objective or desired outcome recorded.";
+  return <article className="case-file-strategy-focus-record rounded-xl border p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><h3 className="text-sm font-semibold">{strategy?.title || "Untitled Strategy"}</h3><p className="mt-1 text-sm">{preview}</p></div><div className="flex flex-wrap gap-1 text-[10px] font-bold uppercase tracking-wide">{strategy?.strategyType && <span>{strategy.strategyType}</span>}{strategy?.priority && <span>{strategy.priority}</span>}{strategy?.status && <span>{strategy.status}</span>}</div></div></article>;
+}
+
 export default function StrategyWorkspace({ caseItem, strategies = [], onAddStrategy, onUpdateCase, renderStrategyCard }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -116,22 +121,22 @@ export default function StrategyWorkspace({ caseItem, strategies = [], onAddStra
   const toggleDeltaProposal = (index, checked) => setSelectedDeltaIndexes((current) => checked ? [...new Set([...current, index])] : current.filter((item) => item !== index));
 
   return (
-    <div className="space-y-6">
+    <div className="case-file-strategy space-y-6">
       <GoalWorkspace caseItem={caseItem} onUpdateCase={onUpdateCase} focusedGoalId={focusedGoalId} onFocusGoal={setFocusedGoalId} />
-      <section className="rounded-2xl border border-lime-200 bg-lime-50/40 p-4 shadow-sm sm:p-5">
+      <section className="case-file-strategy-focus rounded-2xl border border-lime-200 bg-lime-50/40 p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div><div className="text-[10px] font-bold uppercase tracking-wider text-lime-800">Current Strategy</div><h2 className="mt-1 text-xl font-semibold text-neutral-950">{focusedGoal ? focusedGoal.title || "Untitled Goal" : "Select a Goal"}</h2><p className="mt-1 text-sm text-neutral-700">{focusedGoal ? "Strategies linked to this Goal." : "Choose Focus on a Goal above to review its linked Strategies."}</p></div>
+          <div><div className="case-file-strategy-eyebrow text-[10px] font-bold uppercase tracking-wider text-lime-800">Focused Strategy</div><h2 className="mt-1 text-xl font-semibold text-neutral-950">{focusedGoal ? focusedGoal.title || "Untitled Goal" : "Select a Goal"}</h2><p className="mt-1 text-sm text-neutral-700">{focusedGoal ? "Compact summaries of Strategies linked to this Goal. Full detail remains in All Strategy Records." : "Choose Focus on a Goal above to review its linked Strategies."}</p></div>
           {focusedGoal && <span className="rounded-full border border-lime-300 bg-white px-3 py-1 text-xs font-semibold text-lime-900">{focusedStrategies.length} linked</span>}
         </div>
-        {focusedGoal && (focusedStrategies.length > 0 ? <div className="mt-4 space-y-4">{focusedStrategies.map((strategy) => <div key={strategy.id}>{renderStrategyCard(strategy)}</div>)}</div> : <div className="mt-4 rounded-xl border border-dashed border-lime-300 bg-white/70 p-4 text-sm text-neutral-700">No Strategies are linked to this Goal yet. Open a Strategy record to link it to this Goal.</div>)}
-        <div className="mt-4 rounded-xl border border-lime-200 bg-white/80 p-3">
+        {focusedGoal && (focusedStrategies.length > 0 ? <div className="mt-4 space-y-2">{focusedStrategies.map((strategy) => <FocusedStrategySummary key={strategy.id} strategy={strategy} />)}</div> : <div className="case-file-strategy-empty mt-4 rounded-xl border border-dashed border-lime-300 bg-white/70 p-4 text-sm text-neutral-700">No Strategies are linked to this Goal yet. Open a Strategy record to link it to this Goal.</div>)}
+        <div className="case-file-strategy-export mt-4 rounded-xl border border-lime-200 bg-white/80 p-3">
           <div className="text-[10px] font-bold uppercase tracking-wider text-lime-800">Goals &amp; Strategy Data</div>
           <p className="mt-1 text-xs text-neutral-600">Download the complete, read-only Goals and Strategy subsystem for this case.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" onClick={downloadGoalsStrategyExport} className="rounded-lg border border-lime-500 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-800 hover:bg-lime-50">Download Goals &amp; Strategy JSON</button>
           </div>
         </div>
-        <div className="rounded-xl border border-lime-200 bg-white/80 p-3">
+        <div className="case-file-strategy-ai rounded-xl border border-lime-200 bg-white/80 p-3">
           <div className="text-[10px] font-bold uppercase tracking-wider text-lime-800">Work with AI</div>
           <p className="mt-1 text-xs text-neutral-600">Create a focused, read-only Strategy Context package for external strategic analysis.</p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -144,7 +149,7 @@ export default function StrategyWorkspace({ caseItem, strategies = [], onAddStra
         </div>
       </section>
       {strategyDeltaOpen && <StrategyDeltaModal text={strategyDeltaText} error={strategyDeltaError} validation={strategyDeltaValidation} selectedIndexes={selectedDeltaIndexes} staleConfirmed={staleDeltaConfirmed} onChangeText={(value) => { setStrategyDeltaText(value); setStrategyDeltaError(""); setStrategyDeltaValidation(null); setSelectedDeltaIndexes([]); setStaleDeltaConfirmed(false); }} onValidate={validatePastedStrategyDelta} onToggleProposal={toggleDeltaProposal} onStaleConfirm={setStaleDeltaConfirmed} onApply={applySelectedStrategyDelta} onClose={resetStrategyDelta} />}
-      <section className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm sm:p-5">
+      <section className="case-file-strategy-overview rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Strategy Records & History</div>
@@ -170,7 +175,7 @@ export default function StrategyWorkspace({ caseItem, strategies = [], onAddStra
       </section>
 
       {strategies.length === 0 ? (
-        <section className="rounded-2xl border border-dashed border-neutral-300 bg-white p-8 text-center">
+        <section className="case-file-strategy-empty rounded-2xl border border-dashed border-neutral-300 bg-white p-8 text-center">
           <h3 className="text-lg font-semibold text-neutral-900">No strategies yet.</h3>
           <button
             type="button"
@@ -182,7 +187,7 @@ export default function StrategyWorkspace({ caseItem, strategies = [], onAddStra
         </section>
       ) : (
         <>
-          <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+          <section className="case-file-strategy-controls rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 xl:items-end">
               <label className="min-w-0 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                 Search
@@ -247,7 +252,7 @@ export default function StrategyWorkspace({ caseItem, strategies = [], onAddStra
           </section>
 
           {visibleStrategies.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-6 text-center text-sm text-neutral-600">
+            <div className="case-file-strategy-empty rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-6 text-center text-sm text-neutral-600">
               <p>No strategies match the current search and filters.</p>
               <button type="button" onClick={resetFilters} className="mt-3 rounded-xl border border-lime-500 bg-white px-4 py-2 text-xs font-semibold text-neutral-800 hover:bg-lime-50">
                 Reset Filters
@@ -256,7 +261,7 @@ export default function StrategyWorkspace({ caseItem, strategies = [], onAddStra
           ) : sortMode === "sequence-group" ? (
             <div className="space-y-8">
               {sequenceGroups.map((group) => (
-                <section key={group.name} className="space-y-4">
+                <section key={group.name} className="case-file-strategy-group space-y-4">
                   <div className="flex items-center gap-3">
                     <div className="h-px flex-1 bg-neutral-200" />
                     <h3 className="text-xs font-bold uppercase tracking-widest text-neutral-500">{group.name}</h3>

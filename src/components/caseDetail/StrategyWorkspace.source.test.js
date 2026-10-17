@@ -21,8 +21,11 @@ test("strategy workspace exposes structured filters, sorts, summary metrics, and
   assert.match(source, /Reset Filters/);
   assert.match(source, /No strategies yet\./);
   assert.match(source, /groupStrategiesBySequenceGroup/);
-  assert.match(source, /Current Strategy/);
+  assert.match(source, /Focused Strategy/);
   assert.match(source, /All Strategy Records/);
+  assert.match(source, /FocusedStrategySummary/);
+  assert.match(source, /case-file-strategy/);
+  assert.match(source, /Full detail remains in All Strategy Records/);
   assert.match(source, /getStrategiesForGoal/);
   assert.match(source, /Work with AI/);
   assert.match(source, /Copy Strategy Context/);

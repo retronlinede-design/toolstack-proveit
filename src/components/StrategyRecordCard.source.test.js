@@ -57,3 +57,15 @@ test("strategy card maps type, priority, status, and decision badges semanticall
   assert.match(source, /getStrategyStatusBadgeVariant\(item\.status\)/);
   assert.match(source, /getDecisionStatusBadgeVariant\(item\.decisionStatus\)/);
 });
+
+test("strategy card uses a compact accessible disclosure and canonical Issue labels", () => {
+  assert.match(source, /import \{ useState \} from "react"/);
+  assert.match(source, /aria-expanded=\{expanded\}/);
+  assert.match(source, /aria-controls=\{`strategy-details-\$\{item\.id\}`\}/);
+  assert.match(source, /Expand details/);
+  assert.match(source, /Collapse details/);
+  assert.match(source, /resolveCaseIssue/);
+  assert.match(source, /getIssueDisplayLabel/);
+  assert.match(source, /Goal ·/);
+  assert.match(source, /Risks recorded/);
+});
