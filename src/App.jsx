@@ -1633,8 +1633,8 @@ export default function ProveItApp() {
     const targetCase = cases.find(c => c.id === selectedCaseId);
     if (!targetCase) return false;
 
-    const updatedCase = deletePartyFromCase(targetCase, partyId);
     try {
+      const updatedCase = deletePartyFromCase(targetCase, partyId);
       await saveCase(updatedCase, {
         operation: "deleteParty",
         allowSuspiciousOverwrite: true,
@@ -1643,6 +1643,13 @@ export default function ProveItApp() {
       return true;
     } catch (error) {
       console.error("Failed to delete party", error);
+      if (error?.code === "PARTY_OWNERSHIP_DEPENDENCY") {
+        const issueLabels = (error.dependencies?.issues || []).map((issue) => issue.reference ? `${issue.reference} — ${issue.name || "Untitled Issue"}` : issue.name || "Untitled Issue");
+        const strategyLabels = (error.dependencies?.strategy || []).map((strategy) => strategy.title || "Untitled Strategy");
+        const blockers = [...issueLabels, ...strategyLabels];
+        showAppNotice("error", `Cannot delete this Party while it is an owner of ${blockers.join(", ")}. Change or clear ownership explicitly before deleting the Party.`);
+        return false;
+      }
       showAppNotice("error", error.message || "Could not delete this party.");
       return false;
     }

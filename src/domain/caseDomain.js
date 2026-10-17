@@ -1550,7 +1550,25 @@ export function deleteDocumentEntryFromCase(caseItem, entryId) {
   return cleanupDeletedRecordLinks(updatedCase, "document", entryId);
 }
 
+export function getPartyOwnershipDependencies(caseItem, partyId) {
+  const id = safeString(partyId).trim();
+  if (!id) return { issues: [], strategy: [] };
+
+  return {
+    issues: (Array.isArray(caseItem?.issues) ? caseItem.issues : []).filter((issue) => safeString(issue?.ownerPartyId).trim() === id),
+    strategy: (Array.isArray(caseItem?.strategy) ? caseItem.strategy : []).filter((strategy) => safeString(strategy?.ownerPartyId).trim() === id),
+  };
+}
+
 export function deletePartyFromCase(caseItem, partyId) {
+  const dependencies = getPartyOwnershipDependencies(caseItem, partyId);
+  if (dependencies.issues.length > 0 || dependencies.strategy.length > 0) {
+    const error = new Error("Party cannot be deleted while it is assigned as an Issue or Strategy owner.");
+    error.code = "PARTY_OWNERSHIP_DEPENDENCY";
+    error.dependencies = dependencies;
+    throw error;
+  }
+
   const updatedCase = {
     ...caseItem,
     parties: (caseItem.parties || []).filter((party) => party.id !== partyId),

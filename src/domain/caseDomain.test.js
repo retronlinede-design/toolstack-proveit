@@ -9,6 +9,7 @@ import {
   deleteDocumentEntryFromCase,
   deleteLedgerEntryFromCase,
   deletePartyFromCase,
+  getPartyOwnershipDependencies,
   deleteRecordFromCase,
   getCaseSequenceGroups,
   getCaseSequenceGroupDetails,
@@ -1602,6 +1603,48 @@ test("deletePartyFromCase removes target party and linkedPartyIds across records
   assert.deepEqual(updated.ledger[0].linkedPartyIds, ["party-keep"]);
   assert.match(updated.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.notEqual(updated.updatedAt, caseItem.updatedAt);
+});
+
+test("Party deletion reports Issue and Strategy ownership dependencies without mutating the case", () => {
+  const caseItem = {
+    id: "case-party-owner",
+    parties: [{ id: "party-owner", displayName: "Owner" }, { id: "party-keep", displayName: "Keep" }],
+    issues: [{ id: "issue-1", reference: "ISS-001", name: "Repairs", ownerPartyId: "party-owner" }],
+    strategy: [{ id: "strategy-1", title: "Request repairs", ownerPartyId: "party-owner", linkedPartyIds: ["party-owner"] }],
+    incidents: [{ id: "incident-1", linkedPartyIds: ["party-owner"] }],
+  };
+
+  const dependencies = getPartyOwnershipDependencies(caseItem, "party-owner");
+  assert.deepEqual(dependencies.issues.map((issue) => issue.id), ["issue-1"]);
+  assert.deepEqual(dependencies.strategy.map((strategy) => strategy.id), ["strategy-1"]);
+  assert.throws(() => deletePartyFromCase(caseItem, "party-owner"), (error) => {
+    assert.equal(error.code, "PARTY_OWNERSHIP_DEPENDENCY");
+    assert.equal(error.dependencies.issues[0].id, "issue-1");
+    assert.equal(error.dependencies.strategy[0].id, "strategy-1");
+    return true;
+  });
+  assert.deepEqual(caseItem.parties.map((party) => party.id), ["party-owner", "party-keep"]);
+  assert.equal(caseItem.issues[0].ownerPartyId, "party-owner");
+  assert.equal(caseItem.strategy[0].ownerPartyId, "party-owner");
+  assert.deepEqual(caseItem.incidents[0].linkedPartyIds, ["party-owner"]);
+});
+
+test("Party deletion blocks either ownership type but preserves valid linked-only and unrelated deletion", () => {
+  const issueOwner = { id: "case-issue-owner", parties: [{ id: "party-owner" }], issues: [{ id: "issue-1", ownerPartyId: "party-owner" }], strategy: [] };
+  const strategyOwner = { id: "case-strategy-owner", parties: [{ id: "party-owner" }], issues: [], strategy: [{ id: "strategy-1", ownerPartyId: "party-owner" }] };
+  assert.throws(() => deletePartyFromCase(issueOwner, "party-owner"), { code: "PARTY_OWNERSHIP_DEPENDENCY" });
+  assert.throws(() => deletePartyFromCase(strategyOwner, "party-owner"), { code: "PARTY_OWNERSHIP_DEPENDENCY" });
+
+  const linkedOnly = { id: "case-linked-only", parties: [{ id: "party-linked" }, { id: "party-unrelated" }], issues: [{ id: "issue-legacy", ownerPartyId: "missing-party" }], strategy: [{ id: "strategy-1", linkedPartyIds: ["party-linked"] }], evidence: [{ id: "evidence-1", linkedPartyIds: ["party-linked"] }] };
+  const linkedDeleted = deletePartyFromCase(linkedOnly, "party-linked");
+  assert.deepEqual(linkedDeleted.parties.map((party) => party.id), ["party-unrelated"]);
+  assert.deepEqual(linkedDeleted.strategy[0].linkedPartyIds, []);
+  assert.deepEqual(linkedDeleted.evidence[0].linkedPartyIds, []);
+  assert.equal(linkedDeleted.issues[0].ownerPartyId, "missing-party");
+
+  const unrelatedDeleted = deletePartyFromCase({ ...linkedOnly, parties: [{ id: "party-linked" }, { id: "party-unrelated" }] }, "party-unrelated");
+  assert.deepEqual(unrelatedDeleted.parties.map((party) => party.id), ["party-linked"]);
+  assert.deepEqual(unrelatedDeleted.strategy[0].linkedPartyIds, ["party-linked"]);
 });
 
 test("deleteLedgerEntryFromCase removes target ledger entry and preserves unrelated unnormalized data", () => {
