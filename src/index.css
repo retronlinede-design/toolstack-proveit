@@ -57,6 +57,19 @@
 .proveit-record-secondary-action:focus-visible,
 .proveit-record-danger-action:focus-visible { outline: 2px solid #2dd4bf; outline-offset: 2px; }
 
+/* The case editor uses the shared dialog shell but retains its own form scope. */
+.proveit-case-editor-dialog .proveit-case-editor-input {
+  width: 100%;
+  border: 1px solid #475569;
+  border-radius: 0.625rem;
+  background: #0f1f35;
+  padding: 0.65rem 0.75rem;
+  color: #f1f5f9;
+  line-height: 1.4;
+}
+.proveit-case-editor-dialog .proveit-case-editor-input::placeholder { color: #94a3b8; }
+.proveit-case-editor-dialog .proveit-case-editor-input:focus { border-color: #2dd4bf; outline: 2px solid transparent; box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.45); }
+
 /* Case Records stays scoped to the open-case tracking-record workspace. */
 .proveit-dark-shell .case-file-records { color: var(--case-file-text); }
 .proveit-dark-shell .case-file-records :is(.case-file-records-header, .case-file-records-controls, .case-file-records-empty, .case-file-records-list, .case-file-records-detail) { border-color: var(--case-file-border) !important; background: var(--case-file-surface) !important; box-shadow: 0 10px 24px rgb(0 0 0 / .12) !important; }

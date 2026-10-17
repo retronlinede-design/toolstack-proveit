@@ -12,6 +12,7 @@ import {
 } from "./storage";
 import AttachmentPreview from "./components/AttachmentPreview";
 import RecordModal from "./components/RecordModal";
+import DialogShell from "./components/shared/DialogShell";
 import CaseDetail from "./components/CaseDetail";
 import FilePreviewModal from "./components/FilePreviewModal";
 import GptDeltaModal from "./components/gpt/GptDeltaModal";
@@ -673,6 +674,94 @@ function getNewImageIdsForCaseUpdate(previousCase, nextCase) {
   const previousIds = collectEmbeddedCaseImageIds(previousCase);
   const nextIds = collectEmbeddedCaseImageIds(nextCase);
   return [...nextIds].filter((imageId) => !previousIds.has(imageId));
+}
+
+function CaseEditorDialog({ editingCase, form, setForm, onSave, onDismiss }) {
+  const caseNameInputRef = useRef(null);
+  const initialFormFingerprintRef = useRef(JSON.stringify(form));
+  const [discardPromptOpen, setDiscardPromptOpen] = useState(false);
+  const isEditing = !!editingCase;
+
+  const requestClose = () => {
+    if (initialFormFingerprintRef.current !== JSON.stringify(form)) {
+      setDiscardPromptOpen(true);
+      return;
+    }
+    onDismiss();
+  };
+
+  const footer = discardPromptOpen ? (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" role="alert">
+      <p className="text-sm text-amber-100">Discard unsaved changes? This case has not been saved.</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => setDiscardPromptOpen(false)} className="proveit-record-secondary-action">Keep editing</button>
+        <button type="button" onClick={onDismiss} className="proveit-record-danger-action">Discard changes</button>
+      </div>
+    </div>
+  ) : (
+    <div className="flex flex-wrap justify-end gap-2">
+      <button type="button" onClick={onSave} className="proveit-record-primary-action">{isEditing ? "Save case" : "Create case"}</button>
+      <button type="button" onClick={requestClose} className="proveit-record-secondary-action">Cancel</button>
+    </div>
+  );
+
+  return (
+    <DialogShell
+      title={isEditing ? "Edit case" : "Create case"}
+      description="Set the case name, description, category, and optional working notes. You can revise these later."
+      width="compact"
+      onRequestClose={requestClose}
+      dismissOnBackdrop={false}
+      initialFocusRef={caseNameInputRef}
+      footer={footer}
+      className="proveit-case-editor-dialog"
+    >
+      <div className="space-y-5">
+        <section aria-labelledby="case-editor-basics">
+          <h3 id="case-editor-basics" className="text-sm font-semibold text-slate-100">Case details</h3>
+          <p className="mt-1 text-sm leading-5 text-slate-300">Use a recognisable name. Categories help organise cases but do not change the records inside them.</p>
+          <div className="mt-4 space-y-4">
+            <div>
+              <label htmlFor="case-editor-name" className="mb-1.5 block text-sm font-medium text-slate-100">Case name</label>
+              <input id="case-editor-name" ref={caseNameInputRef} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Case name" className="proveit-case-editor-input" />
+            </div>
+            <div>
+              <label htmlFor="case-editor-description" className="mb-1.5 block text-sm font-medium text-slate-100">Description</label>
+              <textarea id="case-editor-description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="Briefly describe the case" className="proveit-case-editor-input min-h-20 resize-y" rows={3} />
+            </div>
+          </div>
+        </section>
+        <section aria-labelledby="case-editor-classification" className="border-t border-slate-700/80 pt-5">
+          <h3 id="case-editor-classification" className="text-sm font-semibold text-slate-100">Classification</h3>
+          <div className="mt-4 space-y-4">
+            <div>
+              <label htmlFor="case-editor-category" className="mb-1.5 block text-sm font-medium text-slate-100">Category</label>
+              <select id="case-editor-category" value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} className="proveit-case-editor-input">
+                <option value="general">General</option>
+                <option value="personal">Personal</option>
+                <option value="work">Work</option>
+                <option value="housing">Property / Housing</option>
+                <option value="legal">Legal</option>
+                <option value="custom">Custom category</option>
+              </select>
+            </div>
+            {form.category === "custom" && (
+              <div>
+                <label htmlFor="case-editor-custom-category" className="mb-1.5 block text-sm font-medium text-slate-100">Custom category</label>
+                <input id="case-editor-custom-category" value={form.customCategory} onChange={(event) => setForm({ ...form, customCategory: event.target.value })} placeholder="For example: Business, Family, Medical" className="proveit-case-editor-input" />
+              </div>
+            )}
+          </div>
+        </section>
+        <section aria-labelledby="case-editor-notes" className="border-t border-slate-700/80 pt-5">
+          <h3 id="case-editor-notes" className="text-sm font-semibold text-slate-100">Working notes</h3>
+          <p className="mt-1 text-sm leading-5 text-slate-300">Optional notes for the case owner. They do not replace structured records.</p>
+          <label htmlFor="case-editor-notes-field" className="sr-only">Working notes</label>
+          <textarea id="case-editor-notes-field" value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="Optional notes" className="proveit-case-editor-input mt-4 min-h-28 resize-y" rows={5} />
+        </section>
+      </div>
+    </DialogShell>
+  );
 }
 
 export default function ProveItApp() {
@@ -4968,35 +5057,14 @@ const handleRecordFiles = async (event) => {
         )}
 
         {showCreate && (
-          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
-              <h2 className="mb-4 text-xl font-semibold">{editingCase ? "Edit Case" : "Create Case"}</h2>
-              <p className="mb-4 text-sm text-neutral-600">Give the case any name that makes sense for the user. Generic templates are only starting points and can be kept, renamed, or ignored entirely.</p>
-              <input placeholder="Case Name (custom for this user)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="mb-3 w-full rounded-xl border border-neutral-300 p-3" />
-              <textarea placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="mb-3 w-full rounded-xl border border-neutral-300 p-3" rows={2} />
-              <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="mb-3 w-full rounded-xl border border-neutral-300 p-3">
-                <option value="general">General</option>
-                <option value="personal">Personal</option>
-                <option value="work">Work</option>
-                <option value="housing">Property / Housing</option>
-                <option value="legal">Legal</option>
-                <option value="custom">Custom Category</option>
-              </select>
-              {form.category === "custom" && (
-                <input
-                  placeholder="Custom Category (e.g. Business, Family, Medical, Education)"
-                  value={form.customCategory}
-                  onChange={(e) => setForm({ ...form, customCategory: e.target.value })}
-                  className="mb-3 w-full rounded-xl border border-neutral-300 p-3"
-                />
-              )}
-              <textarea placeholder="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="mb-4 w-full rounded-xl border border-neutral-300 p-3" rows={4} />
-              <div className="flex gap-2">
-                <button onClick={handleSaveCase} className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">{editingCase ? "Save" : "Create"}</button>
-                <button onClick={() => setShowCreate(false)} className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors">Cancel</button>
-              </div>
-            </div>
-          </div>
+          <CaseEditorDialog
+            key={editingCase ? `edit:${editingCase.id}` : "new"}
+            editingCase={editingCase}
+            form={form}
+            setForm={setForm}
+            onSave={handleSaveCase}
+            onDismiss={() => setShowCreate(false)}
+          />
         )}
 
         {recordType && selectedCase && (
