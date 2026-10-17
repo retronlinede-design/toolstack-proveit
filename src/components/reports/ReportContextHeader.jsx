@@ -14,7 +14,7 @@ function formatGenerated(value) {
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("en-GB", { dateStyle: "long", timeStyle: "short" }).format(date);
 }
 
-export default function ReportContextHeader({ definition, scopeLabel, countLabel = "", reportDocument = null }) {
+export default function ReportContextHeader({ definition, presentationLabel = "", scopeLabel, countLabel = "", reportDocument = null }) {
   const completeness = COMPLETENESS[definition?.completeness] || COMPLETENESS.summary;
   const outputs = (definition?.supportedOutputs || []).map((item) => OUTPUT_LABELS[item]).filter(Boolean);
   const includes = (definition?.recordTypes || []).map((item) => RECORD_LABELS[item] || item).join(", ");
@@ -25,7 +25,7 @@ export default function ReportContextHeader({ definition, scopeLabel, countLabel
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="case-file-reports-eyebrow">Report context · Selected report</p>
-          <h4 id="selected-report-title" className="mt-1 text-xl font-bold text-neutral-950 dark:text-neutral-50">{definition?.label || "Report"}</h4>
+          <h4 id="selected-report-title" className="mt-1 text-xl font-bold text-neutral-950 dark:text-neutral-50">{presentationLabel || definition?.label || "Report"}</h4>
           <p className="mt-1 text-sm leading-6 text-neutral-600 dark:text-neutral-300">{definition?.description}</p>
           <p className="mt-1 text-sm font-semibold text-neutral-700 dark:text-neutral-200">{[completeness.label, scopeLabel, countLabel].filter(Boolean).join(" · ")}</p>
           <p className="mt-1 text-sm leading-6 text-neutral-600 dark:text-neutral-300">{completeness.description}</p>

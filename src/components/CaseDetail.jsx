@@ -97,6 +97,8 @@ import ClientReportArticle from "./reports/ClientReportArticle.jsx";
 import ActionPlanReportArticle from "./reports/ActionPlanReportArticle.jsx";
 import ThreadIssueReportArticle from "./reports/ThreadIssueReportArticle";
 import ReportCentreControls, { ReportCentrePreviewSummary } from "./reports/ReportCentreControls";
+import ReportOutputActions from "./reports/ReportOutputActions.jsx";
+import { REPORT_CENTRE_PRESENTATION } from "./reports/reportCentreConfig.js";
 import ReportContextHeader from "./reports/ReportContextHeader.jsx";
 import SequenceGroupManager from "./sequenceGroups/SequenceGroupManager";
 import {
@@ -5020,6 +5022,7 @@ ${ungroupedSequenceText}
                   </div>
                   <ReportContextHeader
                     definition={getReportDefinition(reportCentreType)}
+                    presentationLabel={REPORT_CENTRE_PRESENTATION[reportCentreType]?.label}
                     scopeLabel={normalisedReportCentreScopeType === "sequenceGroup" ? `Issue: ${selectedReportCentreSequenceGroup || "Not selected"}` : getReportDefinition(reportCentreType).supportedScopes.length === 1 ? "Whole case only" : "Whole case"}
                     countLabel={reportCentreCountLabel}
                     reportDocument={reportCentreActiveDocument}
@@ -5194,6 +5197,24 @@ ${ungroupedSequenceText}
                       {reportCentreType === "action" && <ActionPlanReportArticle reportDocument={reportCentreActionDocument} />}
                     </>
                   )}
+                  <section className="case-file-reports-export rounded-xl border border-neutral-200 bg-white p-4 print:hidden dark:border-neutral-700 dark:bg-neutral-900" aria-labelledby="report-export-heading">
+                    <p className="case-file-reports-eyebrow">Export</p>
+                    <h5 id="report-export-heading" className="mt-1 text-base font-bold">Export the reviewed preview</h5>
+                    <p className="mt-1 text-sm leading-6 text-neutral-600 dark:text-neutral-300">This is a derived output from the current case revision. Printing, downloading, or copying it does not approve, verify, or permanently save a report. Original attachments are not embedded.</p>
+                    <div className="mt-4">
+                      <ReportOutputActions
+                        reportType={reportCentreType}
+                        markdownAvailable={Boolean(reportCentreMarkdown)}
+                        documentOutputAvailable={Boolean(reportCentreActiveDocument)}
+                        disabled={normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreSequenceGroup}
+                        feedback={reportCentreOutputFeedback}
+                        onCopyMarkdown={handleCopyReportCentreMarkdown}
+                        onDownloadMarkdown={() => handleDownloadReportCentreOutput("markdown")}
+                        onDownloadJson={() => handleDownloadReportCentreOutput("json")}
+                        onPrint={handleReportCentrePrint}
+                      />
+                    </div>
+                  </section>
                 </section>
 
                 <details id="case-documentation" className="case-file-reports-documentation scroll-mt-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden dark:border-neutral-700 dark:bg-neutral-900">

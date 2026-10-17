@@ -16,6 +16,26 @@ export const REPORT_CENTRE_TYPES = Object.freeze([
   };
 }));
 
+// User-facing wording only: report IDs, builders, and persisted data remain unchanged.
+export const REPORT_CENTRE_PRESENTATION = Object.freeze({
+  management: { label: "Case Position Brief", kind: "Report", preparation: "Ready to preview from recorded case information." },
+  investigation: { label: "Issue Investigation Report", kind: "Report", preparation: "Use an Issue scope when you need a focused investigation view." },
+  client: { label: "Client Update Draft", kind: "Draft", preparation: "Requires the existing assisted drafting and human-review workflow." },
+  incidentSchedule: { label: "Incident Schedule", kind: "Schedule", preparation: "Structured incident inventory." },
+  chronologyReport: { label: "Chronology", kind: "Schedule", preparation: "Date-ordered record schedule." },
+  evidence: { label: "Evidence Schedule", kind: "Schedule", preparation: "Structured evidence and relationship schedule." },
+  document: { label: "Document Schedule", kind: "Schedule", preparation: "Document metadata and linked-record schedule." },
+  ledger: { label: "Ledger Schedule", kind: "Schedule", preparation: "Structured financial and measurable-record schedule." },
+  caseAudit: { label: "Case Quality Audit", kind: "Internal tool", preparation: "Checks recorded data quality and relationships; it does not assess legal merit." },
+  action: { label: "Operational Brief", kind: "Internal tool", preparation: "Summarises recorded actions, reviews, and data-quality remediation." },
+});
+
+export const REPORT_CENTRE_CATALOGUE = Object.freeze([
+  { id: "main", title: "Main Reports", description: "Start here for a clear case briefing, focused investigation, or client-facing draft.", reports: ["management", "investigation", "client"] },
+  { id: "schedules", title: "Specialist Schedules", description: "Detailed, structured schedules for investigation, review, and export.", reports: ["incidentSchedule", "chronologyReport", "evidence", "document", "ledger"] },
+  { id: "internal", title: "Internal Tools & Documentation", description: "Operational review, data-quality checks, and configurable case documentation.", reports: ["caseAudit", "action"] },
+]);
+
 export function getReportCentrePreviewDescription(reportType, scopeType) {
   const scope = normaliseReportScope(reportType, scopeType);
   if (reportType === "management") return "Whole-case executive briefing focused on the current position, priority Issues, risks, decisions, and next actions.";

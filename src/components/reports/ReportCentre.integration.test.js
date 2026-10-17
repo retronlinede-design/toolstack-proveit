@@ -63,17 +63,17 @@ function renderPreview(reportType, scopeType, scopeLabel) {
   }));
 }
 
-test("active Reports Centre groups every report selector into the Prepare, Create, Review, and Export workspace", () => {
+test("Reports Centre prioritises main reports and keeps specialist and internal formats accessible", () => {
   const html = renderControls();
-  for (const definition of REPORT_CENTRE_TYPES) assert.match(html, new RegExp(definition.label));
-  for (const heading of ["Prepare · Create · Review · Export", "Set the report scope", "Share a reviewed copy", "Select a report type", "Case Reports", "Schedules &amp; Evidence", "Audit &amp; Actions", "Case documentation"]) assert.match(html, new RegExp(heading));
+  for (const label of ["Case Position Brief", "Issue Investigation Report", "Client Update Draft", "Incident Schedule", "Evidence Schedule", "Case Quality Audit", "Operational Brief"]) assert.match(html, new RegExp(label));
+  for (const heading of ["1 · Choose purpose", "2 · Choose scope", "Main Reports", "Specialist Schedules", "Internal Tools &amp; Documentation"]) assert.match(html, new RegExp(heading));
   assert.match(html, /Issue Audit/);
   assert.doesNotMatch(html, /Unavailable Reports/);
-  assert.match(html, /does not approve or replace the case record/);
+  assert.match(html, /not independently verified or approved/);
   assert.match(html, /Audience/);
   assert.match(html, /Completeness/);
   assert.match(html, /<details class="case-file-reports-specialist">/);
-  assert.match(html, /Case Bundle and specialist formats/);
+  assert.match(html, /Case Documentation/);
   assert.doesNotMatch(html, /Print Pack/);
 });
 
@@ -117,38 +117,21 @@ test("empty sequence group collections render a useful empty state", () => {
     selectedSequenceGroup: "",
   });
   assert.match(html, /No Issues exist in this case yet/);
-  assert.match(html, /Print \/ Save PDF/);
-  assert.match(html, /disabled=""/);
-});
-
-test("Copy Markdown is available only for reports with real Markdown output", () => {
-  assert.match(renderControls({ reportType: "action", markdownAvailable: true }), /Copy Markdown/);
-  assert.doesNotMatch(renderControls({ reportType: "management", markdownAvailable: false }), />Copy Markdown</);
-  assert.doesNotMatch(renderControls({ reportType: "evidence", markdownAvailable: false }), />Copy Markdown</);
-});
-
-test("migrated factual reports expose shared Markdown and JSON actions only when a document exists", () => {
-  for (const reportType of ["client", "management", "evidence", "document", "ledger", "caseAudit", "incidentSchedule", "chronologyReport", "action"]) {
-    const html = renderControls({ reportType, markdownAvailable: true, documentOutputAvailable: true });
-    assert.match(html, /Copy Markdown/);
-    assert.match(html, /Download Markdown/);
-    assert.match(html, /Download JSON/);
-  }
+  assert.doesNotMatch(html, /Print \/ Save PDF/);
 });
 
 test("Incident Schedule and Chronology Report expose complete scoped previews", () => {
   for (const reportType of ["incidentSchedule", "chronologyReport"]) {
-    const controls = renderControls({ reportType, scopeType: "sequenceGroup", markdownAvailable: true, documentOutputAvailable: true });
-    assert.match(controls, /Whole Case/); assert.match(controls, />Issue</); assert.match(controls, /Copy Markdown/); assert.match(controls, /Download Markdown/); assert.match(controls, /Download JSON/); assert.match(controls, /Print \/ Save PDF/);
+    const controls = renderControls({ reportType, scopeType: "sequenceGroup" });
+    assert.match(controls, /Whole Case/); assert.match(controls, />Issue</);
     assert.match(renderPreview(reportType, "sequenceGroup", "Issue: Alpha"), /Scope: Issue: Alpha/);
   }
   assert.match(caseDetailSource, /<IncidentScheduleReportArticle/); assert.match(caseDetailSource, /<ChronologyReportArticle/); assert.match(caseDetailSource, /reportCentreIncidentDocument/); assert.match(caseDetailSource, /reportCentreChronologyDocument/);
 });
 
-test("Case Audit Report is ordered before schedules and exposes the complete shared runtime", () => {
-  const ids = REPORT_CENTRE_TYPES.map((item) => item.value); assert.ok(ids.indexOf("caseAudit") > ids.indexOf("investigation")); assert.ok(ids.indexOf("caseAudit") < ids.indexOf("incidentSchedule"));
-  const controls = renderControls({ reportType: "caseAudit", scopeType: "sequenceGroup", markdownAvailable: true, documentOutputAvailable: true });
-  assert.match(controls, /Whole Case/); assert.match(controls, />Issue</); assert.match(controls, /Copy Markdown/); assert.match(controls, /Download Markdown/); assert.match(controls, /Download JSON/); assert.match(controls, /Print \/ Save PDF/);
+test("Case Audit Report remains available as an advanced internal tool", () => {
+  const controls = renderControls({ reportType: "caseAudit", scopeType: "sequenceGroup" });
+  assert.match(controls, /Internal Tools &amp; Documentation/); assert.match(controls, /Whole Case/); assert.match(controls, />Issue</);
   assert.match(renderPreview("caseAudit", "sequenceGroup", "Sequence Group: Alpha"), /internal deterministic audit/i);
   assert.match(caseDetailSource, /<CaseAuditReportArticle/); assert.match(caseDetailSource, /reportCentreCaseAuditDocument/); assert.match(caseDetailSource, /This Issue contains no directly assigned records to audit/);
 });
@@ -174,6 +157,9 @@ test("the active CaseDetail Report Centre uses the rendered control boundary", (
   assert.doesNotMatch(caseDetailSource, /reportCentreType === "investigation"[\s\S]{0,200}<CaseBundleReportArticle/);
   assert.match(caseDetailSource, /className="case-file-reports space-y-5"/);
   assert.match(caseDetailSource, /Review the selected report/);
+  assert.match(caseDetailSource, /Export the reviewed preview/);
+  assert.match(caseDetailSource, /Original attachments are not embedded/);
+  assert.match(caseDetailSource, /<ReportOutputActions/);
   assert.match(caseDetailSource, /id="case-documentation"/);
   assert.match(caseDetailSource, /id="internal-case-summary"/);
   assert.match(caseDetailSource, /Internal Case Summary/);
