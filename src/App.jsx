@@ -844,6 +844,9 @@ export default function ProveItApp() {
 
   const [ledgerModalOpen, setLedgerModalOpen] = useState(false);
   const [ledgerForm, setLedgerForm] = useState(EMPTY_LEDGER_FORM);
+  const ledgerLabelInputRef = useRef(null);
+  const ledgerFormFingerprintRef = useRef("");
+  const [ledgerDiscardPromptOpen, setLedgerDiscardPromptOpen] = useState(false);
   const [editingLedgerId, setEditingLedgerId] = useState(null);
 
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
@@ -1601,13 +1604,16 @@ export default function ProveItApp() {
       }
     }
 
-    setLedgerForm({ 
-      ...EMPTY_LEDGER_FORM, 
-      ...preset, 
+    const nextLedgerForm = {
+      ...EMPTY_LEDGER_FORM,
+      ...preset,
       linkedPartyIds: Array.isArray(preset.linkedPartyIds) ? preset.linkedPartyIds : [],
       batchLabel,
-      groupMode 
-    });
+      groupMode
+    };
+    ledgerFormFingerprintRef.current = JSON.stringify(nextLedgerForm);
+    setLedgerDiscardPromptOpen(false);
+    setLedgerForm(nextLedgerForm);
     setEditingLedgerId(ledgerId);
     setLedgerModalOpen(true);
   };
@@ -1625,11 +1631,14 @@ export default function ProveItApp() {
     };
 
     setEditingLedgerId(null);
-    setLedgerForm({
+    const nextLedgerForm = {
       ...EMPTY_LEDGER_FORM,
       ...duplicated,
       linkedPartyIds: Array.isArray(duplicated.linkedPartyIds) ? duplicated.linkedPartyIds : [],
-    });
+    };
+    ledgerFormFingerprintRef.current = JSON.stringify(nextLedgerForm);
+    setLedgerDiscardPromptOpen(false);
+    setLedgerForm(nextLedgerForm);
     setLedgerModalOpen(true);
   };
 
@@ -1961,6 +1970,15 @@ export default function ProveItApp() {
     setLedgerModalOpen(false);
     setLedgerForm(EMPTY_LEDGER_FORM);
     setEditingLedgerId(null);
+    setLedgerDiscardPromptOpen(false);
+  };
+
+  const requestCloseLedgerModal = () => {
+    if (ledgerFormFingerprintRef.current !== JSON.stringify(ledgerForm)) {
+      setLedgerDiscardPromptOpen(true);
+      return;
+    }
+    closeLedgerModal();
   };
 
   const saveLedgerEntry = async () => {
@@ -3839,6 +3857,20 @@ const handleRecordFiles = async (event) => {
       <button type="button" onClick={requestCloseDocumentModal} className="proveit-record-secondary-action">Cancel</button>
     </div>
   );
+  const ledgerModalFooter = ledgerDiscardPromptOpen ? (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" role="alert">
+      <p className="text-sm text-amber-100">Discard unsaved changes? This ledger entry has not been saved.</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => setLedgerDiscardPromptOpen(false)} className="proveit-record-secondary-action">Keep editing</button>
+        <button type="button" onClick={closeLedgerModal} className="proveit-record-danger-action">Discard changes</button>
+      </div>
+    </div>
+  ) : (
+    <div className="flex flex-wrap justify-end gap-2">
+      <button type="button" onClick={saveLedgerEntry} className="proveit-record-primary-action">Save entry</button>
+      <button type="button" onClick={requestCloseLedgerModal} className="proveit-record-secondary-action">Cancel</button>
+    </div>
+  );
 
   if (appLockCorrupt) {
     return (
@@ -5155,18 +5187,24 @@ const handleRecordFiles = async (event) => {
         )}
 
         {ledgerModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl flex flex-col max-h-[90vh]">
-              <div className="mb-4">
-                <h2 className="text-xl font-semibold">{editingLedgerId ? "Edit Ledger Entry" : "Add Ledger Entry"}</h2>
-                <p className="text-sm text-neutral-600">{editingLedgerId ? "Update money, payment, or claim details." : "Record money due, paid, withheld, or claimed."}</p>
-              </div>
+          <DialogShell
+            key={`${selectedCaseId}:${editingLedgerId || "new"}`}
+            title={editingLedgerId ? "Edit Ledger Entry" : "Add Ledger Entry"}
+            description={editingLedgerId ? "Update money, payment, or claim details." : "Record money due, paid, withheld, or claimed."}
+            width="standard"
+            onRequestClose={requestCloseLedgerModal}
+            dismissOnBackdrop={false}
+            initialFocusRef={ledgerLabelInputRef}
+            footer={ledgerModalFooter}
+            className="proveit-ledger-editor-dialog"
+          >
 
-              <div className="flex-1 overflow-y-auto pr-1 space-y-4">
+              <div className="space-y-4">
                 <div>
                   <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Label</label>
                   <input
                     type="text"
+                    ref={ledgerLabelInputRef}
                     value={ledgerForm.label}
                     onChange={(e) => setLedgerForm({ ...ledgerForm, label: e.target.value })}
                     placeholder="e.g. Monthly Rent Payment"
@@ -5371,23 +5409,7 @@ const handleRecordFiles = async (event) => {
                   onChange={(linkedPartyIds) => setLedgerForm((prev) => ({ ...prev, linkedPartyIds }))}
                 />
               </div>
-
-              <div className="mt-6 flex gap-3 pt-4 border-t border-neutral-100">
-                <button
-                  onClick={saveLedgerEntry}
-                  className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
-                >
-                  Save Entry
-                </button>
-                <button
-                  onClick={closeLedgerModal}
-                  className="flex-1 rounded-xl bg-neutral-100 py-2 font-bold text-neutral-600 hover:bg-neutral-200 transition-all"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
+          </DialogShell>
         )}
 
         {documentModalOpen && (

@@ -93,6 +93,28 @@
 .proveit-document-editor-dialog :is(input, select, textarea, button):focus-visible { outline: 2px solid #2dd4bf; outline-offset: 2px; }
 .proveit-document-editor-dialog :is(input, select, textarea):focus { border-color: #2dd4bf; box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.35); }
 
+/* The Ledger editor retains its financial form and uses this scope only for presentation. */
+.proveit-ledger-editor-dialog .bg-white,
+.proveit-ledger-editor-dialog .bg-neutral-50,
+.proveit-ledger-editor-dialog .bg-neutral-50\/50,
+.proveit-ledger-editor-dialog .bg-neutral-100 { background-color: #12213a; }
+.proveit-ledger-editor-dialog .border-neutral-100,
+.proveit-ledger-editor-dialog .border-neutral-200,
+.proveit-ledger-editor-dialog .border-neutral-300 { border-color: #334155; }
+.proveit-ledger-editor-dialog .text-neutral-900,
+.proveit-ledger-editor-dialog .text-neutral-800,
+.proveit-ledger-editor-dialog .text-neutral-700 { color: #e2e8f0; }
+.proveit-ledger-editor-dialog .text-neutral-600,
+.proveit-ledger-editor-dialog .text-neutral-500,
+.proveit-ledger-editor-dialog .text-neutral-400 { color: #cbd5e1; }
+.proveit-ledger-editor-dialog input:not([type="checkbox"]):not([type="radio"]),
+.proveit-ledger-editor-dialog select,
+.proveit-ledger-editor-dialog textarea { border-color: #475569; background-color: #0f1f35; color: #f1f5f9; }
+.proveit-ledger-editor-dialog input::placeholder,
+.proveit-ledger-editor-dialog textarea::placeholder { color: #94a3b8; }
+.proveit-ledger-editor-dialog :is(input, select, textarea, button):focus-visible { outline: 2px solid #2dd4bf; outline-offset: 2px; }
+.proveit-ledger-editor-dialog :is(input, select, textarea):focus { border-color: #2dd4bf; box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.35); }
+
 /* Case Records stays scoped to the open-case tracking-record workspace. */
 .proveit-dark-shell .case-file-records { color: var(--case-file-text); }
 .proveit-dark-shell .case-file-records :is(.case-file-records-header, .case-file-records-controls, .case-file-records-empty, .case-file-records-list, .case-file-records-detail) { border-color: var(--case-file-border) !important; background: var(--case-file-surface) !important; box-shadow: 0 10px 24px rgb(0 0 0 / .12) !important; }
