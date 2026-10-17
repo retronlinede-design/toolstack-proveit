@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Search, UserPlus } from "lucide-react";
+import { ChevronDown, Search, UserPlus } from "lucide-react";
 import RecordActions from "../shared/RecordActions.jsx";
 import RecordBadge from "../shared/RecordBadge.jsx";
 import RecordMetadataRow from "../shared/RecordMetadataRow.jsx";
@@ -25,16 +25,16 @@ import {
 } from "./partiesViewHelpers.js";
 
 function Chip({ children, tone = "neutral" }) {
-  const classes = {
-    neutral: "border-neutral-200 bg-neutral-50 text-neutral-600",
-    role: "border-lime-200 bg-lime-50 text-lime-700",
-  };
-
   return (
-    <span className={`inline-flex max-w-full items-center rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${classes[tone] || classes.neutral}`}>
+    <span className={`case-file-party-chip case-file-party-chip-${tone} inline-flex max-w-full items-center rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider`}>
       <span className="truncate">{children}</span>
     </span>
   );
+}
+
+function getAddressLines(address = {}) {
+  const locality = [address.city, address.region, address.postalCode].filter(Boolean).join(", ");
+  return [address.line1, address.line2, locality, address.country].filter(Boolean);
 }
 
 function getPartyStatusBadgeVariant(status) {
@@ -263,6 +263,7 @@ export default function PartiesTab({
   const [editingParty, setEditingParty] = useState(null);
   const [form, setForm] = useState(createEmptyPartyForm);
   const [saving, setSaving] = useState(false);
+  const [expandedPartyIds, setExpandedPartyIds] = useState({});
 
   const sortedParties = useMemo(() => sortPartiesByName(parties), [parties]);
   const filteredParties = useMemo(() => filterParties(sortedParties, {
@@ -272,6 +273,7 @@ export default function PartiesTab({
     status: statusFilter,
     tag: tagFilter,
   }), [sortedParties, query, entityTypeFilter, roleFilter, statusFilter, tagFilter]);
+  const filtersActive = Boolean(query || tagFilter || entityTypeFilter !== PARTY_FILTER_ALL || roleFilter !== PARTY_FILTER_ALL || statusFilter !== PARTY_FILTER_ALL);
 
   const openAddModal = () => {
     setEditingParty(null);
@@ -320,135 +322,77 @@ export default function PartiesTab({
     await onDeleteParty?.(party.id);
   };
 
+  const clearFilters = () => {
+    setQuery("");
+    setEntityTypeFilter(PARTY_FILTER_ALL);
+    setRoleFilter(PARTY_FILTER_ALL);
+    setStatusFilter(PARTY_FILTER_ALL);
+    setTagFilter("");
+  };
+
+  const togglePartyExpanded = (partyId) => {
+    setExpandedPartyIds((current) => ({ ...current, [partyId]: !current[partyId] }));
+  };
+
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-neutral-950">People & Parties</h3>
-          <p className="mt-1 text-sm text-neutral-500">Manage people and organisations connected to this case.</p>
+    <div className="case-file-parties space-y-5">
+      <section className="case-file-parties-header rounded-2xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="case-file-parties-eyebrow">Case participants</p>
+            <h3 className="mt-1 text-xl font-semibold text-neutral-950">People & Parties</h3>
+            <p className="mt-1 text-sm text-neutral-600">Manage people and organisations connected to this case.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-neutral-500" aria-live="polite">{filteredParties.length} shown of {parties.length}</span>
+            <button type="button" onClick={openAddModal} className="case-file-parties-primary-action">
+              <UserPlus className="h-4 w-4" aria-hidden="true" />
+              Add Party
+            </button>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={openAddModal}
-          className="inline-flex w-fit items-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 shadow-sm hover:bg-lime-400/30"
-        >
-          <UserPlus className="h-4 w-4" aria-hidden="true" />
-          Add Party
-        </button>
-      </div>
+      </section>
 
-      <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-        <div className="grid gap-3 lg:grid-cols-5">
-          <label className="block lg:col-span-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Search</span>
-            <span className="mt-1 flex items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2">
-              <Search className="h-4 w-4 shrink-0 text-neutral-400" aria-hidden="true" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Name, alias, contact, tag"
-                className="min-w-0 flex-1 bg-transparent text-sm outline-none"
-              />
-            </span>
-          </label>
-          <label className="block">
-            <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Entity</span>
-            <select value={entityTypeFilter} onChange={(event) => setEntityTypeFilter(event.target.value)} className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-lime-500">
-              <option value={PARTY_FILTER_ALL}>All entities</option>
-              {PARTY_ENTITY_TYPES.map((type) => <option key={type} value={type}>{getPartyEntityTypeLabel(type)}</option>)}
-            </select>
-          </label>
-          <label className="block">
-            <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Role</span>
-            <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-lime-500">
-              <option value={PARTY_FILTER_ALL}>All roles</option>
-              {PARTY_ROLES.map((role) => <option key={role} value={role}>{getPartyRoleLabel(role)}</option>)}
-            </select>
-          </label>
-          <label className="block">
-            <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Status</span>
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-lime-500">
-              <option value={PARTY_FILTER_ALL}>All statuses</option>
-              {PARTY_STATUSES.map((status) => <option key={status} value={status}>{getPartyStatusLabel(status)}</option>)}
-            </select>
-          </label>
+      <section className="case-file-parties-controls rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm" aria-label="Party filters">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_repeat(3,minmax(9rem,.42fr))_auto] lg:items-end">
+          <label className="case-file-parties-filter-label" htmlFor="party-search">Search parties<span className="case-file-parties-search mt-2"><Search className="h-4 w-4 shrink-0" aria-hidden="true" /><input id="party-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, alias, contact, or tag" /></span></label>
+          <label className="case-file-parties-filter-label">Entity<select value={entityTypeFilter} onChange={(event) => setEntityTypeFilter(event.target.value)} className="case-file-parties-select mt-2"><option value={PARTY_FILTER_ALL}>All entities</option>{PARTY_ENTITY_TYPES.map((type) => <option key={type} value={type}>{getPartyEntityTypeLabel(type)}</option>)}</select></label>
+          <label className="case-file-parties-filter-label">Role<select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="case-file-parties-select mt-2"><option value={PARTY_FILTER_ALL}>All roles</option>{PARTY_ROLES.map((role) => <option key={role} value={role}>{getPartyRoleLabel(role)}</option>)}</select></label>
+          <label className="case-file-parties-filter-label">Status<select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="case-file-parties-select mt-2"><option value={PARTY_FILTER_ALL}>All statuses</option>{PARTY_STATUSES.map((status) => <option key={status} value={status}>{getPartyStatusLabel(status)}</option>)}</select></label>
+          {filtersActive && <button type="button" className="case-file-parties-clear" onClick={clearFilters}>Clear filters</button>}
         </div>
-        <label className="mt-3 block max-w-md">
-          <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Tag</span>
-          <input
-            value={tagFilter}
-            onChange={(event) => setTagFilter(event.target.value)}
-            placeholder="Filter by tag"
-            className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-lime-500"
-          />
-        </label>
-      </div>
+        <label className="case-file-parties-filter-label mt-3 block max-w-md">Tag<input value={tagFilter} onChange={(event) => setTagFilter(event.target.value)} placeholder="Filter by tag" className="case-file-parties-select mt-2" /></label>
+      </section>
 
-      <div className="flex items-center justify-between text-xs font-semibold text-neutral-500">
-        <span>{filteredParties.length} of {parties.length} parties shown</span>
-      </div>
-
-      {parties.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-          No parties yet. Add people, organisations, agencies, providers, or representatives for this case.
-        </div>
-      ) : filteredParties.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-          No parties match these filters.
-        </div>
-      ) : (
-        <div className="grid gap-3 xl:grid-cols-2">
-          {filteredParties.map((party) => (
-            <RecordCardShell
-              key={party.id}
-              headingLevel={4}
-              title={party.displayName || "Untitled Party"}
-              subtitle={party.legalName && party.legalName !== party.displayName ? party.legalName : undefined}
-              actions={<RecordActions
-                  className="flex shrink-0 gap-2"
-                  actions={[
-                    { key: "edit", label: "Edit", onClick: () => openEditModal(party) },
-                    { key: "delete", label: "Delete", variant: "danger", onClick: () => deleteParty(party) },
-                  ]}
-                />}
-              badges={<>
-                <RecordBadge variant="type" className="uppercase tracking-wider">{getPartyEntityTypeLabel(party.entityType)}</RecordBadge>
-                <RecordBadge variant={getPartyStatusBadgeVariant(party.status)} className="uppercase tracking-wider">{getPartyStatusLabel(party.status)}</RecordBadge>
-                {party.confidentiality && party.confidentiality !== "normal" && (
-                  <RecordBadge variant="restricted" className="uppercase tracking-wider">{getPartyConfidentialityLabel(party.confidentiality)}</RecordBadge>
-                )}
-                {(party.roles || []).map((role) => (
-                  <Chip key={role} tone="role">{getPartyRoleLabel(role)}</Chip>
-                ))}
-              </>}
+      <section className="case-file-parties-list" aria-live="polite">
+        {parties.length === 0 ? <div className="case-file-parties-empty rounded-2xl border border-dashed border-neutral-300 p-5 text-sm text-neutral-600">No parties yet. Add people, organisations, agencies, providers, or representatives for this case.</div> : filteredParties.length === 0 ? <div className="case-file-parties-empty rounded-2xl border border-dashed border-neutral-300 p-5 text-sm text-neutral-600">No parties match these filters. Clear or adjust the filters to view other parties.</div> : <div className="grid gap-3 xl:grid-cols-2">
+          {filteredParties.map((party) => {
+            const expanded = Boolean(expandedPartyIds[party.id]);
+            const detailId = `party-details-${party.id}`;
+            const aliases = Array.isArray(party.aliases) ? party.aliases.filter(Boolean) : [];
+            const addressLines = getAddressLines(party.address);
+            const title = party.displayName || "Untitled Party";
+            return <RecordCardShell key={party.id} headingLevel={4} title={title} subtitle={party.legalName && party.legalName !== party.displayName ? party.legalName : undefined} expanded={expanded} className="case-file-party-card"
+              actions={<RecordActions className="case-file-party-actions flex shrink-0 gap-2" actions={[{ key: "edit", label: "Edit", onClick: () => openEditModal(party), "aria-label": `Edit party ${title}` }, { key: "delete", label: "Delete", variant: "danger", onClick: () => deleteParty(party), "aria-label": `Delete party ${title}` }]} />}
+              badges={<><RecordBadge variant="type" className="uppercase tracking-wider">{getPartyEntityTypeLabel(party.entityType)}</RecordBadge><RecordBadge variant={getPartyStatusBadgeVariant(party.status)} className="uppercase tracking-wider">{getPartyStatusLabel(party.status)}</RecordBadge>{party.confidentiality && party.confidentiality !== "normal" && <RecordBadge variant="restricted" className="uppercase tracking-wider">{getPartyConfidentialityLabel(party.confidentiality)}</RecordBadge>}{(party.roles || []).map((role) => <Chip key={role} tone="role">{getPartyRoleLabel(role)}</Chip>)}</>}
             >
-
-              {(party.organisationName || party.jobTitle || party.department) && (
-                <RecordMetadataRow className="mt-3 text-sm" items={[
-                  { key: "job-title", value: party.jobTitle },
-                  { key: "department", value: party.department },
-                  { key: "organisation", value: party.organisationName },
-                ]} />
-              )}
-              {party.relationshipToCase && (
-                <RecordLinksRow className="mt-2" groups={[{ key: "relationship-to-case", items: [{ key: "relationship", label: party.relationshipToCase, variant: "party", className: "line-clamp-2 text-sm leading-5" }] }]} />
-              )}
-              {(party.contact?.email || party.contact?.phone || party.contact?.website) && (
-                <RecordMetadataRow className="mt-2 font-medium" items={[
-                  { key: "email", value: party.contact?.email },
-                  { key: "phone", value: party.contact?.phone },
-                  { key: "website", value: party.contact?.website },
-                ]} />
-              )}
-              {party.tags?.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-1">
-                  {party.tags.map((tag) => <Chip key={tag}>{tag}</Chip>)}
-                </div>
-              )}
-            </RecordCardShell>
-          ))}
-        </div>
-      )}
+              {!expanded && party.relationshipToCase && <p className="case-file-party-preview">{party.relationshipToCase}</p>}
+              <div id={detailId} className="case-file-party-details space-y-4">
+              {expanded && <>
+                {(party.organisationName || party.jobTitle || party.department) && <section><h5>Organisation</h5><RecordMetadataRow className="mt-2 text-sm" items={[{ key: "job-title", label: "Position", value: party.jobTitle }, { key: "department", label: "Department", value: party.department }, { key: "organisation", label: "Organisation", value: party.organisationName }]} /></section>}
+                {(party.legalName || aliases.length > 0) && <section><h5>Identity</h5><RecordMetadataRow className="mt-2 text-sm" items={[{ key: "legal-name", label: "Legal name", value: party.legalName }, { key: "aliases", label: "Aliases", value: aliases.join(", ") }]} /></section>}
+                {party.relationshipToCase && <section><h5>Relationship to case</h5><RecordLinksRow className="mt-2" groups={[{ key: "relationship-to-case", items: [{ key: "relationship", label: party.relationshipToCase, variant: "party", className: "text-sm leading-5" }] }]} /></section>}
+                {(party.contact?.email || party.contact?.phone || party.contact?.website) && <section><h5>Contact</h5><RecordMetadataRow className="mt-2 font-medium" items={[{ key: "email", label: "Email", value: party.contact?.email }, { key: "phone", label: "Phone", value: party.contact?.phone }, { key: "website", label: "Website", value: party.contact?.website }]} /></section>}
+                {addressLines.length > 0 && <section><h5>Address</h5><p className="mt-2 whitespace-pre-line text-sm">{addressLines.join("\n")}</p></section>}
+                {party.tags?.length > 0 && <section><h5>Tags</h5><div className="mt-2 flex flex-wrap gap-1">{party.tags.map((tag) => <Chip key={tag}>{tag}</Chip>)}</div></section>}
+                {party.notes && <section><h5>Notes</h5><p className="mt-2 whitespace-pre-line text-sm">{party.notes}</p></section>}
+              </>}
+              </div>
+              <button type="button" className="case-file-party-disclosure" aria-expanded={expanded} aria-controls={detailId} onClick={() => togglePartyExpanded(party.id)}><ChevronDown className={expanded ? "is-expanded" : ""} aria-hidden="true" />{expanded ? "Hide party details" : "Show party details"}</button>
+            </RecordCardShell>;
+          })}
+        </div>}
+      </section>
 
       {modalOpen && (
         <PartyModal
