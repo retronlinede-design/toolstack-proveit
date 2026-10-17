@@ -122,7 +122,9 @@ async function restoreMergeReload(payload, local = localCase()) {
   const db = {
     async add(store, item) { assert.equal(store, "images"); assert.ok(!images.has(item.id)); images.set(item.id, structuredClone(item)); },
     async get(store, id) { assert.equal(store, "cases"); return structuredClone(cases.get(id)); },
+    async getAll(store) { assert.equal(store, "cases"); return [...cases.values()].map((item) => structuredClone(item)); },
     async put(store, item) { assert.equal(store, "cases"); cases.set(item.id, structuredClone(item)); },
+    async delete(store, id) { assert.equal(store, "images"); deleted.push(id); images.delete(id); },
   };
   const deps = { addImage: (item) => addImageToDb(db, item), generateId: () => `fresh-${++next}`, deleteImages: async (ids) => { for (const id of ids) { deleted.push(id); images.delete(id); } } };
   const session = createRestoreSession(deps, parsed.data.cases);
@@ -158,16 +160,16 @@ test("AUDIT-003: older envelope missing newer fields preserves planning, Watch, 
   for (const key of ["watchItems", "parties", "issues", "retiredIssues", "retiredIssueReferences", "nextIssueReferenceNumber", "generatedReportVersions"]) assert.deepEqual(reloaded[key], local[key]);
 });
 
-test("AUDIT-003: remapped imported bytes win while omitted record metadata and ORIGINAL bytes survive", async () => {
+test("AUDIT-003: remapped imported bytes win while omitted record metadata and released bytes are cleaned", async () => {
   const payload = { exportType: "FULL_BACKUP_CASE", data: { cases: [{ id: "case", evidence: [{ id: "e", attachments: [{ id: "att", storage: { imageId: "local-image" }, backupDataUrl: "IMPORTED" }] }] }] } };
   const result = await restoreMergeReload(payload);
   const record = result.reloaded.evidence.find((item) => item.id === "e");
   assert.equal(record.description, "Rich");
   assert.equal(record.sequenceGroupId, "issue-nine");
   assert.equal(record.attachments[0].storage.imageId, "fresh-1");
-  assert.equal(result.images.get("local-image").dataUrl, "ORIGINAL");
+  assert.equal(result.images.has("local-image"), false);
   assert.equal(result.images.get("fresh-1").dataUrl, "IMPORTED");
-  assert.deepEqual(result.deleted, []);
+  assert.deepEqual(result.deleted, ["local-image"]);
 });
 
 test("AUDIT-003: omitted case metadata, reports and Issue history survive sparse import", () => {

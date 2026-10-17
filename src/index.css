@@ -656,6 +656,34 @@
 .proveit-dark-shell .case-file-evidence-disclosure svg.is-expanded { transform: rotate(180deg); }
 @media (max-width: 639px) { .proveit-dark-shell .case-file-evidence :is(.case-file-evidence-primary-action, .case-file-evidence-quick-action) { width: 100%; } }
 
+.proveit-dark-shell .case-file-documents { color: var(--case-file-text); }
+.proveit-dark-shell .case-file-documents :is(.case-file-documents-header, .case-file-documents-controls, .case-file-documents-empty) { border-color: var(--case-file-border) !important; background: var(--case-file-surface) !important; box-shadow: 0 10px 24px rgb(0 0 0 / .12) !important; }
+.proveit-dark-shell .case-file-documents :is(.text-neutral-400, .text-neutral-500) { color: var(--case-file-muted) !important; }
+.proveit-dark-shell .case-file-documents :is(.text-neutral-950, .text-neutral-900, .text-neutral-800, .text-neutral-700, .text-neutral-600) { color: var(--case-file-text) !important; }
+.proveit-dark-shell .case-file-documents-eyebrow, .proveit-dark-shell .case-file-documents-filter-label { display: block; color: var(--case-file-muted); font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.proveit-dark-shell .case-file-documents-primary-action, .proveit-dark-shell .case-file-documents-clear { display: inline-flex; min-height: 2.25rem; align-items: center; justify-content: center; border: 1px solid var(--case-file-border); border-radius: .55rem; background: var(--pi-control); padding: .45rem .75rem; color: var(--case-file-text); font-size: .78rem; font-weight: 700; }
+.proveit-dark-shell .case-file-documents-primary-action { border-color: color-mix(in srgb, var(--case-file-accent) 64%, var(--case-file-border)); background: color-mix(in srgb, var(--case-file-accent) 16%, var(--pi-control)); color: #dffdf7; }
+.proveit-dark-shell .case-file-documents :is(.case-file-documents-primary-action, .case-file-documents-clear):hover { border-color: var(--case-file-accent); background: color-mix(in srgb, var(--case-file-accent) 20%, var(--pi-control)); }
+.proveit-dark-shell .case-file-documents-search { display: flex; min-width: 0; align-items: center; gap: .5rem; border: 1px solid var(--case-file-border); border-radius: .6rem; background: var(--pi-control); padding: .6rem .7rem; }
+.proveit-dark-shell .case-file-documents-search svg { width: 1rem; height: 1rem; flex: 0 0 auto; color: var(--case-file-muted); }
+.proveit-dark-shell .case-file-documents-search input, .proveit-dark-shell .case-file-documents-select { min-width: 0; width: 100%; border: 1px solid var(--case-file-border) !important; border-radius: .6rem; background: var(--pi-control) !important; padding: .6rem .7rem; color: var(--case-file-text) !important; }
+.proveit-dark-shell .case-file-documents-search input { border: 0 !important; background: transparent !important; padding: 0; outline: 0; }
+.proveit-dark-shell .case-file-documents :is(button, input, select):focus-visible { outline: 2px solid var(--case-file-focus); outline-offset: 2px; }
+.proveit-dark-shell .case-file-document-card { border-color: var(--case-file-border) !important; background: var(--case-file-raised) !important; box-shadow: none !important; }
+.proveit-dark-shell .case-file-document-card:hover { border-color: color-mix(in srgb, var(--case-file-accent) 60%, var(--case-file-border)) !important; background: color-mix(in srgb, var(--case-file-accent) 5%, var(--case-file-raised)) !important; }
+.proveit-dark-shell .case-file-document-card :is(h3, h4, h5, p, dt, dd) { color: var(--case-file-text) !important; }
+.proveit-dark-shell .case-file-documents-preview { display: block; color: var(--case-file-muted); line-height: 1.45; overflow-wrap: anywhere; }
+.proveit-dark-shell .case-file-document-card :is([data-record-badge-variant], [data-record-link-variant]) { border-color: var(--case-file-border) !important; background: var(--pi-control) !important; color: var(--case-file-text) !important; }
+.proveit-dark-shell .case-file-document-card [data-record-link-variant="sequence"] { border-color: color-mix(in srgb, var(--case-file-accent) 52%, var(--case-file-border)) !important; color: #dffdf7 !important; }
+.proveit-dark-shell .case-file-document-details { color: var(--case-file-muted); font-size: .82rem; line-height: 1.5; }
+.proveit-dark-shell .case-file-document-details h5 { margin: 0 0 .3rem; font-size: .7rem; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; }
+.proveit-dark-shell .case-file-document-details p { margin: 0; overflow-wrap: anywhere; }
+.proveit-dark-shell .case-file-document-text { max-height: 24rem; overflow: auto; border: 1px solid var(--case-file-border); border-radius: .6rem; background: var(--pi-control); padding: .7rem; white-space: pre-wrap; }
+.proveit-dark-shell .case-file-document-disclosure { display: inline-flex; min-height: 2rem; align-items: center; gap: .35rem; margin-top: .75rem; border: 0; background: transparent; color: var(--case-file-accent); font-size: .75rem; font-weight: 700; }
+.proveit-dark-shell .case-file-document-disclosure svg { width: 1rem; height: 1rem; transition: transform 160ms ease; }
+.proveit-dark-shell .case-file-document-disclosure svg.is-expanded { transform: rotate(180deg); }
+@media (max-width: 639px) { .proveit-dark-shell .case-file-document-actions { width: 100%; } .proveit-dark-shell .case-file-documents-primary-action { width: 100%; } }
+
 @media (max-width: 767px) {
   .proveit-main, .proveit-sidebar.is-collapsed + .proveit-main { padding-left: 0; }
   .proveit-sidebar { width: 17rem; transform: translateX(-100%); box-shadow: 18px 0 40px rgb(0 0 0 / .35); }
