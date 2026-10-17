@@ -848,6 +848,9 @@ export default function ProveItApp() {
 
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
   const [documentForm, setDocumentForm] = useState(EMPTY_DOCUMENT_FORM);
+  const documentTitleInputRef = useRef(null);
+  const documentFormFingerprintRef = useRef("");
+  const [documentDiscardPromptOpen, setDocumentDiscardPromptOpen] = useState(false);
   const [editingDocumentId, setEditingDocumentId] = useState(null);
   const [documentSequenceGroupMode, setDocumentSequenceGroupMode] = useState("");
   const [documentPromptCopied, setDocumentPromptCopied] = useState(false);
@@ -1776,6 +1779,8 @@ export default function ProveItApp() {
       });
     }
     setRecordAdvancedOpen(false);
+    documentFormFingerprintRef.current = JSON.stringify(nextForm);
+    setDocumentDiscardPromptOpen(false);
     setDocumentForm(nextForm);
     setEditingDocumentId(documentId);
     setDocumentModalMode(mode);
@@ -1796,6 +1801,15 @@ export default function ProveItApp() {
     setDocumentOpenedFromSequenceManager(null);
     setDocumentModalMode("document");
     setRecordAdvancedOpen(false);
+    setDocumentDiscardPromptOpen(false);
+  };
+
+  const requestCloseDocumentModal = () => {
+    if (documentFormFingerprintRef.current !== JSON.stringify(documentForm)) {
+      setDocumentDiscardPromptOpen(true);
+      return;
+    }
+    closeDocumentModal();
   };
 
   const updateRecordDocumentForm = (patch) => {
@@ -3811,6 +3825,20 @@ const handleRecordFiles = async (event) => {
   const rescueSnapshotTimestampLabel = rescueSnapshot?.timestamp
     ? new Date(rescueSnapshot.timestamp).toLocaleString()
     : "";
+  const documentModalFooter = documentDiscardPromptOpen ? (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" role="alert">
+      <p className="text-sm text-amber-100">Discard unsaved changes? This document has not been saved.</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => setDocumentDiscardPromptOpen(false)} className="proveit-record-secondary-action">Keep editing</button>
+        <button type="button" onClick={closeDocumentModal} className="proveit-record-danger-action">Discard changes</button>
+      </div>
+    </div>
+  ) : (
+    <div className="flex flex-wrap justify-end gap-2">
+      <button type="button" onClick={saveDocumentEntry} className="proveit-record-primary-action">{documentModalMode === "record" ? "Save record" : "Save document"}</button>
+      <button type="button" onClick={requestCloseDocumentModal} className="proveit-record-secondary-action">Cancel</button>
+    </div>
+  );
 
   if (appLockCorrupt) {
     return (
@@ -5363,23 +5391,20 @@ const handleRecordFiles = async (event) => {
         )}
 
         {documentModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-xl flex flex-col max-h-[90vh]">
-              <div className="mb-4">
-                <h2 className="text-xl font-semibold">
-                  {documentModalMode === "record"
-                    ? editingDocumentId ? "Edit Record" : "Add Record"
-                    : editingDocumentId ? "Edit Document" : "Add Document"}
-                </h2>
-                <p className="text-sm text-neutral-600">
-                  {documentModalMode === "record"
-                    ? "Create a table-based tracking record."
-                    : editingDocumentId ? "Update the original source or correspondence." : "Store the original letter, email, file, or correspondence."}
-                </p>
-              </div>
+          <DialogShell
+            key={`${selectedCaseId}:${documentModalMode}:${editingDocumentId || "new"}`}
+            title={documentModalMode === "record" ? editingDocumentId ? "Edit Case Record" : "Add Case Record" : editingDocumentId ? "Edit Document" : "Add Document"}
+            description={documentModalMode === "record" ? "Create or update a table-based tracking record. Structured values remain compatible with existing Case Records." : editingDocumentId ? "Update the original source or correspondence." : "Store the original letter, email, file, or correspondence."}
+            width="wide"
+            onRequestClose={requestCloseDocumentModal}
+            dismissOnBackdrop={false}
+            initialFocusRef={documentTitleInputRef}
+            footer={documentModalFooter}
+            className="proveit-document-editor-dialog"
+          >
 
               {documentModalMode === "record" ? (
-              <div className="flex-1 overflow-y-auto pr-1 space-y-4">
+              <div className="space-y-4">
                 <section className="rounded-2xl border border-neutral-200 bg-neutral-50/60 p-4">
                   <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-neutral-500">Record Basics</h3>
                   <div className="space-y-4">
@@ -5387,6 +5412,7 @@ const handleRecordFiles = async (event) => {
                       <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Title</label>
                       <input
                         type="text"
+                        ref={documentTitleInputRef}
                         value={documentForm.title}
                         onChange={(e) => setDocumentForm({ ...documentForm, title: e.target.value })}
                         placeholder="Record title"
@@ -5543,11 +5569,12 @@ const handleRecordFiles = async (event) => {
                 </section>
               </div>
               ) : (
-              <div className="flex-1 overflow-y-auto pr-1 space-y-4">
+              <div className="space-y-4">
                 <div>
                   <label className="text-xs font-bold uppercase text-neutral-400 block mb-1">Title</label>
                   <input
                     type="text"
+                    ref={documentTitleInputRef}
                     value={documentForm.title}
                     onChange={(e) => setDocumentForm({ ...documentForm, title: e.target.value })}
                     placeholder="Document Title"
@@ -5720,22 +5747,7 @@ const handleRecordFiles = async (event) => {
               </div>
               )}
 
-              <div className="mt-6 flex gap-3 pt-4 border-t border-neutral-100">
-                <button
-                  onClick={saveDocumentEntry}
-                  className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-bold text-neutral-900 shadow-md hover:bg-lime-400/30 transition-all active:scale-95"
-                >
-                  {documentModalMode === "record" ? "Save Record" : "Save Document"}
-                </button>
-                <button
-                  onClick={closeDocumentModal}
-                  className="flex-1 rounded-xl bg-neutral-100 py-2 font-bold text-neutral-600 hover:bg-neutral-200 transition-all"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
+          </DialogShell>
         )}
 
         {viewingRecord && (

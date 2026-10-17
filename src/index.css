@@ -70,6 +70,29 @@
 .proveit-case-editor-dialog .proveit-case-editor-input::placeholder { color: #94a3b8; }
 .proveit-case-editor-dialog .proveit-case-editor-input:focus { border-color: #2dd4bf; outline: 2px solid transparent; box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.45); }
 
+/* Keep the legacy Document and Case Record fields visually inside their shared dialog scope. */
+.proveit-document-editor-dialog .bg-white,
+.proveit-document-editor-dialog .bg-neutral-50,
+.proveit-document-editor-dialog .bg-neutral-50\/50,
+.proveit-document-editor-dialog .bg-neutral-50\/60,
+.proveit-document-editor-dialog .bg-neutral-100 { background-color: #12213a; }
+.proveit-document-editor-dialog .border-neutral-100,
+.proveit-document-editor-dialog .border-neutral-200,
+.proveit-document-editor-dialog .border-neutral-300 { border-color: #334155; }
+.proveit-document-editor-dialog .text-neutral-900,
+.proveit-document-editor-dialog .text-neutral-800,
+.proveit-document-editor-dialog .text-neutral-700 { color: #e2e8f0; }
+.proveit-document-editor-dialog .text-neutral-600,
+.proveit-document-editor-dialog .text-neutral-500,
+.proveit-document-editor-dialog .text-neutral-400 { color: #cbd5e1; }
+.proveit-document-editor-dialog input:not([type="checkbox"]):not([type="radio"]),
+.proveit-document-editor-dialog select,
+.proveit-document-editor-dialog textarea { border-color: #475569; background-color: #0f1f35; color: #f1f5f9; }
+.proveit-document-editor-dialog input::placeholder,
+.proveit-document-editor-dialog textarea::placeholder { color: #94a3b8; }
+.proveit-document-editor-dialog :is(input, select, textarea, button):focus-visible { outline: 2px solid #2dd4bf; outline-offset: 2px; }
+.proveit-document-editor-dialog :is(input, select, textarea):focus { border-color: #2dd4bf; box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.35); }
+
 /* Case Records stays scoped to the open-case tracking-record workspace. */
 .proveit-dark-shell .case-file-records { color: var(--case-file-text); }
 .proveit-dark-shell .case-file-records :is(.case-file-records-header, .case-file-records-controls, .case-file-records-empty, .case-file-records-list, .case-file-records-detail) { border-color: var(--case-file-border) !important; background: var(--case-file-surface) !important; box-shadow: 0 10px 24px rgb(0 0 0 / .12) !important; }
