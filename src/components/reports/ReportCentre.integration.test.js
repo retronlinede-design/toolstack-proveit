@@ -42,12 +42,12 @@ function renderControls(overrides = {}) {
   return renderToStaticMarkup(React.createElement(ReportCentreControls, {
     reportType: "management",
     scopeType: "case",
-    sequenceGroups: ["Alpha", "Beta"],
-    selectedSequenceGroup: "Alpha",
+    issues: [{ id: "issue-alpha", label: "ISS-001 — Alpha" }, { id: "issue-beta", label: "ISS-002 — Beta" }],
+    selectedIssueId: "issue-alpha",
     markdownAvailable: false,
     onReportTypeChange: noOp,
     onScopeTypeChange: noOp,
-    onSequenceGroupChange: noOp,
+    onIssueChange: noOp,
     onPrint: noOp,
     onCopyMarkdown: noOp,
     onOpenSequenceGroupAudit: noOp,
@@ -102,8 +102,8 @@ test("sequence-group-capable reports render honest scope controls and labels", (
   const html = renderControls({ reportType: "evidence", scopeType: "sequenceGroup" });
   assert.match(html, /Whole Case/);
   assert.match(html, />Issue</);
-  assert.match(html, /id="report-centre-sequence-group"/);
-  assert.match(html, /<option value="Alpha" selected="">Alpha<\/option>/);
+  assert.match(html, /id="report-centre-issue"/);
+  assert.match(html, /<option value="issue-alpha" selected="">ISS-001 — Alpha<\/option>/);
 
   const preview = renderPreview("evidence", "sequenceGroup", "Issue: Alpha");
   assert.match(preview, /Scope: Issue: Alpha/);
@@ -113,8 +113,8 @@ test("empty sequence group collections render a useful empty state", () => {
   const html = renderControls({
     reportType: "action",
     scopeType: "sequenceGroup",
-    sequenceGroups: [],
-    selectedSequenceGroup: "",
+    issues: [],
+    selectedIssueId: "",
   });
   assert.match(html, /No Issues exist in this case yet/);
   assert.doesNotMatch(html, /Print \/ Save PDF/);
@@ -145,11 +145,13 @@ test("complete Investigation document scope is explicit", () => {
 });
 
 test("optional control values do not prevent the Report Centre from rendering", () => {
-  assert.doesNotThrow(() => renderControls({ sequenceGroups: undefined, selectedSequenceGroup: undefined }));
+  assert.doesNotThrow(() => renderControls({ issues: undefined, selectedIssueId: undefined }));
 });
 
 test("the active CaseDetail Report Centre uses the rendered control boundary", () => {
   assert.match(caseDetailSource, /<ReportCentreControls/);
+  assert.match(caseDetailSource, /issueId: reportCentreScope\.issueId/);
+  assert.doesNotMatch(caseDetailSource, /find\(\(issue\) => String\(issue\?\.name/);
   assert.match(caseDetailSource, /<ReportContextHeader/);
   assert.match(caseDetailSource, /<ReportCentrePreviewSummary/);
   assert.match(caseDetailSource, /reportDocument={reportCentreActiveDocument}/);

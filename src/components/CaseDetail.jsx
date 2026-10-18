@@ -97,6 +97,7 @@ import ClientReportArticle from "./reports/ClientReportArticle.jsx";
 import ActionPlanReportArticle from "./reports/ActionPlanReportArticle.jsx";
 import ThreadIssueReportArticle from "./reports/ThreadIssueReportArticle";
 import ReportCentreControls, { ReportCentrePreviewSummary } from "./reports/ReportCentreControls";
+import { getReportCentreIssueOptions, resolveReportCentreIssueSelection } from "./reports/reportCentreIssueSelection.js";
 import ReportOutputActions from "./reports/ReportOutputActions.jsx";
 import { REPORT_CENTRE_PRESENTATION } from "./reports/reportCentreConfig.js";
 import ReportContextHeader from "./reports/ReportContextHeader.jsx";
@@ -303,7 +304,7 @@ export default function CaseDetail({
   const clientNarrativeCaseIdRef = useRef("");
   const [reportPromptFeedback, setReportPromptFeedback] = useState("");
   const [reportCentreScopeType, setReportCentreScopeType] = useState("case");
-  const [reportCentreSequenceGroup, setReportCentreSequenceGroup] = useState("");
+  const [reportCentreIssueId, setReportCentreIssueId] = useState("");
   const [reportCentreType, setReportCentreType] = useState("management");
   const [reportCentreOutputFeedback, setReportCentreOutputFeedback] = useState("");
   const [caseStructureReportOpen, setCaseStructureReportOpen] = useState(false);
@@ -387,12 +388,9 @@ export default function CaseDetail({
     () => scanIncidentDateMismatches(selectedCase),
     [selectedCase]
   );
-  const selectedReportCentreSequenceGroup = useMemo(() => {
-    if (threadIssueReportSequenceOptions.includes(reportCentreSequenceGroup)) {
-      return reportCentreSequenceGroup;
-    }
-    return threadIssueReportSequenceOptions[0] || "";
-  }, [reportCentreSequenceGroup, threadIssueReportSequenceOptions]);
+  const reportCentreIssues = useMemo(() => getReportCentreIssueOptions(selectedCase), [selectedCase]);
+  const reportCentreIssueSelection = useMemo(() => resolveReportCentreIssueSelection(reportCentreIssues, reportCentreIssueId), [reportCentreIssues, reportCentreIssueId]);
+  const selectedReportCentreIssue = reportCentreIssueSelection.selectedIssue;
   const selectedThreadIssueReportSequenceGroup = useMemo(() => {
     if (threadIssueReportSequenceOptions.includes(threadIssueReportSequenceGroup)) {
       return threadIssueReportSequenceGroup;
@@ -464,17 +462,15 @@ export default function CaseDetail({
   const normalisedReportCentreScopeType = normaliseReportScope(reportCentreType, reportCentreScopeType);
   const reportCentreScope = useMemo(() => ({
     scopeType: normalisedReportCentreScopeType,
-    sequenceGroup: normalisedReportCentreScopeType === "sequenceGroup" ? selectedReportCentreSequenceGroup : "",
-  }), [normalisedReportCentreScopeType, selectedReportCentreSequenceGroup]);
+    issueId: normalisedReportCentreScopeType === "sequenceGroup" ? reportCentreIssueSelection.requestedIssueId : "",
+    sequenceGroup: normalisedReportCentreScopeType === "sequenceGroup" ? reportCentreIssueSelection.sequenceGroupName : "",
+  }), [normalisedReportCentreScopeType, reportCentreIssueSelection]);
   const reportCentreModel = useMemo(() => {
     if (!selectedCase) return null;
-    const selectedIssue = reportCentreScope.scopeType === "sequenceGroup"
-      ? (selectedCase.issues || []).find((issue) => String(issue?.name || "").trim().toLocaleLowerCase() === reportCentreScope.sequenceGroup.trim().toLocaleLowerCase())
-      : null;
     return buildCaseReportModel(selectedCase, {
       scope: reportCentreScope.scopeType,
       sequenceGroupName: reportCentreScope.sequenceGroup,
-      issueId: selectedIssue?.id || "",
+      issueId: reportCentreScope.issueId,
       includeArchived: true,
       includeDiagnostics: true,
       sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
@@ -3546,7 +3542,7 @@ ${ungroupedSequenceText}
     .filter(Boolean)
     .join(" - ");
   const reportCentreScopeLabel = reportCentreScope.scopeType === "sequenceGroup"
-    ? `Issue: ${selectedReportCentreSequenceGroup || "-"}`
+    ? `Issue: ${reportCentreIssueSelection.displayLabel || (reportCentreIssueSelection.requestedIssueId ? "Unavailable Issue" : "Not selected")}`
     : "Whole case";
   const handleReportCentreTypeChange = (nextReportType) => {
     setReportCentreType(nextReportType);
@@ -3578,9 +3574,9 @@ ${ungroupedSequenceText}
     setReportCentreOutputFeedback("");
     setReportCentreScopeType(scope);
   };
-  const handleReportCentreSequenceGroupChange = (group) => {
+  const handleReportCentreIssueChange = (issueId) => {
     setReportCentreOutputFeedback("");
-    setReportCentreSequenceGroup(group);
+    setReportCentreIssueId(issueId);
   };
   const handleReportCentrePrint = () => {
     setReportCentreOutputFeedback(`${getReportDefinition(reportCentreType).label} print dialog opened.`);
@@ -4998,14 +4994,14 @@ ${ungroupedSequenceText}
                 <ReportCentreControls
                   reportType={reportCentreType}
                   scopeType={normalisedReportCentreScopeType}
-                  sequenceGroups={threadIssueReportSequenceOptions}
-                  selectedSequenceGroup={selectedReportCentreSequenceGroup}
+                  issues={reportCentreIssues}
+                  selectedIssueId={selectedReportCentreIssue?.id || ""}
                   markdownAvailable={Boolean(reportCentreMarkdown)}
                   documentOutputAvailable={Boolean(reportCentreActiveDocument)}
                   outputFeedback={reportCentreOutputFeedback}
                   onReportTypeChange={handleReportCentreTypeChange}
                   onScopeTypeChange={handleReportCentreScopeChange}
-                  onSequenceGroupChange={handleReportCentreSequenceGroupChange}
+                  onIssueChange={handleReportCentreIssueChange}
                   onPrint={handleReportCentrePrint}
                   onCopyMarkdown={handleCopyReportCentreMarkdown}
                   onDownloadMarkdown={() => handleDownloadReportCentreOutput("markdown")}
@@ -5022,7 +5018,7 @@ ${ungroupedSequenceText}
                   <ReportContextHeader
                     definition={getReportDefinition(reportCentreType)}
                     presentationLabel={REPORT_CENTRE_PRESENTATION[reportCentreType]?.label}
-                    scopeLabel={normalisedReportCentreScopeType === "sequenceGroup" ? `Issue: ${selectedReportCentreSequenceGroup || "Not selected"}` : getReportDefinition(reportCentreType).supportedScopes.length === 1 ? "Whole case only" : "Whole case"}
+                    scopeLabel={normalisedReportCentreScopeType === "sequenceGroup" ? `Issue: ${reportCentreIssueSelection.displayLabel || (reportCentreIssueSelection.requestedIssueId ? "Unavailable Issue" : "Not selected")}` : getReportDefinition(reportCentreType).supportedScopes.length === 1 ? "Whole case only" : "Whole case"}
                     countLabel={reportCentreCountLabel}
                     reportDocument={reportCentreActiveDocument}
                   />
@@ -5046,10 +5042,10 @@ ${ungroupedSequenceText}
                     </div>
                   ) : null}
 
-                  {normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreSequenceGroup ? (
+                  {normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue ? (
                     <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
-                      <p className="font-semibold text-neutral-900 dark:text-neutral-100">No Issue is selected for {getReportDefinition(reportCentreType).label}.</p>
-                      <p className="mt-1">Create an Issue or assign records to one, then select it here to build the scoped preview.</p>
+                      <p className="font-semibold text-neutral-900 dark:text-neutral-100">{reportCentreIssueSelection.requestedIssueId ? "The selected Issue is no longer available." : `No Issue is selected for ${getReportDefinition(reportCentreType).label}.`}</p>
+                      <p className="mt-1">Select an existing Issue to build the scoped preview. ProveIt has not substituted a different Issue.</p>
                     </div>
                   ) : (
                     <>
@@ -5205,7 +5201,7 @@ ${ungroupedSequenceText}
                         reportType={reportCentreType}
                         markdownAvailable={Boolean(reportCentreMarkdown)}
                         documentOutputAvailable={Boolean(reportCentreActiveDocument)}
-                        disabled={normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreSequenceGroup}
+                        disabled={normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue}
                         feedback={reportCentreOutputFeedback}
                         onCopyMarkdown={handleCopyReportCentreMarkdown}
                         onDownloadMarkdown={() => handleDownloadReportCentreOutput("markdown")}
