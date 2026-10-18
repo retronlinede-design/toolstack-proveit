@@ -65,7 +65,7 @@ function renderPreview(reportType, scopeType, scopeLabel) {
 
 test("Reports Centre prioritises main reports and keeps specialist and internal formats accessible", () => {
   const html = renderControls();
-  for (const label of ["Case Position Brief", "Issue Investigation Report", "Client Update Draft", "Incident Schedule", "Evidence Schedule", "Case Quality Audit", "Operational Brief"]) assert.match(html, new RegExp(label));
+  for (const label of ["Executive Report", "Case Position Brief", "Issue Investigation Report", "Client Update Draft", "Incident Schedule", "Evidence Schedule", "Case Quality Audit", "Operational Brief"]) assert.match(html, new RegExp(label));
   for (const heading of ["1 · Choose purpose", "2 · Choose scope", "Main Reports", "Specialist Schedules", "Internal Tools &amp; Documentation"]) assert.match(html, new RegExp(heading));
   assert.match(html, /Issue Audit/);
   assert.doesNotMatch(html, /Unavailable Reports/);
@@ -156,6 +156,9 @@ test("the active CaseDetail Report Centre uses the rendered control boundary", (
   assert.match(caseDetailSource, /<ReportCentrePreviewSummary/);
   assert.match(caseDetailSource, /reportDocument={reportCentreActiveDocument}/);
   assert.match(caseDetailSource, /<InvestigationReportArticle reportDocument={reportCentreInvestigationDocument}/);
+  assert.match(caseDetailSource, /<ExecutiveReportArticle reportDocument={reportCentreExecutiveDocument}/);
+  assert.match(caseDetailSource, /useState\("executive"\)/);
+  assert.match(caseDetailSource, /useState\("sequenceGroup"\)/);
   assert.doesNotMatch(caseDetailSource, /reportCentreType === "investigation"[\s\S]{0,200}<CaseBundleReportArticle/);
   assert.match(caseDetailSource, /className="case-file-reports space-y-5"/);
   assert.match(caseDetailSource, /Review the selected report/);

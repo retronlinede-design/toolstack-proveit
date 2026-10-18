@@ -8,8 +8,10 @@ import { buildLedgerScheduleDocument } from "./ledgerScheduleDocument.js";
 import { buildManagementReportDocument } from "./managementReportDocument.js";
 import { buildClientReportDocument } from "./clientReportDocument.js";
 import { buildActionPlanDocument } from "./actionPlanDocument.js";
+import { buildExecutiveReportDocument } from "./executiveReportDocument.js";
 
 const BUILDERS = {
+  executive: buildExecutiveReportDocument,
   action: buildActionPlanDocument,
   client: buildClientReportDocument,
   management: buildManagementReportDocument,

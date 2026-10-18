@@ -2,6 +2,12 @@ const ACTIVE = "active";
 const PLANNED = "planned";
 
 export const REPORT_DEFINITIONS = Object.freeze({
+  executive: Object.freeze({
+    id: "executive", label: "Executive Report", description: "Concise Issue-centred briefing with traceable recorded material, unresolved matters, and next steps.", audience: "management",
+    supportedScopes: Object.freeze(["case", "sequenceGroup"]), supportedOutputs: Object.freeze(["preview", "print", "markdown", "json"]),
+    recordTypes: Object.freeze(["incident", "evidence", "document", "strategy", "watch"]),
+    completeness: "summary", includeArchived: true, aiPolicy: "none", status: ACTIVE,
+  }),
   management: Object.freeze({
     id: "management", label: "Management Report", description: "Executive briefing on the current case position, priority Issues, risks, decisions, and actions.", audience: "management",
     supportedScopes: Object.freeze(["case"]), supportedOutputs: Object.freeze(["preview", "print", "markdown", "json"]),

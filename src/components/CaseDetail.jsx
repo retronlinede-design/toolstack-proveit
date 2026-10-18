@@ -95,6 +95,7 @@ import InvestigationReportArticle from "./reports/InvestigationReportArticle.jsx
 import ManagementReportArticle from "./reports/ManagementReportArticle.jsx";
 import ClientReportArticle from "./reports/ClientReportArticle.jsx";
 import ActionPlanReportArticle from "./reports/ActionPlanReportArticle.jsx";
+import ExecutiveReportArticle from "./reports/ExecutiveReportArticle.jsx";
 import ThreadIssueReportArticle from "./reports/ThreadIssueReportArticle";
 import ReportCentreControls, { ReportCentrePreviewSummary } from "./reports/ReportCentreControls";
 import { getReportCentreIssueOptions, resolveReportCentreIssueSelection } from "./reports/reportCentreIssueSelection.js";
@@ -303,9 +304,9 @@ export default function CaseDetail({
   const [clientNarrativeMeta, setClientNarrativeMeta] = useState({});
   const clientNarrativeCaseIdRef = useRef("");
   const [reportPromptFeedback, setReportPromptFeedback] = useState("");
-  const [reportCentreScopeType, setReportCentreScopeType] = useState("case");
+  const [reportCentreScopeType, setReportCentreScopeType] = useState("sequenceGroup");
   const [reportCentreIssueId, setReportCentreIssueId] = useState("");
-  const [reportCentreType, setReportCentreType] = useState("management");
+  const [reportCentreType, setReportCentreType] = useState("executive");
   const [reportCentreOutputFeedback, setReportCentreOutputFeedback] = useState("");
   const [caseStructureReportOpen, setCaseStructureReportOpen] = useState(false);
   const [clientReportGeneratorOpen, setClientReportGeneratorOpen] = useState(false);
@@ -483,6 +484,7 @@ export default function CaseDetail({
   const reportCentreChronologyDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "chronologyReport", reportModel: reportCentreModel, definition: getReportDefinition("chronologyReport") }).reportDocument : null, [reportCentreModel]);
   const reportCentreCaseAuditDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "caseAudit", reportModel: reportCentreModel, definition: getReportDefinition("caseAudit") }).reportDocument : null, [reportCentreModel]);
   const reportCentreInvestigationDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "investigation", reportModel: reportCentreModel, definition: getReportDefinition("investigation") }).reportDocument : null, [reportCentreModel]);
+  const reportCentreExecutiveDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "executive", reportModel: reportCentreModel, definition: getReportDefinition("executive") }).reportDocument : null, [reportCentreModel]);
   const reportCentreManagementDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "management", reportModel: reportCentreModel, definition: getReportDefinition("management") }).reportDocument : null, [reportCentreModel]);
   const reportCentreClientValidation = useMemo(() => validateClientReportNarrative(renderedReportText, { sourceRevision: clientNarrativeMeta.sourceRevision, currentSourceRevision: reportCentreModel?.sourceRevision?.fingerprint }), [clientNarrativeMeta.sourceRevision, renderedReportText, reportCentreModel?.sourceRevision?.fingerprint]);
   const reportCentreClientDocument = useMemo(() => reportCentreModel && renderedReportText.trim() && reportCentreClientValidation.valid ? buildActiveReportDocument({ reportId: "client", reportModel: reportCentreModel, definition: getReportDefinition("client"), options: { generatedNarrative: parseProveItReportV1(renderedReportText), generatedNarrativeMeta: clientNarrativeMeta } }).reportDocument : null, [clientNarrativeMeta, renderedReportText, reportCentreClientValidation.valid, reportCentreModel]);
@@ -490,7 +492,8 @@ export default function CaseDetail({
   const reportCentreEvidencePackReport = useMemo(() => reportCentreEvidenceDocument ? projectEvidenceDocumentToLegacyViewModel(reportCentreEvidenceDocument) : null, [reportCentreEvidenceDocument]);
   const reportCentreDocumentPackReport = useMemo(() => reportCentreDocumentDocument ? projectDocumentDocumentToLegacyViewModel(reportCentreDocumentDocument) : null, [reportCentreDocumentDocument]);
   const reportCentreLedgerPackReport = useMemo(() => reportCentreLedgerDocument ? projectLedgerDocumentToLegacyViewModel(reportCentreLedgerDocument) : null, [reportCentreLedgerDocument]);
-  const reportCentreActiveDocument = reportCentreType === "management" ? reportCentreManagementDocument
+  const reportCentreActiveDocument = reportCentreType === "executive" ? reportCentreExecutiveDocument
+    : reportCentreType === "management" ? reportCentreManagementDocument
     : reportCentreType === "action" ? reportCentreActionDocument
     : reportCentreType === "client" ? reportCentreClientDocument
     : reportCentreType === "investigation" ? reportCentreInvestigationDocument
@@ -501,6 +504,7 @@ export default function CaseDetail({
           : reportCentreType === "chronologyReport" ? reportCentreChronologyDocument
             : reportCentreType === "caseAudit" ? reportCentreCaseAuditDocument : null;
   const reportCentreCountLabel = useMemo(() => {
+    if (reportCentreType === "executive") return `${reportCentreExecutiveDocument?.summary?.directRecordCount || 0} scoped records`;
     if (reportCentreType === "management") return `${reportCentreManagementDocument?.summary?.openIssueCount || 0} active Issues`;
     if (reportCentreType === "client") return reportCentreClientDocument ? `${reportCentreClientDocument.summary?.activeIssueCount || 0} active Issues` : "Draft not validated";
     if (reportCentreType === "action") return `${reportCentreActionDocument?.summary?.activeActionCount || 0} active actions`;
@@ -512,7 +516,7 @@ export default function CaseDetail({
     if (reportCentreType === "chronologyReport") return `${reportCentreChronologyDocument?.summary?.totalChronologyEntries || 0} chronology entries`;
     if (reportCentreType === "caseAudit") return `${reportCentreCaseAuditDocument?.summary?.totalFindings || 0} audit findings`;
     return "";
-  }, [reportCentreActionDocument, reportCentreCaseAuditDocument, reportCentreChronologyDocument, reportCentreClientDocument, reportCentreDocumentDocument, reportCentreEvidenceDocument, reportCentreIncidentDocument, reportCentreInvestigationDocument, reportCentreLedgerDocument, reportCentreManagementDocument, reportCentreType]);
+  }, [reportCentreActionDocument, reportCentreCaseAuditDocument, reportCentreChronologyDocument, reportCentreClientDocument, reportCentreDocumentDocument, reportCentreEvidenceDocument, reportCentreExecutiveDocument, reportCentreIncidentDocument, reportCentreInvestigationDocument, reportCentreLedgerDocument, reportCentreManagementDocument, reportCentreType]);
   const reportCentreActionPlan = useMemo(() => {
     if (!selectedCase) return null;
     return buildActionPlanReport(selectedCase, reportCentreScope);
@@ -5028,7 +5032,7 @@ ${ungroupedSequenceText}
                     scopeLabel={reportCentreScopeLabel}
                   />
 
-                  {normalisedReportCentreScopeType === "sequenceGroup" && reportCentreActiveDocument && !["caseAudit", "investigation"].includes(reportCentreType) && reportCentreCountLabel.startsWith("0 ") ? (
+                  {normalisedReportCentreScopeType === "sequenceGroup" && reportCentreActiveDocument && !["caseAudit", "investigation", "executive"].includes(reportCentreType) && reportCentreCountLabel.startsWith("0 ") ? (
                     <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm leading-6 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
                       <p className="font-semibold text-neutral-900 dark:text-neutral-100">No matching records appear in this {getReportDefinition(reportCentreType).label}.</p>
                       <p className="mt-1">The Issue exists, but contains no {reportCentreType === "incidentSchedule" ? "directly assigned incidents" : reportCentreType === "chronologyReport" ? "directly assigned records for its chronology" : `directly assigned or permitted linked ${reportCentreType === "evidence" ? "evidence records" : reportCentreType === "document" ? "documents" : "ledger entries"}`}. Check the Issue assignment and selected scope.</p>
@@ -5049,6 +5053,7 @@ ${ungroupedSequenceText}
                     </div>
                   ) : (
                     <>
+                      {reportCentreType === "executive" && <ExecutiveReportArticle reportDocument={reportCentreExecutiveDocument} />}
                       {reportCentreType === "management" && <ManagementReportArticle reportDocument={reportCentreManagementDocument} />}
                       {reportCentreType === "investigation" && <InvestigationReportArticle reportDocument={reportCentreInvestigationDocument} />}
                       {reportCentreType === "evidence" && (

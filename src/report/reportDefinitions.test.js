@@ -24,10 +24,10 @@ test("all report definitions have unique stable IDs and explicit policies", () =
 });
 
 test("active definitions preserve Report Centre scope behaviour", () => {
-  assert.deepEqual(getActiveReportDefinitions().map((item) => item.id), ["management", "investigation", "evidence", "document", "ledger", "client", "action", "caseAudit", "incidentSchedule", "chronologyReport"]);
+  assert.deepEqual(getActiveReportDefinitions().map((item) => item.id), ["executive", "management", "investigation", "evidence", "document", "ledger", "client", "action", "caseAudit", "incidentSchedule", "chronologyReport"]);
   assert.deepEqual(getSupportedReportScopes("management"), ["case"]);
   assert.deepEqual(getSupportedReportScopes("client"), ["case"]);
-  for (const id of ["investigation", "evidence", "document", "ledger", "action", "caseAudit", "incidentSchedule", "chronologyReport"]) {
+  for (const id of ["executive", "investigation", "evidence", "document", "ledger", "action", "caseAudit", "incidentSchedule", "chronologyReport"]) {
     assert.deepEqual(getSupportedReportScopes(id), ["case", "sequenceGroup"]);
   }
 });
@@ -53,6 +53,14 @@ test("Management declares whole-case shared executive outputs without AI prose",
   assert.equal(management.aiPolicy, "none");
   assert.deepEqual(management.supportedScopes, ["case"]);
   for (const output of ["preview", "print", "markdown", "json"]) assert.equal(reportSupportsOutput("management", output), true);
+});
+
+test("Executive Report is a deterministic concise report for whole-case or Issue scope", () => {
+  const executive = getReportDefinition("executive");
+  assert.equal(executive.completeness, "summary");
+  assert.equal(executive.aiPolicy, "none");
+  assert.deepEqual(executive.supportedScopes, ["case", "sequenceGroup"]);
+  for (const output of ["preview", "print", "markdown", "json"]) assert.equal(reportSupportsOutput("executive", output), true);
 });
 
 test("Client declares whole-case AI-assisted shared outputs", () => {

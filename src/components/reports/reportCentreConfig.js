@@ -2,7 +2,7 @@ import { normaliseReportScope } from "../../report/reportScopes.js";
 import { getReportDefinition } from "../../report/reportDefinitions.js";
 
 export const REPORT_CENTRE_TYPES = Object.freeze([
-  "management", "investigation", "caseAudit", "incidentSchedule", "chronologyReport", "evidence", "document", "ledger", "client", "action",
+  "executive", "management", "investigation", "caseAudit", "incidentSchedule", "chronologyReport", "evidence", "document", "ledger", "client", "action",
 ].map((value) => {
   const definition = getReportDefinition(value);
   return {
@@ -18,6 +18,7 @@ export const REPORT_CENTRE_TYPES = Object.freeze([
 
 // User-facing wording only: report IDs, builders, and persisted data remain unchanged.
 export const REPORT_CENTRE_PRESENTATION = Object.freeze({
+  executive: { label: "Executive Report", kind: "Report", preparation: "Default concise briefing for the selected Issue; uses recorded material only." },
   management: { label: "Case Position Brief", kind: "Report", preparation: "Ready to preview from recorded case information." },
   investigation: { label: "Issue Investigation Report", kind: "Report", preparation: "Use an Issue scope when you need a focused investigation view." },
   client: { label: "Client Update Draft", kind: "Draft", preparation: "Requires the existing assisted drafting and human-review workflow." },
@@ -31,13 +32,14 @@ export const REPORT_CENTRE_PRESENTATION = Object.freeze({
 });
 
 export const REPORT_CENTRE_CATALOGUE = Object.freeze([
-  { id: "main", title: "Main Reports", description: "Start here for a clear case briefing, focused investigation, or client-facing draft.", reports: ["management", "investigation", "client"] },
+  { id: "main", title: "Main Reports", description: "Start with a concise Issue briefing, then use detailed investigation or specialist reports when needed.", reports: ["executive", "investigation", "management", "client"] },
   { id: "schedules", title: "Specialist Schedules", description: "Detailed, structured schedules for investigation, review, and export.", reports: ["incidentSchedule", "chronologyReport", "evidence", "document", "ledger"] },
   { id: "internal", title: "Internal Tools & Documentation", description: "Operational review, data-quality checks, and configurable case documentation.", reports: ["caseAudit", "action"] },
 ]);
 
 export function getReportCentrePreviewDescription(reportType, scopeType) {
   const scope = normaliseReportScope(reportType, scopeType);
+  if (reportType === "executive") return scope === "sequenceGroup" ? "Concise executive briefing for the selected Issue, with traceable recorded material and unresolved matters." : "Concise executive briefing for the whole case, with traceable recorded material and unresolved matters.";
   if (reportType === "management") return "Whole-case executive briefing focused on the current position, priority Issues, risks, decisions, and next actions.";
   if (reportType === "investigation") {
     return scope === "sequenceGroup"

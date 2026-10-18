@@ -16,7 +16,7 @@ test("whole-case-only reports reject sequence group scope", () => {
 });
 
 test("current scoped report types support whole case and sequence groups", () => {
-  for (const reportType of ["investigation", "evidence", "document", "ledger", "action"]) {
+  for (const reportType of ["executive", "investigation", "evidence", "document", "ledger", "action"]) {
     assert.deepEqual(getSupportedReportScopes(reportType), ["case", "sequenceGroup"]);
     assert.equal(reportSupportsScope(reportType, "sequenceGroup"), true);
     assert.equal(normalizeReportScope(reportType, "sequenceGroup"), "sequenceGroup");
