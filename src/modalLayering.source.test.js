@@ -14,7 +14,6 @@ const modalSources = [
   caseDetail,
   readFileSync(new URL("./components/FilePreviewModal.jsx", import.meta.url), "utf8"),
   readFileSync(new URL("./components/gpt/GptDeltaModal.jsx", import.meta.url), "utf8"),
-  readFileSync(new URL("./components/caseDetail/ActiveLedgerRecordModal.jsx", import.meta.url), "utf8"),
   readFileSync(new URL("./components/caseDetail/StrategyDeltaModal.jsx", import.meta.url), "utf8"),
 ];
 
@@ -66,6 +65,13 @@ test("tracking-row editor delegates its viewport layer to DialogShell", () => {
   assert.match(records, /<DialogShell/);
   assert.match(records, /dismissOnBackdrop=\{false\}/);
   assert.match(records, /className="case-file-records-entry-dialog"/);
+});
+
+test("derived-payment preview delegates its viewport layer to DialogShell", () => {
+  const derivedPaymentPreview = readFileSync(new URL("./components/caseDetail/ActiveLedgerRecordModal.jsx", import.meta.url), "utf8");
+  assert.match(derivedPaymentPreview, /<DialogShell/);
+  assert.match(derivedPaymentPreview, /dismissOnBackdrop=\{false\}/);
+  assert.match(derivedPaymentPreview, /className="case-file-derived-payment-dialog"/);
 });
 
 test("the dashboard content area does not create a fixed-position containing block", () => {

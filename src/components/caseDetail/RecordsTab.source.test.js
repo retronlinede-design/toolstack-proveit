@@ -69,9 +69,16 @@ test("tracking-row editor protects a full row draft while preserving the parser 
 });
 
 test("derived payment preview clearly remains non-canonical and keyboard-dismissible", () => {
+  assert.match(modalSource, /import DialogShell/);
+  assert.match(modalSource, /<DialogShell/);
+  assert.match(modalSource, /onRequestClose=\{onClose\}/);
+  assert.match(modalSource, /dismissOnBackdrop=\{false\}/);
+  assert.match(modalSource, /width="compact"/);
   assert.match(modalSource, /Derived Payment Preview/);
   assert.match(modalSource, /Not Canonical Ledger Entries/);
   assert.match(modalSource, /do not create or modify Ledger records/);
-  assert.match(modalSource, /event\.key === "Escape"/);
-  assert.match(modalSource, /aria-modal="true"/);
+  assert.match(modalSource, /entry\.date/);
+  assert.match(modalSource, /€\{entry\.amount\}/);
+  assert.match(modalSource, /entry\.direction/);
+  assert.match(modalSource, /entry\.status/);
 });
