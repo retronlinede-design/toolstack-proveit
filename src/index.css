@@ -195,6 +195,85 @@
   outline-offset: 2px;
 }
 
+/* Security screens remain non-dismissible pages; only the case PIN manager uses DialogShell. */
+.proveit-app-lock-screen {
+  background: radial-gradient(circle at top, #10294a 0, #07111f 48%, #050b14 100%);
+  color: #e2e8f0;
+}
+.proveit-app-lock-panel,
+.proveit-case-unlock-panel {
+  border-color: #334155;
+  background: #0b172a;
+  color: #e2e8f0;
+  box-shadow: 0 24px 56px rgba(0, 0, 0, .38);
+}
+.proveit-app-lock-panel :is(h1, h2),
+.proveit-case-unlock-panel :is(h1, h2) { color: #f8fafc; }
+.proveit-app-lock-panel :is(p, label span),
+.proveit-case-unlock-panel :is(p, label) { color: #cbd5e1; }
+.proveit-app-lock-mark {
+  border-color: #2dd4bf;
+  background: #0d2a35;
+  color: #5eead4;
+}
+.proveit-pin-eyebrow {
+  color: #5eead4;
+  font-size: .625rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.proveit-pin-input {
+  border-color: #475569;
+  background: #0f1f35;
+  color: #f8fafc;
+  outline: none;
+}
+.proveit-pin-input::placeholder { color: #94a3b8; }
+.proveit-pin-input:focus {
+  border-color: #2dd4bf;
+  box-shadow: 0 0 0 2px rgba(45, 212, 191, .42);
+}
+.proveit-pin-primary-action,
+.proveit-pin-secondary-action {
+  min-height: 2.5rem;
+  border-radius: .625rem;
+  padding: .55rem .9rem;
+  font-size: .875rem;
+  font-weight: 700;
+}
+.proveit-pin-primary-action { border: 1px solid #0f766e; background: #0f766e; color: #f0fdfa; }
+.proveit-pin-primary-action:hover { background: #115e59; }
+.proveit-pin-secondary-action { border: 1px solid #475569; background: #172554; color: #e2e8f0; }
+.proveit-pin-secondary-action:hover { background: #1e3a5f; }
+.proveit-pin-warning {
+  border-color: #b7791f;
+  background: #3b2a12;
+  color: #fef3c7;
+}
+.proveit-pin-error { border-color: #b91c1c; background: #451a1a; color: #fecaca; }
+.proveit-case-pin-dialog { background: #0b172a; }
+.proveit-case-pin-dialog :is(label, .text-neutral-500, .text-neutral-600, .text-neutral-700) { color: #cbd5e1; }
+.proveit-case-pin-dialog :is(input:not([type="checkbox"])) {
+  border-color: #475569;
+  background: #0f1f35;
+  color: #f8fafc;
+  outline: none;
+}
+.proveit-case-pin-dialog :is(input:not([type="checkbox"]))::placeholder { color: #94a3b8; }
+.proveit-case-pin-dialog :is(input, button):focus-visible {
+  outline: 2px solid #2dd4bf;
+  outline-offset: 2px;
+}
+.proveit-case-pin-dialog .bg-amber-50 { border-color: #b7791f; background: #3b2a12; color: #fef3c7; }
+.proveit-case-pin-dialog .bg-neutral-50 { border-color: #334155; background: #12213a; }
+.proveit-case-pin-dialog .bg-white { background: #172554; color: #e2e8f0; }
+.proveit-case-pin-dialog .border-neutral-200 { border-color: #334155; }
+.proveit-case-pin-dialog .bg-lime-50 { border-color: #0f766e; background: #0d2a35; color: #5eead4; }
+.proveit-case-pin-dialog .border-red-300 { border-color: #b91c1c; }
+.proveit-case-pin-dialog .bg-red-50 { background: #451a1a; }
+.proveit-case-pin-dialog input[type="checkbox"] { accent-color: #2dd4bf; }
+
 /* The case editor uses the shared dialog shell but retains its own form scope. */
 .proveit-case-editor-dialog .proveit-case-editor-input {
   width: 100%;

@@ -787,6 +787,7 @@ export default function ProveItApp() {
   const [viewingRecord, setViewingRecord] = useState(null);
   const [unlockedCaseIds, setUnlockedCaseIds] = useState([]);
   const [pinManagerState, setPinManagerState] = useState({ open: false, caseId: null, mode: "set" });
+  const pinManagerInputRef = useRef(null);
   const [pinForm, setPinForm] = useState(EMPTY_PIN_FORM);
   const [pinModalError, setPinModalError] = useState("");
   const [lockPromptPin, setLockPromptPin] = useState("");
@@ -3874,8 +3875,8 @@ const handleRecordFiles = async (event) => {
 
   if (appLockCorrupt) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-neutral-950 p-4 text-neutral-100">
-        <div className="w-full max-w-md rounded-2xl border border-red-300/40 bg-white p-6 text-neutral-900 shadow-xl">
+      <div className="proveit-app-lock-screen flex min-h-screen items-center justify-center p-4">
+        <div className="proveit-app-lock-panel proveit-app-lock-corrupt-panel w-full max-w-md rounded-2xl border p-6 shadow-xl">
           <div className="text-[10px] font-bold uppercase tracking-wider text-red-700">App Lock Warning</div>
           <h1 className="mt-2 text-2xl font-semibold">App lock settings are corrupted</h1>
           <p className="mt-3 text-sm leading-6 text-neutral-700">
@@ -3898,14 +3899,14 @@ const handleRecordFiles = async (event) => {
 
   if (appLocked) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-neutral-950 p-4 text-neutral-100">
-        <div className="w-full max-w-md rounded-2xl border border-neutral-700 bg-white p-6 text-neutral-900 shadow-xl">
+      <div className="proveit-app-lock-screen flex min-h-screen items-center justify-center p-4">
+        <div className="proveit-app-lock-panel w-full max-w-md rounded-2xl border p-6 shadow-xl">
           <div className="flex items-center gap-3">
-            <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-lime-500 bg-lime-50 text-neutral-900">
+            <div className="proveit-app-lock-mark inline-flex h-10 w-10 items-center justify-center rounded-xl border">
               <Lock className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-lime-700">App Lock</div>
+              <div className="proveit-pin-eyebrow">App Lock</div>
               <h1 className="text-xl font-semibold">ProveIt is locked</h1>
             </div>
           </div>
@@ -3925,17 +3926,17 @@ const handleRecordFiles = async (event) => {
                   setAppUnlockError("");
                 }}
                 placeholder="Enter 4 to 8 digits"
-                className="w-full rounded-xl border border-neutral-300 p-3 outline-none transition-colors focus:border-lime-500"
+                className="proveit-pin-input w-full rounded-xl border p-3"
               />
             </label>
             {appUnlockError ? (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-800">
+              <div className="proveit-pin-error rounded-lg border p-3 text-sm font-medium" role="alert">
                 {appUnlockError}
               </div>
             ) : null}
             <button
               type="submit"
-              className="w-full rounded-lg border border-lime-600 bg-lime-500 px-3 py-2 text-sm font-bold text-white hover:bg-lime-600"
+              className="proveit-pin-primary-action w-full"
             >
               Unlock App
             </button>
@@ -4747,10 +4748,10 @@ const handleRecordFiles = async (event) => {
         ) : cases.length === 0 ? (
           renderEmptyState()
         ) : selectedCaseRequiresPin ? (
-          <div className="mx-auto max-w-xl rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+          <div className="proveit-case-unlock-panel mx-auto max-w-xl rounded-3xl border p-6 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Privacy Lock</div>
+                <div className="proveit-pin-eyebrow">Privacy Lock</div>
                 <h2 className="mt-1 text-2xl font-semibold text-neutral-900">{selectedCase.name}</h2>
                 <p className="mt-2 text-sm text-neutral-600">
                   This case is PIN locked. Enter the case PIN to continue.
@@ -4777,18 +4778,18 @@ const handleRecordFiles = async (event) => {
                     setLockPromptError("");
                   }}
                   placeholder="Enter 4 to 6 digits"
-                  className="w-full rounded-xl border border-neutral-300 p-3 outline-none transition-colors focus:border-lime-500"
+                  className="proveit-pin-input w-full rounded-xl border p-3"
                 />
                 <p className="mt-2 text-xs text-neutral-500">Numeric only. Press Enter to submit.</p>
               </div>
 
               {lockPromptError ? (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                <div className="proveit-pin-error rounded-xl border px-3 py-2 text-sm" role="alert">
                   {lockPromptError}
                 </div>
               ) : null}
 
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              <div className="proveit-pin-warning rounded-2xl border p-4 text-sm">
                 <div className="font-semibold">Forgot PIN?</div>
                 <p className="mt-1">
                   V1 has no in-app recovery and no reset shortcut. If the PIN is forgotten, recovery may not be possible.
@@ -4798,14 +4799,14 @@ const handleRecordFiles = async (event) => {
               <div className="flex gap-2">
                 <button
                   type="submit"
-                  className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
+                  className="proveit-pin-primary-action flex-1"
                 >
                   Unlock Case
                 </button>
                 <button
                   type="button"
                   onClick={closeLockPrompt}
-                  className="flex-1 rounded-xl border border-neutral-300 bg-white py-2 font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
+                  className="proveit-pin-secondary-action flex-1"
                 >
                   Cancel
                 </button>
@@ -4894,23 +4895,25 @@ const handleRecordFiles = async (event) => {
           />
         )}
         {pinManagerState.open && pinManagerCase && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-xl">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Privacy Lock</div>
-                  <h2 className="mt-1 text-xl font-semibold text-neutral-900">
-                    {pinManagerState.mode === "set" ? "Set PIN" : pinManagerState.mode === "change" ? "Change PIN" : "Remove PIN"}
-                  </h2>
-                  <p className="mt-1 text-sm text-neutral-600">{pinManagerCase.name}</p>
-                </div>
-                <button
-                  onClick={closePinManager}
-                  className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-                >
-                  Close
+          <DialogShell
+            title={pinManagerState.mode === "set" ? "Set case PIN" : pinManagerState.mode === "change" ? "Change case PIN" : "Remove case PIN"}
+            description={pinManagerCase.name}
+            width="compact"
+            onRequestClose={closePinManager}
+            dismissOnBackdrop={false}
+            initialFocusRef={pinManagerInputRef}
+            className="proveit-case-pin-dialog"
+            footer={
+              <div className="flex flex-wrap justify-end gap-2">
+                <button type="submit" form="case-pin-manager-form" className="proveit-pin-primary-action">
+                  {pinManagerState.mode === "set" ? "Enable PIN" : pinManagerState.mode === "change" ? "Save New PIN" : "Remove PIN"}
                 </button>
+                <button type="button" onClick={closePinManager} className="proveit-pin-secondary-action">Cancel</button>
               </div>
+            }
+          >
+            <div className="space-y-5">
+              <div className="proveit-pin-eyebrow">Privacy Lock</div>
 
               {isCasePinLocked(pinManagerCase) && (
                 <div className="mt-4 flex gap-2">
@@ -4920,6 +4923,7 @@ const handleRecordFiles = async (event) => {
                       setPinManagerState((prev) => ({ ...prev, mode: "change" }));
                       resetPinModalState();
                     }}
+                    aria-pressed={pinManagerState.mode === "change"}
                     className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                       pinManagerState.mode === "change"
                         ? "border-lime-500 bg-lime-50 text-lime-700"
@@ -4934,6 +4938,7 @@ const handleRecordFiles = async (event) => {
                       setPinManagerState((prev) => ({ ...prev, mode: "remove" }));
                       resetPinModalState();
                     }}
+                    aria-pressed={pinManagerState.mode === "remove"}
                     className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                       pinManagerState.mode === "remove"
                         ? "border-red-300 bg-red-50 text-red-700"
@@ -4946,7 +4951,8 @@ const handleRecordFiles = async (event) => {
               )}
 
               <form
-                className="mt-5 space-y-4"
+                id="case-pin-manager-form"
+                className="space-y-4"
                 onSubmit={(event) => {
                   event.preventDefault();
                   handleSavePinFlow();
@@ -4969,6 +4975,8 @@ const handleRecordFiles = async (event) => {
                         type="password"
                         inputMode="numeric"
                         autoFocus
+                        ref={pinManagerInputRef}
+                        aria-label="New PIN"
                         value={pinForm.newPin}
                         onChange={(e) => {
                           setPinForm((prev) => ({ ...prev, newPin: sanitizePinInput(e.target.value) }));
@@ -4984,6 +4992,7 @@ const handleRecordFiles = async (event) => {
                       <input
                         type="password"
                         inputMode="numeric"
+                        aria-label="Confirm PIN"
                         value={pinForm.confirmPin}
                         onChange={(e) => {
                           setPinForm((prev) => ({ ...prev, confirmPin: sanitizePinInput(e.target.value) }));
@@ -5004,6 +5013,8 @@ const handleRecordFiles = async (event) => {
                         type="password"
                         inputMode="numeric"
                         autoFocus
+                        ref={pinManagerInputRef}
+                        aria-label="Current PIN"
                         value={pinForm.currentPin}
                         onChange={(e) => {
                           setPinForm((prev) => ({ ...prev, currentPin: sanitizePinInput(e.target.value) }));
@@ -5019,6 +5030,7 @@ const handleRecordFiles = async (event) => {
                       <input
                         type="password"
                         inputMode="numeric"
+                        aria-label="New PIN"
                         value={pinForm.newPin}
                         onChange={(e) => {
                           setPinForm((prev) => ({ ...prev, newPin: sanitizePinInput(e.target.value) }));
@@ -5034,6 +5046,7 @@ const handleRecordFiles = async (event) => {
                       <input
                         type="password"
                         inputMode="numeric"
+                        aria-label="Confirm new PIN"
                         value={pinForm.confirmPin}
                         onChange={(e) => {
                           setPinForm((prev) => ({ ...prev, confirmPin: sanitizePinInput(e.target.value) }));
@@ -5058,6 +5071,8 @@ const handleRecordFiles = async (event) => {
                         type="password"
                         inputMode="numeric"
                         autoFocus
+                        ref={pinManagerInputRef}
+                        aria-label="Current PIN"
                         value={pinForm.currentPin}
                         onChange={(e) => {
                           setPinForm((prev) => ({ ...prev, currentPin: sanitizePinInput(e.target.value) }));
@@ -5084,7 +5099,7 @@ const handleRecordFiles = async (event) => {
                 )}
 
                 {pinModalError ? (
-                  <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  <div className="proveit-pin-error rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
                     {pinModalError}
                   </div>
                 ) : null}
@@ -5096,24 +5111,9 @@ const handleRecordFiles = async (event) => {
                   </p>
                 </div>
 
-                <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    className="flex-1 rounded-xl border border-lime-500 bg-white py-2 font-medium text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] hover:bg-lime-400/30 transition-colors"
-                  >
-                    {pinManagerState.mode === "set" ? "Enable PIN" : pinManagerState.mode === "change" ? "Save New PIN" : "Remove PIN"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={closePinManager}
-                    className="flex-1 rounded-xl border border-neutral-300 bg-white py-2 font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
               </form>
             </div>
-          </div>
+          </DialogShell>
         )}
 
         {showCreate && (
