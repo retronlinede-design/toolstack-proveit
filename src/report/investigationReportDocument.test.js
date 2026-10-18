@@ -5,6 +5,8 @@ import { validateReportDocument } from "./reportDocument.js";
 import { buildCaseReportModel } from "./reportModel.js";
 import { getReportDefinition } from "./reportDefinitions.js";
 import { buildInvestigationReportDocument } from "./investigationReportDocument.js";
+import { formatReportDocumentAsMarkdown } from "./reportMarkdownFormatter.js";
+import { buildReportOutput } from "./reportOutputs.js";
 
 const generatedAt = "2026-08-02T12:00:00.000Z";
 function caseFixture() {
@@ -35,6 +37,35 @@ test("Issue scope resolves stable identity and preserves direct versus linked co
   const { document } = build(caseFixture(), { scope: "sequenceGroup", issueId: "issue-stable", sequenceGroupName: "obsolete name" });
   assert.deepEqual(document.summary.issue, { id: "issue-stable", reference: "ISS-003", name: "Heating Failure", displayLabel: "ISS-003 — Heating Failure", purpose: "Document recurring failures.", status: "waiting_response", priority: "high", ownerPartyId: "p1", ownerName: "Alex Tenant", reviewDate: "2026-07-30", currentPosition: "The repair response remains outstanding.", updatedAt: "2026-07-28" });
   assert.equal(document.recordReferences.direct.some((item) => item.id === "i1"), true); assert.equal(document.recordReferences.linkedContext.some((item) => item.id === "i2"), true); assert.equal(document.recordReferences.direct.some((item) => item.id === "i2"), false); assert.equal(new Set(document.recordReferences.direct.map((item) => `${item.type}:${item.id}`)).size, document.recordReferences.direct.length);
+});
+
+test("source register keeps canonical direct, linked-context, and unresolved references traceable", () => {
+  const { document } = build(caseFixture(), { scope: "sequenceGroup", issueId: "issue-stable", sequenceGroupName: "Heating Failure" });
+  const sourceRegister = document.sections.find((item) => item.id === "source-register");
+  const direct = sourceRegister.groups.find((group) => group.id === "direct-issue-records").items;
+  const linked = sourceRegister.groups.find((group) => group.id === "linked-context").items;
+  const unresolved = sourceRegister.groups.find((group) => group.id === "unresolved-references").items;
+  assert.deepEqual(direct.find((item) => item.recordId === "i1"), { recordType: "incident", recordId: "i1", title: "Heating stopped", scopeRelation: "direct", label: "Incident: i1 — Heating stopped" });
+  assert.deepEqual(linked.find((item) => item.recordId === "i2"), { recordType: "incident", recordId: "i2", title: "Old linked context", scopeRelation: "linked-context", label: "Incident: i2 — Old linked context" });
+  assert.equal(unresolved[0].targetLabel, "Unresolved party reference: missing-party");
+  assert.equal(unresolved[0].sourceReference.label, "Incident: i1 — Heating stopped");
+  const chronology = document.sections.find((item) => item.id === "narrative-chronology");
+  assert.equal(chronology.groups.flatMap((group) => group.entries).find((item) => item.recordId === "i1").sourceReference.label, "Incident: i1 — Heating stopped");
+  assert.equal(document.sections.find((item) => item.id === "evidence-overview").items[0].sourceReference.label, "Evidence: e1 — Thermostat photograph");
+  assert.equal(document.sections.find((item) => item.id === "supporting-documents").items[0].sourceReference.label, "Document: d1 — Repair email");
+});
+
+test("source references are deterministic, visible in Markdown, and do not claim proof", () => {
+  const { document } = build(caseFixture(), { scope: "sequenceGroup", issueId: "issue-stable", sequenceGroupName: "Heating Failure" });
+  const markdown = formatReportDocumentAsMarkdown(document);
+  const exportedJson = JSON.parse(buildReportOutput(document, "json").content);
+  assert.match(markdown, /## Source Register/);
+  assert.match(markdown, /Incident: i1 — Heating stopped — Direct Issue record/);
+  assert.match(markdown, /Incident: i2 — Old linked context — Additional linked context/);
+  assert.match(markdown, /Unresolved party reference: missing-party/);
+  assert.match(markdown, /do not independently prove an assertion/);
+  assert.match(markdown, /does not determine legal merit or whether an allegation is proven/);
+  assert.equal(exportedJson.sections.find((item) => item.id === "source-register").groups.find((group) => group.id === "direct-issue-records").items[0].recordId, "i1");
 });
 
 test("empty, metadata-only, and missing Issue states are explicit", () => {

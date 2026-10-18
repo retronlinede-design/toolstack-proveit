@@ -30,8 +30,9 @@ function render(document) { return renderToStaticMarkup(React.createElement(Inve
 
 test("renders the complete professional Investigation document hierarchy", () => {
   const html = render(documentFixture());
-  for (const label of ["Investigation Report", "Document control", "Executive Summary", "Current Position", "Investigation Snapshot", "Key Findings", "Narrative Chronology", "Evidence Overview", "Supporting Documents", "People Involved", "Outstanding Matters", "Next Actions", "Appendix A", "Appendix B", "Technical Reference Index"]) assert.match(html, new RegExp(label));
+  for (const label of ["Investigation Report", "Document control", "Executive Summary", "Current Position", "Investigation Snapshot", "Key Findings", "Narrative Chronology", "Evidence Overview", "Supporting Documents", "People Involved", "Outstanding Matters", "Next Actions", "Source Register", "Direct Issue records", "Appendix A", "Appendix B"]) assert.match(html, new RegExp(label));
   assert.match(html, /ISS-003 — Heating Failure/); assert.match(html, /User-authored current position/); assert.match(html, /Response remains outstanding/); assert.match(html, /AI assistance/); assert.match(html, />None</);
+  assert.match(html, /Record reference:/); assert.match(html, /Incident: inc-1 — Heating stopped/); assert.match(html, /Evidence: ev-1 — Photograph/); assert.match(html, /do not independently prove an assertion/);
 });
 
 test("uses semantic, accessible, responsive, dark, and print-safe presentation", () => {
