@@ -865,6 +865,7 @@ export default function ProveItApp() {
   const [documentModalMode, setDocumentModalMode] = useState("document");
   const [recordAdvancedOpen, setRecordAdvancedOpen] = useState(false);
   const [appNotice, setAppNotice] = useState(null);
+  const appNoticeTone = ["success", "info", "warning", "error"].includes(appNotice?.tone) ? appNotice.tone : "info";
   const [storageDiagnosticsOpen, setStorageDiagnosticsOpen] = useState(false);
   const [storageDiagnostics, setStorageDiagnostics] = useState(null);
   const [storageDiagnosticsError, setStorageDiagnosticsError] = useState("");
@@ -4000,22 +4001,21 @@ const handleRecordFiles = async (event) => {
       </aside>
       <main className="proveit-main">
       {appNotice ? (
-        <div className="fixed right-4 top-4 z-[120] max-w-md">
+        <div
+          className="proveit-app-notification fixed right-3 top-3 z-[120] w-[calc(100%-1.5rem)] max-w-md sm:right-4 sm:top-4 sm:w-full"
+          role={appNoticeTone === "error" ? "alert" : "status"}
+          aria-atomic="true"
+        >
           <div
-            className={`rounded-2xl border px-4 py-3 shadow-lg ${
-              appNotice.tone === "error"
-                ? "border-red-200 bg-red-50 text-red-800"
-                : appNotice.tone === "warning"
-                  ? "border-amber-200 bg-amber-50 text-amber-900"
-                  : "border-lime-200 bg-lime-50 text-lime-800"
-            }`}
+            className={`proveit-app-notification-panel proveit-app-notification-${appNoticeTone}`}
           >
             <div className="flex items-start gap-3">
-              <div className="flex-1 text-sm font-medium leading-6">{appNotice.message}</div>
+              <div className="min-w-0 flex-1 break-words text-sm font-medium leading-6">{appNotice.message}</div>
               <button
                 type="button"
                 onClick={() => setAppNotice(null)}
-                className="rounded-lg border border-current/15 px-2 py-1 text-xs font-semibold opacity-80 hover:opacity-100"
+                className="proveit-app-notification-dismiss"
+                aria-label="Dismiss notification"
               >
                 Close
               </button>

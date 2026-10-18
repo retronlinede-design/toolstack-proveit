@@ -405,6 +405,36 @@
 }
 .proveit-settings-error { border-color: #b91c1c; background: #451a1a; color: #fecaca; }
 
+/* App notices stay beneath utility and priority dialog layers, while retaining readable semantic states. */
+.proveit-app-notification-panel {
+  border: 1px solid #334155;
+  border-radius: 1rem;
+  background: #0b172a;
+  padding: 0.75rem 1rem;
+  color: #e2e8f0;
+  box-shadow: 0 1rem 2.5rem rgb(2 6 23 / 0.35);
+}
+.proveit-app-notification-success { border-color: #0f766e; background: #0d2a35; color: #ccfbf1; }
+.proveit-app-notification-info { border-color: #1d4e89; background: #102744; color: #dbeafe; }
+.proveit-app-notification-warning { border-color: #b7791f; background: #3b2a12; color: #fef3c7; }
+.proveit-app-notification-error { border-color: #b91c1c; background: #451a1a; color: #fecaca; }
+.proveit-app-notification-dismiss {
+  flex: none;
+  border: 1px solid currentColor;
+  border-radius: 0.5rem;
+  padding: 0.3rem 0.55rem;
+  color: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  opacity: 0.9;
+  transition: background-color 150ms ease, opacity 150ms ease;
+}
+.proveit-app-notification-dismiss:hover { background: rgb(255 255 255 / 0.1); opacity: 1; }
+.proveit-app-notification-dismiss:focus-visible {
+  outline: 2px solid #2dd4bf;
+  outline-offset: 2px;
+}
+
 /* Folder management keeps its existing actions in the shared utility dialog. */
 .proveit-folder-manager-dialog { background: #0b172a; }
 .proveit-folder-manager-dialog section {

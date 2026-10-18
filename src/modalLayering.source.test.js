@@ -43,6 +43,7 @@ test("Issue Manager delegates its viewport layer to DialogShell below its child 
 test("priority dialogs can remain above utility overlays", () => {
   assert.match(dialogShell, /layer === "priority" \? "z-\[130\]"/);
   assert.match(dialogShell, /layer === "utility" \? "z-\[125\]"/);
+  assert.match(app, /proveit-app-notification fixed right-3 top-3 z-\[120\]/);
 });
 
 test("Party Create/Edit delegates its viewport layer to DialogShell", () => {
