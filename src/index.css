@@ -270,6 +270,7 @@
 .proveit-dark-shell .case-file-records-entry-dialog, .proveit-dark-shell .case-file-derived-payment-dialog { border-color: var(--case-file-border); background: var(--case-file-surface); color: var(--case-file-text); }
 .proveit-dark-shell .case-file-records-entry-dialog p, .proveit-dark-shell .case-file-derived-payment-dialog p, .proveit-dark-shell .case-file-derived-payment-entry { color: var(--case-file-muted); }
 .proveit-dark-shell .case-file-records-entry-dialog label { color: var(--case-file-muted); }
+.proveit-dark-shell .case-file-records-entry-dialog input:focus { border-color: var(--case-file-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--case-file-accent) 36%, transparent); outline: 2px solid transparent; }
 .proveit-dark-shell .case-file-derived-payment-dialog header { border-color: var(--case-file-border); }
 .proveit-dark-shell .case-file-derived-payment-entry { border-color: var(--case-file-border); background: var(--case-file-raised); }
 .proveit-dark-shell .case-file-derived-payment-entry .font-medium, .proveit-dark-shell .case-file-derived-payment-entry .font-semibold { color: var(--case-file-text); }

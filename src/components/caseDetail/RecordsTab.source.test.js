@@ -48,9 +48,24 @@ test("Records tab uses canonical Issue labels and accessible editor feedback", (
   assert.match(source, /resolveCaseIssue\(caseItem/);
   assert.match(source, /getIssueDisplayLabel\(issue\)/);
   assert.match(source, /role="status" aria-live="polite"/);
-  assert.match(source, /entryInputRef\.current\?\.focus\(\)/);
-  assert.match(source, /event\.key === "Escape"/);
-  assert.match(source, /restoreFocusRef\.current\?\.focus/);
+  assert.match(source, /import DialogShell/);
+  assert.match(source, /<DialogShell/);
+  assert.match(source, /initialFocusRef=\{entryInputRef\}/);
+  assert.match(source, /dismissOnBackdrop=\{false\}/);
+  assert.match(source, /className="case-file-records-entry-dialog"/);
+});
+
+test("tracking-row editor protects a full row draft while preserving the parser and serializer boundary", () => {
+  assert.match(source, /function entryDraftFingerprint/);
+  assert.match(source, /entryInitialFingerprintRef\.current !== entryDraftFingerprint\(entryEditor\)/);
+  assert.match(source, /Discard unsaved tracking-row changes/);
+  assert.match(source, /Keep editing/);
+  assert.match(source, /Discard changes/);
+  assert.match(source, /const saved = await onSaveTrackingRecordTable\?\.\(/);
+  assert.match(source, /entryInitialFingerprintRef\.current = entryDraftFingerprint\(entryEditor\)/);
+  assert.match(source, /serializeTrackingRecordTable\(\{ headers: structuredTable\.headers, rows \}\)/);
+  assert.match(source, /rows\[entryEditor\.rowIndex\] = \[\.\.\.entryEditor\.values\]/);
+  assert.match(source, /rows\.push\(\[\.\.\.entryEditor\.values\]\)/);
 });
 
 test("derived payment preview clearly remains non-canonical and keyboard-dismissible", () => {

@@ -15,7 +15,6 @@ const modalSources = [
   readFileSync(new URL("./components/FilePreviewModal.jsx", import.meta.url), "utf8"),
   readFileSync(new URL("./components/gpt/GptDeltaModal.jsx", import.meta.url), "utf8"),
   readFileSync(new URL("./components/caseDetail/ActiveLedgerRecordModal.jsx", import.meta.url), "utf8"),
-  readFileSync(new URL("./components/caseDetail/RecordsTab.jsx", import.meta.url), "utf8"),
   readFileSync(new URL("./components/caseDetail/StrategyDeltaModal.jsx", import.meta.url), "utf8"),
 ];
 
@@ -60,6 +59,13 @@ test("To Watch editor delegates its viewport layer to DialogShell", () => {
   assert.match(watch, /<DialogShell/);
   assert.match(watch, /dismissOnBackdrop=\{false\}/);
   assert.match(watch, /className="proveit-watch-dialog"/);
+});
+
+test("tracking-row editor delegates its viewport layer to DialogShell", () => {
+  const records = readFileSync(new URL("./components/caseDetail/RecordsTab.jsx", import.meta.url), "utf8");
+  assert.match(records, /<DialogShell/);
+  assert.match(records, /dismissOnBackdrop=\{false\}/);
+  assert.match(records, /className="case-file-records-entry-dialog"/);
 });
 
 test("the dashboard content area does not create a fixed-position containing block", () => {
