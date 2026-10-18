@@ -344,6 +344,67 @@
   color: #94a3b8;
 }
 
+/* Settings keeps its existing controls and persistence callbacks inside the shared utility dialog. */
+.proveit-settings-dialog { background: #0b172a; }
+.proveit-settings-dialog section {
+  border-color: #334155;
+  background: #12213a;
+}
+.proveit-settings-dialog :is(h3, .text-neutral-900, .text-neutral-800) { color: #f1f5f9; }
+.proveit-settings-dialog :is(p, .text-neutral-500, .text-neutral-600, .text-neutral-700) { color: #cbd5e1; }
+.proveit-settings-dialog .bg-white,
+.proveit-settings-dialog .bg-neutral-50 { background: #0f1f35; }
+.proveit-settings-dialog :is(.border-neutral-200, .border-neutral-300) { border-color: #334155; }
+.proveit-settings-dialog button {
+  border-color: #475569;
+  background: #172554;
+  color: #e2e8f0;
+}
+.proveit-settings-dialog button:hover:not(:disabled) {
+  border-color: #2dd4bf;
+  background: #1e3a5f;
+}
+.proveit-settings-dialog .border-lime-500,
+.proveit-settings-dialog .border-lime-600 {
+  border-color: #0f766e;
+  background: #0f766e;
+  color: #f0fdfa;
+}
+.proveit-settings-dialog .border-lime-200,
+.proveit-settings-dialog .bg-lime-50 {
+  border-color: #0f766e;
+  background: #0d2a35;
+  color: #5eead4;
+}
+.proveit-settings-dialog .border-amber-200,
+.proveit-settings-dialog .bg-amber-50 {
+  border-color: #b7791f;
+  background: #3b2a12;
+  color: #fef3c7;
+}
+.proveit-settings-dialog .border-red-200,
+.proveit-settings-dialog .bg-red-50 {
+  border-color: #b91c1c;
+  background: #451a1a;
+  color: #fecaca;
+}
+.proveit-settings-dialog :is(input:not([type="checkbox"]), select) {
+  border-color: #475569;
+  background: #0f1f35;
+  color: #f8fafc;
+}
+.proveit-settings-dialog :is(input, select, button):focus-visible {
+  outline: 2px solid #2dd4bf;
+  outline-offset: 2px;
+}
+.proveit-settings-dialog input[type="checkbox"] { accent-color: #2dd4bf; }
+.proveit-settings-dialog button:disabled {
+  border-color: #475569;
+  background: #1e293b;
+  color: #94a3b8;
+}
+.proveit-settings-error { border-color: #b91c1c; background: #451a1a; color: #fecaca; }
+
 /* The case editor uses the shared dialog shell but retains its own form scope. */
 .proveit-case-editor-dialog .proveit-case-editor-input {
   width: 100%;

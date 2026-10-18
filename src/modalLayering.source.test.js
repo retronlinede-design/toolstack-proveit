@@ -124,6 +124,15 @@ test("Export and Import delegates its utility layer to DialogShell below the bac
   assert.match(css, /\.proveit-export-import-dialog/);
 });
 
+test("Settings delegates its utility layer to DialogShell below the backup guard", () => {
+  assert.match(app, /title="Settings"/);
+  assert.match(app, /layer="utility"/);
+  assert.match(app, /dismissOnBackdrop=\{false\}/);
+  assert.match(app, /initialFocusRef=\{settingsLockButtonRef\}/);
+  assert.match(app, /className="proveit-settings-dialog"/);
+  assert.match(css, /\.proveit-settings-dialog/);
+});
+
 test("the dashboard content area does not create a fixed-position containing block", () => {
   assert.match(css, /\.proveit-main \{ min-height: 100vh; padding-left: 17rem; \}/);
 });

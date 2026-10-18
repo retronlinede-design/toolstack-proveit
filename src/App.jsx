@@ -872,6 +872,7 @@ export default function ProveItApp() {
   const [exportImportOpen, setExportImportOpen] = useState(false);
   const exportImportBackupButtonRef = useRef(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsLockButtonRef = useRef(null);
   const [rescueSnapshot, setRescueSnapshot] = useState(() => readRescueSnapshot());
   const [rescueSnapshotRecoveryIgnored, setRescueSnapshotRecoveryIgnored] = useState(false);
   const rescueSnapshotTimerRef = useRef(null);
@@ -4211,24 +4212,17 @@ const handleRecordFiles = async (event) => {
         </DialogShell>
       ) : null}
       {settingsOpen ? (
-        <div className="fixed inset-0 z-[125] flex items-center justify-center bg-black/40 p-3 sm:p-4">
-          <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl">
-            <div className="flex items-start justify-between gap-4 border-b border-neutral-200 p-4 sm:p-5">
-              <div>
-                <h2 className="text-lg font-semibold text-neutral-900">Settings</h2>
-                <p className="mt-1 text-sm text-neutral-500">Manage privacy, data tools, diagnostics, and app details.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSettingsOpen(false)}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50"
-                aria-label="Close Settings"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
+        <DialogShell
+          title="Settings"
+          description="Manage privacy, data tools, diagnostics, and app details."
+          width="wide"
+          layer="utility"
+          onRequestClose={() => setSettingsOpen(false)}
+          dismissOnBackdrop={false}
+          initialFocusRef={settingsLockButtonRef}
+          className="proveit-settings-dialog"
+        >
+          <div className="space-y-4">
               <section className="rounded-xl border border-neutral-200 bg-white p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
@@ -4254,6 +4248,7 @@ const handleRecordFiles = async (event) => {
                 {appLockEnabled ? (
                   <button
                     type="button"
+                    ref={settingsLockButtonRef}
                     onClick={lockApp}
                     className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 sm:w-auto"
                   >
@@ -4449,7 +4444,7 @@ const handleRecordFiles = async (event) => {
                     )}
 
                     {appLockFormError ? (
-                      <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-800">
+                      <div className="proveit-settings-error rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-800" role="alert">
                         {appLockFormError}
                       </div>
                     ) : null}
@@ -4528,9 +4523,8 @@ const handleRecordFiles = async (event) => {
                   Current origin: <span className="font-mono text-neutral-800">{currentOrigin || "Unknown"}</span>
                 </div>
               </section>
-            </div>
           </div>
-        </div>
+        </DialogShell>
       ) : null}
       {folderModalOpen ? (
         <div className="fixed inset-0 z-[125] flex items-center justify-center bg-black/40 p-3 sm:p-4">
