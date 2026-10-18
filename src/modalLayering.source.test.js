@@ -9,12 +9,12 @@ const dialogShell = readFileSync(new URL("./components/shared/DialogShell.jsx", 
 const caseDetail = readFileSync(new URL("./components/CaseDetail.jsx", import.meta.url), "utf8");
 const actionSummaryModal = readFileSync(new URL("./components/caseDetail/ActionSummaryModal.jsx", import.meta.url), "utf8");
 const strategyDeltaModal = readFileSync(new URL("./components/caseDetail/StrategyDeltaModal.jsx", import.meta.url), "utf8");
+const gptDeltaModal = readFileSync(new URL("./components/gpt/GptDeltaModal.jsx", import.meta.url), "utf8");
 const modalSources = [
   app,
   dialogShell,
   caseDetail,
   readFileSync(new URL("./components/FilePreviewModal.jsx", import.meta.url), "utf8"),
-  readFileSync(new URL("./components/gpt/GptDeltaModal.jsx", import.meta.url), "utf8"),
 ];
 
 test("navigation remains below the shared application dialog floor", () => {
@@ -84,6 +84,21 @@ test("Strategy Delta delegates dialog behavior and styling to DialogShell", () =
   assert.match(strategyDeltaModal, /className="proveit-strategy-delta-dialog"/);
   assert.match(strategyDeltaModal, /role="alert"/);
   assert.match(css, /\.proveit-strategy-delta-dialog/);
+});
+
+test("GPT Delta delegates its extensive review workflow to DialogShell", () => {
+  assert.match(gptDeltaModal, /import DialogShell/);
+  assert.match(gptDeltaModal, /<DialogShell/);
+  assert.match(gptDeltaModal, /width="wide"/);
+  assert.match(gptDeltaModal, /onRequestClose={onCancel}/);
+  assert.match(gptDeltaModal, /dismissOnBackdrop={false}/);
+  assert.match(gptDeltaModal, /initialFocusRef={inputRef}/);
+  assert.match(gptDeltaModal, /className="proveit-gpt-delta-dialog"/);
+  assert.match(gptDeltaModal, /role="alert"/);
+  assert.match(gptDeltaModal, /Records To Patch/);
+  assert.match(gptDeltaModal, /Records To Create/);
+  assert.match(gptDeltaModal, /onCreateBackupThenApply/);
+  assert.match(css, /\.proveit-gpt-delta-dialog/);
 });
 
 test("the dashboard content area does not create a fixed-position containing block", () => {

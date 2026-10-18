@@ -146,6 +146,55 @@
 }
 .proveit-strategy-delta-dialog input[type="checkbox"] { accent-color: #2dd4bf; }
 
+/* GPT Delta preserves its safety-review detail while sharing the standard dialog shell. */
+.proveit-gpt-delta-dialog { background: #0b172a; }
+.proveit-gpt-delta-dialog :is(label, h3) { color: #e2e8f0; }
+.proveit-gpt-delta-input { border-color: #475569; background: #0f1f35; color: #f1f5f9; }
+.proveit-gpt-delta-input::placeholder { color: #94a3b8; }
+.proveit-gpt-delta-input:focus {
+  border-color: #2dd4bf;
+  outline: 2px solid transparent;
+  box-shadow: 0 0 0 2px rgba(45, 212, 191, .45);
+}
+.proveit-gpt-delta-notice { border-color: #1f766d; background: #0d2a35; color: #c7f9ee; }
+.proveit-gpt-delta-contract-copy { color: #94a3b8; }
+.proveit-gpt-delta-backup-prompt,
+.proveit-gpt-delta-warning { border-color: #b7791f; background: #3b2a12; color: #fef3c7; }
+.proveit-gpt-delta-preview { border-color: #334155; background: #12213a; color: #cbd5e1; }
+.proveit-gpt-delta-preview .bg-white { background: #0f1f35; }
+.proveit-gpt-delta-preview .bg-neutral-50 { background: #12213a; }
+.proveit-gpt-delta-preview .border-neutral-200,
+.proveit-gpt-delta-preview .border-neutral-100 { border-color: #334155; }
+.proveit-gpt-delta-preview .text-neutral-900,
+.proveit-gpt-delta-preview .text-neutral-800 { color: #f1f5f9; }
+.proveit-gpt-delta-preview .text-neutral-700,
+.proveit-gpt-delta-preview .text-neutral-600 { color: #cbd5e1; }
+.proveit-gpt-delta-preview .text-neutral-500,
+.proveit-gpt-delta-preview .text-neutral-400 { color: #94a3b8; }
+.proveit-gpt-delta-preview .text-amber-700,
+.proveit-gpt-delta-preview .text-amber-800 { color: #fcd34d; }
+.proveit-gpt-delta-modifications,
+.proveit-gpt-delta-additions { border-left: 2px solid #2dd4bf; padding-left: .75rem; }
+.proveit-gpt-delta-additions { border-left-color: #34d399; }
+.proveit-gpt-delta-error { border-color: #b91c1c; background: #451a1a; color: #fecaca; }
+.proveit-gpt-delta-secondary-action,
+.proveit-gpt-delta-primary-action {
+  min-height: 2.5rem;
+  border-radius: .625rem;
+  padding: .55rem .9rem;
+  font-size: .875rem;
+  font-weight: 600;
+}
+.proveit-gpt-delta-secondary-action { border: 1px solid #475569; background: #172554; color: #e2e8f0; }
+.proveit-gpt-delta-secondary-action:hover { background: #1e3a5f; }
+.proveit-gpt-delta-primary-action { border: 1px solid #0f766e; background: #0f766e; color: #f0fdfa; }
+.proveit-gpt-delta-primary-action:hover:not(:disabled) { background: #115e59; }
+.proveit-gpt-delta-primary-action:disabled { cursor: not-allowed; border-color: #475569; background: #334155; color: #94a3b8; opacity: .7; }
+.proveit-gpt-delta-dialog :is(input, textarea, button):focus-visible {
+  outline: 2px solid #2dd4bf;
+  outline-offset: 2px;
+}
+
 /* The case editor uses the shared dialog shell but retains its own form scope. */
 .proveit-case-editor-dialog .proveit-case-editor-input {
   width: 100%;

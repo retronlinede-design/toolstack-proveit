@@ -1,3 +1,5 @@
+import { useRef } from "react";
+import DialogShell from "../shared/DialogShell.jsx";
 import { cleanGptPreviewText } from "./gptDeltaModalHelpers.js";
 
 export default function GptDeltaModal({
@@ -15,40 +17,62 @@ export default function GptDeltaModal({
   text,
   validatedCase,
 }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-xl">
-        <div className="border-b border-neutral-200 p-5">
-          <h2 className="text-xl font-semibold text-neutral-900">GPT Update</h2>
-          <p className="mt-1 text-sm text-neutral-600">
-            Paste a ProveIt GPT delta, validate it, then review the supported changes before applying.
-            gpt-delta-1.0 supports only actionSummary and strategy patches. gpt-delta-2.0 supports incident, evidence, document, and ledger creates, plus incident, evidence, document, ledger, and strategy patches.
-            gpt-delta-3.0 supports structured Strategy patches and controlled To Watch create, patch, and observation-append operations.
-            Use sequence-group-delta-1.0 for Issue cleanup.
-          </p>
-        </div>
+  const inputRef = useRef(null);
 
-        <div className="flex-1 space-y-4 overflow-y-auto p-5">
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+  return (
+    <DialogShell
+      title="GPT Update"
+      description="Paste a ProveIt GPT delta, validate it, then review the supported changes before applying."
+      width="wide"
+      onRequestClose={onCancel}
+      dismissOnBackdrop={false}
+      initialFocusRef={inputRef}
+      className="proveit-gpt-delta-dialog"
+      footer={
+        <div className="flex flex-wrap justify-end gap-2">
+          <button onClick={onCancel} className="proveit-gpt-delta-secondary-action">
+            Cancel
+          </button>
+          <button onClick={onValidate} className="proveit-gpt-delta-secondary-action">
+            Validate
+          </button>
+          <button
+            onClick={onApply}
+            disabled={!validatedCase || applying}
+            className="proveit-gpt-delta-primary-action"
+          >
+            {applying ? "Applying..." : "Apply Update"}
+          </button>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+          <div className="proveit-gpt-delta-notice rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
             Do not include attachments, binary payloads, files, dataUrl, backupDataUrl, delete operations, schema changes, unsupported fields, guessed IDs, or partial array append instructions.
             If a record already exists, patch it instead of creating a new one. Duplicate-risk warnings are shown before apply.
             Enums: importance = unreviewed/critical/strong/supporting/weak; evidence relevance = high/medium/low.
           </div>
-          <textarea
+          <p className="proveit-gpt-delta-contract-copy text-xs leading-5">gpt-delta-1.0 supports only actionSummary and strategy patches. gpt-delta-2.0 supports incident, evidence, document, and ledger creates, plus incident, evidence, document, ledger, and strategy patches. gpt-delta-3.0 supports structured Strategy patches and controlled To Watch create, patch, and observation-append operations. Use sequence-group-delta-1.0 for Issue cleanup.</p>
+          <label className="block" htmlFor="gpt-delta-input">
+            <span className="mb-2 block text-sm font-semibold">GPT Delta JSON</span>
+            <textarea
+            ref={inputRef}
+            id="gpt-delta-input"
             value={text}
             onChange={onChangeText}
             placeholder='{"app":"proveit","contractVersion":"gpt-delta-1.0","target":{"caseId":"..."},"operations":{"patch":{}}}'
-            className="min-h-52 w-full rounded-lg border border-neutral-300 p-3 font-mono text-sm text-neutral-800 outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-100"
-          />
+              className="proveit-gpt-delta-input min-h-52 w-full rounded-lg border p-3 font-mono text-sm"
+            />
+          </label>
 
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
+            <div className="proveit-gpt-delta-error rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700" role="alert">
               {error}
             </div>
           )}
 
           {backupPromptOpen && (
-            <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+            <div className="proveit-gpt-delta-backup-prompt rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
               <div className="font-semibold">Before applying changes, download a Full App Backup. ProveIt stores data locally in this browser, and browser storage can be lost.</div>
               <p className="mt-1 text-xs leading-5">
                 This creates a FULL_BACKUP_ALL download first, then applies the already validated GPT delta.
@@ -83,10 +107,10 @@ export default function GptDeltaModal({
           )}
 
           {preview && (
-            <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
+            <div className="proveit-gpt-delta-preview rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
               <h3 className="font-semibold text-neutral-900">Preview</h3>
               {preview.warnings?.length > 0 && (
-                <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs font-medium text-amber-900">
+                <div className="proveit-gpt-delta-warning mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs font-medium text-amber-900">
                   <div className="mb-1 font-bold uppercase tracking-wide">Warnings</div>
                   <ul className="space-y-1">
                     {preview.warnings.map((warning, index) => (
@@ -115,7 +139,7 @@ export default function GptDeltaModal({
               </div>
 
               {preview.actionSummaryFields.length > 0 && (
-                <div className="mt-4">
+                <div className="proveit-gpt-delta-modifications mt-4">
                   <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">
                     Action Summary Fields
                   </span>
@@ -124,7 +148,7 @@ export default function GptDeltaModal({
               )}
 
               {preview.actionSummaryChanges?.length > 0 && (
-                <div className="mt-4">
+                <div className="proveit-gpt-delta-modifications mt-4">
                   <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">
                     Action Summary Changes
                   </span>
@@ -149,7 +173,7 @@ export default function GptDeltaModal({
               )}
 
               {preview.strategyItems.length > 0 && (
-                <div className="mt-4">
+                <div className="proveit-gpt-delta-modifications mt-4">
                   <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">
                     Strategy Records Patched
                   </span>
@@ -186,7 +210,7 @@ export default function GptDeltaModal({
               )}
 
               {preview.patchedRecords?.length > 0 && (
-                <div className="mt-4">
+                <div className="proveit-gpt-delta-modifications mt-4">
                   <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">
                     Records To Patch
                   </span>
@@ -225,7 +249,7 @@ export default function GptDeltaModal({
               )}
 
               {preview.createdRecords?.length > 0 && (
-                <div className="mt-4">
+                <div className="proveit-gpt-delta-additions mt-4">
                   <span className="block text-xs font-bold uppercase tracking-wide text-neutral-500">
                     Records To Create
                   </span>
@@ -306,37 +330,14 @@ export default function GptDeltaModal({
                 </div>
               )}
 
-              <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs font-medium text-amber-800">
+              <p className="proveit-gpt-delta-warning mt-4 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs font-medium text-amber-800">
                 {preview.contractVersion === "gpt-delta-3.0"
                   ? "To Watch records are monitored concerns, not confirmed incidents or evidence. v3 cannot convert or delete records, create Strategy or factual records, change attachments, or replace observation history."
                   : "gpt-delta-2.0 does not support actionSummary patches or strategy creates. Patch IDs must be existing record IDs; create links may use tempId values that are declared in the same delta."}
               </p>
             </div>
           )}
-        </div>
-
-        <div className="flex flex-wrap justify-end gap-2 border-t border-neutral-200 p-5">
-          <button
-            onClick={onCancel}
-            className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onValidate}
-            className="rounded-md border border-lime-500 bg-white px-4 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/30"
-          >
-            Validate
-          </button>
-          <button
-            onClick={onApply}
-            disabled={!validatedCase || applying}
-            className="rounded-md border border-lime-600 bg-lime-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-lime-600 disabled:cursor-not-allowed disabled:border-neutral-300 disabled:bg-neutral-200 disabled:text-neutral-500"
-          >
-            {applying ? "Applying..." : "Apply Update"}
-          </button>
-        </div>
       </div>
-    </div>
+    </DialogShell>
   );
 }
