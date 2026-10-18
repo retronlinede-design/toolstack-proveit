@@ -870,6 +870,7 @@ export default function ProveItApp() {
   const [storageDiagnosticsLoading, setStorageDiagnosticsLoading] = useState(false);
   const [emptyDbWarning, setEmptyDbWarning] = useState("");
   const [exportImportOpen, setExportImportOpen] = useState(false);
+  const exportImportBackupButtonRef = useRef(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [rescueSnapshot, setRescueSnapshot] = useState(() => readRescueSnapshot());
   const [rescueSnapshotRecoveryIgnored, setRescueSnapshotRecoveryIgnored] = useState(false);
@@ -4063,24 +4064,17 @@ const handleRecordFiles = async (event) => {
         </DialogShell>
       ) : null}
       {exportImportOpen ? (
-        <div className="fixed inset-0 z-[125] flex items-center justify-center bg-black/40 p-3 sm:p-4">
-          <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl">
-            <div className="flex items-start justify-between gap-4 border-b border-neutral-200 p-4 sm:p-5">
-              <div>
-                <h2 className="text-lg font-semibold text-neutral-900">Export & Import</h2>
-                <p className="mt-1 text-sm text-neutral-500">Back up, export, or import local browser data.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setExportImportOpen(false)}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50"
-                aria-label="Close Export and Import"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
+        <DialogShell
+          title="Export & Import"
+          description="Back up, export, or import local browser data."
+          width="wide"
+          layer="utility"
+          onRequestClose={() => setExportImportOpen(false)}
+          dismissOnBackdrop={false}
+          initialFocusRef={exportImportBackupButtonRef}
+          className="proveit-export-import-dialog"
+        >
+          <div className="space-y-4">
               <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
@@ -4109,6 +4103,7 @@ const handleRecordFiles = async (event) => {
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
                   <button
                     type="button"
+                    ref={exportImportBackupButtonRef}
                     onClick={handleFullBackup}
                     className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20"
                   >
@@ -4212,9 +4207,8 @@ const handleRecordFiles = async (event) => {
                 ) : null}
               </section>
 
-            </div>
           </div>
-        </div>
+        </DialogShell>
       ) : null}
       {settingsOpen ? (
         <div className="fixed inset-0 z-[125] flex items-center justify-center bg-black/40 p-3 sm:p-4">

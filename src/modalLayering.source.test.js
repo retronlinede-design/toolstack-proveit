@@ -42,6 +42,7 @@ test("Issue Manager delegates its viewport layer to DialogShell below its child 
 
 test("priority dialogs can remain above utility overlays", () => {
   assert.match(dialogShell, /layer === "priority" \? "z-\[130\]"/);
+  assert.match(dialogShell, /layer === "utility" \? "z-\[125\]"/);
 });
 
 test("Party Create/Edit delegates its viewport layer to DialogShell", () => {
@@ -112,6 +113,15 @@ test("Full App Backup recommendation delegates its high-priority layer to Dialog
   assert.match(app, /initialFocusRef=\{riskyActionBackupButtonRef\}/);
   assert.match(app, /className="proveit-backup-recommendation-dialog"/);
   assert.match(css, /\.proveit-backup-recommendation-dialog/);
+});
+
+test("Export and Import delegates its utility layer to DialogShell below the backup guard", () => {
+  assert.match(app, /title="Export & Import"/);
+  assert.match(app, /layer="utility"/);
+  assert.match(app, /dismissOnBackdrop=\{false\}/);
+  assert.match(app, /initialFocusRef=\{exportImportBackupButtonRef\}/);
+  assert.match(app, /className="proveit-export-import-dialog"/);
+  assert.match(css, /\.proveit-export-import-dialog/);
 });
 
 test("the dashboard content area does not create a fixed-position containing block", () => {

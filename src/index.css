@@ -297,6 +297,53 @@
   outline-offset: 2px;
 }
 
+/* Export and import retain their existing actions inside the shared utility dialog layer. */
+.proveit-export-import-dialog { background: #0b172a; }
+.proveit-export-import-dialog section {
+  border-color: #334155;
+  background: #12213a;
+}
+.proveit-export-import-dialog :is(h3, .text-neutral-900, .text-neutral-800) { color: #f1f5f9; }
+.proveit-export-import-dialog :is(p, .text-neutral-500, .text-neutral-600, .text-neutral-700) { color: #cbd5e1; }
+.proveit-export-import-dialog .bg-white,
+.proveit-export-import-dialog .bg-neutral-50 { background: #0f1f35; }
+.proveit-export-import-dialog :is(.border-neutral-200, .border-neutral-300) { border-color: #334155; }
+.proveit-export-import-dialog :is(button, label.cursor-pointer) {
+  border-color: #475569;
+  background: #172554;
+  color: #e2e8f0;
+}
+.proveit-export-import-dialog :is(button, label.cursor-pointer):hover:not(:disabled) {
+  border-color: #2dd4bf;
+  background: #1e3a5f;
+}
+.proveit-export-import-dialog .border-lime-500 {
+  border-color: #0f766e;
+  background: #0f766e;
+  color: #f0fdfa;
+}
+.proveit-export-import-dialog .border-amber-200,
+.proveit-export-import-dialog .bg-amber-50 {
+  border-color: #b7791f;
+  background: #3b2a12;
+  color: #fef3c7;
+}
+.proveit-export-import-dialog .border-red-200,
+.proveit-export-import-dialog .bg-red-50 {
+  border-color: #b91c1c;
+  background: #451a1a;
+  color: #fecaca;
+}
+.proveit-export-import-dialog :is(button, input, select, label.cursor-pointer):focus-visible {
+  outline: 2px solid #2dd4bf;
+  outline-offset: 2px;
+}
+.proveit-export-import-dialog button:disabled {
+  border-color: #475569;
+  background: #1e293b;
+  color: #94a3b8;
+}
+
 /* The case editor uses the shared dialog shell but retains its own form scope. */
 .proveit-case-editor-dialog .proveit-case-editor-input {
   width: 100%;
