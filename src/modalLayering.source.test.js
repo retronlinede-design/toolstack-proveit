@@ -133,6 +133,15 @@ test("Settings delegates its utility layer to DialogShell below the backup guard
   assert.match(css, /\.proveit-settings-dialog/);
 });
 
+test("Manage Folders delegates its utility layer to DialogShell below the backup guard", () => {
+  assert.match(app, /title="Manage Folders"/);
+  assert.match(app, /layer="utility"/);
+  assert.match(app, /dismissOnBackdrop=\{false\}/);
+  assert.match(app, /initialFocusRef=\{folderNameInputRef\}/);
+  assert.match(app, /className="proveit-folder-manager-dialog"/);
+  assert.match(css, /\.proveit-folder-manager-dialog/);
+});
+
 test("the dashboard content area does not create a fixed-position containing block", () => {
   assert.match(css, /\.proveit-main \{ min-height: 100vh; padding-left: 17rem; \}/);
 });

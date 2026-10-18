@@ -774,6 +774,7 @@ export default function ProveItApp() {
   const [activeFolderId, setActiveFolderId] = useState(null);
   const [folderModalOpen, setFolderModalOpen] = useState(false);
   const [folderNameInput, setFolderNameInput] = useState("");
+  const folderNameInputRef = useRef(null);
   const [folderMenuId, setFolderMenuId] = useState(null);
   const [folderMenuPlacement, setFolderMenuPlacement] = useState("below");
   const folderMenuRef = useRef(null);
@@ -4527,28 +4528,22 @@ const handleRecordFiles = async (event) => {
         </DialogShell>
       ) : null}
       {folderModalOpen ? (
-        <div className="fixed inset-0 z-[125] flex items-center justify-center bg-black/40 p-3 sm:p-4">
-          <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl">
-            <div className="flex items-start justify-between gap-4 border-b border-neutral-200 p-4 sm:p-5">
-              <div>
-                <h2 className="text-lg font-semibold text-neutral-900">Manage Folders</h2>
-                <p className="mt-1 text-sm text-neutral-500">Create folders and organize cases without changing case contents.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setFolderModalOpen(false)}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50"
-                aria-label="Close folder manager"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
+        <DialogShell
+          title="Manage Folders"
+          description="Create folders and organize cases without changing case contents."
+          width="wide"
+          layer="utility"
+          onRequestClose={() => setFolderModalOpen(false)}
+          dismissOnBackdrop={false}
+          initialFocusRef={folderNameInputRef}
+          className="proveit-folder-manager-dialog"
+        >
+            <div className="space-y-4">
               <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
                 <h3 className="text-sm font-bold text-neutral-900">Create Folder</h3>
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                   <input
+                    ref={folderNameInputRef}
                     type="text"
                     value={folderNameInput}
                     onChange={(event) => setFolderNameInput(event.target.value)}
@@ -4623,8 +4618,7 @@ const handleRecordFiles = async (event) => {
                 )}
               </section>
             </div>
-          </div>
-        </div>
+        </DialogShell>
       ) : null}
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         <header className="front-page-header proveit-app-header relative mb-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">

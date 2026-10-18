@@ -405,6 +405,59 @@
 }
 .proveit-settings-error { border-color: #b91c1c; background: #451a1a; color: #fecaca; }
 
+/* Folder management keeps its existing actions in the shared utility dialog. */
+.proveit-folder-manager-dialog { background: #0b172a; }
+.proveit-folder-manager-dialog section {
+  border-color: #334155;
+  background: #12213a;
+}
+.proveit-folder-manager-dialog :is(h3, .text-neutral-900, .text-neutral-800) { color: #f1f5f9; }
+.proveit-folder-manager-dialog :is(p, .text-neutral-600, .text-neutral-700) { color: #cbd5e1; }
+.proveit-folder-manager-dialog .text-neutral-500 { color: #94a3b8; }
+.proveit-folder-manager-dialog .bg-white,
+.proveit-folder-manager-dialog .bg-neutral-50 { background: #0f1f35; }
+.proveit-folder-manager-dialog :is(.border-neutral-200, .border-neutral-300) { border-color: #334155; }
+.proveit-folder-manager-dialog :is(input:not([type="color"]), textarea) {
+  border-color: #475569;
+  background: #0f1f35;
+  color: #f8fafc;
+}
+.proveit-folder-manager-dialog input[type="color"] {
+  border-color: #475569;
+  background: #0f1f35;
+}
+.proveit-folder-manager-dialog :is(input, textarea)::placeholder { color: #94a3b8; }
+.proveit-folder-manager-dialog :is(input, textarea):focus { border-color: #2dd4bf; }
+.proveit-folder-manager-dialog button {
+  border-color: #475569;
+  background: #172554;
+  color: #e2e8f0;
+}
+.proveit-folder-manager-dialog button:hover:not(:disabled) {
+  border-color: #2dd4bf;
+  background: #1e3a5f;
+}
+.proveit-folder-manager-dialog .border-lime-500 {
+  border-color: #0f766e;
+  background: #0f766e;
+  color: #f0fdfa;
+}
+.proveit-folder-manager-dialog .border-red-200,
+.proveit-folder-manager-dialog .bg-red-50 {
+  border-color: #b91c1c;
+  background: #451a1a;
+  color: #fecaca;
+}
+.proveit-folder-manager-dialog .text-red-700 { color: #fecaca; }
+.proveit-folder-manager-dialog .bg-red-50:hover {
+  border-color: #dc2626;
+  background: #5b1b1b;
+}
+.proveit-folder-manager-dialog :is(input, textarea, button):focus-visible {
+  outline: 2px solid #2dd4bf;
+  outline-offset: 2px;
+}
+
 /* The case editor uses the shared dialog shell but retains its own form scope. */
 .proveit-case-editor-dialog .proveit-case-editor-input {
   width: 100%;
