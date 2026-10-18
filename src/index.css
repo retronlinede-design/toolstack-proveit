@@ -435,6 +435,64 @@
   outline-offset: 2px;
 }
 
+/* Storage Diagnostics remains inline, with the existing read-only data organised for quick review. */
+.proveit-storage-diagnostics {
+  border-color: #334155;
+  background: #0b172a;
+  color: #cbd5e1;
+}
+.proveit-storage-diagnostics-refresh {
+  width: fit-content;
+  flex: none;
+  border: 1px solid #475569;
+  border-radius: 0.5rem;
+  background: #172554;
+  padding: 0.4rem 0.7rem;
+  color: #e2e8f0;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.proveit-storage-diagnostics-refresh:hover { border-color: #2dd4bf; background: #1e3a5f; }
+.proveit-storage-diagnostics-refresh:focus-visible,
+.proveit-storage-diagnostics summary:focus-visible {
+  outline: 2px solid #2dd4bf;
+  outline-offset: 2px;
+}
+.proveit-storage-diagnostics-status,
+.proveit-storage-diagnostics-error {
+  border: 1px solid #334155;
+  border-radius: 0.75rem;
+  background: #12213a;
+  padding: 0.75rem;
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+.proveit-storage-diagnostics-error { border-color: #b91c1c; background: #451a1a; color: #fecaca; }
+.proveit-storage-diagnostics-card {
+  min-width: 0;
+  border: 1px solid #334155;
+  border-radius: 0.75rem;
+  background: #12213a;
+  padding: 0.9rem;
+}
+.proveit-storage-diagnostics-card h3 { color: #f1f5f9; font-size: 0.8125rem; font-weight: 700; }
+.proveit-storage-diagnostics-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; margin-top: 0.75rem; }
+.proveit-storage-diagnostics-metrics div { min-width: 0; border-radius: 0.5rem; background: #0f1f35; padding: 0.55rem; }
+.proveit-storage-diagnostics-metrics dt { color: #94a3b8; font-size: 0.625rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.proveit-storage-diagnostics-metrics dd { margin-top: 0.25rem; overflow-wrap: anywhere; color: #f1f5f9; font-size: 0.875rem; font-weight: 700; }
+.proveit-storage-diagnostics-note { margin-top: 0.75rem; color: #94a3b8; font-size: 0.75rem; line-height: 1.25rem; }
+.proveit-storage-diagnostics-backup-status { margin-top: 0.75rem; color: #fef3c7; font-size: 0.875rem; font-weight: 700; }
+.proveit-storage-diagnostics-integrity { margin-top: 0.75rem; border-left: 2px solid #0f766e; padding-left: 0.65rem; color: #ccfbf1; font-size: 0.75rem; font-weight: 600; line-height: 1.25rem; }
+.proveit-storage-diagnostics-integrity.is-incomplete { border-color: #b91c1c; color: #fecaca; }
+.proveit-storage-diagnostics-technical { border: 1px solid #334155; border-radius: 0.75rem; background: #0f1f35; }
+.proveit-storage-diagnostics-technical summary { cursor: pointer; padding: 0.75rem 0.9rem; color: #cbd5e1; font-size: 0.75rem; font-weight: 600; }
+.proveit-storage-diagnostics-technical pre { max-height: 20rem; overflow: auto; border-top: 1px solid #334155; padding: 0.9rem; color: #e2e8f0; font-size: 0.75rem; line-height: 1.25rem; }
+@media (max-width: 640px) {
+  .proveit-storage-diagnostics-metrics { grid-template-columns: 1fr; }
+  .proveit-storage-diagnostics-refresh { width: 100%; }
+}
+
 /* Folder management keeps its existing actions in the shared utility dialog. */
 .proveit-folder-manager-dialog { background: #0b172a; }
 .proveit-folder-manager-dialog section {

@@ -4709,30 +4709,66 @@ const handleRecordFiles = async (event) => {
         ) : null}
 
         {storageDiagnosticsOpen ? (
-          <section className="mb-6 rounded-2xl border border-neutral-200 bg-white p-4 text-sm text-neutral-700 shadow-sm print:hidden">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h2 className="text-sm font-bold text-neutral-900">Storage Diagnostics</h2>
-                <p className="mt-1 text-xs text-neutral-500">Read-only browser storage snapshot.</p>
+          <section className="proveit-storage-diagnostics mb-6 rounded-2xl border p-4 text-sm shadow-sm print:hidden" aria-labelledby="storage-diagnostics-heading">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-teal-300" aria-hidden="true" />
+                  <h2 id="storage-diagnostics-heading" className="text-sm font-bold">Storage Diagnostics</h2>
+                </div>
+                <p className="mt-1 text-xs leading-5">Read-only browser storage snapshot. This does not modify case data or browser storage.</p>
               </div>
               <button
                 type="button"
                 onClick={handleStorageDiagnostics}
-                className="rounded-md border border-neutral-300 bg-white px-2 py-1 text-xs font-semibold text-neutral-700 hover:bg-neutral-100"
+                className="proveit-storage-diagnostics-refresh"
+                aria-label="Refresh Storage Diagnostics"
               >
                 Refresh
               </button>
             </div>
             {storageDiagnosticsLoading ? (
-              <div className="mt-3 text-xs text-neutral-500">Reading storage...</div>
+              <div className="proveit-storage-diagnostics-status mt-4" role="status">Reading storage...</div>
             ) : storageDiagnosticsError ? (
-              <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-800">
+              <div className="proveit-storage-diagnostics-error mt-4" role="alert">
                 {storageDiagnosticsError}
               </div>
             ) : storageDiagnostics ? (
-              <pre className="mt-3 overflow-x-auto rounded-md bg-neutral-950 p-3 text-xs leading-5 text-neutral-100">
-                {JSON.stringify(storageDiagnostics, null, 2)}
-              </pre>
+              <div className="mt-4 space-y-4">
+                <div className="grid gap-3 lg:grid-cols-3">
+                  <section className="proveit-storage-diagnostics-card" aria-labelledby="storage-diagnostics-indexeddb-heading">
+                    <h3 id="storage-diagnostics-indexeddb-heading">IndexedDB storage</h3>
+                    <dl className="proveit-storage-diagnostics-metrics">
+                      <div><dt>Cases</dt><dd>{storageDiagnostics.recordCounts?.cases ?? "Unavailable"}</dd></div>
+                      <div><dt>Evidence metadata</dt><dd>{storageDiagnostics.recordCounts?.evidence ?? "Unavailable"}</dd></div>
+                      <div><dt>Attachment binaries</dt><dd>{storageDiagnostics.recordCounts?.images ?? "Unavailable"}</dd></div>
+                    </dl>
+                    <p className="proveit-storage-diagnostics-note">Database: {storageDiagnostics.dbName || "Unavailable"} · Version {storageDiagnostics.dbVersion ?? "Unavailable"}</p>
+                  </section>
+
+                  <section className="proveit-storage-diagnostics-card" aria-labelledby="storage-diagnostics-local-heading">
+                    <h3 id="storage-diagnostics-local-heading">Local recovery data</h3>
+                    <dl className="proveit-storage-diagnostics-metrics">
+                      <div><dt>Quick captures</dt><dd>{storageDiagnostics.localStorage?.quickCaptureCount ?? "Unavailable"}</dd></div>
+                      <div><dt>Folders</dt><dd>{storageDiagnostics.localStorage?.folderCount ?? "Unavailable"}</dd></div>
+                      <div><dt>Rescue Snapshot</dt><dd>{storageDiagnostics.localStorage?.rescueSnapshotExists ? "Available" : "Not recorded"}</dd></div>
+                    </dl>
+                    {storageDiagnostics.localStorage?.rescueSnapshotExists ? <p className="proveit-storage-diagnostics-note">Snapshot: {storageDiagnostics.localStorage.rescueSnapshotCaseCount ?? 0} case(s), {storageDiagnostics.localStorage.rescueSnapshotFolderCount ?? 0} folder(s), {storageDiagnostics.localStorage.rescueSnapshotImageCount ?? 0} image(s).</p> : <p className="proveit-storage-diagnostics-note">A Rescue Snapshot is not a substitute for a complete Full App Backup.</p>}
+                  </section>
+
+                  <section className="proveit-storage-diagnostics-card" aria-labelledby="storage-diagnostics-backup-heading">
+                    <h3 id="storage-diagnostics-backup-heading">Full App Backup</h3>
+                    <p className="proveit-storage-diagnostics-backup-status">{compactBackupStatus.label}</p>
+                    <p className="proveit-storage-diagnostics-note">Last recorded: {backupTimestampLabel}</p>
+                    {lastBackupMeta?.exportType === "FULL_BACKUP_ALL" ? <p className={`proveit-storage-diagnostics-integrity ${lastBackupMeta.complete === false ? "is-incomplete" : ""}`}>Attachment binaries: {lastBackupMeta.binaryData?.included ?? 0} included / {lastBackupMeta.binaryData?.expected ?? 0} expected; {lastBackupMeta.binaryData?.missing ?? 0} missing. {lastBackupMeta.complete === true ? "Complete." : lastBackupMeta.complete === false ? "Partial — not a complete recoverable backup." : "Completeness was not verified."}</p> : <p className="proveit-storage-diagnostics-integrity is-incomplete">No complete Full App Backup details are recorded.</p>}
+                  </section>
+                </div>
+
+                <details className="proveit-storage-diagnostics-technical">
+                  <summary>Technical storage snapshot</summary>
+                  <pre>{JSON.stringify(storageDiagnostics, null, 2)}</pre>
+                </details>
+              </div>
             ) : null}
           </section>
         ) : null}
