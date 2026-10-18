@@ -17,7 +17,6 @@ const modalSources = [
   readFileSync(new URL("./components/caseDetail/ActiveLedgerRecordModal.jsx", import.meta.url), "utf8"),
   readFileSync(new URL("./components/caseDetail/RecordsTab.jsx", import.meta.url), "utf8"),
   readFileSync(new URL("./components/caseDetail/StrategyDeltaModal.jsx", import.meta.url), "utf8"),
-  readFileSync(new URL("./components/caseDetail/WatchWorkspace.jsx", import.meta.url), "utf8"),
 ];
 
 test("navigation remains below the shared application dialog floor", () => {
@@ -54,6 +53,13 @@ test("Action Summary delegates its viewport layer to DialogShell", () => {
   assert.match(actionSummaryModal, /<DialogShell/);
   assert.match(actionSummaryModal, /dismissOnBackdrop=\{false\}/);
   assert.match(actionSummaryModal, /className="proveit-action-summary-dialog"/);
+});
+
+test("To Watch editor delegates its viewport layer to DialogShell", () => {
+  const watch = readFileSync(new URL("./components/caseDetail/WatchWorkspace.jsx", import.meta.url), "utf8");
+  assert.match(watch, /<DialogShell/);
+  assert.match(watch, /dismissOnBackdrop=\{false\}/);
+  assert.match(watch, /className="proveit-watch-dialog"/);
 });
 
 test("the dashboard content area does not create a fixed-position containing block", () => {

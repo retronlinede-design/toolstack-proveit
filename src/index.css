@@ -82,6 +82,29 @@
   color: #cbd5e1;
 }
 
+/* The To Watch editor uses the shared dialog shell without changing its record workflow. */
+.proveit-watch-dialog { background: #0b172a; }
+.proveit-watch-dialog :is(label, h3) { color: #e2e8f0; }
+.proveit-watch-dialog :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  border-color: #475569;
+  background: #0f1f35;
+  color: #f1f5f9;
+}
+.proveit-watch-dialog :is(input, textarea)::placeholder { color: #94a3b8; }
+.proveit-watch-dialog :is(input, select, textarea):focus {
+  border-color: #2dd4bf;
+  outline: 2px solid transparent;
+  box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.45);
+}
+.proveit-watch-dialog :is(input, select, textarea, button):focus-visible {
+  outline: 2px solid #2dd4bf;
+  outline-offset: 2px;
+}
+.proveit-watch-dialog .text-neutral-400 { color: #94a3b8; }
+.proveit-watch-dialog .text-red-700 { color: #fca5a5; }
+.proveit-watch-dialog .border-lime-500 { border-color: #2dd4bf; }
+.proveit-watch-dialog .border-dashed { border-color: #475569; }
+
 /* The case editor uses the shared dialog shell but retains its own form scope. */
 .proveit-case-editor-dialog .proveit-case-editor-input {
   width: 100%;

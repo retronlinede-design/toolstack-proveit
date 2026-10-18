@@ -33,10 +33,12 @@ const cardUrl = await transformModule(new URL("./WatchItemCard.jsx", import.meta
   ['from "../shared/RecordCardShell.jsx"', `from "${shellUrl}"`],
 ]);
 const editorStubUrl = toDataUrl(`import { jsx } from "${runtimeUrl}"; export default function Stub() { return jsx("div", {}); }`);
+const dialogShellStubUrl = toDataUrl(`import { jsx } from "${runtimeUrl}"; export default function DialogShell({ children }) { return jsx("div", { children }); }`);
 const domainStubUrl = toDataUrl('export const WATCH_CATEGORIES = ["commitment"]; export const WATCH_PRIORITIES = ["high"]; export const WATCH_STATUSES = ["watching"]; export const cleanupDeletedRecordLinks = (value) => value; export const generateId = () => "generated"; export const normalizeRecord = (value) => value; export const normalizeWatchItem = (value) => value;');
 const helperStubUrl = toDataUrl('export const filterAndSortWatchItems = (items) => items; export const getWatchReviewState = () => "scheduled"; export const isWatchItemUnlinked = () => false; export const prepareWatchItemForm = (item) => item || {};');
 const workspaceUrl = await transformModule(new URL("./WatchWorkspace.jsx", import.meta.url), [
   ['from "../StringListEditor.jsx"', `from "${editorStubUrl}"`],
+  ['from "../shared/DialogShell.jsx"', `from "${dialogShellStubUrl}"`],
   ['from "./LinkedPartiesSelector.jsx"', `from "${editorStubUrl}"`],
   ['from "../../domain/caseDomain.js"', `from "${domainStubUrl}"`],
   ['from "./watchWorkspaceHelpers.js"', `from "${helperStubUrl}"`],
