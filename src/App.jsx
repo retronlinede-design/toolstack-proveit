@@ -842,6 +842,7 @@ export default function ProveItApp() {
   const [lastBackupMeta, setLastBackupMeta] = useState(() => readLastBackupMeta());
   const [riskyActionGuardOpen, setRiskyActionGuardOpen] = useState(false);
   const riskyActionGuardResolverRef = useRef(null);
+  const riskyActionBackupButtonRef = useRef(null);
 
   const [ledgerModalOpen, setLedgerModalOpen] = useState(false);
   const [ledgerForm, setLedgerForm] = useState(EMPTY_LEDGER_FORM);
@@ -4020,35 +4021,46 @@ const handleRecordFiles = async (event) => {
         </div>
       ) : null}
       {riskyActionGuardOpen ? (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-2xl border border-amber-200 bg-white p-5 shadow-xl">
-            <h2 className="text-lg font-semibold text-neutral-900">Full App Backup Recommended</h2>
-            <p className="mt-2 text-sm leading-6 text-neutral-700">{RISKY_ACTION_BACKUP_MESSAGE}</p>
-            <div className="mt-5 flex flex-wrap justify-end gap-2">
+        <DialogShell
+          title="Full App Backup Recommended"
+          description={RISKY_ACTION_BACKUP_MESSAGE}
+          width="compact"
+          layer="priority"
+          onRequestClose={() => closeRiskyActionGuard(false)}
+          dismissOnBackdrop={false}
+          initialFocusRef={riskyActionBackupButtonRef}
+          className="proveit-backup-recommendation-dialog"
+          footer={
+            <div className="flex flex-wrap justify-end gap-2">
               <button
+                ref={riskyActionBackupButtonRef}
                 type="button"
                 onClick={handleRiskyActionDownloadBackup}
-                className="rounded-md border border-lime-600 bg-lime-500 px-3 py-2 text-sm font-semibold text-white hover:bg-lime-600"
+                className="proveit-backup-recommendation-primary-action"
               >
                 Download Full Backup
               </button>
               <button
                 type="button"
                 onClick={() => closeRiskyActionGuard(true)}
-                className="rounded-md border border-amber-400 bg-white px-3 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-50"
+                className="proveit-backup-recommendation-warning-action"
               >
                 Continue Anyway
               </button>
               <button
                 type="button"
                 onClick={() => closeRiskyActionGuard(false)}
-                className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
+                className="proveit-backup-recommendation-secondary-action"
               >
                 Cancel
               </button>
             </div>
-          </div>
-        </div>
+          }
+        >
+          <p className="proveit-backup-recommendation-copy text-sm leading-6">
+            A current full backup gives you a recoverable copy before this operation continues.
+          </p>
+        </DialogShell>
       ) : null}
       {exportImportOpen ? (
         <div className="fixed inset-0 z-[125] flex items-center justify-center bg-black/40 p-3 sm:p-4">

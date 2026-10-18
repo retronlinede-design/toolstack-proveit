@@ -91,7 +91,7 @@ export default function DialogShell({
   };
 
   return (
-    <div className={`proveit-dialog-overlay fixed inset-0 ${layer === "nested" ? "z-[70]" : layer === "manager" ? "z-[50]" : "z-[60]"} flex items-center justify-center bg-slate-950/70 p-2 sm:p-4`} onMouseDown={handleBackdropMouseDown}>
+    <div className={`proveit-dialog-overlay fixed inset-0 ${layer === "priority" ? "z-[130]" : layer === "nested" ? "z-[70]" : layer === "manager" ? "z-[50]" : "z-[60]"} flex items-center justify-center bg-slate-950/70 p-2 sm:p-4`} onMouseDown={handleBackdropMouseDown}>
       <section ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined} className={`proveit-dialog-shell flex max-h-[calc(100vh-1rem)] w-full flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 text-slate-100 shadow-2xl outline-none sm:max-h-[calc(100vh-2rem)] ${WIDTH_CLASSES[width] || WIDTH_CLASSES.standard} ${className}`}>
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-700/80 bg-slate-900/90 px-4 py-3 sm:px-5">
           <div className="min-w-0"><h2 id={titleId} className="text-base font-semibold tracking-tight text-slate-50 sm:text-lg">{title}</h2>{description ? <p id={descriptionId} className="mt-1 text-sm leading-5 text-slate-300">{description}</p> : null}</div>

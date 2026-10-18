@@ -40,6 +40,10 @@ test("Issue Manager delegates its viewport layer to DialogShell below its child 
   assert.match(dialogShell, /layer === "nested" \? "z-\[70\]"/);
 });
 
+test("priority dialogs can remain above utility overlays", () => {
+  assert.match(dialogShell, /layer === "priority" \? "z-\[130\]"/);
+});
+
 test("Party Create/Edit delegates its viewport layer to DialogShell", () => {
   const parties = readFileSync(new URL("./components/caseDetail/PartiesTab.jsx", import.meta.url), "utf8");
   assert.match(parties, /<DialogShell/);
@@ -99,6 +103,15 @@ test("GPT Delta delegates its extensive review workflow to DialogShell", () => {
   assert.match(gptDeltaModal, /Records To Create/);
   assert.match(gptDeltaModal, /onCreateBackupThenApply/);
   assert.match(css, /\.proveit-gpt-delta-dialog/);
+});
+
+test("Full App Backup recommendation delegates its high-priority layer to DialogShell", () => {
+  assert.match(app, /title="Full App Backup Recommended"/);
+  assert.match(app, /layer="priority"/);
+  assert.match(app, /dismissOnBackdrop=\{false\}/);
+  assert.match(app, /initialFocusRef=\{riskyActionBackupButtonRef\}/);
+  assert.match(app, /className="proveit-backup-recommendation-dialog"/);
+  assert.match(css, /\.proveit-backup-recommendation-dialog/);
 });
 
 test("the dashboard content area does not create a fixed-position containing block", () => {

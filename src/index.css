@@ -274,6 +274,29 @@
 .proveit-case-pin-dialog .bg-red-50 { background: #451a1a; }
 .proveit-case-pin-dialog input[type="checkbox"] { accent-color: #2dd4bf; }
 
+/* Priority backup guard: preserves the existing resolver flow above utility overlays. */
+.proveit-backup-recommendation-dialog { background: #0b172a; }
+.proveit-backup-recommendation-copy { color: #cbd5e1; }
+.proveit-backup-recommendation-primary-action,
+.proveit-backup-recommendation-warning-action,
+.proveit-backup-recommendation-secondary-action {
+  min-height: 2.5rem;
+  border-radius: .625rem;
+  padding: .55rem .9rem;
+  font-size: .875rem;
+  font-weight: 700;
+}
+.proveit-backup-recommendation-primary-action { border: 1px solid #0f766e; background: #0f766e; color: #f0fdfa; }
+.proveit-backup-recommendation-primary-action:hover { background: #115e59; }
+.proveit-backup-recommendation-warning-action { border: 1px solid #b7791f; background: #3b2a12; color: #fef3c7; }
+.proveit-backup-recommendation-warning-action:hover { background: #523714; }
+.proveit-backup-recommendation-secondary-action { border: 1px solid #475569; background: #172554; color: #e2e8f0; }
+.proveit-backup-recommendation-secondary-action:hover { background: #1e3a5f; }
+.proveit-backup-recommendation-dialog button:focus-visible {
+  outline: 2px solid #2dd4bf;
+  outline-offset: 2px;
+}
+
 /* The case editor uses the shared dialog shell but retains its own form scope. */
 .proveit-case-editor-dialog .proveit-case-editor-input {
   width: 100%;
