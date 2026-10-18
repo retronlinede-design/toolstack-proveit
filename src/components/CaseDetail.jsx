@@ -652,9 +652,9 @@ export default function CaseDetail({
   }
 
   function updateActionSummary(nextActionSummary) {
-    if (!selectedCase) return;
+    if (!selectedCase) return false;
 
-    onUpdateCase({
+    return onUpdateCase({
       ...selectedCase,
       actionSummary: nextActionSummary,
     });
@@ -664,11 +664,9 @@ export default function CaseDetail({
     updateActionSummary(applyActionSummaryPatch(rawActionSummary, patch));
   }
 
-  function saveActionSummary() {
-    if (!selectedCase) return;
-
-    updateActionSummary(formToActionSummary(actionSummaryForm, rawActionSummary));
-    setActionSummaryEditOpen(false);
+  async function saveActionSummary() {
+    if (!selectedCase) return false;
+    return updateActionSummary(formToActionSummary(actionSummaryForm, rawActionSummary));
   }
 
   function openSequenceGroupManager(preferredGroup = "") {
@@ -7602,6 +7600,7 @@ ${ungroupedSequenceText}
         </div>
       )}
       <ActionSummaryModal
+        key={`${selectedCase?.id || "case"}:${actionSummaryEditOpen ? "open" : "closed"}`}
         open={actionSummaryEditOpen}
         form={actionSummaryForm}
         onChangeField={(field, value) => setActionSummaryForm((f) => ({ ...f, [field]: value }))}

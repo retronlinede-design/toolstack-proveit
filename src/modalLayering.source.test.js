@@ -7,13 +7,13 @@ const app = readFileSync(new URL("./App.jsx", import.meta.url), "utf8");
 const issueManager = readFileSync(new URL("./components/sequenceGroups/SequenceGroupManager.jsx", import.meta.url), "utf8");
 const dialogShell = readFileSync(new URL("./components/shared/DialogShell.jsx", import.meta.url), "utf8");
 const caseDetail = readFileSync(new URL("./components/CaseDetail.jsx", import.meta.url), "utf8");
+const actionSummaryModal = readFileSync(new URL("./components/caseDetail/ActionSummaryModal.jsx", import.meta.url), "utf8");
 const modalSources = [
   app,
   dialogShell,
   caseDetail,
   readFileSync(new URL("./components/FilePreviewModal.jsx", import.meta.url), "utf8"),
   readFileSync(new URL("./components/gpt/GptDeltaModal.jsx", import.meta.url), "utf8"),
-  readFileSync(new URL("./components/caseDetail/ActionSummaryModal.jsx", import.meta.url), "utf8"),
   readFileSync(new URL("./components/caseDetail/ActiveLedgerRecordModal.jsx", import.meta.url), "utf8"),
   readFileSync(new URL("./components/caseDetail/RecordsTab.jsx", import.meta.url), "utf8"),
   readFileSync(new URL("./components/caseDetail/StrategyDeltaModal.jsx", import.meta.url), "utf8"),
@@ -48,6 +48,12 @@ test("Party Create/Edit delegates its viewport layer to DialogShell", () => {
   assert.match(parties, /<DialogShell/);
   assert.match(parties, /dismissOnBackdrop=\{false\}/);
   assert.match(dialogShell, /z-\[60\]/);
+});
+
+test("Action Summary delegates its viewport layer to DialogShell", () => {
+  assert.match(actionSummaryModal, /<DialogShell/);
+  assert.match(actionSummaryModal, /dismissOnBackdrop=\{false\}/);
+  assert.match(actionSummaryModal, /className="proveit-action-summary-dialog"/);
 });
 
 test("the dashboard content area does not create a fixed-position containing block", () => {

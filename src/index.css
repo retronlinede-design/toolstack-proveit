@@ -57,6 +57,31 @@
 .proveit-record-secondary-action:focus-visible,
 .proveit-record-danger-action:focus-visible { outline: 2px solid #2dd4bf; outline-offset: 2px; }
 
+/* Action Summary retains its existing fields inside the shared dialog shell. */
+.proveit-action-summary-dialog { background: #0b172a; }
+.proveit-action-summary-dialog label,
+.proveit-action-summary-dialog .proveit-action-summary-deferred { color: #cbd5e1; }
+.proveit-action-summary-dialog textarea {
+  border-color: #475569;
+  background: #0f1f35;
+  color: #f1f5f9;
+}
+.proveit-action-summary-dialog textarea::placeholder { color: #94a3b8; }
+.proveit-action-summary-dialog textarea:focus {
+  border-color: #2dd4bf;
+  outline: 2px solid transparent;
+  box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.45);
+}
+.proveit-action-summary-dialog .proveit-action-summary-primary-section {
+  border-color: #1f766d;
+  background: #0d2a35;
+}
+.proveit-action-summary-dialog .proveit-action-summary-deferred > div:last-child {
+  border-color: #475569;
+  background: #0f1f35;
+  color: #cbd5e1;
+}
+
 /* The case editor uses the shared dialog shell but retains its own form scope. */
 .proveit-case-editor-dialog .proveit-case-editor-input {
   width: 100%;
