@@ -105,6 +105,47 @@
 .proveit-watch-dialog .border-lime-500 { border-color: #2dd4bf; }
 .proveit-watch-dialog .border-dashed { border-color: #475569; }
 
+/* Strategy Delta is a constrained review workflow inside the shared dialog shell. */
+.proveit-strategy-delta-dialog { background: #0b172a; }
+.proveit-strategy-delta-dialog :is(label, h3) { color: #e2e8f0; }
+.proveit-strategy-delta-input { border-color: #475569; background: #0f1f35; color: #f1f5f9; }
+.proveit-strategy-delta-input::placeholder { color: #94a3b8; }
+.proveit-strategy-delta-input:focus {
+  border-color: #2dd4bf;
+  outline: 2px solid transparent;
+  box-shadow: 0 0 0 2px rgba(45, 212, 191, .45);
+}
+.proveit-strategy-delta-notice { border-color: #1f766d; background: #0d2a35; color: #c7f9ee; }
+.proveit-strategy-delta-warning { border-color: #b7791f; background: #3b2a12; color: #fef3c7; }
+.proveit-strategy-delta-error { border-color: #b91c1c; background: #451a1a; color: #fecaca; }
+.proveit-strategy-delta-review { border-color: #334155; background: #12213a; }
+.proveit-strategy-delta-proposal { border-color: #334155; background: #0f1f35; }
+.proveit-strategy-delta-label { color: #94a3b8; }
+.proveit-strategy-delta-before { color: #cbd5e1; }
+.proveit-strategy-delta-after { color: #f1f5f9; }
+.proveit-strategy-delta-secondary-action,
+.proveit-strategy-delta-primary-action {
+  min-height: 2.5rem;
+  border-radius: .625rem;
+  padding: .55rem .9rem;
+  font-size: .875rem;
+  font-weight: 600;
+}
+.proveit-strategy-delta-secondary-action {
+  border: 1px solid #475569;
+  background: #172554;
+  color: #e2e8f0;
+}
+.proveit-strategy-delta-secondary-action:hover { background: #1e3a5f; }
+.proveit-strategy-delta-primary-action { background: #0f766e; color: #f0fdfa; }
+.proveit-strategy-delta-primary-action:hover:not(:disabled) { background: #115e59; }
+.proveit-strategy-delta-primary-action:disabled { cursor: not-allowed; opacity: .5; }
+.proveit-strategy-delta-dialog :is(input, textarea, button):focus-visible {
+  outline: 2px solid #2dd4bf;
+  outline-offset: 2px;
+}
+.proveit-strategy-delta-dialog input[type="checkbox"] { accent-color: #2dd4bf; }
+
 /* The case editor uses the shared dialog shell but retains its own form scope. */
 .proveit-case-editor-dialog .proveit-case-editor-input {
   width: 100%;

@@ -8,13 +8,13 @@ const issueManager = readFileSync(new URL("./components/sequenceGroups/SequenceG
 const dialogShell = readFileSync(new URL("./components/shared/DialogShell.jsx", import.meta.url), "utf8");
 const caseDetail = readFileSync(new URL("./components/CaseDetail.jsx", import.meta.url), "utf8");
 const actionSummaryModal = readFileSync(new URL("./components/caseDetail/ActionSummaryModal.jsx", import.meta.url), "utf8");
+const strategyDeltaModal = readFileSync(new URL("./components/caseDetail/StrategyDeltaModal.jsx", import.meta.url), "utf8");
 const modalSources = [
   app,
   dialogShell,
   caseDetail,
   readFileSync(new URL("./components/FilePreviewModal.jsx", import.meta.url), "utf8"),
   readFileSync(new URL("./components/gpt/GptDeltaModal.jsx", import.meta.url), "utf8"),
-  readFileSync(new URL("./components/caseDetail/StrategyDeltaModal.jsx", import.meta.url), "utf8"),
 ];
 
 test("navigation remains below the shared application dialog floor", () => {
@@ -72,6 +72,18 @@ test("derived-payment preview delegates its viewport layer to DialogShell", () =
   assert.match(derivedPaymentPreview, /<DialogShell/);
   assert.match(derivedPaymentPreview, /dismissOnBackdrop=\{false\}/);
   assert.match(derivedPaymentPreview, /className="case-file-derived-payment-dialog"/);
+});
+
+test("Strategy Delta delegates dialog behavior and styling to DialogShell", () => {
+  assert.match(strategyDeltaModal, /import DialogShell/);
+  assert.match(strategyDeltaModal, /<DialogShell/);
+  assert.match(strategyDeltaModal, /width="wide"/);
+  assert.match(strategyDeltaModal, /onRequestClose={onClose}/);
+  assert.match(strategyDeltaModal, /dismissOnBackdrop={false}/);
+  assert.match(strategyDeltaModal, /initialFocusRef={inputRef}/);
+  assert.match(strategyDeltaModal, /className="proveit-strategy-delta-dialog"/);
+  assert.match(strategyDeltaModal, /role="alert"/);
+  assert.match(css, /\.proveit-strategy-delta-dialog/);
 });
 
 test("the dashboard content area does not create a fixed-position containing block", () => {
