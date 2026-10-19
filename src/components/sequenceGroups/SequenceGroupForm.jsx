@@ -77,7 +77,7 @@ export default function SequenceGroupForm({
             }}
             aria-invalid={Boolean(error)}
             aria-describedby={error ? "sequence-group-name-error" : undefined}
-            className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-[#7a263a] focus:ring-2 focus:ring-[#7a263a]/25 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:focus:border-[#a94b63] dark:focus:ring-[#a94b63]/30"
+            className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-[#0f766e] focus:ring-2 focus:ring-[#2dd4bf]/25 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:focus:border-[#2dd4bf] dark:focus:ring-[#2dd4bf]/30"
           />
           {error && <span id="sequence-group-name-error" className="mt-1 block text-sm font-medium text-red-700 dark:text-red-300">{error}</span>}
         </label>
@@ -92,7 +92,7 @@ export default function SequenceGroupForm({
             value={form.description}
             onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
             rows={5}
-            className="mt-1 w-full resize-y rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-[#7a263a] focus:ring-2 focus:ring-[#7a263a]/25 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:focus:border-[#a94b63] dark:focus:ring-[#a94b63]/30"
+            className="mt-1 w-full resize-y rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-[#0f766e] focus:ring-2 focus:ring-[#2dd4bf]/25 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:focus:border-[#2dd4bf] dark:focus:ring-[#2dd4bf]/30"
           />
         </label>
 

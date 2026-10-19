@@ -630,6 +630,39 @@
 .proveit-issue-manager .proveit-issue-manager-section-button:hover { border-color: #47748a; background: #1d354d; color: #f8fafc; }
 .proveit-issue-manager .proveit-issue-manager-section-button[aria-pressed="true"] { border-color: #2dd4bf; background: #115e59; color: #ecfdf5; }
 
+/* Normalise legacy action utilities only inside the Issue, record, and Watch workflows. */
+:is(.proveit-issue-manager, .proveit-issue-management-dialog, .proveit-record-dialog, .proveit-document-editor-dialog, .proveit-watch-dialog) button.border-lime-500 {
+  border-color: #0f766e;
+  background: #0f766e;
+  color: #ffffff;
+}
+:is(.proveit-issue-manager, .proveit-issue-management-dialog, .proveit-record-dialog, .proveit-document-editor-dialog, .proveit-watch-dialog) button.border-lime-500:hover:not(:disabled) {
+  border-color: #115e59;
+  background: #115e59;
+  color: #ffffff;
+}
+:is(.proveit-issue-manager, .proveit-issue-management-dialog, .proveit-record-dialog, .proveit-document-editor-dialog, .proveit-watch-dialog) button.border-neutral-300.bg-white {
+  border-color: #475569;
+  background: #172554;
+  color: #ffffff;
+}
+:is(.proveit-issue-manager, .proveit-issue-management-dialog, .proveit-record-dialog, .proveit-document-editor-dialog, .proveit-watch-dialog) button.border-neutral-300.bg-white:hover:not(:disabled) {
+  border-color: #475569;
+  background: #1e3a5f;
+  color: #ffffff;
+}
+:is(.proveit-issue-manager, .proveit-issue-management-dialog, .proveit-record-dialog, .proveit-document-editor-dialog, .proveit-watch-dialog) button:is(.border-red-200, .border-red-300) {
+  border-color: #7f1d1d;
+  background: #7f1d1d;
+  color: #ffffff;
+}
+:is(.proveit-issue-manager, .proveit-issue-management-dialog, .proveit-record-dialog, .proveit-document-editor-dialog, .proveit-watch-dialog) button:is(.border-red-200, .border-red-300):hover:not(:disabled) {
+  border-color: #991b1b;
+  background: #991b1b;
+  color: #ffffff;
+}
+:is(.proveit-record-dialog, .proveit-document-editor-dialog, .proveit-watch-dialog) input[type="checkbox"] { accent-color: #0f766e; }
+
 /* Keep the legacy Document and Case Record fields visually inside their shared dialog scope. */
 .proveit-document-editor-dialog .bg-white,
 .proveit-document-editor-dialog .bg-neutral-50,

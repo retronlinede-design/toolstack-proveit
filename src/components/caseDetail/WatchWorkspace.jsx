@@ -80,7 +80,7 @@ export default function WatchWorkspace({ caseItem, onUpdateCase }) {
           <h2 className="mt-1 text-xl font-semibold text-neutral-950 dark:text-neutral-100">To Watch</h2>
           <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">Uncertain developments, conditions, or triggers that require observation.</p>
         </div>
-        <button type="button" onClick={()=>setEditing(null)} className="rounded-xl border border-lime-500 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 shadow-sm transition-colors hover:bg-lime-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7a263a] dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-lime-950/30">Add Watch Item</button>
+        <button type="button" onClick={()=>setEditing(null)} className="rounded-xl border border-lime-500 bg-white px-4 py-2 text-sm font-semibold text-neutral-800 shadow-sm transition-colors hover:bg-lime-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf] dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-lime-950/30">Add Watch Item</button>
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {Object.entries(metrics).map(([key,value])=><div key={key} className="rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-700 dark:bg-neutral-800"><div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">{metricLabels[key]}</div><div className="mt-2 text-2xl font-semibold text-neutral-900 dark:text-neutral-100">{value}</div></div>)}
@@ -90,7 +90,7 @@ export default function WatchWorkspace({ caseItem, onUpdateCase }) {
     <section className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 xl:items-end">
         <label className="min-w-0 text-[10px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">Search
-          <input type="search" aria-label="Search watch items" placeholder="Search watch items" value={filters.search} onChange={e=>setFilters({...filters,search:e.target.value})} className="mt-2 block w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus-visible:ring-2 focus-visible:ring-[#7a263a] dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"/>
+          <input type="search" aria-label="Search watch items" placeholder="Search watch items" value={filters.search} onChange={e=>setFilters({...filters,search:e.target.value})} className="mt-2 block w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf] dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"/>
         </label>
         {filterOptions.map(([field,options])=><label key={field} className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">{titleCase(field)}<select aria-label={field} value={filters[field]} onChange={e=>setFilters({...filters,[field]:e.target.value})} className="mt-2 block w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">{options.map(x=><option key={x} value={x}>{titleCase(x)}</option>)}</select></label>)}
       </div>

@@ -19,7 +19,7 @@ export default function SequenceGroupDescription({ description = "" }) {
           onClick={() => setExpanded((current) => !current)}
           aria-expanded={expanded}
           aria-controls={contentId}
-          className="mt-2 text-xs font-semibold text-[#7a263a] hover:text-[#681f31] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7a263a] focus-visible:ring-offset-2 dark:text-[#e5a5b5] dark:hover:text-[#f0becb]"
+          className="mt-2 text-xs font-semibold text-[#0f766e] hover:text-[#115e59] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf] focus-visible:ring-offset-2 dark:text-[#5eead4] dark:hover:text-[#99f6e4]"
         >
           {expanded ? "Show less" : "Show more"}
         </button>

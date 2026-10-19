@@ -381,7 +381,7 @@ export default function SequenceGroupManager({
       data-selected-record={highlightedRecordKey === `${record.recordType}:${record.id}` ? "true" : "false"}
       className={`rounded-lg border bg-white p-3 transition-colors dark:bg-neutral-900 ${
         highlightedRecordKey === `${record.recordType}:${record.id}`
-          ? "border-[#7a263a] bg-[#7a263a]/5 ring-2 ring-[#7a263a]/15 dark:border-[#d17a91] dark:bg-[#d17a91]/10 dark:ring-[#d17a91]/20"
+          ? "border-[#2dd4bf] bg-[#0f3d4a] ring-2 ring-[#2dd4bf]/20 dark:border-[#2dd4bf] dark:bg-[#0f3d4a] dark:ring-[#2dd4bf]/25"
           : "border-neutral-200 dark:border-neutral-700"
       }`}
     >
@@ -424,7 +424,7 @@ export default function SequenceGroupManager({
       onClick={() => onTimelineItemSelect(item)}
       className={`relative w-full rounded-lg border bg-white p-3 text-left transition-colors hover:border-lime-300 ${
         highlightedRecordKey === `${item.recordType}:${item.id}`
-          ? "border-lime-400 ring-2 ring-lime-200"
+          ? "border-[#2dd4bf] ring-2 ring-[#2dd4bf]/20"
           : "border-neutral-200"
       }`}
     >
@@ -471,7 +471,7 @@ export default function SequenceGroupManager({
       onClick={() => onRelationshipNodeSelect(node)}
       className={`w-full rounded-lg border bg-white p-3 text-left transition-colors hover:border-lime-300 ${
         highlightedRecordKey === `${node.recordType}:${node.id}`
-          ? "border-lime-400 ring-2 ring-lime-200"
+          ? "border-[#2dd4bf] ring-2 ring-[#2dd4bf]/20"
           : "border-neutral-200"
       }`}
     >
@@ -546,7 +546,7 @@ export default function SequenceGroupManager({
               <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-700 dark:bg-neutral-900">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <div className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Issues</div>
-                  <button type="button" onClick={openCreateGroupForm} className="rounded-md border border-lime-500 bg-white px-2 py-1 text-xs font-semibold text-neutral-800 hover:bg-lime-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7a263a] dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-lime-950/30">New Issue</button>
+                  <button type="button" onClick={openCreateGroupForm} className="rounded-md border border-lime-500 bg-white px-2 py-1 text-xs font-semibold text-neutral-800 hover:bg-lime-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf] dark:bg-neutral-950 dark:text-neutral-100 dark:hover:bg-lime-950/30">New Issue</button>
                 </div>
                 {managedSequenceGroupDetails.groups.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-neutral-300 bg-white p-4 text-center">
@@ -565,7 +565,7 @@ export default function SequenceGroupManager({
                           key={group.name}
                           data-active={group.name === activeGroupName}
                           className={`rounded-lg border bg-white p-3 transition-[border-color,box-shadow,background-color] dark:bg-neutral-950 ${
-                            group.name === activeGroupName ? "border-[#7a263a] bg-[#7a263a]/5 ring-2 ring-[#7a263a]/15 dark:border-[#d17a91] dark:bg-[#d17a91]/10 dark:ring-[#d17a91]/20" : "border-neutral-200 hover:border-neutral-300 dark:border-neutral-700 dark:hover:border-neutral-600"
+                            group.name === activeGroupName ? "border-[#2dd4bf] bg-[#0f3d4a] ring-2 ring-[#2dd4bf]/20 dark:border-[#2dd4bf] dark:bg-[#0f3d4a] dark:ring-[#2dd4bf]/25" : "border-neutral-200 hover:border-neutral-300 dark:border-neutral-700 dark:hover:border-neutral-600"
                           }`}
                         >
                           <div className="flex items-start justify-between gap-3">
