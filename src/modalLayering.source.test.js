@@ -121,8 +121,8 @@ test("Export and Import delegates its utility layer to DialogShell below the bac
   assert.match(app, /layer="utility"/);
   assert.match(app, /dismissOnBackdrop=\{false\}/);
   assert.match(app, /initialFocusRef=\{exportImportBackupButtonRef\}/);
-  assert.match(app, /className="proveit-export-import-dialog"/);
-  assert.match(css, /\.proveit-export-import-dialog/);
+  assert.match(app, /className="proveit-utility-dialog proveit-export-import-dialog"/);
+  assert.match(css, /\.proveit-utility-dialog/);
 });
 
 test("Settings delegates its utility layer to DialogShell below the backup guard", () => {
@@ -130,8 +130,18 @@ test("Settings delegates its utility layer to DialogShell below the backup guard
   assert.match(app, /layer="utility"/);
   assert.match(app, /dismissOnBackdrop=\{false\}/);
   assert.match(app, /initialFocusRef=\{settingsLockButtonRef\}/);
-  assert.match(app, /className="proveit-settings-dialog"/);
-  assert.match(css, /\.proveit-settings-dialog/);
+  assert.match(app, /className="proveit-utility-dialog proveit-settings-dialog"/);
+  assert.match(css, /\.proveit-utility-dialog/);
+});
+
+test("Settings and Export / Import share semantic utility-dialog action styling", () => {
+  assert.match(app, /proveit-utility-dialog proveit-settings-dialog/);
+  assert.match(app, /proveit-utility-dialog proveit-export-import-dialog/);
+  assert.match(css, /\.proveit-utility-dialog \.proveit-modal-action-primary \{ border-color: #0f766e; background: #0f766e;/);
+  assert.match(css, /\.proveit-utility-dialog \.proveit-modal-action-secondary \{ border-color: #475569; background: #172554;/);
+  assert.match(css, /\.proveit-utility-dialog \.proveit-modal-action-danger \{ border-color: #7f1d1d; background: #7f1d1d;/);
+  assert.match(css, /\.proveit-utility-dialog :is\(input, select, button, label\.cursor-pointer\):focus-visible/);
+  assert.doesNotMatch(css, /\.proveit-settings-dialog button \{/);
 });
 
 test("Manage Folders delegates its utility layer to DialogShell below the backup guard", () => {

@@ -4071,10 +4071,10 @@ const handleRecordFiles = async (event) => {
           onRequestClose={() => setExportImportOpen(false)}
           dismissOnBackdrop={false}
           initialFocusRef={exportImportBackupButtonRef}
-          className="proveit-export-import-dialog"
+          className="proveit-utility-dialog proveit-export-import-dialog"
         >
           <div className="space-y-4">
-              <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+              <section className="proveit-modal-section rounded-xl border border-neutral-200 bg-neutral-50 p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <h3 className="text-sm font-bold text-neutral-900">Backups</h3>
@@ -4104,7 +4104,7 @@ const handleRecordFiles = async (event) => {
                     type="button"
                     ref={exportImportBackupButtonRef}
                     onClick={handleFullBackup}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20"
+                    className="proveit-modal-action proveit-modal-action-primary inline-flex w-full items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20"
                   >
                     <Download className="h-4 w-4" />
                     Full App Backup
@@ -4114,7 +4114,7 @@ const handleRecordFiles = async (event) => {
                       type="button"
                       onClick={exportSelectedCaseBackup}
                       disabled={selectedCaseRequiresPin}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+                      className="proveit-modal-action proveit-modal-action-secondary inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
                     >
                       <Download className="h-4 w-4" />
                       Selected Case Backup
@@ -4123,7 +4123,7 @@ const handleRecordFiles = async (event) => {
                 </div>
               </section>
 
-              <section className="rounded-xl border border-neutral-200 bg-white p-4">
+              <section className="proveit-modal-section rounded-xl border border-neutral-200 bg-white p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <h3 className="text-sm font-bold text-neutral-900">AI / Reasoning</h3>
@@ -4139,7 +4139,7 @@ const handleRecordFiles = async (event) => {
                   type="button"
                   onClick={() => selectedCase && exportCaseReasoningExport(selectedCase.id)}
                   disabled={!selectedCase || selectedCaseRequiresPin}
-                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400 sm:w-auto"
+                  className="proveit-modal-action proveit-modal-action-secondary mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400 sm:w-auto"
                 >
                   <FileJson className="h-4 w-4" />
                   Reasoning Export
@@ -4148,14 +4148,14 @@ const handleRecordFiles = async (event) => {
                   type="button"
                   onClick={() => selectedCase && exportCaseReasoningExportV3(selectedCase.id)}
                   disabled={!selectedCase || selectedCaseRequiresPin}
-                  className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20 disabled:cursor-not-allowed disabled:border-neutral-300 disabled:bg-neutral-100 disabled:text-neutral-400 sm:ml-2 sm:w-auto"
+                  className="proveit-modal-action proveit-modal-action-primary mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20 disabled:cursor-not-allowed disabled:border-neutral-300 disabled:bg-neutral-100 disabled:text-neutral-400 sm:ml-2 sm:w-auto"
                 >
                   <FileJson className="h-4 w-4" />
                   Reasoning Export v3 — Structured Strategy and To Watch
                 </button>
               </section>
 
-              <section className="rounded-xl border border-neutral-200 bg-white p-4">
+              <section className="proveit-modal-section rounded-xl border border-neutral-200 bg-white p-4">
                 <h3 className="text-sm font-bold text-neutral-900">Import</h3>
                 <p className="mt-1 text-xs leading-5 text-amber-800">
                   Import changes local browser data. Download a Full App Backup before importing.
@@ -4163,14 +4163,14 @@ const handleRecordFiles = async (event) => {
                   Supplied fields replace current values, including explicit empty values, even from an older backup.
                   Import does not compare timestamps or provide conflict resolution.
                 </p>
-                <label className="mt-4 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20 sm:w-auto">
+                <label className="proveit-modal-action proveit-modal-action-primary mt-4 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20 sm:w-auto">
                   <Upload className="h-4 w-4" />
                   Import Backup JSON
                   <input type="file" accept="application/json,.json" className="hidden" onChange={importData} />
                 </label>
               </section>
 
-              <section className="rounded-xl border border-neutral-200 bg-white p-4">
+              <section className="proveit-modal-section rounded-xl border border-neutral-200 bg-white p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <h3 className="text-sm font-bold text-neutral-900">Recovery</h3>
@@ -4198,7 +4198,7 @@ const handleRecordFiles = async (event) => {
                   <button
                     type="button"
                     onClick={restoreRescueSnapshot}
-                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20 sm:w-auto"
+                    className="proveit-modal-action proveit-modal-action-primary mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20 sm:w-auto"
                   >
                     <Upload className="h-4 w-4" />
                     Restore Case Structure from Rescue Snapshot
@@ -4218,7 +4218,7 @@ const handleRecordFiles = async (event) => {
           onRequestClose={() => setSettingsOpen(false)}
           dismissOnBackdrop={false}
           initialFocusRef={settingsLockButtonRef}
-          className="proveit-settings-dialog"
+          className="proveit-utility-dialog proveit-settings-dialog"
         >
           <div className="proveit-settings-sections">
               <section className="proveit-settings-section rounded-xl border border-neutral-200 bg-white">
@@ -4267,7 +4267,7 @@ const handleRecordFiles = async (event) => {
                     type="button"
                     ref={settingsLockButtonRef}
                     onClick={lockApp}
-                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 sm:w-auto"
+                    className="proveit-modal-action proveit-modal-action-secondary mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 sm:w-auto"
                   >
                     <Lock className="h-4 w-4" />
                     Lock App
@@ -4346,7 +4346,7 @@ const handleRecordFiles = async (event) => {
                     <button
                       type="button"
                       onClick={resetCorruptAppLock}
-                      className="mt-3 block rounded-md border border-red-600 bg-white px-3 py-2 text-xs font-bold text-red-800 hover:bg-red-100"
+                      className="proveit-modal-action proveit-modal-action-danger mt-3 block rounded-md border border-red-600 bg-white px-3 py-2 text-xs font-bold text-red-800 hover:bg-red-100"
                     >
                       Reset App Lock Settings
                     </button>
@@ -4361,7 +4361,8 @@ const handleRecordFiles = async (event) => {
                             setAppLockMode("change");
                             resetAppLockForm();
                           }}
-                          className={`rounded-md border px-3 py-2 text-xs font-bold ${
+                          aria-pressed={appLockMode === "change"}
+                          className={`proveit-modal-action proveit-modal-action-secondary proveit-modal-mode-action rounded-md border px-3 py-2 text-xs font-bold ${
                             appLockMode === "change"
                               ? "border-lime-600 bg-lime-50 text-neutral-900"
                               : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50"
@@ -4375,7 +4376,8 @@ const handleRecordFiles = async (event) => {
                             setAppLockMode("disable");
                             resetAppLockForm();
                           }}
-                          className={`rounded-md border px-3 py-2 text-xs font-bold ${
+                          aria-pressed={appLockMode === "disable"}
+                          className={`proveit-modal-action proveit-modal-action-danger proveit-modal-mode-action rounded-md border px-3 py-2 text-xs font-bold ${
                             appLockMode === "disable"
                               ? "border-red-500 bg-red-50 text-red-800"
                               : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50"
@@ -4470,7 +4472,7 @@ const handleRecordFiles = async (event) => {
                       type="button"
                       onClick={handleSaveAppLock}
                       disabled={appLockSaving}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400 sm:w-auto"
+                      className={`proveit-modal-action ${appLockEnabled && appLockMode === "disable" ? "proveit-modal-action-danger" : "proveit-modal-action-primary"} inline-flex w-full items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400 sm:w-auto`}
                     >
                       <Lock className="h-4 w-4" />
                       {appLockEnabled ? (appLockMode === "disable" ? "Disable App Lock" : "Change PIN") : "Enable App Lock"}
@@ -4526,7 +4528,7 @@ const handleRecordFiles = async (event) => {
                     setSettingsOpen(false);
                     setExportImportOpen(true);
                   }}
-                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 sm:w-auto"
+                  className="proveit-modal-action proveit-modal-action-secondary mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 sm:w-auto"
                 >
                   <Download className="h-4 w-4" />
                   Open Export / Import
@@ -4565,7 +4567,7 @@ const handleRecordFiles = async (event) => {
                     setSettingsOpen(false);
                     if (!storageDiagnosticsOpen) handleStorageDiagnostics();
                   }}
-                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 sm:w-auto"
+                  className="proveit-modal-action proveit-modal-action-secondary mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 sm:w-auto"
                 >
                   <Activity className="h-4 w-4" />
                   Open Storage Diagnostics

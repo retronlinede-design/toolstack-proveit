@@ -297,112 +297,60 @@
   outline-offset: 2px;
 }
 
-/* Export and import retain their existing actions inside the shared utility dialog layer. */
-.proveit-export-import-dialog { background: #0b172a; }
-.proveit-export-import-dialog section {
+/* Settings and Export / Import share the same utility-dialog visual system. */
+.proveit-utility-dialog { background: #0b172a; color: #e2e8f0; }
+.proveit-utility-dialog > header { border-color: #334155; background: #0d1928; }
+.proveit-utility-dialog > footer { border-color: #334155; background: #0b172a; }
+.proveit-utility-dialog :is(.proveit-modal-section, .proveit-settings-section) {
   border-color: #334155;
-  background: #12213a;
 }
-.proveit-export-import-dialog :is(h3, .text-neutral-900, .text-neutral-800) { color: #f1f5f9; }
-.proveit-export-import-dialog :is(p, .text-neutral-500, .text-neutral-600, .text-neutral-700) { color: #cbd5e1; }
-.proveit-export-import-dialog .bg-white,
-.proveit-export-import-dialog .bg-neutral-50 { background: #0f1f35; }
-.proveit-export-import-dialog :is(.border-neutral-200, .border-neutral-300) { border-color: #334155; }
-.proveit-export-import-dialog :is(button, label.cursor-pointer) {
-  border-color: #475569;
-  background: #172554;
-  color: #e2e8f0;
-}
-.proveit-export-import-dialog :is(button, label.cursor-pointer):hover:not(:disabled) {
-  border-color: #2dd4bf;
-  background: #1e3a5f;
-}
-.proveit-export-import-dialog .border-lime-500 {
-  border-color: #0f766e;
-  background: #0f766e;
-  color: #f0fdfa;
-}
-.proveit-export-import-dialog .border-amber-200,
-.proveit-export-import-dialog .bg-amber-50 {
+.proveit-utility-dialog :is(h3, .text-neutral-900, .text-neutral-800) { color: #f1f5f9; }
+.proveit-utility-dialog :is(p, .text-neutral-500, .text-neutral-600, .text-neutral-700) { color: #cbd5e1; }
+.proveit-utility-dialog .bg-white,
+.proveit-utility-dialog .bg-neutral-50 { background: #0f1f35; }
+.proveit-utility-dialog :is(.proveit-modal-section, .proveit-settings-section) { background: #12213a; }
+.proveit-utility-dialog :is(.border-neutral-200, .border-neutral-300) { border-color: #334155; }
+.proveit-utility-dialog :is(.border-amber-200, .bg-amber-50) {
   border-color: #b7791f;
   background: #3b2a12;
   color: #fef3c7;
 }
-.proveit-export-import-dialog .border-red-200,
-.proveit-export-import-dialog .bg-red-50 {
+.proveit-utility-dialog :is(.border-red-200, .bg-red-50) {
   border-color: #b91c1c;
   background: #451a1a;
   color: #fecaca;
 }
-.proveit-export-import-dialog :is(button, input, select, label.cursor-pointer):focus-visible {
-  outline: 2px solid #2dd4bf;
-  outline-offset: 2px;
-}
-.proveit-export-import-dialog button:disabled {
-  border-color: #475569;
-  background: #1e293b;
-  color: #94a3b8;
-}
-
-/* Settings keeps its existing controls and persistence callbacks inside the shared utility dialog. */
-.proveit-settings-dialog { background: #0b172a; }
-.proveit-settings-dialog section {
-  border-color: #334155;
-  background: #12213a;
-}
-.proveit-settings-dialog :is(h3, .text-neutral-900, .text-neutral-800) { color: #f1f5f9; }
-.proveit-settings-dialog :is(p, .text-neutral-500, .text-neutral-600, .text-neutral-700) { color: #cbd5e1; }
-.proveit-settings-dialog .bg-white,
-.proveit-settings-dialog .bg-neutral-50 { background: #0f1f35; }
-.proveit-settings-dialog :is(.border-neutral-200, .border-neutral-300) { border-color: #334155; }
-.proveit-settings-dialog button {
-  border-color: #475569;
-  background: #172554;
-  color: #e2e8f0;
-}
-.proveit-settings-dialog button:hover:not(:disabled) {
-  border-color: #2dd4bf;
-  background: #1e3a5f;
-}
-.proveit-settings-dialog .border-lime-500,
-.proveit-settings-dialog .border-lime-600 {
-  border-color: #0f766e;
-  background: #0f766e;
-  color: #f0fdfa;
-}
-.proveit-settings-dialog .border-lime-200,
-.proveit-settings-dialog .bg-lime-50 {
-  border-color: #0f766e;
-  background: #0d2a35;
-  color: #5eead4;
-}
-.proveit-settings-dialog .border-amber-200,
-.proveit-settings-dialog .bg-amber-50 {
-  border-color: #b7791f;
-  background: #3b2a12;
-  color: #fef3c7;
-}
-.proveit-settings-dialog .border-red-200,
-.proveit-settings-dialog .bg-red-50 {
-  border-color: #b91c1c;
-  background: #451a1a;
-  color: #fecaca;
-}
-.proveit-settings-dialog :is(input:not([type="checkbox"]), select) {
+.proveit-utility-dialog :is(input:not([type="checkbox"]), select) {
   border-color: #475569;
   background: #0f1f35;
   color: #f8fafc;
 }
-.proveit-settings-dialog :is(input, select, button):focus-visible {
+.proveit-utility-dialog :is(input, select, button, label.cursor-pointer):focus-visible {
   outline: 2px solid #2dd4bf;
   outline-offset: 2px;
 }
-.proveit-settings-dialog input[type="checkbox"] { accent-color: #2dd4bf; }
-.proveit-settings-dialog button:disabled {
+.proveit-utility-dialog input[type="checkbox"] { accent-color: #2dd4bf; }
+.proveit-utility-dialog .proveit-modal-action {
+  min-height: 2.5rem;
+  border: 1px solid #475569;
+  border-radius: 0.625rem;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease;
+}
+.proveit-utility-dialog .proveit-modal-action-primary { border-color: #0f766e; background: #0f766e; color: #ffffff; }
+.proveit-utility-dialog .proveit-modal-action-primary:hover:not(:disabled) { border-color: #115e59; background: #115e59; }
+.proveit-utility-dialog .proveit-modal-action-secondary { border-color: #475569; background: #172554; color: #ffffff; }
+.proveit-utility-dialog .proveit-modal-action-secondary:hover:not(:disabled) { background: #1e3a5f; }
+.proveit-utility-dialog .proveit-modal-action-danger { border-color: #7f1d1d; background: #7f1d1d; color: #ffffff; }
+.proveit-utility-dialog .proveit-modal-action-danger:hover:not(:disabled) { border-color: #991b1b; background: #991b1b; }
+.proveit-utility-dialog .proveit-modal-action:disabled {
   border-color: #475569;
   background: #1e293b;
   color: #94a3b8;
 }
+.proveit-utility-dialog .proveit-modal-mode-action[aria-pressed="true"] { box-shadow: inset 0 0 0 1px rgb(255 255 255 / .28); }
 .proveit-settings-error { border-color: #b91c1c; background: #451a1a; color: #fecaca; }
 .proveit-settings-sections { display: grid; gap: 0.75rem; }
 .proveit-settings-section { overflow: hidden; }
@@ -414,6 +362,8 @@
   gap: 1rem;
   border: 0;
   border-radius: 0;
+  background: #172554;
+  color: #e2e8f0;
   padding: 0.875rem 1rem;
   text-align: left;
 }

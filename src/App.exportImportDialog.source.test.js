@@ -19,3 +19,10 @@ test("Export and Import dialog retains direct file selection without adding an i
   assert.match(appSource, /Cases and records merge by ID/);
   assert.match(appSource, /Import does not compare timestamps or provide conflict resolution/);
 });
+
+test("Export and Import uses the shared utility dialog and semantic action styles", () => {
+  assert.match(appSource, /className="proveit-utility-dialog proveit-export-import-dialog"/);
+  assert.match(appSource, /proveit-modal-section/);
+  assert.match(appSource, /proveit-modal-action-primary/);
+  assert.match(appSource, /proveit-modal-action-secondary/);
+});

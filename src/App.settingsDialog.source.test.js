@@ -27,3 +27,12 @@ test("Settings dialog groups controls into accessible, collapsible sections", ()
   assert.match(appSource, /proveit-settings-error/);
   assert.match(appSource, /role="alert"/);
 });
+
+test("Settings uses the shared utility dialog and semantic action styles", () => {
+  assert.match(appSource, /className="proveit-utility-dialog proveit-settings-dialog"/);
+  for (const className of ["proveit-modal-action-primary", "proveit-modal-action-secondary", "proveit-modal-action-danger"]) {
+    assert.match(appSource, new RegExp(className));
+  }
+  assert.match(appSource, /aria-pressed=\{appLockMode === "change"\}/);
+  assert.match(appSource, /aria-pressed=\{appLockMode === "disable"\}/);
+});
