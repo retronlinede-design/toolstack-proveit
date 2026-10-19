@@ -875,6 +875,7 @@ export default function ProveItApp() {
   const [exportImportOpen, setExportImportOpen] = useState(false);
   const exportImportBackupButtonRef = useRef(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsExpandedSection, setSettingsExpandedSection] = useState("security");
   const settingsLockButtonRef = useRef(null);
   const [rescueSnapshot, setRescueSnapshot] = useState(() => readRescueSnapshot());
   const [rescueSnapshotRecoveryIgnored, setRescueSnapshotRecoveryIgnored] = useState(false);
@@ -883,6 +884,13 @@ export default function ProveItApp() {
   const showAppNotice = (tone, message) => {
     if (!message) return;
     setAppNotice({ tone, message, id: `${Date.now()}-${Math.random().toString(36).slice(2)}` });
+  };
+
+  const toggleSettingsSection = (section) => {
+    setSettingsExpandedSection((current) => {
+      if (appLockFormError && current === "security") return "security";
+      return current === section ? null : section;
+    });
   };
 
   const setSidebarCollapsedPreference = (collapsed) => {
@@ -4212,11 +4220,39 @@ const handleRecordFiles = async (event) => {
           initialFocusRef={settingsLockButtonRef}
           className="proveit-settings-dialog"
         >
-          <div className="space-y-4">
-              <section className="rounded-xl border border-neutral-200 bg-white p-4">
+          <div className="proveit-settings-sections">
+              <section className="proveit-settings-section rounded-xl border border-neutral-200 bg-white">
+                <button
+                  type="button"
+                  className="proveit-settings-section-trigger"
+                  aria-expanded={settingsExpandedSection === "security"}
+                  aria-controls="settings-section-security"
+                  onClick={() => toggleSettingsSection("security")}
+                >
+                  <span className="proveit-settings-section-heading">
+                    <Lock className="h-4 w-4" aria-hidden="true" />
+                    <span>
+                      <span className="proveit-settings-section-title">Security</span>
+                      <span className="proveit-settings-section-description">App Lock, session privacy and recovery.</span>
+                    </span>
+                  </span>
+                  <span className="proveit-settings-section-trailing">
+                    <span className={`proveit-settings-status ${
+                      appLockCorrupt
+                        ? "border-red-200 bg-red-50 text-red-700"
+                        : appLockEnabled
+                          ? "border-lime-200 bg-lime-50 text-lime-700"
+                          : "border-neutral-200 bg-neutral-50 text-neutral-600"
+                    }`}>
+                      App Lock: {appLockStatusLabel}
+                    </span>
+                    <ChevronRight className={`h-4 w-4 transition-transform motion-reduce:transition-none ${settingsExpandedSection === "security" ? "rotate-90" : ""}`} aria-hidden="true" />
+                  </span>
+                </button>
+                <div id="settings-section-security" hidden={settingsExpandedSection !== "security"} className="proveit-settings-section-content">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h3 className="text-sm font-bold text-neutral-900">Security & Privacy</h3>
+                    <h3 className="text-sm font-bold text-neutral-900">App Lock</h3>
                     <p className="mt-1 text-xs leading-5 text-neutral-500">
                       App Lock is a privacy screen. It does not encrypt stored browser data.
                     </p>
@@ -4224,15 +4260,6 @@ const handleRecordFiles = async (event) => {
                       Full backups remain plaintext unless exported with encryption in a future version.
                     </p>
                   </div>
-                  <span className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
-                    appLockCorrupt
-                      ? "border-red-200 bg-red-50 text-red-700"
-                      : appLockEnabled
-                        ? "border-lime-200 bg-lime-50 text-lime-700"
-                        : "border-neutral-200 bg-neutral-50 text-neutral-600"
-                  }`}>
-                    App Lock: {appLockStatusLabel}
-                  </span>
                 </div>
 
                 {appLockEnabled ? (
@@ -4450,10 +4477,33 @@ const handleRecordFiles = async (event) => {
                     </button>
                   </div>
                 )}
+                </div>
               </section>
 
-              <section className="rounded-xl border border-neutral-200 bg-white p-4">
-                <h3 className="text-sm font-bold text-neutral-900">Data & Backups</h3>
+              <section className="proveit-settings-section rounded-xl border border-neutral-200 bg-white">
+                <button
+                  type="button"
+                  className="proveit-settings-section-trigger"
+                  aria-expanded={settingsExpandedSection === "data"}
+                  aria-controls="settings-section-data"
+                  onClick={() => toggleSettingsSection("data")}
+                >
+                  <span className="proveit-settings-section-heading">
+                    <Download className="h-4 w-4" aria-hidden="true" />
+                    <span>
+                      <span className="proveit-settings-section-title">Data &amp; Backups</span>
+                      <span className="proveit-settings-section-description">Backup health and the existing transfer workflow.</span>
+                    </span>
+                  </span>
+                  <span className="proveit-settings-section-trailing">
+                    <span className={`proveit-settings-status ${lastBackupMeta?.complete === false ? "border-red-200 bg-red-50 text-red-700" : "border-neutral-200 bg-neutral-50 text-neutral-600"}`}>
+                      {lastBackupMeta?.complete === true ? "Backup complete" : lastBackupMeta?.complete === false ? "Backup partial" : "Backup status unknown"}
+                    </span>
+                    <ChevronRight className={`h-4 w-4 transition-transform motion-reduce:transition-none ${settingsExpandedSection === "data" ? "rotate-90" : ""}`} aria-hidden="true" />
+                  </span>
+                </button>
+                <div id="settings-section-data" hidden={settingsExpandedSection !== "data"} className="proveit-settings-section-content">
+                <h3 className="text-sm font-bold text-neutral-900">Backup health</h3>
                 <p className="mt-1 text-xs leading-5 text-neutral-500">
                   Only a Full App Backup marked complete includes every referenced attachment binary.
                 </p>
@@ -4481,13 +4531,31 @@ const handleRecordFiles = async (event) => {
                   <Download className="h-4 w-4" />
                   Open Export / Import
                 </button>
+                </div>
               </section>
 
-              <section className="rounded-xl border border-neutral-200 bg-white p-4">
-                <div className="flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-neutral-500" aria-hidden="true" />
-                  <h3 className="text-sm font-bold text-neutral-900">Storage Diagnostics</h3>
-                </div>
+              <section className="proveit-settings-section rounded-xl border border-neutral-200 bg-white">
+                <button
+                  type="button"
+                  className="proveit-settings-section-trigger"
+                  aria-expanded={settingsExpandedSection === "advanced"}
+                  aria-controls="settings-section-advanced"
+                  onClick={() => toggleSettingsSection("advanced")}
+                >
+                  <span className="proveit-settings-section-heading">
+                    <Settings className="h-4 w-4" aria-hidden="true" />
+                    <span>
+                      <span className="proveit-settings-section-title">Advanced</span>
+                      <span className="proveit-settings-section-description">Read-only storage diagnostics and recovery checks.</span>
+                    </span>
+                  </span>
+                  <span className="proveit-settings-section-trailing">
+                    <span className="proveit-settings-status border-neutral-200 bg-neutral-50 text-neutral-600">Read-only</span>
+                    <ChevronRight className={`h-4 w-4 transition-transform motion-reduce:transition-none ${settingsExpandedSection === "advanced" ? "rotate-90" : ""}`} aria-hidden="true" />
+                  </span>
+                </button>
+                <div id="settings-section-advanced" hidden={settingsExpandedSection !== "advanced"} className="proveit-settings-section-content">
+                <h3 className="text-sm font-bold text-neutral-900">Storage Diagnostics</h3>
                 <p className="mt-1 text-xs leading-5 text-neutral-500">
                   Open the existing read-only diagnostics panel for IndexedDB and localStorage status.
                 </p>
@@ -4502,15 +4570,37 @@ const handleRecordFiles = async (event) => {
                   <Activity className="h-4 w-4" />
                   Open Storage Diagnostics
                 </button>
+                </div>
               </section>
 
-              <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-                <h3 className="text-sm font-bold text-neutral-900">App Info</h3>
+              <section className="proveit-settings-section rounded-xl border border-neutral-200 bg-neutral-50">
+                <button
+                  type="button"
+                  className="proveit-settings-section-trigger"
+                  aria-expanded={settingsExpandedSection === "about"}
+                  aria-controls="settings-section-about"
+                  onClick={() => toggleSettingsSection("about")}
+                >
+                  <span className="proveit-settings-section-heading">
+                    <Activity className="h-4 w-4" aria-hidden="true" />
+                    <span>
+                      <span className="proveit-settings-section-title">About</span>
+                      <span className="proveit-settings-section-description">This browser profile and local-first application information.</span>
+                    </span>
+                  </span>
+                  <span className="proveit-settings-section-trailing">
+                    <span className="proveit-settings-status border-neutral-200 bg-neutral-50 text-neutral-600">Local-first</span>
+                    <ChevronRight className={`h-4 w-4 transition-transform motion-reduce:transition-none ${settingsExpandedSection === "about" ? "rotate-90" : ""}`} aria-hidden="true" />
+                  </span>
+                </button>
+                <div id="settings-section-about" hidden={settingsExpandedSection !== "about"} className="proveit-settings-section-content">
+                <h3 className="text-sm font-bold text-neutral-900">Browser profile</h3>
                 <p className="mt-1 text-xs leading-5 text-neutral-600">
                   ProveIt is local-first. Data is stored in this browser profile for the current origin.
                 </p>
                 <div className="mt-3 break-all rounded-lg border border-neutral-200 bg-white p-3 text-xs text-neutral-600">
                   Current origin: <span className="font-mono text-neutral-800">{currentOrigin || "Unknown"}</span>
+                </div>
                 </div>
               </section>
           </div>

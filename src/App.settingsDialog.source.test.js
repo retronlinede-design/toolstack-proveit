@@ -14,10 +14,16 @@ test("Settings dialog preserves existing App Lock and utility callback wiring", 
   assert.match(appSource, /handleStorageDiagnostics\(\)/);
 });
 
-test("Settings dialog retains all operational sections and accessible error feedback", () => {
-  for (const label of ["Security & Privacy", "Data & Backups", "Storage Diagnostics", "App Info"]) {
+test("Settings dialog groups controls into accessible, collapsible sections", () => {
+  for (const label of ["Security", "Data &amp; Backups", "Advanced", "About", "Storage Diagnostics", "Browser profile"]) {
     assert.match(appSource, new RegExp(label));
   }
+  assert.match(appSource, /const \[settingsExpandedSection, setSettingsExpandedSection\] = useState\("security"\)/);
+  assert.match(appSource, /aria-expanded=\{settingsExpandedSection === "security"\}/);
+  assert.match(appSource, /aria-controls="settings-section-security"/);
+  assert.match(appSource, /hidden=\{settingsExpandedSection !== "security"\}/);
+  assert.match(appSource, /proveit-settings-section-trigger/);
+  assert.match(appSource, /if \(appLockFormError && current === "security"\) return "security"/);
   assert.match(appSource, /proveit-settings-error/);
   assert.match(appSource, /role="alert"/);
 });

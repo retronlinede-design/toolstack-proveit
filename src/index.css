@@ -404,6 +404,54 @@
   color: #94a3b8;
 }
 .proveit-settings-error { border-color: #b91c1c; background: #451a1a; color: #fecaca; }
+.proveit-settings-sections { display: grid; gap: 0.75rem; }
+.proveit-settings-section { overflow: hidden; }
+.proveit-settings-section-trigger {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 0;
+  border-radius: 0;
+  padding: 0.875rem 1rem;
+  text-align: left;
+}
+.proveit-settings-section-trigger:hover:not(:disabled) { background: #172f50; }
+.proveit-settings-section-heading,
+.proveit-settings-section-trailing {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+}
+.proveit-settings-section-heading > svg { flex: none; color: #5eead4; }
+.proveit-settings-section-title,
+.proveit-settings-section-description { display: block; }
+.proveit-settings-section-title { color: #f1f5f9; font-size: 0.875rem; font-weight: 700; }
+.proveit-settings-section-description { margin-top: 0.125rem; color: #cbd5e1; font-size: 0.75rem; line-height: 1.25rem; }
+.proveit-settings-section-trailing { flex: none; color: #94a3b8; }
+.proveit-settings-status {
+  display: inline-flex;
+  border: 1px solid;
+  border-radius: 9999px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.proveit-settings-section-content {
+  border-top: 1px solid #334155;
+  padding: 1rem;
+}
+@media (max-width: 40rem) {
+  .proveit-settings-section-trigger { align-items: flex-start; }
+  .proveit-settings-section-trailing { gap: 0.5rem; }
+  .proveit-settings-status { display: none; }
+}
 
 /* App notices stay beneath utility and priority dialog layers, while retaining readable semantic states. */
 .proveit-app-notification-panel {
