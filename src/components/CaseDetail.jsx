@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { BookOpen, Briefcase, ChevronDown, ChevronRight, Download, FileText, GripVertical, Network, Search, ShieldCheck, Tags, Target, Users, Waypoints } from "lucide-react";
+import { ArrowUp, BookOpen, Briefcase, ChevronDown, ChevronRight, Download, FileText, GripVertical, Network, Search, ShieldCheck, Tags, Target, Users, Waypoints } from "lucide-react";
 import proveItHeaderLogo from "../assets/proveitheader.png";
 import { isTimelineCapable, getCaseHealthReport } from "../lib/caseHealth";
 import {
@@ -607,7 +607,7 @@ export default function CaseDetail({
 
   useEffect(() => {
     const handleScroll = () => {
-      setShowScrollTop(window.scrollY > 300);
+      setShowScrollTop(window.scrollY > 400);
     };
 
     window.addEventListener("scroll", handleScroll);
@@ -637,7 +637,8 @@ export default function CaseDetail({
   }, [selectedCase?.id, isPinLocked]);
 
   const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
   };
 
   const toggleDocumentExpanded = (id) => {
@@ -1736,17 +1737,6 @@ ${strategyFocus.join("\n") || "—"}`;
     ...(activeNextActions || []).map((item) => ({ kind: "Next step", text: getActionText(item) })),
     ...(importantReminders || []).map((item) => ({ kind: "Reminder", text: item })),
   ];
-
-  const scrollTopTabLabelMap = {
-    overview: "Home",
-    evidence: "Ev",
-    incidents: "Inc",
-    strategy: "Str",
-    ledger: "Led",
-    documents: "Doc",
-  };
-
-  const scrollTopLabel = scrollTopTabLabelMap[activeTab] || "Top";
 
   const handleOpenIssue = (issue) => {
     if (issue.tab) setActiveTab(issue.tab);
@@ -6790,10 +6780,13 @@ ${ungroupedSequenceText}
 
       {showScrollTop && (
         <button
+          type="button"
           onClick={scrollToTop}
-          className="fixed bottom-6 left-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-lime-600 text-[10px] font-bold leading-none text-center text-white shadow-lg transition-all active:scale-95 hover:bg-lime-700 print:hidden"
+          aria-label="Back to top"
+          title="Back to top"
+          className="proveit-back-to-top fixed bottom-20 right-4 z-20 print:hidden sm:bottom-[5.25rem] sm:right-6"
         >
-          {scrollTopLabel}
+          <ArrowUp className="h-[18px] w-[18px]" aria-hidden="true" />
         </button>
       )}
 

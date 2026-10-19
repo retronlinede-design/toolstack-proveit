@@ -1744,6 +1744,40 @@
     transition-duration: 0.01ms;
     transform: none;
   }
+
+  .proveit-back-to-top {
+    transition-duration: 0.01ms;
+    transform: none;
+  }
+}
+
+.proveit-back-to-top {
+  display: inline-flex;
+  height: 42px;
+  width: 42px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #334155;
+  border-radius: 9999px;
+  background: #10213a;
+  color: #fff;
+  box-shadow: 0 10px 24px rgb(2 6 23 / .28);
+  transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.proveit-back-to-top:hover {
+  border-color: #2dd4bf;
+  background: #15314c;
+  box-shadow: 0 12px 28px rgb(2 6 23 / .36);
+}
+
+.proveit-back-to-top:focus-visible {
+  outline: 2px solid #5eead4;
+  outline-offset: 3px;
+}
+
+.proveit-back-to-top:active {
+  transform: translateY(1px);
 }
 
 .proveit-print-footer {
