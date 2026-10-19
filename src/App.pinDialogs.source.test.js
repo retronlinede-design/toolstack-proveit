@@ -27,6 +27,8 @@ test("app and case unlock remain full-screen security flows with masked PIN inpu
   assert.match(appSource, /handleUnlockApp/);
   assert.match(appSource, /handleUnlockSelectedCase/);
   assert.match(appSource, /Wrong PIN\. Check the digits and try again\./);
+  assert.match(appSource, /does not encrypt this case, its attachments, or backups\./);
+  assert.match(appSource, /App Lock is a privacy screen\. It does not encrypt stored data\./);
   assert.match(css, /\.proveit-app-lock-screen/);
   assert.match(css, /\.proveit-case-unlock-panel/);
 });

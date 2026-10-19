@@ -4775,6 +4775,9 @@ const handleRecordFiles = async (event) => {
                 <p className="mt-2 text-sm text-neutral-600">
                   This case is PIN locked. Enter the case PIN to continue.
                 </p>
+                <p className="mt-2 text-xs leading-5 text-neutral-500">
+                  This is an access-control screen; it does not encrypt this case, its attachments, or backups.
+                </p>
               </div>
               <button
                 onClick={closeLockPrompt}
@@ -4982,7 +4985,7 @@ const handleRecordFiles = async (event) => {
                     <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
                       <div className="font-semibold">Before you enable this lock</div>
                       <ul className="mt-2 list-disc space-y-1 pl-5">
-                        <li>This is a privacy lock, not encryption.</li>
+                        <li>This is a privacy lock, not encryption. It does not encrypt this case, its attachments, or backups.</li>
                         <li>If the PIN is forgotten, recovery may not be possible.</li>
                         <li>Export a backup before enabling the lock.</li>
                       </ul>
