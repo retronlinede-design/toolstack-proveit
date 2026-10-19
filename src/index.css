@@ -1417,8 +1417,6 @@
 .proveit-dark-shell .case-file-incidents .case-file-incident-notes { color: var(--case-file-muted) !important; }
 .proveit-dark-shell .case-file-incidents .case-file-incident-card :is([data-record-badge-variant], [data-record-link-variant]) { border-color: var(--case-file-border) !important; background: var(--pi-control) !important; color: var(--case-file-text) !important; }
 .proveit-dark-shell .case-file-incidents .case-file-incident-card [data-record-link-variant="sequence"] { border-color: color-mix(in srgb, var(--case-file-accent) 52%, var(--case-file-border)) !important; color: #dffdf7 !important; }
-.proveit-dark-shell .case-file-incidents .case-file-incident-actions [data-record-action-variant="primary"] { border-color: color-mix(in srgb, var(--case-file-accent) 64%, var(--case-file-border)); background: color-mix(in srgb, var(--case-file-accent) 16%, var(--pi-control)); color: #dffdf7; }
-.proveit-dark-shell .case-file-incidents .case-file-incident-actions [data-record-action-variant="secondary"] { border-color: var(--case-file-border); background: var(--pi-control); color: var(--case-file-text); }
 .proveit-dark-shell .case-file-incidents .case-file-incident-disclosure { display: inline-flex; min-height: 2rem; align-items: center; gap: .35rem; margin-top: .75rem; border: 0; background: transparent; color: var(--case-file-accent); font-size: .75rem; font-weight: 700; }
 .proveit-dark-shell .case-file-incidents .case-file-incident-disclosure svg { width: 1rem; height: 1rem; transition: transform 160ms ease; }
 .proveit-dark-shell .case-file-incidents .case-file-incident-disclosure svg.is-expanded { transform: rotate(180deg); }

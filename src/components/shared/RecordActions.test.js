@@ -8,6 +8,7 @@ import { transformWithOxc } from "vite";
 
 const sourceUrl = new URL("./RecordActions.jsx", import.meta.url);
 const source = await readFile(sourceUrl, "utf8");
+const stylesheet = await readFile(new URL("../../index.css", import.meta.url), "utf8");
 const transformed = await transformWithOxc(source, sourceUrl.pathname);
 const jsxRuntimeUrl = import.meta.resolve("react/jsx-runtime");
 const importableCode = transformed.code.replaceAll('from "react/jsx-runtime"', `from "${jsxRuntimeUrl}"`);
@@ -28,6 +29,14 @@ test("RecordActions renders all supported variants and falls back safely", () =>
   assert.equal(DEFAULT_VARIANT, "neutral");
   const fallbackHtml = renderActions({ actions: [makeAction({ variant: "unknown" })] });
   assert.match(fallbackHtml, /data-record-action-variant="neutral"/);
+});
+
+test("RecordActions uses the shared navy, teal, and destructive action palette", () => {
+  assert.match(VARIANT_CLASSES.primary, /border-\[#0f766e\].*bg-\[#0f766e\].*text-white.*hover:bg-\[#115e59\]/);
+  assert.match(VARIANT_CLASSES.secondary, /border-\[#475569\].*bg-\[#172554\].*text-white.*hover:bg-\[#1e3a5f\]/);
+  assert.match(VARIANT_CLASSES.danger, /border-\[#7f1d1d\].*bg-\[#7f1d1d\].*text-white.*hover:bg-\[#991b1b\]/);
+  assert.match(source, /focus-visible:ring-\[#2dd4bf\]/);
+  assert.doesNotMatch(stylesheet, /case-file-incident-actions \[data-record-action-variant="(?:primary|secondary)"\]/);
 });
 
 test("RecordActions renders icons, labels, title, aria-label, and disabled state", () => {
