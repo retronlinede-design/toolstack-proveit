@@ -9,11 +9,12 @@ function attachmentsIn(value) {
   return attachments;
 }
 
-export function createRestoreSession({ addImage, generateId, deleteImages } = {}, sources = []) {
+export function createRestoreSession({ addImage, generateId, deleteImages, deferWrites = false } = {}, sources = []) {
   const payloads = new Map();
   const pending = new Map();
   const created = new Set();
   const committed = new Set();
+  const staged = new Map();
   let closed = false;
 
   // Index bytes before parallel traversal so reference-only duplicates also remap.
@@ -41,6 +42,12 @@ export function createRestoreSession({ addImage, generateId, deleteImages } = {}
         pending.set(key, (async () => {
           for (let attempt = 0; attempt < 10; attempt += 1) {
             const id = generateId();
+            if (deferWrites) {
+              const image = { id, evidenceId: ownerId || null, dataUrl, createdAt: attachment.createdAt || new Date().toISOString() };
+              staged.set(id, image);
+              created.add(id);
+              return id;
+            }
             try {
               await addImage({ id, evidenceId: ownerId || null, dataUrl, createdAt: attachment.createdAt || new Date().toISOString() });
               created.add(id);
@@ -61,10 +68,16 @@ export function createRestoreSession({ addImage, generateId, deleteImages } = {}
         if (created.has(id)) committed.add(id);
       }
     },
+    stagedImages() {
+      return [...staged.values()];
+    },
     async cleanup() {
       closed = true;
       // Promise.all in callers may reject while other binary writes are in flight.
       await Promise.allSettled([...pending.values()]);
+      // Deferred images only exist in memory until the caller's single
+      // IndexedDB transaction commits, so there is nothing to compensate here.
+      if (deferWrites) return;
       const disposable = [...created].filter((id) => !committed.has(id));
       if (disposable.length) await deleteImages(disposable);
       for (const id of disposable) created.delete(id);

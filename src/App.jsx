@@ -3,6 +3,7 @@ import {
   createEmergencyBackupFromDb,
   getAllCases,
   saveCase,
+  saveCasesAndImages,
   deleteCase,
   saveImage,
   addImage,
@@ -2717,7 +2718,7 @@ export default function ProveItApp() {
       getImportedFolderSource(parsed, imported);
     const incomingSequenceGroupMeta = parsed?.appData?.sequenceGroupMeta || imported?.appData?.sequenceGroupMeta;
 
-    const restoreSession = createRestoreSession({ addImage, generateId, deleteImages }, isFullBackup
+    const restoreSession = createRestoreSession({ addImage, generateId, deleteImages, deferWrites: isFullBackup }, isFullBackup
       ? [...incomingCases, ...(shouldImportQuickCaptures ? incomingQuickCaptures : [])] : []);
     try {
       if (isFullBackup) {
@@ -2732,24 +2733,12 @@ export default function ProveItApp() {
       }
 
       const { mergedCases, normalizedCases } = mergeImportedCases(currentCases, incomingCases, incomingSequenceGroupMeta || {});
-      const importSuccesses = [];
+      // The cases and remapped full-backup binaries commit together. A stale
+      // revision, image collision, or write failure aborts the entire import.
+      await saveCasesAndImages(mergedCases, isFullBackup ? restoreSession.stagedImages() : [], { operation: "restoreBackupPayload" });
+      mergedCases.forEach((caseItem) => restoreSession.commit(caseItem));
+      const importSuccesses = mergedCases.map((caseItem) => caseItem.name || caseItem.id || "Untitled case");
       const importFailures = [];
-
-      for (const caseItem of mergedCases) {
-        try {
-          await saveCase(caseItem);
-          restoreSession.commit(caseItem);
-          importSuccesses.push(caseItem.name || caseItem.id || "Untitled case");
-        } catch (error) {
-          console.error("Failed to save imported case", caseItem?.id, error);
-          importFailures.push({
-            id: caseItem.id,
-            name: caseItem.name || caseItem.id || "Untitled case",
-            message: error.message || "Unknown save error",
-          });
-          // Session cleanup removes only uncommitted restore-owned binaries.
-        }
-      }
 
       const persistedCases = (await getAllCases()).map((caseItem) => normalizeStoredCase(caseItem, { sequenceGroupMeta: getSequenceGroupMetaForCase(caseItem.id, incomingSequenceGroupMeta || {}) }));
       reconcileUnlockedCaseIds(persistedCases, currentCases);

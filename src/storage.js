@@ -22,6 +22,52 @@ export class CaseRevisionConflictError extends Error {
   }
 }
 
+function prepareCommittedCase(existingCase, caseItem, options = {}) {
+  const operation = options.operation || "saveCase";
+  const expectedRevision = getCaseRevision(caseItem);
+  const actualRevision = getCaseRevision(existingCase);
+
+  if (actualRevision != null && expectedRevision !== actualRevision) {
+    throw new CaseRevisionConflictError({ caseId: caseItem.id, expectedRevision, actualRevision, operation });
+  }
+
+  const beforeCounts = getCaseCoreCounts(existingCase);
+  const afterCounts = getCaseCoreCounts(caseItem);
+  const suspiciousShrink = hasSuspiciousCoreArrayShrink(existingCase, caseItem);
+  logDestructiveOperation(operation, { caseId: caseItem?.id || "", beforeCounts, afterCounts, suspiciousShrink, override: options.allowSuspiciousOverwrite === true });
+
+  if (suspiciousShrink) {
+    writeEmergencyBackupSnapshot({
+      operation: `${operation}:${options.allowSuspiciousOverwrite === true ? "allowed" : "blocked"}-suspicious-overwrite`,
+      cases: existingCase ? [existingCase] : [], caseId: caseItem.id, beforeCounts, afterCounts,
+    });
+    if (options.allowSuspiciousOverwrite !== true) {
+      const error = new Error("Blocked suspicious ProveIt case overwrite: incoming case would erase non-empty core data arrays.");
+      console.warn("[ProveIt persistence] blocked suspicious case overwrite", { operation, caseId: caseItem.id, beforeCounts, afterCounts, stack: getStackTrace() });
+      throw error;
+    }
+  }
+
+  const previousImageIds = collectEmbeddedCaseImageIds(existingCase);
+  const committedImageIds = collectEmbeddedCaseImageIds(caseItem);
+  return {
+    committedCase: { ...caseItem, revision: getCommittedCaseRevision(existingCase, caseItem) },
+    candidateImageIds: [...previousImageIds].filter((imageId) => !committedImageIds.has(imageId)),
+  };
+}
+
+async function deleteUnreferencedImageCandidates(caseStore, imageStore, candidateImageIds) {
+  if (!imageStore || candidateImageIds.size === 0) return;
+  const referencedImageIds = new Set();
+  const persistedCases = await caseStore.getAll();
+  for (const persistedCase of persistedCases) {
+    for (const imageId of collectEmbeddedCaseImageIds(persistedCase)) referencedImageIds.add(imageId);
+  }
+  for (const imageId of candidateImageIds) {
+    if (!referencedImageIds.has(imageId)) await imageStore.delete(imageId);
+  }
+}
+
 async function getDb() {
   const { dbPromise } = await import("./db.js");
   return dbPromise;
@@ -134,61 +180,11 @@ export async function getAllCases() {
 }
 
 export async function saveCaseToDb(db, caseItem, options = {}) {
-  const operation = options.operation || "saveCase";
   const save = async (caseStore, imageStore) => {
     const existingCase = caseItem?.id ? await caseStore.get(caseItem.id) : null;
-    const expectedRevision = getCaseRevision(caseItem);
-    const actualRevision = getCaseRevision(existingCase);
-
-    // Legacy cases without a revision remain migratable, but every revisioned
-    // case must be written from the exact persisted revision it was read from.
-    if (actualRevision != null && expectedRevision !== actualRevision) {
-      throw new CaseRevisionConflictError({ caseId: caseItem.id, expectedRevision, actualRevision, operation });
-    }
-
-    const beforeCounts = getCaseCoreCounts(existingCase);
-    const afterCounts = getCaseCoreCounts(caseItem);
-    const suspiciousShrink = hasSuspiciousCoreArrayShrink(existingCase, caseItem);
-    logDestructiveOperation(operation, { caseId: caseItem?.id || "", beforeCounts, afterCounts, suspiciousShrink, override: options.allowSuspiciousOverwrite === true });
-
-    if (suspiciousShrink) {
-      // Keep the guard and its recovery copy inside the same revision-checked
-      // boundary; opening another IndexedDB transaction here would break it.
-      writeEmergencyBackupSnapshot({
-        operation: `${operation}:${options.allowSuspiciousOverwrite === true ? "allowed" : "blocked"}-suspicious-overwrite`,
-        cases: existingCase ? [existingCase] : [], caseId: caseItem.id, beforeCounts, afterCounts,
-      });
-      if (options.allowSuspiciousOverwrite !== true) {
-        const error = new Error("Blocked suspicious ProveIt case overwrite: incoming case would erase non-empty core data arrays.");
-        console.warn("[ProveIt persistence] blocked suspicious case overwrite", { operation, caseId: caseItem.id, beforeCounts, afterCounts, stack: getStackTrace() });
-        throw error;
-      }
-    }
-
-    const committedCase = { ...caseItem, revision: getCommittedCaseRevision(existingCase, caseItem) };
+    const { committedCase, candidateImageIds } = prepareCommittedCase(existingCase, caseItem, options);
     await caseStore.put(committedCase);
-
-    // Attachments can be shared by mirrored evidence fields, other records, or
-    // entirely different cases. Only IDs that disappeared from this persisted
-    // case are candidates, and they remain protected unless every persisted
-    // case has released them.
-    const previousImageIds = collectEmbeddedCaseImageIds(existingCase);
-    const committedImageIds = collectEmbeddedCaseImageIds(committedCase);
-    const candidateImageIds = [...previousImageIds].filter((imageId) => !committedImageIds.has(imageId));
-
-    if (imageStore && candidateImageIds.length > 0) {
-      const referencedImageIds = new Set();
-      const persistedCases = await caseStore.getAll();
-      for (const persistedCase of persistedCases) {
-        for (const imageId of collectEmbeddedCaseImageIds(persistedCase)) {
-          referencedImageIds.add(imageId);
-        }
-      }
-
-      for (const imageId of candidateImageIds) {
-        if (!referencedImageIds.has(imageId)) await imageStore.delete(imageId);
-      }
-    }
+    await deleteUnreferencedImageCandidates(caseStore, imageStore, new Set(candidateImageIds));
     return committedCase;
   };
 
@@ -230,6 +226,49 @@ export async function saveCaseToDb(db, caseItem, options = {}) {
 export async function saveCase(caseItem, options = {}) {
   const db = await getDb();
   return saveCaseToDb(db, caseItem, options);
+}
+
+// Full-backup restore uses this boundary after all parsing, attachment remapping,
+// and merge preparation has finished. Do not await unrelated work inside the
+// transaction: every request below targets the active cases/images transaction.
+export async function saveCasesAndImagesToDb(db, caseItems = [], imageItems = [], options = {}) {
+  const cases = Array.isArray(caseItems) ? caseItems : [];
+  const images = Array.isArray(imageItems) ? imageItems : [];
+  const ids = cases.map((caseItem) => caseItem?.id).filter(Boolean);
+  if (ids.length !== cases.length || new Set(ids).size !== ids.length) {
+    throw new Error("Atomic restore requires each case to have a unique id.");
+  }
+  if (typeof db.transaction !== "function") {
+    throw new Error("Atomic restore requires IndexedDB transaction support.");
+  }
+
+  const tx = db.transaction([STORE_NAMES.cases, STORE_NAMES.images], "readwrite");
+  try {
+    const caseStore = tx.objectStore(STORE_NAMES.cases);
+    const imageStore = tx.objectStore(STORE_NAMES.images);
+    const existingCases = await Promise.all(cases.map((caseItem) => caseStore.get(caseItem.id)));
+    const prepared = cases.map((caseItem, index) => prepareCommittedCase(existingCases[index], caseItem, options));
+
+    // Insert-only attachment writes preserve collision safety. Any failure aborts
+    // this transaction before a restored case can become visible.
+    for (const imageItem of images) await imageStore.add(imageItem);
+    for (const item of prepared) await caseStore.put(item.committedCase);
+
+    const candidateImageIds = new Set(prepared.flatMap((item) => item.candidateImageIds));
+    await deleteUnreferencedImageCandidates(caseStore, imageStore, candidateImageIds);
+    await tx.done;
+
+    prepared.forEach((item, index) => Object.assign(cases[index], item.committedCase));
+    return cases.map((caseItem) => caseItem.id);
+  } catch (error) {
+    try { tx.abort(); } catch { /* already completed or aborted */ }
+    try { await tx.done; } catch { /* preserve the originating error */ }
+    throw error;
+  }
+}
+
+export async function saveCasesAndImages(caseItems = [], imageItems = [], options = {}) {
+  return saveCasesAndImagesToDb(await getDb(), caseItems, imageItems, options);
 }
 
 function collectAttachmentImageIds(attachments, imageIds) {

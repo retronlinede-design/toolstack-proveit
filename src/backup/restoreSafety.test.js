@@ -134,6 +134,22 @@ test("AUDIT-002: normalization failure after binary restore rolls back owned byt
   assert.equal(f.images.get("X").dataUrl, "ORIGINAL");
 });
 
+test("atomic restore preparation stages binaries without writing before validation succeeds", async () => {
+  const source = caseWith("case", [attachment()]);
+  const f = fixture([source]);
+  const session = createRestoreSession({ ...f.deps, deferWrites: true }, [source]);
+  try {
+    const restored = await restoreFullBackupCase(source, { ...f.deps, restoreSession: session });
+    assert.equal(restored.evidence[0].attachments[0].storage.imageId, "fresh-1");
+    assert.equal(f.images.has("fresh-1"), false);
+    assert.equal(session.stagedImages().length, 1);
+  } finally {
+    await session.cleanup();
+  }
+  assert.equal(f.images.has("fresh-1"), false);
+  assert.equal(f.images.get("X").dataUrl, "ORIGINAL");
+});
+
 test("AUDIT-002: cleanup waits for in-flight binary writes after an early failure", async () => {
   const source = caseWith("case", [attachment()]);
   const f = fixture([source]);
