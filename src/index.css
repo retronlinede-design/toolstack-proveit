@@ -442,6 +442,35 @@
 .proveit-export-import-status.is-success { border-color: #0f766e; background: #0d2a35; color: #ccfbf1; }
 .proveit-export-import-status.is-warning { border-color: #b7791f; background: #3b2a12; color: #fef3c7; }
 .proveit-export-import-status.is-error { border-color: #b91c1c; background: #451a1a; color: #fecaca; }
+.proveit-import-preview {
+  margin-top: 1rem;
+  border: 1px solid #334155;
+  border-radius: 0.75rem;
+  background: #0f1f35;
+  color: #cbd5e1;
+  padding: 1rem;
+}
+.proveit-import-preview-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
+.proveit-import-preview-heading h3 { color: #f1f5f9; font-size: 0.875rem; font-weight: 700; }
+.proveit-import-preview-heading p { margin-top: 0.25rem; font-size: 0.75rem; line-height: 1.25rem; }
+.proveit-import-preview-facts,
+.proveit-import-preview-grid { display: grid; gap: 0.5rem; margin-top: 0.875rem; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); }
+.proveit-import-preview-facts > div,
+.proveit-import-preview-grid > div { min-width: 0; border: 1px solid #334155; border-radius: 0.5rem; background: #0b172a; padding: 0.625rem; }
+.proveit-import-preview-facts dt,
+.proveit-import-preview-grid span { color: #94a3b8; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.proveit-import-preview-facts dd { margin-top: 0.25rem; overflow-wrap: anywhere; color: #f1f5f9; font-size: 0.75rem; font-weight: 600; }
+.proveit-import-preview-grid strong { display: block; margin-top: 0.25rem; color: #f1f5f9; font-size: 1rem; }
+.proveit-import-preview-detail { margin-top: 0.875rem; border-top: 1px solid #334155; padding-top: 0.875rem; }
+.proveit-import-preview-detail h4 { color: #f1f5f9; font-size: 0.75rem; font-weight: 700; }
+.proveit-import-preview-detail p { margin-top: 0.375rem; font-size: 0.75rem; line-height: 1.25rem; }
+.proveit-import-preview-records { display: grid; gap: 0.375rem; margin-top: 0.5rem; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); }
+.proveit-import-preview-records > div { display: flex; justify-content: space-between; gap: 0.5rem; border: 1px solid #334155; border-radius: 0.375rem; background: #0b172a; padding: 0.5rem; font-size: 0.75rem; }
+.proveit-import-preview-records span { color: #cbd5e1; text-transform: capitalize; }
+.proveit-import-preview-records strong { color: #f1f5f9; white-space: nowrap; }
+.proveit-import-preview-warnings { display: grid; gap: 0.375rem; margin: 0.875rem 0 0; border: 1px solid #b7791f; border-radius: 0.5rem; background: #3b2a12; padding: 0.75rem 0.75rem 0.75rem 1.75rem; color: #fef3c7; font-size: 0.75rem; line-height: 1.25rem; }
+.proveit-import-preview-error { margin-top: 0.875rem; border: 1px solid #b91c1c; border-radius: 0.5rem; background: #451a1a; padding: 0.75rem; color: #fecaca; font-size: 0.75rem; line-height: 1.25rem; }
+.proveit-import-preview-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
 @media (max-width: 40rem) {
   .proveit-settings-section-trigger { align-items: flex-start; }
   .proveit-settings-section-trailing { gap: 0.5rem; }
@@ -449,6 +478,9 @@
   .proveit-export-import-section-trigger { align-items: flex-start; }
   .proveit-export-import-section-trailing { gap: 0.5rem; }
   .proveit-export-import-section-trailing .proveit-settings-status { display: none; }
+  .proveit-import-preview-heading { flex-direction: column; }
+  .proveit-import-preview-heading .proveit-settings-status { display: inline-flex; }
+  .proveit-import-preview-actions > button { flex: 1 1 100%; }
 }
 
 /* App notices stay beneath utility and priority dialog layers, while retaining readable semantic states. */

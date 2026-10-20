@@ -27,6 +27,7 @@ import {
 } from "./backup/fullBackup";
 import { createRestoreSession } from "./backup/restoreSession.js";
 import { preflightBackupPayload, validateStoredCaseForNormalization } from "./backup/importPreflight.js";
+import { buildImportPreview, matchesImportPreviewBaseline } from "./backup/importPreview.js";
 import { downloadJson } from "./browser/downloadJson";
 import {
   buildCaseReasoningExportPayload,
@@ -90,6 +91,7 @@ const CREATE_NEW_SEQUENCE_GROUP_OPTION = "__create_new_sequence_group__";
 const LAST_FULL_BACKUP_ALL_AT_KEY = "toolstack.proveit.v1.lastFullBackupAt";
 const LAST_BACKUP_META_KEY = "toolstack.proveit.v1.lastBackupMeta";
 const CASE_FOLDERS_STORAGE_KEY = "toolstack.proveit.v1.folders";
+const QUICK_CAPTURES_STORAGE_KEY = "toolstack.proveit.v1.captures";
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "toolstack.proveit.v1.sidebarCollapsed";
 const APP_LOCK_SESSION_UNLOCK_KEY = "toolstack.proveit.v1.appLock.sessionUnlocked";
 const FULL_BACKUP_ALL_RECENT_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -345,6 +347,23 @@ function readCaseFolders() {
   } catch {
     return [];
   }
+}
+
+function readQuickCaptures() {
+  try {
+    const saved = localStorage.getItem(QUICK_CAPTURES_STORAGE_KEY);
+    const parsed = saved ? JSON.parse(saved) : [];
+    return Array.isArray(parsed) ? parsed.map((item) => normalizeQuickCapture(item)) : [];
+  } catch {
+    return [];
+  }
+}
+
+function formatImportFileSize(size) {
+  if (!Number.isFinite(size) || size < 0) return "Unknown size";
+  if (size < 1024) return `${size} bytes`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function readSidebarCollapsed() {
@@ -876,9 +895,13 @@ export default function ProveItApp() {
   const [exportImportExpandedSection, setExportImportExpandedSection] = useState("backup");
   const [importBusy, setImportBusy] = useState(false);
   const [importSelectedFileName, setImportSelectedFileName] = useState("");
+  const [importPreview, setImportPreview] = useState(null);
   const [exportImportStatus, setExportImportStatus] = useState({ tone: "info", message: "" });
   const exportImportBackupButtonRef = useRef(null);
   const importFileInputRef = useRef(null);
+  const pendingImportFileRef = useRef(null);
+  const importConfirmationRef = useRef(false);
+  const importSelectionTokenRef = useRef(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsExpandedSection, setSettingsExpandedSection] = useState("security");
   const settingsLockButtonRef = useRef(null);
@@ -900,18 +923,28 @@ export default function ProveItApp() {
 
   const toggleExportImportSection = (section) => {
     setExportImportExpandedSection((current) => {
-      if (importBusy) return "restore";
+      if (importBusy || importConfirmationRef.current || exportImportStatus.tone === "error") return "restore";
       if (current === section) return null;
       return section;
     });
   };
 
+  const clearPendingImportPreview = ({ status } = {}) => {
+    importSelectionTokenRef.current += 1;
+    pendingImportFileRef.current = null;
+    setImportPreview(null);
+    setImportSelectedFileName("");
+    if (importFileInputRef.current) importFileInputRef.current.value = "";
+    if (status) setExportImportStatus(status);
+  };
+
   const requestExportImportClose = () => {
-    if (importBusy) {
+    if (importBusy || importConfirmationRef.current) {
       setExportImportExpandedSection("restore");
-      setExportImportStatus({ tone: "warning", message: "Import in progress. Wait for it to finish before closing this dialog." });
+      setExportImportStatus({ tone: "warning", message: "Import confirmation is in progress. Wait for it to finish before closing this dialog." });
       return;
     }
+    clearPendingImportPreview();
     setExportImportOpen(false);
   };
 
@@ -2048,15 +2081,9 @@ export default function ProveItApp() {
     doc.basedOnEvidenceIds.includes(viewingRecord.id)
   ) : [];
 
-  const [quickCaptures, setQuickCaptures] = useState(() => {
-    try {
-      const saved = localStorage.getItem("toolstack.proveit.v1.captures");
-      const parsed = saved ? JSON.parse(saved) : [];
-      return parsed.map((item) => normalizeQuickCapture(item));
-    } catch {
-      return [];
-    }
-  });
+  const [quickCaptures, setQuickCaptures] = useState(() => readQuickCaptures());
+  const quickCapturesRef = useRef(quickCaptures);
+  quickCapturesRef.current = quickCaptures;
   const updateRescueSnapshot = useCallback(async ({
     cases: snapshotCases,
     folders: snapshotFolders,
@@ -2629,7 +2656,7 @@ export default function ProveItApp() {
   }, [cases, selectedCaseId, imageCache]);
 
   useEffect(() => {
-    localStorage.setItem("toolstack.proveit.v1.captures", JSON.stringify(quickCaptures));
+    localStorage.setItem(QUICK_CAPTURES_STORAGE_KEY, JSON.stringify(quickCaptures));
   }, [quickCaptures]);
 
   useEffect(() => {
@@ -2723,10 +2750,17 @@ export default function ProveItApp() {
     }
   };
 
-  const restoreBackupPayload = async (parsed, { source = "file" } = {}) => {
+  const restoreBackupPayload = async (parsed, { source = "file", expectedPreviewBaseline = null } = {}) => {
     const currentCases = await getAllCases();
     const preflight = preflightBackupPayload(parsed, { existingCaseIds: currentCases.map((caseItem) => caseItem.id) });
     if (!preflight.ok) throw new Error(preflight.reason);
+    if (expectedPreviewBaseline && !matchesImportPreviewBaseline(expectedPreviewBaseline, {
+      cases: currentCases,
+      folders: readCaseFolders(),
+      quickCaptures: quickCapturesRef.current,
+    })) {
+      throw new Error("Local cases, folders, or quick captures changed after this preview. Select the backup again to review the current result before importing.");
+    }
     await createEmergencyBackupFromDb(`restoreBackupPayload:before:${source}`);
     const imported = preflight.data;
     const exportType = preflight.exportType;
@@ -2836,26 +2870,87 @@ export default function ProveItApp() {
   const importData = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (importBusy) {
+    if (importBusy || importConfirmationRef.current) {
       event.target.value = "";
       return;
     }
+    const selectionToken = importSelectionTokenRef.current + 1;
+    importSelectionTokenRef.current = selectionToken;
+    pendingImportFileRef.current = null;
+    setImportPreview(null);
     setImportSelectedFileName(file.name || "Selected backup file");
-    setImportBusy(true);
     setExportImportExpandedSection("restore");
-    setExportImportStatus({ tone: "info", message: `Preparing ${file.name || "the selected backup file"} for import.` });
+    setExportImportStatus({ tone: "info", message: `Validating ${file.name || "the selected backup file"} without changing local data.` });
+    event.target.value = "";
     try {
-      if (!(await requireRecentFullBackup())) {
-        setExportImportStatus({ tone: "warning", message: "Import cancelled because a current complete Full App Backup was not confirmed." });
-        return;
-      }
       const importSizeWarning = getFileSizeWarning(file);
       if (importSizeWarning) {
         showAppNotice("warning", importSizeWarning);
       }
       const text = await file.text();
       const parsed = JSON.parse(text);
-      const result = await restoreBackupPayload(parsed, { source: "file" });
+      const currentCases = await getAllCases();
+      const preview = buildImportPreview(parsed, {
+        cases: currentCases,
+        folders: readCaseFolders(),
+        quickCaptures: quickCapturesRef.current,
+      });
+      if (selectionToken !== importSelectionTokenRef.current) return;
+      const pendingPreview = {
+        fileName: file.name || "Selected backup file",
+        fileSize: Number.isFinite(file.size) ? file.size : null,
+        summary: preview,
+      };
+      setImportPreview(pendingPreview);
+      if (!preview.ok) {
+        setExportImportStatus({ tone: "error", message: preview.validation.reason || "This file cannot be imported." });
+        return;
+      }
+      pendingImportFileRef.current = file;
+      setExportImportStatus({ tone: "success", message: "Backup validated. Review the proposed changes, then confirm import." });
+    } catch (error) {
+      if (selectionToken !== importSelectionTokenRef.current) return;
+      const message = error.message || "Could not read or validate this file.";
+      setImportPreview({
+        fileName: file.name || "Selected backup file",
+        fileSize: Number.isFinite(file.size) ? file.size : null,
+        summary: { ok: false, validation: { ok: false, reason: message }, warnings: [message] },
+      });
+      setExportImportStatus({ tone: "error", message });
+      showAppNotice("error", message);
+    }
+  };
+
+  const confirmImportData = async () => {
+    const pendingFile = pendingImportFileRef.current;
+    const preview = importPreview?.summary;
+    if (!pendingFile || !preview?.ok || importBusy || importConfirmationRef.current) return;
+
+    importConfirmationRef.current = true;
+    try {
+      setExportImportExpandedSection("restore");
+      setExportImportStatus({ tone: "info", message: `Revalidating ${importPreview.fileName} before import.` });
+      const text = await pendingFile.text();
+      const parsed = JSON.parse(text);
+      const currentCases = await getAllCases();
+      const preflight = preflightBackupPayload(parsed, { existingCaseIds: currentCases.map((caseItem) => caseItem.id) });
+      if (!preflight.ok) throw new Error(preflight.reason);
+      if (!matchesImportPreviewBaseline(preview.baseline, {
+        cases: currentCases,
+        folders: readCaseFolders(),
+        quickCaptures: quickCapturesRef.current,
+      })) {
+        throw new Error("Local cases, folders, or quick captures changed after this preview. Select the backup again to review the current result before importing.");
+      }
+      if (!(await requireRecentFullBackup())) {
+        setExportImportStatus({ tone: "warning", message: "Import cancelled because a current complete Full App Backup was not confirmed." });
+        return;
+      }
+
+      setImportBusy(true);
+      setExportImportStatus({ tone: "info", message: `Importing ${importPreview.fileName}. Do not close this dialog.` });
+
+      const result = await restoreBackupPayload(parsed, { source: "file", expectedPreviewBaseline: preview.baseline });
 
       if (result.restoreStats.failedAttachments.length > 0) {
         const message = `Import completed, but ${result.restoreStats.failedAttachments.length} attachment(s) could not be restored.`;
@@ -2879,15 +2974,21 @@ export default function ProveItApp() {
         showAppNotice("success", message);
         if (result.restoreStats.failedAttachments.length === 0) setExportImportStatus({ tone: "success", message });
       }
+      pendingImportFileRef.current = null;
+      setImportPreview(null);
+      setImportSelectedFileName("");
     } catch (error) {
       console.error("Import failed", error);
       const message = error.message || "Could not import this file.";
+      if (/changed after this preview/i.test(message)) {
+        clearPendingImportPreview();
+      }
       showAppNotice("error", message);
       setExportImportStatus({ tone: "error", message });
       alert("Could not import this file.");
     } finally {
       setImportBusy(false);
-      event.target.value = "";
+      importConfirmationRef.current = false;
     }
   };
 
@@ -4135,10 +4236,21 @@ const handleRecordFiles = async (event) => {
               </button>
               <div id="export-import-section-restore" hidden={exportImportExpandedSection !== "restore"} className="proveit-export-import-section-content">
                 <div className="proveit-export-import-warning rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">Import changes local browser data. A current complete Full App Backup is required first. Cases and records merge by ID: omitted fields and local-only records are kept, while supplied fields—including explicit empty values—replace current values. Imports do not compare timestamps or resolve conflicts.</div>
-                <p className="mt-3 text-xs leading-5 text-neutral-500">Choosing a JSON file starts the existing import process immediately after backup safety checks.</p>
+                <p className="mt-3 text-xs leading-5 text-neutral-500">Choose a backup to validate it first. No local data changes until you explicitly confirm import.</p>
                 <input ref={importFileInputRef} type="file" accept="application/json,.json" className="sr-only" onChange={importData} />
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center"><button type="button" onClick={() => importFileInputRef.current?.click()} disabled={importBusy} aria-describedby="export-import-file-status" className="proveit-modal-action proveit-modal-action-primary inline-flex w-full items-center justify-center gap-2 sm:w-auto"><Upload className="h-4 w-4" />{importBusy ? "Importing Backup JSON…" : "Choose and Import Backup JSON"}</button>{importSelectedFileName ? <p className="text-xs text-neutral-500">Selected file: <span className="font-semibold text-neutral-800">{importSelectedFileName}</span></p> : null}</div>
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center"><button type="button" onClick={() => importFileInputRef.current?.click()} disabled={importBusy || importConfirmationRef.current} aria-describedby="export-import-file-status" className="proveit-modal-action proveit-modal-action-primary inline-flex w-full items-center justify-center gap-2 sm:w-auto"><Upload className="h-4 w-4" />{importBusy ? "Importing Backup JSON…" : "Choose Backup JSON"}</button>{importSelectedFileName ? <p className="text-xs text-neutral-500">Selected file: <span className="font-semibold text-neutral-800">{importSelectedFileName}</span></p> : null}</div>
                 <p id="export-import-file-status" className={`proveit-export-import-status is-${exportImportStatus.tone}`} role="status" aria-live="polite">{exportImportStatus.message || "No backup file selected."}</p>
+                {importPreview ? <div className="proveit-import-preview" aria-live="polite">
+                  <div className="proveit-import-preview-heading"><div><h3>Review selected backup</h3><p>Only summary information is shown here. Case contents are not displayed.</p></div><span className={`proveit-settings-status ${importPreview.summary.ok ? "border-teal-700 bg-teal-950 text-teal-100" : "border-red-700 bg-red-950 text-red-100"}`}>{importPreview.summary.ok ? "Validated" : "Not importable"}</span></div>
+                  <dl className="proveit-import-preview-facts"><div><dt>File</dt><dd>{importPreview.fileName}</dd></div><div><dt>Size</dt><dd>{formatImportFileSize(importPreview.fileSize)}</dd></div><div><dt>Format</dt><dd>{importPreview.summary.format?.label || "Unsupported or invalid backup"}</dd></div></dl>
+                  {!importPreview.summary.ok ? <div className="proveit-import-preview-error" role="alert">{importPreview.summary.validation?.reason || "This file cannot be imported."}</div> : <>
+                    <div className="proveit-import-preview-grid"><div><span>Incoming cases</span><strong>{importPreview.summary.cases.incomingCount}</strong></div><div><span>New cases</span><strong>{importPreview.summary.cases.newCount}</strong></div><div><span>Matching cases</span><strong>{importPreview.summary.cases.matchingCount}</strong></div><div><span>Untouched cases</span><strong>{importPreview.summary.cases.untouchedCount}</strong></div><div><span>Existing cases that may change</span><strong>{importPreview.summary.cases.changedExistingCount}</strong></div></div>
+                    <div className="proveit-import-preview-detail"><h4>Incoming records</h4><div className="proveit-import-preview-records">{Object.entries(importPreview.summary.records).filter(([, counts]) => counts.additions || counts.matching).map(([type, counts]) => <div key={type}><span>{type}</span><strong>+{counts.additions} new · {counts.matching} matching</strong></div>)}</div></div>
+                    <div className="proveit-import-preview-detail"><h4>Attachments and supporting data</h4><p>{importPreview.summary.attachments.referenceCount} attachment reference{importPreview.summary.attachments.referenceCount === 1 ? "" : "s"}; {importPreview.summary.attachments.embeddedPayloadReferenceCount} embedded binary payload{importPreview.summary.attachments.embeddedPayloadReferenceCount === 1 ? "" : "s"}.</p><p>{importPreview.summary.attachments.declared ? `Declared binaries: ${importPreview.summary.attachments.declared.included ?? "unknown"} included / ${importPreview.summary.attachments.declared.expected ?? "unknown"} expected; ${importPreview.summary.attachments.declared.missing ?? "unknown"} missing.` : "Attachment completeness was not declared."} Declared completeness does not guarantee restoration success.</p><p>Folders supplied: {importPreview.summary.folders.suppliedCount}. Quick captures supplied: {importPreview.summary.quickCaptures.suppliedCount}{importPreview.summary.quickCaptures.willImport ? "." : " (not imported by a selected-case backup)."}</p></div>
+                    {importPreview.summary.warnings.length > 0 ? <ul className="proveit-import-preview-warnings">{importPreview.summary.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul> : null}
+                    <div className="proveit-import-preview-actions"><button type="button" onClick={confirmImportData} disabled={importBusy || importConfirmationRef.current} className="proveit-modal-action proveit-modal-action-primary">Confirm Import</button><button type="button" onClick={() => clearPendingImportPreview({ status: { tone: "info", message: "Import review cancelled. No local data changed." } })} disabled={importBusy || importConfirmationRef.current} className="proveit-modal-action proveit-modal-action-secondary">Cancel</button></div>
+                  </>}
+                </div> : null}
               </div>
             </section>
 

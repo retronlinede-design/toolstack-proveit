@@ -13,10 +13,10 @@ test("Export and Import dialog preserves existing export and import action wirin
   assert.match(appSource, /onClick=\{restoreRescueSnapshot\}/);
 });
 
-test("Export and Import retains direct file selection while presenting its safety guidance", () => {
+test("Export and Import validates selected files before presenting its safety guidance", () => {
   assert.match(appSource, /accept="application\/json,\.json"/);
-  assert.match(appSource, /Choose and Import Backup JSON/);
-  assert.match(appSource, /Choosing a JSON file starts the existing import process immediately/);
+  assert.match(appSource, /Choose Backup JSON/);
+  assert.match(appSource, /No local data changes until you explicitly confirm import/);
   assert.match(appSource, /Cases and records merge by ID/);
   assert.match(appSource, /Imports do not compare timestamps or resolve conflicts/);
 });
@@ -34,16 +34,19 @@ test("Export and Import uses accessible collapsible Backup, Restore, and Recover
   assert.match(appSource, /proveit-modal-action-secondary/);
 });
 
-test("Export and Import uses a keyboard-operable import button and protects the active import lifecycle", () => {
+test("Export and Import uses a keyboard-operable review and confirmation workflow", () => {
   assert.match(appSource, /ref=\{importFileInputRef\}/);
   assert.match(appSource, /onClick=\{\(\) => importFileInputRef\.current\?\.click\(\)\}/);
   assert.match(appSource, /disabled=\{importBusy\}/);
   assert.match(appSource, /Selected file:/);
   assert.match(appSource, /role="status" aria-live="polite"/);
+  assert.match(appSource, /Review selected backup/);
+  assert.match(appSource, /Confirm Import/);
+  assert.match(appSource, /Import review cancelled\. No local data changed\./);
   assert.match(appSource, /const requestExportImportClose = \(\) => \{/);
-  assert.match(appSource, /Import in progress\. Wait for it to finish before closing this dialog\./);
+  assert.match(appSource, /Import confirmation is in progress\. Wait for it to finish before closing this dialog\./);
   assert.match(appSource, /onRequestClose=\{requestExportImportClose\}/);
-  assert.match(appSource, /if \(importBusy\) return "restore"/);
+  assert.match(appSource, /if \(importBusy \|\| importConfirmationRef\.current \|\| exportImportStatus\.tone === "error"\) return "restore"/);
   assert.match(appSource, /setImportBusy\(true\)/);
   assert.match(appSource, /finally \{\s+setImportBusy\(false\);/);
 });
