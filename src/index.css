@@ -397,10 +397,58 @@
   border-top: 1px solid #334155;
   padding: 1rem;
 }
+.proveit-export-import-sections { display: grid; gap: 0.75rem; }
+.proveit-export-import-section { overflow: hidden; }
+.proveit-export-import-section-trigger {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 0;
+  border-radius: 0;
+  background: #172554;
+  color: #e2e8f0;
+  padding: 0.875rem 1rem;
+  text-align: left;
+}
+.proveit-export-import-section-trigger:hover:not(:disabled) { background: #172f50; }
+.proveit-export-import-section-heading,
+.proveit-export-import-section-trailing {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+}
+.proveit-export-import-section-heading > svg { flex: none; color: #5eead4; }
+.proveit-export-import-section-title,
+.proveit-export-import-section-description { display: block; }
+.proveit-export-import-section-title { color: #f1f5f9; font-size: 0.875rem; font-weight: 700; }
+.proveit-export-import-section-description { margin-top: 0.125rem; color: #cbd5e1; font-size: 0.75rem; line-height: 1.25rem; }
+.proveit-export-import-section-trailing { flex: none; color: #94a3b8; }
+.proveit-export-import-section-content { border-top: 1px solid #334155; padding: 1rem; }
+.proveit-export-import-analysis { border-color: #b7791f; background: #3b2a12; }
+.proveit-export-import-warning { border-color: #b7791f; background: #3b2a12; color: #fef3c7; }
+.proveit-export-import-status {
+  margin-top: 0.75rem;
+  border: 1px solid #334155;
+  border-radius: 0.5rem;
+  background: #0f1f35;
+  padding: 0.625rem 0.75rem;
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+}
+.proveit-export-import-status.is-success { border-color: #0f766e; background: #0d2a35; color: #ccfbf1; }
+.proveit-export-import-status.is-warning { border-color: #b7791f; background: #3b2a12; color: #fef3c7; }
+.proveit-export-import-status.is-error { border-color: #b91c1c; background: #451a1a; color: #fecaca; }
 @media (max-width: 40rem) {
   .proveit-settings-section-trigger { align-items: flex-start; }
   .proveit-settings-section-trailing { gap: 0.5rem; }
   .proveit-settings-status { display: none; }
+  .proveit-export-import-section-trigger { align-items: flex-start; }
+  .proveit-export-import-section-trailing { gap: 0.5rem; }
+  .proveit-export-import-section-trailing .proveit-settings-status { display: none; }
 }
 
 /* App notices stay beneath utility and priority dialog layers, while retaining readable semantic states. */

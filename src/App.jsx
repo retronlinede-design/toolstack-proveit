@@ -873,7 +873,12 @@ export default function ProveItApp() {
   const [storageDiagnosticsLoading, setStorageDiagnosticsLoading] = useState(false);
   const [emptyDbWarning, setEmptyDbWarning] = useState("");
   const [exportImportOpen, setExportImportOpen] = useState(false);
+  const [exportImportExpandedSection, setExportImportExpandedSection] = useState("backup");
+  const [importBusy, setImportBusy] = useState(false);
+  const [importSelectedFileName, setImportSelectedFileName] = useState("");
+  const [exportImportStatus, setExportImportStatus] = useState({ tone: "info", message: "" });
   const exportImportBackupButtonRef = useRef(null);
+  const importFileInputRef = useRef(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsExpandedSection, setSettingsExpandedSection] = useState("security");
   const settingsLockButtonRef = useRef(null);
@@ -891,6 +896,23 @@ export default function ProveItApp() {
       if (appLockFormError && current === "security") return "security";
       return current === section ? null : section;
     });
+  };
+
+  const toggleExportImportSection = (section) => {
+    setExportImportExpandedSection((current) => {
+      if (importBusy) return "restore";
+      if (current === section) return null;
+      return section;
+    });
+  };
+
+  const requestExportImportClose = () => {
+    if (importBusy) {
+      setExportImportExpandedSection("restore");
+      setExportImportStatus({ tone: "warning", message: "Import in progress. Wait for it to finish before closing this dialog." });
+      return;
+    }
+    setExportImportOpen(false);
   };
 
   const setSidebarCollapsedPreference = (collapsed) => {
@@ -2814,43 +2836,59 @@ export default function ProveItApp() {
   const importData = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (!(await requireRecentFullBackup())) {
+    if (importBusy) {
       event.target.value = "";
       return;
     }
-    const importSizeWarning = getFileSizeWarning(file);
-    if (importSizeWarning) {
-      showAppNotice("warning", importSizeWarning);
-    }
-
+    setImportSelectedFileName(file.name || "Selected backup file");
+    setImportBusy(true);
+    setExportImportExpandedSection("restore");
+    setExportImportStatus({ tone: "info", message: `Preparing ${file.name || "the selected backup file"} for import.` });
     try {
+      if (!(await requireRecentFullBackup())) {
+        setExportImportStatus({ tone: "warning", message: "Import cancelled because a current complete Full App Backup was not confirmed." });
+        return;
+      }
+      const importSizeWarning = getFileSizeWarning(file);
+      if (importSizeWarning) {
+        showAppNotice("warning", importSizeWarning);
+      }
       const text = await file.text();
       const parsed = JSON.parse(text);
       const result = await restoreBackupPayload(parsed, { source: "file" });
 
       if (result.restoreStats.failedAttachments.length > 0) {
+        const message = `Import completed, but ${result.restoreStats.failedAttachments.length} attachment(s) could not be restored.`;
         showAppNotice(
           "warning",
-          `Import completed, but ${result.restoreStats.failedAttachments.length} attachment(s) could not be restored.`
+          message
         );
+        setExportImportStatus({ tone: "warning", message });
       }
       if (result.importFailures.length > 0) {
         const failedNames = result.importFailures.map((item) => item.name).slice(0, 3).join(", ");
         const remainingCount = result.importFailures.length - Math.min(result.importFailures.length, 3);
+        const message = `Import partially completed. Imported ${result.importSuccesses.length} case(s); failed ${result.importFailures.length}: ${failedNames}${remainingCount > 0 ? ` +${remainingCount} more` : ""}.`;
         showAppNotice(
           "warning",
-          `Import partially completed. Imported ${result.importSuccesses.length} case(s); failed ${result.importFailures.length}: ${failedNames}${remainingCount > 0 ? ` +${remainingCount} more` : ""}.`
+          message
         );
+        setExportImportStatus({ tone: "warning", message });
       } else {
-        showAppNotice("success", `Import completed for ${result.importSuccesses.length} case(s).`);
+        const message = `Import completed for ${result.importSuccesses.length} case(s).`;
+        showAppNotice("success", message);
+        if (result.restoreStats.failedAttachments.length === 0) setExportImportStatus({ tone: "success", message });
       }
     } catch (error) {
       console.error("Import failed", error);
-      showAppNotice("error", error.message || "Could not import this file.");
+      const message = error.message || "Could not import this file.";
+      showAppNotice("error", message);
+      setExportImportStatus({ tone: "error", message });
       alert("Could not import this file.");
+    } finally {
+      setImportBusy(false);
+      event.target.value = "";
     }
-
-    event.target.value = "";
   };
 
   const restoreRescueSnapshot = async () => {
@@ -4068,144 +4106,53 @@ const handleRecordFiles = async (event) => {
           description="Back up, export, or import local browser data."
           width="wide"
           layer="utility"
-          onRequestClose={() => setExportImportOpen(false)}
+          onRequestClose={requestExportImportClose}
           dismissOnBackdrop={false}
           initialFocusRef={exportImportBackupButtonRef}
           className="proveit-utility-dialog proveit-export-import-dialog"
         >
-          <div className="space-y-4">
-              <section className="proveit-modal-section rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-neutral-900">Backups</h3>
-                    <p className="mt-1 text-xs leading-5 text-neutral-500">
-                      Full app backups are importable and include all cases, quick captures, and stored attachment data when their binary completeness status is complete.
-                    </p>
-                  </div>
-                  <span className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${backupStatus.className}`}>
-                    {backupStatus.label}
-                  </span>
+          <div className="proveit-export-import-sections">
+            <section className="proveit-export-import-section rounded-xl border border-neutral-200 bg-white">
+              <button type="button" className="proveit-export-import-section-trigger" aria-expanded={exportImportExpandedSection === "backup"} aria-controls="export-import-section-backup" onClick={() => toggleExportImportSection("backup")}>
+                <span className="proveit-export-import-section-heading"><Download className="h-4 w-4" aria-hidden="true" /><span><span className="proveit-export-import-section-title">Backup &amp; Export</span><span className="proveit-export-import-section-description">Create recoverable backups or analysis-only exports.</span></span></span>
+                <span className="proveit-export-import-section-trailing"><span className={`proveit-settings-status ${backupStatus.className}`}>{backupStatus.label}</span><ChevronRight className={`h-4 w-4 transition-transform motion-reduce:transition-none ${exportImportExpandedSection === "backup" ? "rotate-90" : ""}`} aria-hidden="true" /></span>
+              </button>
+              <div id="export-import-section-backup" hidden={exportImportExpandedSection !== "backup"} className="proveit-export-import-section-content">
+                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-xs text-neutral-600">
+                  <div>Last Full App Backup: <span className="font-semibold text-neutral-800">{backupTimestampLabel}</span></div>
+                  {lastBackupMeta?.exportType === "FULL_BACKUP_ALL" ? <><div className="mt-1">Cases: {lastBackupMeta.caseCount ?? 0} | Quick captures: {lastBackupMeta.quickCaptureCount ?? 0} | Folders: {lastBackupMeta.folderCount ?? 0}</div><div className={`mt-1 font-semibold ${lastBackupMeta.complete === false ? "text-red-700" : "text-neutral-700"}`}>Attachment binaries: {lastBackupMeta.binaryData?.included ?? 0} included / {lastBackupMeta.binaryData?.expected ?? 0} expected; {lastBackupMeta.binaryData?.missing ?? 0} missing{lastBackupMeta.binaryData?.failed ? ` (${lastBackupMeta.binaryData.failed} retrieval failure${lastBackupMeta.binaryData.failed === 1 ? "" : "s"})` : ""}. {lastBackupMeta.complete === true ? "Complete." : lastBackupMeta.complete === false ? "Partial — not a complete recoverable backup." : "Completeness was not verified."}</div></> : null}
                 </div>
-                <div className="mt-3 rounded-lg border border-neutral-200 bg-white p-3 text-xs text-neutral-600">
-                  <div>Last backup: <span className="font-semibold text-neutral-800">{backupTimestampLabel}</span></div>
-                  {lastBackupMeta?.exportType === "FULL_BACKUP_ALL" ? (
-                    <>
-                      <div className="mt-1">
-                        Cases: {lastBackupMeta.caseCount ?? 0} | Quick captures: {lastBackupMeta.quickCaptureCount ?? 0} | Folders: {lastBackupMeta.folderCount ?? 0}
-                      </div>
-                      <div className={`mt-1 font-semibold ${lastBackupMeta.complete === false ? "text-red-700" : "text-neutral-700"}`}>
-                        Attachment binaries: {lastBackupMeta.binaryData?.included ?? 0} included / {lastBackupMeta.binaryData?.expected ?? 0} expected; {lastBackupMeta.binaryData?.missing ?? 0} missing{lastBackupMeta.binaryData?.failed ? ` (${lastBackupMeta.binaryData.failed} retrieval failure${lastBackupMeta.binaryData.failed === 1 ? "" : "s"})` : ""}. {lastBackupMeta.complete === true ? "Complete." : lastBackupMeta.complete === false ? "Partial — not a complete recoverable backup." : "Completeness was not verified."}
-                      </div>
-                    </>
-                  ) : null}
-                </div>
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    ref={exportImportBackupButtonRef}
-                    onClick={handleFullBackup}
-                    className="proveit-modal-action proveit-modal-action-primary inline-flex w-full items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20"
-                  >
-                    <Download className="h-4 w-4" />
-                    Full App Backup
-                  </button>
-                  {selectedCase ? (
-                    <button
-                      type="button"
-                      onClick={exportSelectedCaseBackup}
-                      disabled={selectedCaseRequiresPin}
-                      className="proveit-modal-action proveit-modal-action-secondary inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
-                    >
-                      <Download className="h-4 w-4" />
-                      Selected Case Backup
-                    </button>
-                  ) : null}
-                </div>
-              </section>
+                <p className="mt-3 text-xs leading-5 text-neutral-500">A complete Full App Backup is importable and includes all cases, quick captures, folders, and referenced attachment binaries.</p>
+                <div className="mt-4 grid gap-2 sm:grid-cols-2"><button type="button" ref={exportImportBackupButtonRef} onClick={handleFullBackup} disabled={importBusy} className="proveit-modal-action proveit-modal-action-primary inline-flex w-full items-center justify-center gap-2"><Download className="h-4 w-4" />Full App Backup</button>{selectedCase ? <button type="button" onClick={exportSelectedCaseBackup} disabled={selectedCaseRequiresPin || importBusy} className="proveit-modal-action proveit-modal-action-secondary inline-flex w-full items-center justify-center gap-2"><Download className="h-4 w-4" />Selected Case Backup</button> : null}</div>
+                <div className="proveit-export-import-analysis mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="text-sm font-bold text-neutral-900">Analysis exports</h3><p className="mt-1 text-xs leading-5 text-neutral-500">For AI or analytical review only. These files are non-importable and do not preserve attachment payloads.</p></div><span className="proveit-settings-status border-amber-200 bg-amber-50 text-amber-800">Not a backup</span></div><div className="mt-3 flex flex-col gap-2 sm:flex-row"><button type="button" onClick={() => selectedCase && exportCaseReasoningExport(selectedCase.id)} disabled={!selectedCase || selectedCaseRequiresPin || importBusy} className="proveit-modal-action proveit-modal-action-secondary inline-flex w-full items-center justify-center gap-2 sm:w-auto"><FileJson className="h-4 w-4" />Reasoning Export</button><button type="button" onClick={() => selectedCase && exportCaseReasoningExportV3(selectedCase.id)} disabled={!selectedCase || selectedCaseRequiresPin || importBusy} className="proveit-modal-action proveit-modal-action-primary inline-flex w-full items-center justify-center gap-2 sm:w-auto"><FileJson className="h-4 w-4" />Reasoning Export v3 — Structured Strategy and To Watch</button></div></div>
+              </div>
+            </section>
 
-              <section className="proveit-modal-section rounded-xl border border-neutral-200 bg-white p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-neutral-900">AI / Reasoning</h3>
-                    <p className="mt-1 text-xs leading-5 text-neutral-500">
-                      Reasoning exports are for AI review and are not backups. They are not importable and do not preserve attachment payloads.
-                    </p>
-                  </div>
-                  <span className="inline-flex w-fit rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-800">
-                    Not a backup
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => selectedCase && exportCaseReasoningExport(selectedCase.id)}
-                  disabled={!selectedCase || selectedCaseRequiresPin}
-                  className="proveit-modal-action proveit-modal-action-secondary mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400 sm:w-auto"
-                >
-                  <FileJson className="h-4 w-4" />
-                  Reasoning Export
-                </button>
-                <button
-                  type="button"
-                  onClick={() => selectedCase && exportCaseReasoningExportV3(selectedCase.id)}
-                  disabled={!selectedCase || selectedCaseRequiresPin}
-                  className="proveit-modal-action proveit-modal-action-primary mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20 disabled:cursor-not-allowed disabled:border-neutral-300 disabled:bg-neutral-100 disabled:text-neutral-400 sm:ml-2 sm:w-auto"
-                >
-                  <FileJson className="h-4 w-4" />
-                  Reasoning Export v3 — Structured Strategy and To Watch
-                </button>
-              </section>
+            <section className="proveit-export-import-section rounded-xl border border-neutral-200 bg-white">
+              <button type="button" className="proveit-export-import-section-trigger" aria-expanded={exportImportExpandedSection === "restore"} aria-controls="export-import-section-restore" onClick={() => toggleExportImportSection("restore")}>
+                <span className="proveit-export-import-section-heading"><Upload className="h-4 w-4" aria-hidden="true" /><span><span className="proveit-export-import-section-title">Restore or Merge a Backup</span><span className="proveit-export-import-section-description">Import an existing backup into local browser storage.</span></span></span>
+                <ChevronRight className={`h-4 w-4 transition-transform motion-reduce:transition-none ${exportImportExpandedSection === "restore" ? "rotate-90" : ""}`} aria-hidden="true" />
+              </button>
+              <div id="export-import-section-restore" hidden={exportImportExpandedSection !== "restore"} className="proveit-export-import-section-content">
+                <div className="proveit-export-import-warning rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">Import changes local browser data. A current complete Full App Backup is required first. Cases and records merge by ID: omitted fields and local-only records are kept, while supplied fields—including explicit empty values—replace current values. Imports do not compare timestamps or resolve conflicts.</div>
+                <p className="mt-3 text-xs leading-5 text-neutral-500">Choosing a JSON file starts the existing import process immediately after backup safety checks.</p>
+                <input ref={importFileInputRef} type="file" accept="application/json,.json" className="sr-only" onChange={importData} />
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center"><button type="button" onClick={() => importFileInputRef.current?.click()} disabled={importBusy} aria-describedby="export-import-file-status" className="proveit-modal-action proveit-modal-action-primary inline-flex w-full items-center justify-center gap-2 sm:w-auto"><Upload className="h-4 w-4" />{importBusy ? "Importing Backup JSON…" : "Choose and Import Backup JSON"}</button>{importSelectedFileName ? <p className="text-xs text-neutral-500">Selected file: <span className="font-semibold text-neutral-800">{importSelectedFileName}</span></p> : null}</div>
+                <p id="export-import-file-status" className={`proveit-export-import-status is-${exportImportStatus.tone}`} role="status" aria-live="polite">{exportImportStatus.message || "No backup file selected."}</p>
+              </div>
+            </section>
 
-              <section className="proveit-modal-section rounded-xl border border-neutral-200 bg-white p-4">
-                <h3 className="text-sm font-bold text-neutral-900">Import</h3>
-                <p className="mt-1 text-xs leading-5 text-amber-800">
-                  Import changes local browser data. Download a Full App Backup before importing.
-                  Cases and records merge by ID: omitted fields and local-only records are kept.
-                  Supplied fields replace current values, including explicit empty values, even from an older backup.
-                  Import does not compare timestamps or provide conflict resolution.
-                </p>
-                <label className="proveit-modal-action proveit-modal-action-primary mt-4 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20 sm:w-auto">
-                  <Upload className="h-4 w-4" />
-                  Import Backup JSON
-                  <input type="file" accept="application/json,.json" className="hidden" onChange={importData} />
-                </label>
-              </section>
-
-              <section className="proveit-modal-section rounded-xl border border-neutral-200 bg-white p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-neutral-900">Recovery</h3>
-                    <p className="mt-1 text-xs leading-5 text-neutral-500">
-                      Rescue Snapshot restores case structure only. Images/attachments require a Full App Backup.
-                    </p>
-                  </div>
-                  <span className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
-                    rescueSnapshotCorrupt
-                      ? "border-red-200 bg-red-50 text-red-700"
-                      : rescueSnapshotCanRestore
-                        ? "border-lime-200 bg-lime-50 text-lime-700"
-                        : "border-neutral-200 bg-neutral-50 text-neutral-600"
-                  }`}>
-                    {rescueSnapshotCorrupt ? "Unavailable" : rescueSnapshotCanRestore ? "Available" : "None"}
-                  </span>
-                </div>
-                <div className="mt-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-xs leading-5 text-neutral-600">
-                  <div>{rescueSnapshotStatusLabel}</div>
-                  {rescueSnapshotTimestampLabel ? (
-                    <div>Snapshot timestamp: <span className="font-semibold text-neutral-800">{rescueSnapshotTimestampLabel}</span></div>
-                  ) : null}
-                </div>
-                {rescueSnapshotCanRestore ? (
-                  <button
-                    type="button"
-                    onClick={restoreRescueSnapshot}
-                    className="proveit-modal-action proveit-modal-action-primary mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-lime-400/20 sm:w-auto"
-                  >
-                    <Upload className="h-4 w-4" />
-                    Restore Case Structure from Rescue Snapshot
-                  </button>
-                ) : null}
-              </section>
-
+            <section className="proveit-export-import-section rounded-xl border border-neutral-200 bg-white">
+              <button type="button" className="proveit-export-import-section-trigger" aria-expanded={exportImportExpandedSection === "recovery"} aria-controls="export-import-section-recovery" onClick={() => toggleExportImportSection("recovery")}>
+                <span className="proveit-export-import-section-heading"><Upload className="h-4 w-4" aria-hidden="true" /><span><span className="proveit-export-import-section-title">Limited Recovery</span><span className="proveit-export-import-section-description">Restore a Rescue Snapshot when a full backup is unavailable.</span></span></span>
+                <span className="proveit-export-import-section-trailing"><span className={`proveit-settings-status ${rescueSnapshotCorrupt ? "border-red-200 bg-red-50 text-red-700" : rescueSnapshotCanRestore ? "border-lime-200 bg-lime-50 text-lime-700" : "border-neutral-200 bg-neutral-50 text-neutral-600"}`}>{rescueSnapshotCorrupt ? "Unavailable" : rescueSnapshotCanRestore ? "Available" : "None"}</span><ChevronRight className={`h-4 w-4 transition-transform motion-reduce:transition-none ${exportImportExpandedSection === "recovery" ? "rotate-90" : ""}`} aria-hidden="true" /></span>
+              </button>
+              <div id="export-import-section-recovery" hidden={exportImportExpandedSection !== "recovery"} className="proveit-export-import-section-content">
+                <div className="proveit-export-import-warning rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">Rescue Snapshot restores case structure only. Images and attachments are not restored; use a Full App Backup whenever possible.</div>
+                <div className="mt-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-xs leading-5 text-neutral-600"><div>{rescueSnapshotStatusLabel}</div>{rescueSnapshotTimestampLabel ? <div>Snapshot timestamp: <span className="font-semibold text-neutral-800">{rescueSnapshotTimestampLabel}</span></div> : null}</div>
+                {rescueSnapshotCanRestore ? <button type="button" onClick={restoreRescueSnapshot} disabled={importBusy} className="proveit-modal-action proveit-modal-action-secondary mt-4 inline-flex w-full items-center justify-center gap-2 sm:w-auto"><Upload className="h-4 w-4" />Restore Case Structure from Rescue Snapshot</button> : null}
+              </div>
+            </section>
           </div>
         </DialogShell>
       ) : null}

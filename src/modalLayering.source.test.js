@@ -122,7 +122,9 @@ test("Export and Import delegates its utility layer to DialogShell below the bac
   assert.match(app, /dismissOnBackdrop=\{false\}/);
   assert.match(app, /initialFocusRef=\{exportImportBackupButtonRef\}/);
   assert.match(app, /className="proveit-utility-dialog proveit-export-import-dialog"/);
+  assert.match(app, /onRequestClose=\{requestExportImportClose\}/);
   assert.match(css, /\.proveit-utility-dialog/);
+  assert.match(css, /\.proveit-export-import-section-trigger/);
 });
 
 test("Settings delegates its utility layer to DialogShell below the backup guard", () => {
