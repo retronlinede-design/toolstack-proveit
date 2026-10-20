@@ -53,7 +53,7 @@ export default function GoalWorkspace({ caseItem, onUpdateCase, focusedGoalId = 
   };
 
   return (
-    <section className="case-file-strategy-goals rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
+    <section className="case-file-strategy-goals case-file-goals rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Goals</div>
@@ -73,10 +73,10 @@ export default function GoalWorkspace({ caseItem, onUpdateCase, focusedGoalId = 
         <span className="text-xs text-neutral-500">{visibleGoals.length} shown · {goals.length} total</span>
       </div>
 
-      {focusedGoal && <div className="mt-4 rounded-xl border border-lime-300 bg-lime-50 px-3 py-2 text-sm text-lime-950">Current Goal focus: <strong>{focusedGoal.title || "Untitled Goal"}</strong></div>}
+      {focusedGoal && <div className="case-file-goal-focus mt-4 rounded-xl border border-lime-300 bg-lime-50 px-3 py-2 text-sm text-lime-950">Current Goal focus: <strong>{focusedGoal.title || "Untitled Goal"}</strong></div>}
 
       {draft && (
-        <div className="mt-4 space-y-4 rounded-2xl border border-lime-300 bg-lime-50/50 p-4">
+        <div className="case-file-goal-draft mt-4 space-y-4 rounded-2xl border border-lime-300 bg-lime-50/50 p-4">
           <div className="flex items-center justify-between gap-3"><h3 className="font-semibold text-neutral-900">{editingGoalId ? "Edit Goal" : "New Goal"}</h3><button type="button" onClick={() => { setDraft(null); setEditingGoalId(null); }} className="text-xs font-semibold text-neutral-600 hover:text-neutral-950">Cancel</button></div>
           <div><label className="text-xs font-semibold text-neutral-600">Title</label><input autoFocus value={draft.title} onChange={(event) => update("title", event.target.value)} className="mt-1 w-full rounded-lg border border-neutral-300 bg-white p-2 text-sm" /></div>
           <div><label className="text-xs font-semibold text-neutral-600">Description / context</label><textarea value={draft.description} onChange={(event) => update("description", event.target.value)} className="mt-1 w-full rounded-lg border border-neutral-300 bg-white p-2 text-sm" rows={3} /></div>
@@ -99,7 +99,7 @@ export default function GoalWorkspace({ caseItem, onUpdateCase, focusedGoalId = 
 
       <div className="mt-4 space-y-3">
         {visibleGoals.map((goal) => (
-          <article key={goal.id} className={`rounded-xl border p-3 ${goal.id === activeFocusedGoalId ? "border-lime-400 bg-lime-50/50" : "border-neutral-200 bg-neutral-50"}`}>
+          <article key={goal.id} data-focused={goal.id === activeFocusedGoalId} className={`case-file-goal-card rounded-xl border p-3 ${goal.id === activeFocusedGoalId ? "border-lime-400 bg-lime-50/50" : "border-neutral-200 bg-neutral-50"}`}>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-neutral-900">{goal.title || "Untitled Goal"}</h3><RecordBadge variant={statusVariant(goal.status)}>{label(goal.status)}</RecordBadge><RecordBadge variant={`priority-${goal.priority}`}>Priority: {label(goal.priority)}</RecordBadge></div>{goal.description && <p className="mt-2 text-sm text-neutral-700">{goal.description}</p>}</div><div className="flex gap-2"><button type="button" onClick={() => focusGoal(goal.id)} className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-100">Focus</button><button type="button" onClick={() => beginEdit(goal)} className="rounded-lg border border-lime-500 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-800 hover:bg-lime-50">Edit</button></div></div>
             <div className="mt-3 flex flex-wrap gap-2 text-xs text-neutral-600">{goal.reviewDate && <span>Review: {goal.reviewDate}</span>}{goal.successCriteria?.length > 0 && <span>Success criteria: {goal.successCriteria.length}</span>}{goal.issueIds?.map((id) => { const issue = issues.find((item) => item.id === id); return <RecordBadge key={id} variant="type">{issue ? getIssueDisplayLabel(issue) : "Unresolved Issue"}</RecordBadge>; })}</div>
           </article>

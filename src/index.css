@@ -630,38 +630,51 @@
 .proveit-issue-manager .proveit-issue-manager-section-button:hover { border-color: #47748a; background: #1d354d; color: #f8fafc; }
 .proveit-issue-manager .proveit-issue-manager-section-button[aria-pressed="true"] { border-color: #2dd4bf; background: #115e59; color: #ecfdf5; }
 
-/* Normalise legacy action utilities only inside the Issue, record, and Watch workflows. */
-:is(.proveit-issue-manager, .proveit-issue-management-dialog, .proveit-record-dialog, .proveit-document-editor-dialog, .proveit-watch-dialog) button.border-lime-500 {
+/* Normalise legacy action utilities only inside the scoped case-management workspaces. */
+:is(.proveit-issue-manager, .proveit-issue-management-dialog, .proveit-record-dialog, .proveit-document-editor-dialog, .proveit-watch-dialog, .proveit-ledger-editor-dialog, .case-file-goals, .case-file-ledger) button:is(.border-lime-500, .bg-lime-600) {
   border-color: #0f766e;
   background: #0f766e;
   color: #ffffff;
 }
-:is(.proveit-issue-manager, .proveit-issue-management-dialog, .proveit-record-dialog, .proveit-document-editor-dialog, .proveit-watch-dialog) button.border-lime-500:hover:not(:disabled) {
+:is(.proveit-issue-manager, .proveit-issue-management-dialog, .proveit-record-dialog, .proveit-document-editor-dialog, .proveit-watch-dialog, .proveit-ledger-editor-dialog, .case-file-goals, .case-file-ledger) button:is(.border-lime-500, .bg-lime-600):hover:not(:disabled) {
   border-color: #115e59;
   background: #115e59;
   color: #ffffff;
 }
-:is(.proveit-issue-manager, .proveit-issue-management-dialog, .proveit-record-dialog, .proveit-document-editor-dialog, .proveit-watch-dialog) button.border-neutral-300.bg-white {
+:is(.proveit-issue-manager, .proveit-issue-management-dialog, .proveit-record-dialog, .proveit-document-editor-dialog, .proveit-watch-dialog, .proveit-ledger-editor-dialog, .case-file-goals, .case-file-ledger) button.border-neutral-300.bg-white {
   border-color: #475569;
   background: #172554;
   color: #ffffff;
 }
-:is(.proveit-issue-manager, .proveit-issue-management-dialog, .proveit-record-dialog, .proveit-document-editor-dialog, .proveit-watch-dialog) button.border-neutral-300.bg-white:hover:not(:disabled) {
+:is(.proveit-issue-manager, .proveit-issue-management-dialog, .proveit-record-dialog, .proveit-document-editor-dialog, .proveit-watch-dialog, .proveit-ledger-editor-dialog, .case-file-goals, .case-file-ledger) button.border-neutral-300.bg-white:hover:not(:disabled) {
   border-color: #475569;
   background: #1e3a5f;
   color: #ffffff;
 }
-:is(.proveit-issue-manager, .proveit-issue-management-dialog, .proveit-record-dialog, .proveit-document-editor-dialog, .proveit-watch-dialog) button:is(.border-red-200, .border-red-300) {
+:is(.proveit-issue-manager, .proveit-issue-management-dialog, .proveit-record-dialog, .proveit-document-editor-dialog, .proveit-watch-dialog, .proveit-ledger-editor-dialog, .case-file-goals, .case-file-ledger) button:is(.border-red-200, .border-red-300) {
   border-color: #7f1d1d;
   background: #7f1d1d;
   color: #ffffff;
 }
-:is(.proveit-issue-manager, .proveit-issue-management-dialog, .proveit-record-dialog, .proveit-document-editor-dialog, .proveit-watch-dialog) button:is(.border-red-200, .border-red-300):hover:not(:disabled) {
+:is(.proveit-issue-manager, .proveit-issue-management-dialog, .proveit-record-dialog, .proveit-document-editor-dialog, .proveit-watch-dialog, .proveit-ledger-editor-dialog, .case-file-goals, .case-file-ledger) button:is(.border-red-200, .border-red-300):hover:not(:disabled) {
   border-color: #991b1b;
   background: #991b1b;
   color: #ffffff;
 }
 :is(.proveit-record-dialog, .proveit-document-editor-dialog, .proveit-watch-dialog) input[type="checkbox"] { accent-color: #0f766e; }
+
+.case-file-goals :is(.case-file-goal-focus, .case-file-goal-draft, .case-file-goal-card[data-focused="true"]) {
+  border-color: #0f766e;
+  background: #f0fdfa;
+  color: #0f172a;
+}
+.case-file-goals input[type="checkbox"] { accent-color: #0f766e; }
+.case-file-goals :is(button, input, select, textarea):focus-visible,
+.case-file-ledger :is(button, [role="button"]):focus-visible {
+  outline: 2px solid #2dd4bf;
+  outline-offset: 2px;
+}
+.case-file-ledger tr[aria-selected="true"] { background: #f0fdfa; }
 
 /* Keep the legacy Document and Case Record fields visually inside their shared dialog scope. */
 .proveit-document-editor-dialog .bg-white,

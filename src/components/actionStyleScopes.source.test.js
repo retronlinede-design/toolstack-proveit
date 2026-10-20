@@ -9,8 +9,8 @@ const watchWorkspace = readFileSync(new URL("./caseDetail/WatchWorkspace.jsx", i
 const watchCard = readFileSync(new URL("./caseDetail/WatchItemCard.jsx", import.meta.url), "utf8");
 
 test("legacy Issue and record actions receive the shared teal, navy, and danger palette only in approved scopes", () => {
-  assert.match(css, /Normalise legacy action utilities only inside the Issue, record, and Watch workflows/);
-  assert.match(css, /button\.border-lime-500 \{\s+border-color: #0f766e;\s+background: #0f766e;/);
+  assert.match(css, /Normalise legacy action utilities only inside the scoped case-management workspaces/);
+  assert.match(css, /button:is\(\.border-lime-500, \.bg-lime-600\) \{\s+border-color: #0f766e;\s+background: #0f766e;/);
   assert.match(css, /button\.border-neutral-300\.bg-white \{\s+border-color: #475569;\s+background: #172554;/);
   assert.match(css, /button:is\(\.border-red-200, \.border-red-300\) \{\s+border-color: #7f1d1d;\s+background: #7f1d1d;/);
   assert.match(css, /background: #115e59;/);
