@@ -60,3 +60,13 @@ test("SequenceGroupManager protects the local description draft during navigatio
   assert.match(source, /const savedStore = saveSequenceGroupDescription/);
   assert.match(source, /setSequenceDescriptionDraftState\(\{ key: sequenceDescriptionDraftKey, value: savedDescription, baseline: savedDescription \}\)/);
 });
+
+test("SequenceGroupManager saves canonical Issue descriptions through the revision-safe update callback", () => {
+  assert.match(source, /getManagedSequenceGroupDescription\(selectedGroup\?\.issue, legacySequenceDescription\)/);
+  assert.match(source, /await onUpdateGroup\?\.\(activeGroupName, \{ description: sequenceDescriptionDraft \}\)/);
+  assert.match(source, /await onUpdateGroup\?\.\(activeGroupName, \{ description: "" \}\)/);
+  assert.match(source, /if \(!saved\) return;/);
+  assert.match(source, /if \(selectedGroup\?\.issue\)/);
+  assert.doesNotMatch(source, /Saved canonical description/);
+  assert.doesNotMatch(source, /Cleared canonical description/);
+});

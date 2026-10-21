@@ -6,10 +6,17 @@ import { getSequenceGroupDescription, getSequenceGroupMetaForCase } from "../../
 import {
   createManagedSequenceGroup,
   deleteManagedSequenceGroup,
+  getManagedSequenceGroupDescription,
   mergeManagedSequenceGroupDetails,
   updateManagedSequenceGroup,
   validateSequenceGroupInput,
 } from "./sequenceGroupManagement.js";
+
+test("canonical Issue descriptions override legacy metadata, including an intentional clear", () => {
+  assert.equal(getManagedSequenceGroupDescription({ description: "Canonical" }, "Legacy"), "Canonical");
+  assert.equal(getManagedSequenceGroupDescription({ description: "" }, "Legacy"), "");
+  assert.equal(getManagedSequenceGroupDescription({ name: "Legacy-only" }, "Legacy"), "Legacy");
+});
 
 function createStorage() {
   const values = new Map();

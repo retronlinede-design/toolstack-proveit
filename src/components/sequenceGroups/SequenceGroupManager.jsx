@@ -22,13 +22,12 @@ import {
   getSequenceGroupDescription,
   getSequenceGroupMetaForCase,
   readSequenceGroupMetaStore,
-  saveSequenceGroupMeta,
   saveSequenceGroupDescription,
 } from "../../sequenceGroupMeta.js";
 import SequenceGroupDescription from "./SequenceGroupDescription.jsx";
 import SequenceGroupForm from "./SequenceGroupForm.jsx";
 import SequenceGroupManagementModal from "./SequenceGroupManagementModal.jsx";
-import { mergeManagedSequenceGroupDetails } from "./sequenceGroupManagement.js";
+import { getManagedSequenceGroupDescription, mergeManagedSequenceGroupDetails } from "./sequenceGroupManagement.js";
 import { getIssueDisplayLabel, resolveCaseIssue } from "../../domain/issueDomain.js";
 
 function getGroupBadgeVariant(status) {
@@ -180,9 +179,10 @@ export default function SequenceGroupManager({
   const sequenceDescriptionDraftKey = selectedCase?.id && activeDescriptionGroupName
     ? `${selectedCase.id}:${activeDescriptionGroupName}`
     : "";
-  const savedSequenceDescription = selectedCase?.id && activeDescriptionGroupName
+  const legacySequenceDescription = selectedCase?.id && activeDescriptionGroupName
     ? getSequenceGroupDescription(selectedCase.id, activeDescriptionGroupName)
     : "";
+  const savedSequenceDescription = getManagedSequenceGroupDescription(selectedGroup?.issue, legacySequenceDescription);
   const activeDescriptionDraft = sequenceDescriptionDraftState.key === sequenceDescriptionDraftKey
     ? sequenceDescriptionDraftState
     : { key: sequenceDescriptionDraftKey, value: savedSequenceDescription, baseline: savedSequenceDescription };
@@ -251,8 +251,15 @@ export default function SequenceGroupManager({
     setSelectedSection("overview");
     setGroupForm(null);
   };
-  const saveSelectedGroupDescription = () => {
+  const saveSelectedGroupDescription = async () => {
     if (!activeGroupName) return;
+    if (selectedGroup?.issue) {
+      const saved = await onUpdateGroup?.(activeGroupName, { description: sequenceDescriptionDraft });
+      if (!saved) return;
+      const savedDescription = sequenceDescriptionDraft.trim();
+      setSequenceDescriptionDraftState({ key: sequenceDescriptionDraftKey, value: savedDescription, baseline: savedDescription });
+      return;
+    }
     try {
       const savedStore = saveSequenceGroupDescription(selectedCase.id, activeGroupName, sequenceDescriptionDraft);
       const savedDescription = savedStore?.[selectedCase.id]?.[activeGroupName]?.description || "";
@@ -263,10 +270,16 @@ export default function SequenceGroupManager({
     }
   };
 
-  const clearSelectedGroupDescription = () => {
+  const clearSelectedGroupDescription = async () => {
     if (!activeGroupName) return;
+    if (selectedGroup?.issue) {
+      const saved = await onUpdateGroup?.(activeGroupName, { description: "" });
+      if (!saved) return;
+      setSequenceDescriptionDraftState({ key: sequenceDescriptionDraftKey, value: "", baseline: "" });
+      return;
+    }
     try {
-      saveSequenceGroupMeta(selectedCase.id, activeGroupName, { description: "" });
+      saveSequenceGroupDescription(selectedCase.id, activeGroupName, "");
       setSequenceDescriptionDraftState({ key: sequenceDescriptionDraftKey, value: "", baseline: "" });
       setSequenceGroupFeedback(`Cleared description for "${activeGroupName}".`);
     } catch (error) {
@@ -559,7 +572,7 @@ export default function SequenceGroupManager({
                     {managedSequenceGroupDetails.groups.map((group) => {
                       const weakLinkCount = groupWeakLinkCounts.get(group.name) || 0;
                       const status = getSequenceGroupStatus(group, weakLinkCount);
-                      const description = group.issue?.description || getSequenceGroupDescription(selectedCase.id, group.name);
+                      const description = getManagedSequenceGroupDescription(group.issue, getSequenceGroupDescription(selectedCase.id, group.name));
                       return (
                         <div
                           key={group.name}

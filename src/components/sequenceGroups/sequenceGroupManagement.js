@@ -21,6 +21,15 @@ export function normalizeSequenceGroupInput(value = {}) {
   };
 }
 
+// A present canonical description, including an intentional empty string, is
+// authoritative. Legacy metadata remains a fallback only for pre-Issue groups.
+export function getManagedSequenceGroupDescription(issue, legacyDescription = "") {
+  if (issue && Object.hasOwn(issue, "description")) {
+    return typeof issue.description === "string" ? issue.description.trim() : "";
+  }
+  return typeof legacyDescription === "string" ? legacyDescription.trim() : "";
+}
+
 export function validateSequenceGroupInput(value, existingNames = [], currentName = "") {
   const normalized = normalizeSequenceGroupInput(value);
   if (!normalized.name) return { value: normalized, error: "Name is required." };

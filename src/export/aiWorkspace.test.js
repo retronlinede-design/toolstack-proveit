@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { buildAiWorkspaceCurrentCase, buildAiWorkspaceManifest } from "./aiWorkspace.js";
+import { updateCaseIssue } from "../domain/issueDomain.js";
 
 const attachment = { id: "attachment-1", name: "email.pdf", mimeType: "application/pdf", size: 42, kind: "file", dataUrl: "data:application/pdf;base64,secret", backupDataUrl: "backup-secret", storage: { type: "indexeddb", imageId: "internal-cache-id" }, emailMeta: { subject: "Repair", dataUrl: "nested-secret" } };
 const fixture = () => ({
@@ -34,6 +35,16 @@ test("AI Workspace preserves stable IDs, Issue membership, raw links, and resolu
   const projection = buildAiWorkspaceCurrentCase(fixture()).projection; const incident = projection.canonical.incidents.find((item) => item.id === "inc-1");
   assert.equal(incident.sequenceGroupId, "issue-1"); assert.equal(projection.canonical.issues[0].reference, "ISS-001"); assert.deepEqual(incident.linkedEvidenceIds, ["ev-1"]);
   assert.ok(projection.derived.relationships.resolvedReferences.some((item) => item.targetId === "ev-1")); assert.ok(projection.derived.relationships.unresolvedReferences.some((item) => item.targetId === "missing-record"));
+});
+
+test("AI Workspace projects a successfully saved canonical Issue description, including an explicit clear", () => {
+  const updated = updateCaseIssue(fixture(), "issue-1", { description: "Updated canonical description" });
+  assert.equal(updated.success, true);
+  assert.equal(buildAiWorkspaceCurrentCase(updated.caseData).projection.canonical.issues[0].description, "Updated canonical description");
+
+  const cleared = updateCaseIssue(updated.caseData, "issue-1", { description: "" });
+  assert.equal(cleared.success, true);
+  assert.equal(buildAiWorkspaceCurrentCase(cleared.caseData).projection.canonical.issues[0].description, "");
 });
 
 test("AI Workspace includes safe attachment metadata only and strips credentials and implementation state", () => {

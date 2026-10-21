@@ -73,13 +73,13 @@ export function buildCaseBriefingModel({ caseData = {}, sequenceGroupMeta = {}, 
   const archived = records.length - active.length;
   const diagnosticItems = flattenDiagnostics(diagnostics);
   const groupMap = new Map();
-  list(caseData.issues).filter((issue) => issue?.name && isActiveIssue(issue)).forEach((issue) => groupMap.set(issue.name, { name: issue.name, description: text(issue.description), metadataOnly: true, records: [], issue }));
+  list(caseData.issues).filter((issue) => issue?.name && isActiveIssue(issue)).forEach((issue) => groupMap.set(issue.name, { name: issue.name, description: text(issue.description), hasCanonicalDescription: Object.hasOwn(issue, "description"), metadataOnly: true, records: [], issue }));
   Object.entries(sequenceGroupMeta || {}).forEach(([name, meta]) => {
     const existing = groupMap.get(name);
     if (existing?.issue) {
       // Canonical Issues own their identity and fields. Legacy metadata remains
-      // useful only as a presentation fallback for an otherwise blank description.
-      if (!existing.description) existing.description = text(meta?.description);
+      // useful only when the canonical description field is genuinely absent.
+      if (!existing.hasCanonicalDescription && !existing.description) existing.description = text(meta?.description);
       return;
     }
     groupMap.set(name, { name, description: text(meta?.description), metadataOnly: true, records: [] });

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import RecordBadge from "../shared/RecordBadge.jsx";
-import { normalizeSequenceGroupInput, validateSequenceGroupInput } from "./sequenceGroupManagement.js";
+import { getManagedSequenceGroupDescription, normalizeSequenceGroupInput, validateSequenceGroupInput } from "./sequenceGroupManagement.js";
 import { createSequenceGroupDetailsBaseline, hasSequenceGroupDetailsChanges } from "./sequenceGroupDetailsDraft.js";
 
 function buildDetailsInitialValue(group, issue, description) {
-  return normalizeSequenceGroupInput({ ...issue, name: group.name, description: issue?.description || description });
+  return normalizeSequenceGroupInput({ ...issue, name: group.name, description: getManagedSequenceGroupDescription(issue, description) });
 }
 
 export default function SequenceGroupDetailsForm({ group, issue, parties = [], description, existingNames, summary, onSave, onDirtyChange, initialFocusRef }) {

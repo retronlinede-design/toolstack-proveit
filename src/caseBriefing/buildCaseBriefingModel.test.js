@@ -148,9 +148,9 @@ test("canonical Issues remain authoritative when matching legacy metadata is pre
   assert.deepEqual({ input, metadata }, before);
 });
 
-test("legacy metadata enriches a blank canonical description and remains compatible for legacy-only groups", () => {
+test("legacy metadata enriches an absent canonical description and remains compatible for legacy-only groups", () => {
   const model = build({
-    issues: [{ id: "issue-blank", reference: "ISS-015", name: "Canonical blank", description: "", status: "open", priority: "normal" }],
+    issues: [{ id: "issue-blank", reference: "ISS-015", name: "Canonical blank", status: "open", priority: "normal" }],
     evidence: [{ id: "evidence-1", sequenceGroup: "Legacy only" }],
   }, {
     sequenceGroupMeta: {
@@ -163,6 +163,16 @@ test("legacy metadata enriches a blank canonical description and remains compati
     ["issue-blank", "Canonical blank", "Legacy presentation description"],
     ["", "Legacy only", "Legacy-only description"],
   ]);
+});
+
+test("an explicitly cleared canonical Issue description does not fall back to stale metadata", () => {
+  const model = build({
+    issues: [{ id: "issue-cleared", reference: "ISS-016", name: "Cleared canonical", description: "", status: "open", priority: "normal" }],
+  }, {
+    sequenceGroupMeta: { "Cleared canonical": { description: "Stale legacy description" } },
+  });
+
+  assert.equal(model.issues[0].description, "");
 });
 
 test("immediate actions and dated reviews expose stable source routing metadata", () => {
