@@ -102,6 +102,69 @@ test("stable Issue metadata drives human labels, owner display, ordering, and re
   assert.ok(model.nextActions.some((action) => action.title === "Review ISS-001 — Heating" && action.dueState === "overdue"));
 });
 
+test("canonical Issues remain authoritative when matching legacy metadata is present", () => {
+  const input = {
+    parties: [{ id: "party-1", name: "Case owner" }],
+    issues: [{
+      id: "issue-heating",
+      reference: "ISS-014",
+      name: "Heating failure",
+      description: "Canonical description",
+      purpose: "Restore safe heating",
+      status: "waiting_response",
+      priority: "critical",
+      ownerPartyId: "party-1",
+      reviewDate: "2026-08-03",
+      currentPosition: "Awaiting a written repair plan",
+    }],
+    incidents: [{ id: "incident-1", sequenceGroupId: "issue-heating", sequenceGroup: "Old heating name" }],
+  };
+  const metadata = { "Heating failure": { description: "Legacy description must not replace canonical data" } };
+  const before = structuredClone({ input, metadata });
+
+  const model = build(input, { sequenceGroupMeta: metadata });
+  const issue = model.issues.find((item) => item.id === "issue-heating");
+
+  assert.equal(model.issues.length, 1);
+  assert.deepEqual(issue, {
+    id: "issue-heating",
+    name: "Heating failure",
+    displayLabel: "ISS-014 — Heating failure",
+    reference: "ISS-014",
+    description: "Canonical description",
+    purpose: "Restore safe heating",
+    status: "waiting_response",
+    priority: "critical",
+    owner: "Case owner",
+    reviewDate: "2026-08-03",
+    currentPosition: "Awaiting a written repair plan",
+    directRecordCount: 1,
+    counts: { Incident: 1 },
+    latestActivity: "",
+    warningCount: 0,
+    empty: false,
+    metadataOnly: false,
+  });
+  assert.deepEqual({ input, metadata }, before);
+});
+
+test("legacy metadata enriches a blank canonical description and remains compatible for legacy-only groups", () => {
+  const model = build({
+    issues: [{ id: "issue-blank", reference: "ISS-015", name: "Canonical blank", description: "", status: "open", priority: "normal" }],
+    evidence: [{ id: "evidence-1", sequenceGroup: "Legacy only" }],
+  }, {
+    sequenceGroupMeta: {
+      "Canonical blank": { description: "Legacy presentation description" },
+      "Legacy only": { description: "Legacy-only description" },
+    },
+  });
+
+  assert.deepEqual(model.issues.map((issue) => [issue.id, issue.name, issue.description]), [
+    ["issue-blank", "Canonical blank", "Legacy presentation description"],
+    ["", "Legacy only", "Legacy-only description"],
+  ]);
+});
+
 test("immediate actions and dated reviews expose stable source routing metadata", () => {
   const model = build({ actionSummary: { nextActions: [{ text: "Briefing action" }] }, strategy: [{ id: "s1", nextSteps: ["Strategy action"], reviewDate: "2026-08-03" }], watchItems: [{ id: "w1", nextCheck: "Watch action", reviewDate: "2026-08-03" }], issues: [{ id: "issue-1", reference: "ISS-001", name: "Issue", status: "open", reviewDate: "2026-08-03" }] });
   assert.ok(model.immediateActions.some((item) => item.sourceType === "case_briefing" && item.sourceRecordId === "actionSummary"));

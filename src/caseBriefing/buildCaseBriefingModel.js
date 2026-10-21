@@ -74,7 +74,16 @@ export function buildCaseBriefingModel({ caseData = {}, sequenceGroupMeta = {}, 
   const diagnosticItems = flattenDiagnostics(diagnostics);
   const groupMap = new Map();
   list(caseData.issues).filter((issue) => issue?.name && isActiveIssue(issue)).forEach((issue) => groupMap.set(issue.name, { name: issue.name, description: text(issue.description), metadataOnly: true, records: [], issue }));
-  Object.entries(sequenceGroupMeta || {}).forEach(([name, meta]) => groupMap.set(name, { name, description: text(meta?.description), metadataOnly: true, records: [] }));
+  Object.entries(sequenceGroupMeta || {}).forEach(([name, meta]) => {
+    const existing = groupMap.get(name);
+    if (existing?.issue) {
+      // Canonical Issues own their identity and fields. Legacy metadata remains
+      // useful only as a presentation fallback for an otherwise blank description.
+      if (!existing.description) existing.description = text(meta?.description);
+      return;
+    }
+    groupMap.set(name, { name, description: text(meta?.description), metadataOnly: true, records: [] });
+  });
   active.forEach((entry) => {
     if (entry.record?.sequenceGroupId && list(caseData.issues).some((issue) => issue.id === entry.record.sequenceGroupId && !isActiveIssue(issue))) return;
     const matchedIssue = list(caseData.issues).find((issue) => isActiveIssue(issue) && entry.record?.sequenceGroupId && issue.id === entry.record.sequenceGroupId);
@@ -91,7 +100,7 @@ export function buildCaseBriefingModel({ caseData = {}, sequenceGroupMeta = {}, 
     const ids = new Set(group.records.map(({ record }) => record.id));
     const warningCount = diagnosticItems.filter((item) => item.record?.id && ids.has(item.record.id)).length;
     const owner = list(caseData.parties).find((party) => party.id === group.issue?.ownerPartyId);
-    return { name: group.name, displayLabel: issueLabel(group.issue) || group.name, reference: group.issue?.reference || "", description: group.description, purpose: text(group.issue?.purpose), status: group.issue?.status || "", priority: group.issue?.priority || "", owner: text(owner?.displayName) || text(owner?.legalName) || text(owner?.name), reviewDate: group.issue?.reviewDate || "", currentPosition: text(group.issue?.currentPosition), directRecordCount: group.records.length, counts, latestActivity: latest, warningCount, empty: group.records.length === 0, metadataOnly: group.metadataOnly };
+    return { id: group.issue?.id || "", name: group.name, displayLabel: issueLabel(group.issue) || group.name, reference: group.issue?.reference || "", description: group.description, purpose: text(group.issue?.purpose), status: group.issue?.status || "", priority: group.issue?.priority || "", owner: text(owner?.displayName) || text(owner?.legalName) || text(owner?.name), reviewDate: group.issue?.reviewDate || "", currentPosition: text(group.issue?.currentPosition), directRecordCount: group.records.length, counts, latestActivity: latest, warningCount, empty: group.records.length === 0, metadataOnly: group.metadataOnly };
   }).sort((a, b) => {
     const priority = { critical: 0, high: 1, normal: 2, low: 3, "": 4 };
     const aOverdue = a.reviewDate && a.reviewDate < day(now) ? 0 : 1;
