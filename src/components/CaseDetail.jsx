@@ -152,6 +152,7 @@ import {
   mergeSequenceGroupMeta,
   readSequenceGroupMetaStore,
   renameSequenceGroupMeta,
+  renameSequenceGroupMetaInStore,
   resolveSequenceGroupMergeDescription,
   saveSequenceGroupMeta,
 } from "../sequenceGroupMeta.js";
@@ -882,6 +883,21 @@ export default function CaseDetail({
 
   const getSequenceRecordKey = (record) => `${record.recordType}:${record.id}`;
 
+  const getRenamedSequenceGroupMeta = (fromName, toName) => {
+    const renamedStore = renameSequenceGroupMetaInStore(readSequenceGroupMetaStore(), selectedCase?.id, fromName, toName);
+    return getSequenceGroupMetaForCase(selectedCase?.id, renamedStore);
+  };
+
+  const persistRenamedSequenceGroupMeta = (fromName, toName) => {
+    try {
+      renameSequenceGroupMeta(selectedCase.id, fromName, toName);
+      return true;
+    } catch (error) {
+      setSequenceGroupFeedback(`The Issue was saved, but its legacy compatibility metadata could not be updated. ${error?.message || ""}`.trim());
+      return false;
+    }
+  };
+
   async function handleRenameSequenceGroup(groupName) {
     if (!selectedCase) return;
 
@@ -900,10 +916,11 @@ export default function CaseDetail({
     const issue = resolveCaseIssue(canonical, { issueName: groupName });
     const result = issue && updateCaseIssue(canonical, issue.id, { name: nextName });
     if (!result?.success) return setSequenceGroupFeedback(result?.errors?.join(" ") || "Issue could not be renamed safely.");
-    renameSequenceGroupMeta(selectedCase.id, groupName, nextName);
-    if (!(await onUpdateCase(result.caseData))) return setSequenceGroupFeedback("Issue could not be renamed safely.");
-    setSequenceRenameInputs((prev) => ({ ...prev, [groupName]: "" }));
+    const renamedMeta = getRenamedSequenceGroupMeta(groupName, nextName);
+    if (!(await onUpdateCase(result.caseData, { sequenceGroupMeta: renamedMeta }))) return setSequenceGroupFeedback("Issue could not be renamed safely.");
     setSelectedSequenceGroupName(nextName);
+    if (!persistRenamedSequenceGroupMeta(groupName, nextName)) return;
+    setSequenceRenameInputs((prev) => ({ ...prev, [groupName]: "" }));
     setSequenceGroupFeedback(`Renamed "${groupName}" to "${nextName}".`);
   }
 
@@ -1256,9 +1273,17 @@ export default function CaseDetail({
     if (!issue) { setSequenceGroupFeedback("Issue could not be resolved safely."); return false; }
     const result = updateCaseIssue(canonical, issue.id, value);
     if (!result.success) { setSequenceGroupFeedback(result.errors.join(" ")); return false; }
-    if (result.issue.name !== currentName) renameSequenceGroupMeta(selectedCase.id, currentName, result.issue.name);
-    if (!(await onUpdateCase(result.caseData))) return false;
-    saveSequenceGroupMeta(selectedCase.id, result.issue.name, { description: result.issue.description });
+    const renamed = result.issue.name !== currentName;
+    const renamedMeta = renamed ? getRenamedSequenceGroupMeta(currentName, result.issue.name) : null;
+    if (!(await onUpdateCase(result.caseData, renamed ? { sequenceGroupMeta: renamedMeta } : undefined))) return false;
+    if (renamed) setSelectedSequenceGroupName(result.issue.name);
+    if (renamed && !persistRenamedSequenceGroupMeta(currentName, result.issue.name)) return true;
+    try {
+      saveSequenceGroupMeta(selectedCase.id, result.issue.name, { description: result.issue.description });
+    } catch (error) {
+      setSequenceGroupFeedback(`The Issue was saved, but its legacy compatibility metadata could not be updated. ${error?.message || ""}`.trim());
+      return true;
+    }
     setSelectedSequenceGroupName(result.issue.name);
     setSequenceGroupFeedback(`Updated ${result.issue.reference} — ${result.issue.name}.`);
     return true;
@@ -1344,34 +1369,38 @@ export default function CaseDetail({
     }
     if (!window.confirm(confirmation)) return false;
 
-    // The compatibility store is consulted by the app-level save normalizer.
-    // Move its old name before saving a rename so that it cannot create a
-    // second legacy Issue alongside the renamed canonical one.
-    if (operation.type === "rename-entire-group") renameSequenceGroupMeta(selectedCase.id, sourceGroup, destinationGroup);
-
     if (result.caseData !== canonical) {
-      const saved = await onUpdateCase(result.caseData);
+      const renameMetadata = operation.type === "rename-entire-group"
+        ? getRenamedSequenceGroupMeta(sourceGroup, destinationGroup)
+        : null;
+      const saved = await onUpdateCase(result.caseData, renameMetadata ? { sequenceGroupMeta: renameMetadata } : undefined);
       if (!saved) {
-        setSequenceGroupFeedback("The case could not be saved. No sequence-group metadata was changed.");
+        setSequenceGroupFeedback("The case could not be saved. Legacy compatibility metadata was not changed.");
         return false;
       }
     }
 
-    if (operation.type === "split-records") {
-      saveSequenceGroupMeta(selectedCase.id, destinationGroup, { description: operation.destinationDescription });
-      saveSequenceGroupMeta(selectedCase.id, sourceGroup, { description: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore())[sourceGroup]?.description || "" });
-      setSelectedSequenceGroupName(destinationGroup);
-    } else if (operation.type === "remove-records") {
-      saveSequenceGroupMeta(selectedCase.id, sourceGroup, { description: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore())[sourceGroup]?.description || "" });
-    } else if (operation.type === "merge-groups") {
-      const meta = getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore());
-      const description = resolveSequenceGroupMergeDescription(meta[destinationGroup]?.description, meta[sourceGroup]?.description, operation.descriptionMode, operation.combinedDescription);
-      saveSequenceGroupMeta(selectedCase.id, destinationGroup, { description });
-      deleteSequenceGroupMeta(selectedCase.id, sourceGroup);
-      setSelectedSequenceGroupName(destinationGroup);
-    } else if (operation.type === "rename-entire-group") {
-      saveSequenceGroupMeta(selectedCase.id, destinationGroup, { description: operation.destinationDescription });
-      setSelectedSequenceGroupName(destinationGroup);
+    try {
+      if (operation.type === "split-records") {
+        saveSequenceGroupMeta(selectedCase.id, destinationGroup, { description: operation.destinationDescription });
+        saveSequenceGroupMeta(selectedCase.id, sourceGroup, { description: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore())[sourceGroup]?.description || "" });
+        setSelectedSequenceGroupName(destinationGroup);
+      } else if (operation.type === "remove-records") {
+        saveSequenceGroupMeta(selectedCase.id, sourceGroup, { description: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore())[sourceGroup]?.description || "" });
+      } else if (operation.type === "merge-groups") {
+        const meta = getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore());
+        const description = resolveSequenceGroupMergeDescription(meta[destinationGroup]?.description, meta[sourceGroup]?.description, operation.descriptionMode, operation.combinedDescription);
+        saveSequenceGroupMeta(selectedCase.id, destinationGroup, { description });
+        deleteSequenceGroupMeta(selectedCase.id, sourceGroup);
+        setSelectedSequenceGroupName(destinationGroup);
+      } else if (operation.type === "rename-entire-group") {
+        setSelectedSequenceGroupName(destinationGroup);
+        if (!persistRenamedSequenceGroupMeta(sourceGroup, destinationGroup)) return true;
+        saveSequenceGroupMeta(selectedCase.id, destinationGroup, { description: operation.destinationDescription });
+      }
+    } catch (error) {
+      setSequenceGroupFeedback(`The Issue records were saved, but legacy compatibility metadata could not be updated. ${error?.message || ""}`.trim());
+      return true;
     }
     setSequenceGroupFeedback(`${result.affectedCount} record${result.affectedCount === 1 ? "" : "s"} updated successfully.`);
     return true;

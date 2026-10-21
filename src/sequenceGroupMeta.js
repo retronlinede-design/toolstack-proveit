@@ -151,23 +151,27 @@ export function resolveSequenceGroupMergeDescription(targetDescription, sourceDe
   return target;
 }
 
-export function renameSequenceGroupMeta(caseId, oldName, newName, storage) {
+export function renameSequenceGroupMetaInStore(store, caseId, oldName, newName, now = new Date().toISOString()) {
   const cleanCaseId = text(caseId);
   const cleanOldName = text(oldName);
   const cleanNewName = text(newName);
-  const store = readSequenceGroupMetaStore(storage);
-  const sourceEntry = store[cleanCaseId]?.[cleanOldName];
-  if (!cleanCaseId || !cleanOldName || !cleanNewName || !sourceEntry) return store;
+  const normalizedStore = normalizeSequenceGroupMetaStore(store);
+  const sourceEntry = normalizedStore[cleanCaseId]?.[cleanOldName];
+  if (!cleanCaseId || !cleanOldName || !cleanNewName || !sourceEntry) return normalizedStore;
 
-  const caseMeta = { ...(store[cleanCaseId] || {}) };
+  const caseMeta = { ...(normalizedStore[cleanCaseId] || {}) };
   const targetEntry = caseMeta[cleanNewName];
   caseMeta[cleanNewName] = {
     description: mergeDescriptions(targetEntry?.description, sourceEntry.description),
-    updatedAt: new Date().toISOString(),
+    updatedAt: now,
   };
   delete caseMeta[cleanOldName];
-  store[cleanCaseId] = caseMeta;
-  return writeSequenceGroupMetaStore(store, storage);
+  return { ...normalizedStore, [cleanCaseId]: caseMeta };
+}
+
+export function renameSequenceGroupMeta(caseId, oldName, newName, storage) {
+  const store = readSequenceGroupMetaStore(storage);
+  return writeSequenceGroupMetaStore(renameSequenceGroupMetaInStore(store, caseId, oldName, newName), storage);
 }
 
 export function mergeSequenceGroupMeta(caseId, sourceName, targetName, storage) {

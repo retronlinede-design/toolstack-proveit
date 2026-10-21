@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { normalizeCaseIssues, updateCaseIssue } from "./domain/issueDomain.js";
 
 import {
   SEQUENCE_GROUP_META_STORAGE_KEY,
@@ -10,6 +11,7 @@ import {
   mergeSequenceGroupMetaStoreToStorage,
   readSequenceGroupMetaStore,
   renameSequenceGroupMeta,
+  renameSequenceGroupMetaInStore,
   resolveSequenceGroupMergeDescription,
   saveSequenceGroupMeta,
   saveSequenceGroupDescription,
@@ -59,6 +61,44 @@ test("sequence group metadata rename carries description to new label", () => {
 
   assert.equal(getSequenceGroupDescription("case-1", "Old chain", storage), "");
   assert.equal(getSequenceGroupDescription("case-1", "New chain", storage), "Original description");
+});
+
+test("staged metadata rename is immutable until a caller explicitly persists it", () => {
+  const original = {
+    "case-1": {
+      "Old chain": { description: "Original description", updatedAt: "2026-01-01T00:00:00.000Z" },
+    },
+    "case-2": {
+      "Unrelated chain": { description: "Unrelated", updatedAt: "2026-01-02T00:00:00.000Z" },
+    },
+  };
+  const before = structuredClone(original);
+
+  const staged = renameSequenceGroupMetaInStore(original, "case-1", "Old chain", "New chain", "2026-02-01T00:00:00.000Z");
+
+  assert.deepEqual(original, before);
+  assert.equal(staged["case-1"]["Old chain"], undefined);
+  assert.deepEqual(staged["case-1"]["New chain"], {
+    description: "Original description",
+    updatedAt: "2026-02-01T00:00:00.000Z",
+  });
+  assert.deepEqual(staged["case-2"], original["case-2"]);
+});
+
+test("a staged rename prevents a phantom legacy Issue while a failed save retains the original metadata", () => {
+  const caseData = {
+    id: "case-1",
+    issues: [{ id: "issue-1", reference: "ISS-001", name: "Old chain", description: "", status: "open", priority: "normal" }],
+    incidents: [{ id: "incident-1", sequenceGroupId: "issue-1", sequenceGroup: "Old chain" }],
+  };
+  const originalStore = { "case-1": { "Old chain": { description: "Legacy", updatedAt: "2026-01-01T00:00:00.000Z" } } };
+  const renamed = updateCaseIssue(caseData, "issue-1", { name: "New chain" });
+  const stagedStore = renameSequenceGroupMetaInStore(originalStore, "case-1", "Old chain", "New chain", "2026-02-01T00:00:00.000Z");
+
+  assert.equal(renamed.success, true);
+  assert.equal(normalizeCaseIssues(renamed.caseData, { sequenceGroupMeta: stagedStore["case-1"] }).caseData.issues.length, 1);
+  assert.equal(normalizeCaseIssues(caseData, { sequenceGroupMeta: originalStore["case-1"] }).caseData.issues.length, 1);
+  assert.deepEqual(originalStore, { "case-1": { "Old chain": { description: "Legacy", updatedAt: "2026-01-01T00:00:00.000Z" } } });
 });
 
 test("sequence group metadata merge appends both descriptions when target already has one", () => {

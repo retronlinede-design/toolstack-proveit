@@ -1338,10 +1338,11 @@ export default function ProveItApp() {
     }
   };
 
-  const handleUpdateCase = async (updatedCase) => {
+  const handleUpdateCase = async (updatedCase, options = {}) => {
     try {
+      const sequenceGroupMeta = options.sequenceGroupMeta || getSequenceGroupMetaForCase(updatedCase.id, readSequenceGroupMetaStore());
       const issueResult = normalizeCaseIssues(updatedCase, {
-        sequenceGroupMeta: getSequenceGroupMetaForCase(updatedCase.id, readSequenceGroupMetaStore()),
+        sequenceGroupMeta,
       });
       if (issueResult.conflicts.length) throw new Error(`Issue validation failed: ${issueResult.conflicts.map((item) => item.code).join(", ")}`);
       const canonicalCase = issueResult.caseData;
