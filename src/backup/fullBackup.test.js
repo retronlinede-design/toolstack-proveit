@@ -81,6 +81,27 @@ test("buildFullBackupRecord case and quick capture preserve current structure", 
   assert.deepEqual(backedCase.strategy, []);
 });
 
+test("full backup and restore retain legacy Task attachments without changing their record identity", async () => {
+  const source = {
+    id: "case-task-backup",
+    tasks: [{ id: "task-legacy", title: "Legacy task", attachments: [{ id: "task-att", storage: { imageId: "task-image" } }] }],
+  };
+  const backed = await buildFullBackupCase(source, {
+    getImageById: async (id) => ({ id, dataUrl: "data:application/pdf;base64,task" }),
+  });
+  const restoredImages = [];
+  const restored = await restoreFullBackupCase(backed, {
+    generateId: () => "restored-task-image",
+    addImage: async (image) => { restoredImages.push(image); },
+  });
+
+  assert.equal(backed.tasks[0].id, "task-legacy");
+  assert.equal(backed.tasks[0].attachments[0].backupDataUrl, "data:application/pdf;base64,task");
+  assert.equal(restored.tasks[0].id, "task-legacy");
+  assert.equal(restored.tasks[0].attachments[0].storage.imageId, "restored-task-image");
+  assert.equal(restoredImages[0].id, "restored-task-image");
+});
+
 test("full backup and restore preserve a persisted case revision", async () => {
   const source = { id: "case-revision", revision: 12, evidence: [], incidents: [], tasks: [], strategy: [], watchItems: [], documents: [] };
   const payload = await buildFullBackupCasePayload({ caseItem: source });

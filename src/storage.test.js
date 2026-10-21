@@ -397,6 +397,87 @@ test("saveCaseToDb blocks suspicious overwrite that would erase non-empty core a
   });
 });
 
+test("saveCaseToDb protects retained Task records from an unexpected empty-array overwrite", async () => {
+  await withPersistenceStubs(async ({ values }) => {
+    const existingCase = {
+      id: "case-tasks",
+      revision: 3,
+      name: "Retained task case",
+      incidents: [], evidence: [], documents: [], ledger: [], strategy: [], watchItems: [],
+      tasks: [{ id: "task-1", title: "Legacy task", attachments: [attachment("task-image")] }],
+    };
+    const db = makeFakeDb({ cases: [existingCase], images: [{ id: "task-image" }] });
+
+    await saveCaseToDb(db, { ...existingCase, description: "An unrelated update" });
+    assert.equal(db.stores.cases.get("case-tasks").tasks[0].id, "task-1");
+    assert.equal(db.stores.images.has("task-image"), true);
+
+    const current = db.stores.cases.get("case-tasks");
+    await assert.rejects(
+      saveCaseToDb(db, { ...current, tasks: [] }),
+      /Blocked suspicious ProveIt case overwrite/
+    );
+
+    assert.equal(db.stores.cases.get("case-tasks").tasks[0].id, "task-1");
+    assert.equal(db.stores.images.has("task-image"), true);
+    assert.equal([...values.keys()].some((key) => key.startsWith(EMERGENCY_BACKUP_PREFIX)), true);
+  });
+});
+
+test("saveCaseToDb permits an explicitly authorised retained Task deletion and cleans its unreferenced binary", async () => {
+  await withPersistenceStubs(async () => {
+    const existingCase = {
+      id: "case-task-delete",
+      revision: 1,
+      incidents: [], evidence: [], documents: [], ledger: [], strategy: [], watchItems: [],
+      tasks: [{ id: "task-1", title: "Retired task", attachments: [attachment("task-image")] }],
+    };
+    const db = makeFakeDb({ cases: [existingCase], images: [{ id: "task-image" }] });
+
+    await saveCaseToDb(db, { ...existingCase, tasks: [] }, { allowSuspiciousOverwrite: true });
+
+    assert.deepEqual(db.stores.cases.get("case-task-delete").tasks, []);
+    assert.equal(db.stores.images.has("task-image"), false);
+    assert.equal(db.stores.cases.get("case-task-delete").revision, 2);
+  });
+});
+
+test("saveCaseToDb leaves cases with no retained Tasks unaffected", async () => {
+  await withPersistenceStubs(async () => {
+    const existingCase = {
+      id: "case-no-tasks",
+      revision: 1,
+      name: "No task case",
+      incidents: [], evidence: [], documents: [], ledger: [], strategy: [], watchItems: [], tasks: [],
+    };
+    const db = makeFakeDb({ cases: [existingCase] });
+    await saveCaseToDb(db, { ...existingCase, name: "Updated no task case" });
+    assert.equal(db.stores.cases.get("case-no-tasks").name, "Updated no task case");
+    assert.deepEqual(db.stores.cases.get("case-no-tasks").tasks, []);
+  });
+});
+
+test("retained Task saves still reject a stale case revision before any Task change", async () => {
+  await withPersistenceStubs(async () => {
+    const existingCase = {
+      id: "case-task-revision",
+      revision: 4,
+      incidents: [], evidence: [], documents: [], ledger: [], strategy: [], watchItems: [],
+      tasks: [{ id: "task-1", title: "Retained task" }],
+    };
+    const db = makeFakeDb({ cases: [existingCase] });
+    const freshWriter = { ...structuredClone(existingCase), description: "A fresh change" };
+    await saveCaseToDb(db, freshWriter);
+
+    await assert.rejects(
+      saveCaseToDb(db, { ...existingCase, tasks: [] }),
+      CaseRevisionConflictError
+    );
+    assert.equal(db.stores.cases.get("case-task-revision").tasks[0].id, "task-1");
+    assert.equal(db.stores.cases.get("case-task-revision").revision, 5);
+  });
+});
+
 test("case revisions initialize, migrate, and advance only for a successful material save", async () => {
   await withPersistenceStubs(async () => {
     const db = makeFakeDb();
