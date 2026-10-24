@@ -5,6 +5,7 @@ import {
   buildSequenceGroupAuditReport,
   exportSequenceGroupAuditJson,
   exportSequenceGroupAuditMarkdown,
+  printSequenceGroupAuditPdf,
 } from "./sequenceGroupAuditExport.js";
 
 function buildAuditCase() {
@@ -262,4 +263,58 @@ test("exportSequenceGroupAuditMarkdown includes required sections", () => {
   assert.match(markdown, /Description: Mould safety incidents, proof, and follow-up strategy\./);
   assert.match(markdown, /## Chronology table/);
   assert.match(markdown, /## GPT audit prompt block/);
+});
+
+function buildDuplicateNameIssueCase() {
+  return {
+    id: "case-duplicate-issues",
+    name: "Duplicate Issue names",
+    issues: [
+      { id: "issue-a", reference: "ISS-001", name: "Shared Issue", status: "open", priority: "normal" },
+      { id: "issue-b", reference: "ISS-002", name: "Shared Issue", status: "open", priority: "normal" },
+    ],
+    incidents: [
+      { id: "inc-a", title: "First Issue record", sequenceGroupId: "issue-a", sequenceGroup: "Shared Issue" },
+      { id: "inc-b", title: "Second Issue record", sequenceGroupId: "issue-b", sequenceGroup: "Shared Issue" },
+    ],
+    evidence: [], documents: [], strategy: [],
+  };
+}
+
+test("canonical Issue audit selection scopes JSON and Markdown by ID even when names collide", () => {
+  const source = buildDuplicateNameIssueCase();
+  const json = exportSequenceGroupAuditJson(source, "Shared Issue", { issueId: "issue-b" });
+  const markdown = exportSequenceGroupAuditMarkdown(source, "Shared Issue", { issueId: "issue-b" });
+
+  assert.equal(json.issueId, "issue-b");
+  assert.equal(json.issueReference, "ISS-002");
+  assert.deepEqual(json.incidents.map((item) => item.id), ["inc-b"]);
+  assert.match(markdown, /Second Issue record/);
+  assert.doesNotMatch(markdown, /First Issue record/);
+});
+
+test("canonical Issue audit selection scopes the print path by ID", () => {
+  const source = buildDuplicateNameIssueCase();
+  const originalWindow = globalThis.window;
+  let printed = "";
+  globalThis.window = {
+    open: () => ({
+      document: { write: (value) => { printed = value; }, close: () => {} },
+      focus: () => {}, print: () => {},
+    }),
+  };
+  try {
+    assert.equal(printSequenceGroupAuditPdf(source, "Shared Issue", { issueId: "issue-b" }), true);
+    assert.match(printed, /Second Issue record/);
+    assert.doesNotMatch(printed, /First Issue record/);
+  } finally {
+    globalThis.window = originalWindow;
+  }
+});
+
+test("invalid and ambiguous name-only Issue audit selections fail closed while legacy names remain supported", () => {
+  const duplicate = buildDuplicateNameIssueCase();
+  assert.throws(() => exportSequenceGroupAuditJson(duplicate, "Shared Issue"), /ambiguous/i);
+  assert.throws(() => exportSequenceGroupAuditJson(duplicate, "Shared Issue", { issueId: "missing" }), /no longer available/i);
+  assert.doesNotThrow(() => exportSequenceGroupAuditJson(buildAuditCase(), "mould_safety_chain_001"));
 });

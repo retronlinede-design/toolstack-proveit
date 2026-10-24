@@ -638,7 +638,7 @@ export default function SequenceGroupManager({
                               <div className="absolute right-0 z-20 mt-2 w-52 rounded-lg border border-neutral-200 bg-white p-2 shadow-xl">
                                 <button type="button" onClick={() => onCopyFullChainGptPackMarkdown?.(getIssueExportScope(group))} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Copy Full Chain Markdown</button>
                                 <button type="button" onClick={() => onCopyChainCompletionPackMarkdown?.(getIssueExportScope(group))} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Copy Chain Completion Markdown</button>
-                                <button type="button" onClick={() => onOpenAuditExport?.(group.name)} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Open Chain Audit</button>
+                                <button type="button" onClick={() => onOpenAuditExport?.(getIssueExportScope(group))} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Open Chain Audit</button>
                                 <button type="button" onClick={() => onCopyFullChainGptPackJson?.(getIssueExportScope(group))} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Copy Full Chain JSON</button>
                                 <button type="button" onClick={() => onCopyChainCompletionPackJson?.(getIssueExportScope(group))} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Copy Chain Completion JSON</button>
                               </div>
@@ -934,7 +934,7 @@ export default function SequenceGroupManager({
                           </button>
                           <button
                             type="button"
-                            onClick={() => onOpenAuditExport?.(selectedGroup.name)}
+                            onClick={() => onOpenAuditExport?.(getIssueExportScope(selectedGroup))}
                             className="rounded-lg border border-neutral-300 bg-white p-3 text-left text-sm font-bold text-neutral-700 hover:bg-neutral-50"
                           >
                             Open Chain Audit

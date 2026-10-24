@@ -35,6 +35,7 @@ import {
   exportAllSequenceGroupAuditsMarkdown,
   exportCaseBySequenceGroupsMarkdown,
 } from "../export/sequenceGroupConsolidatedExport.js";
+import { resolveIssueExportScope } from "../export/issueScope.js";
 import {
   exportGptProtocolPackJson,
   exportGptProtocolPackMarkdown,
@@ -392,7 +393,8 @@ export default function CaseDetail({
   const [sequenceRelationshipFilter, setSequenceRelationshipFilter] = useState("all");
   const [sequenceGroupAuditExportOpen, setSequenceGroupAuditExportOpen] = useState(false);
   const [sequenceGroupAuditScope, setSequenceGroupAuditScope] = useState("selected");
-  const [sequenceGroupAuditGroup, setSequenceGroupAuditGroup] = useState("");
+  const [sequenceGroupAuditIssueId, setSequenceGroupAuditIssueId] = useState("");
+  const [sequenceGroupAuditLegacyName, setSequenceGroupAuditLegacyName] = useState("");
   const [sequenceGroupAuditFormat, setSequenceGroupAuditFormat] = useState("json");
   const [sequenceGroupAuditFeedback, setSequenceGroupAuditFeedback] = useState("");
   const [incidentDateRepairOpen, setIncidentDateRepairOpen] = useState(false);
@@ -439,11 +441,32 @@ export default function CaseDetail({
     setAiToolsFeedback("The selected Issue is no longer available. Choose an Issue before creating an Issue-scoped handoff.");
   }, [aiToolsSequenceGroup, timelineIssueOptions]);
   const threadIssueReportSequenceOptions = useMemo(() => sequenceGroups.map((group) => group.name), [sequenceGroups]);
-  const selectedSequenceGroupAuditGroup = useMemo(() => {
-    const options = sequenceGroups.map((group) => group.name);
-    if (options.includes(sequenceGroupAuditGroup)) return sequenceGroupAuditGroup;
-    return options[0] || "";
-  }, [sequenceGroups, sequenceGroupAuditGroup]);
+  const sequenceGroupAuditSelection = useMemo(() => {
+    const issueId = safeText(sequenceGroupAuditIssueId).trim();
+    const legacyName = safeText(sequenceGroupAuditLegacyName).trim();
+    if (!selectedCase || (!issueId && !legacyName)) return { scope: null, error: "", issueId, legacyName };
+    try {
+      return {
+        scope: resolveIssueExportScope(selectedCase, issueId ? { issueId, issueName: legacyName } : { issueName: legacyName }),
+        error: "",
+        issueId,
+        legacyName,
+      };
+    } catch (error) {
+      return { scope: null, error: error?.message || "The selected Issue could not be resolved safely.", issueId, legacyName };
+    }
+  }, [selectedCase, sequenceGroupAuditIssueId, sequenceGroupAuditLegacyName]);
+  const legacySequenceGroupAuditOptions = useMemo(() => sequenceGroups
+    .map((group) => group.name)
+    .filter((name) => !timelineIssueOptions.some((issue) => issue.name === name))
+    .filter((name) => {
+      try {
+        return resolveIssueExportScope(selectedCase, { issueName: name }).kind === "legacy";
+      } catch {
+        return false;
+      }
+    }), [selectedCase, sequenceGroups, timelineIssueOptions]);
+  const selectedSequenceGroupAuditGroup = sequenceGroupAuditSelection.scope?.name || sequenceGroupAuditSelection.legacyName;
   useEffect(() => {
     if (isTimelineIssueFilterValid(selectedCase, incidentSequenceGroupFilter)) return;
     setIncidentSequenceGroupFilter(TIMELINE_ALL_ISSUES_FILTER);
@@ -702,21 +725,28 @@ export default function CaseDetail({
     setSequenceGroupManagerOpen(true);
   }
 
-  function openSequenceGroupAuditExport(preferredGroup = "") {
-    const requestedGroup = safeText(preferredGroup).trim();
-    const nextGroup = sequenceGroups.some((group) => group.name === requestedGroup)
-      ? requestedGroup
-      : sequenceGroups[0]?.name || "";
-    setSequenceGroupAuditGroup(nextGroup);
+  function openSequenceGroupAuditExport(preferredSelection = {}) {
+    const requested = typeof preferredSelection === "string"
+      ? { issueName: preferredSelection }
+      : (preferredSelection || {});
+    const requestedIssueId = safeText(requested.issueId).trim();
+    const requestedLegacyName = safeText(requested.issueName || requested.legacyName).trim();
+    const resolvedIssue = requestedIssueId
+      ? resolveCaseIssue(selectedCase, { issueId: requestedIssueId })
+      : requestedLegacyName
+        ? resolveCaseIssue(selectedCase, { issueName: requestedLegacyName })
+        : null;
+    setSequenceGroupAuditIssueId(resolvedIssue?.id || requestedIssueId);
+    setSequenceGroupAuditLegacyName(resolvedIssue ? "" : requestedLegacyName);
     setSequenceGroupAuditScope("selected");
     setSequenceGroupAuditFormat("json");
     setSequenceGroupAuditFeedback("");
     setSequenceGroupAuditExportOpen(true);
   }
 
-  function openSequenceGroupAuditExportFromManager(groupName) {
+  function openSequenceGroupAuditExportFromManager(issueSelection) {
     setSequenceGroupManagerOpen(false);
-    openSequenceGroupAuditExport(groupName);
+    openSequenceGroupAuditExport(issueSelection);
   }
 
   function openIncidentDateRepairTool() {
@@ -845,8 +875,8 @@ export default function CaseDetail({
 
   function handleRunSequenceGroupAuditExport() {
     if (!selectedCase) return;
-    if (sequenceGroupAuditScope === "selected" && !selectedSequenceGroupAuditGroup) {
-      setSequenceGroupAuditFeedback("No Issues exist for this case.");
+    if (sequenceGroupAuditScope === "selected" && !sequenceGroupAuditSelection.scope) {
+      setSequenceGroupAuditFeedback(sequenceGroupAuditSelection.error || "Select an existing Issue before creating this audit export.");
       return;
     }
 
@@ -874,14 +904,18 @@ export default function CaseDetail({
         setSequenceGroupAuditFeedback("Full Case by Issues export created.");
         return;
       }
+      const selectedAuditOptions = {
+        ...exportOptions,
+        ...(sequenceGroupAuditSelection.scope.issueId ? { issueId: sequenceGroupAuditSelection.scope.issueId } : {}),
+      };
       if (sequenceGroupAuditFormat === "json") {
-        const payload = exportSequenceGroupAuditJson(selectedCase, selectedSequenceGroupAuditGroup, exportOptions);
+        const payload = exportSequenceGroupAuditJson(selectedCase, selectedSequenceGroupAuditGroup, selectedAuditOptions);
         downloadTextFile(JSON.stringify(payload, null, 2), getAuditExportFilename("json"), "application/json");
       } else if (sequenceGroupAuditFormat === "markdown") {
-        const markdown = exportSequenceGroupAuditMarkdown(selectedCase, selectedSequenceGroupAuditGroup, exportOptions);
+        const markdown = exportSequenceGroupAuditMarkdown(selectedCase, selectedSequenceGroupAuditGroup, selectedAuditOptions);
         downloadTextFile(markdown, getAuditExportFilename("md"), "text/markdown");
       } else if (sequenceGroupAuditFormat === "pdf") {
-        const opened = printSequenceGroupAuditPdf(selectedCase, selectedSequenceGroupAuditGroup, exportOptions);
+        const opened = printSequenceGroupAuditPdf(selectedCase, selectedSequenceGroupAuditGroup, selectedAuditOptions);
         if (!opened) {
           setSequenceGroupAuditFeedback("Could not open the print view. Check popup settings and try JSON or Markdown.");
           return;
@@ -7007,7 +7041,7 @@ ${ungroupedSequenceText}
                 </div>
               </fieldset>
 
-              {sequenceGroupAuditScope === "selected" && sequenceGroups.length === 0 ? (
+              {sequenceGroupAuditScope === "selected" && timelineIssueOptions.length === 0 && legacySequenceGroupAuditOptions.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-500">
                   No Issues exist in this case. Assign records to an Issue before creating this audit export.
                 </div>
@@ -7017,19 +7051,36 @@ ${ungroupedSequenceText}
                     <label className="block">
                       <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Issue</span>
                       <select
-                        value={selectedSequenceGroupAuditGroup}
+                        value={sequenceGroupAuditIssueId || (sequenceGroupAuditLegacyName ? `legacy:${sequenceGroupAuditLegacyName}` : "")}
                         onChange={(event) => {
-                          setSequenceGroupAuditGroup(event.target.value);
+                          const value = event.target.value;
+                          if (value.startsWith("legacy:")) {
+                            setSequenceGroupAuditIssueId("");
+                            setSequenceGroupAuditLegacyName(value.slice("legacy:".length));
+                          } else {
+                            setSequenceGroupAuditIssueId(value);
+                            setSequenceGroupAuditLegacyName("");
+                          }
                           setSequenceGroupAuditFeedback("");
                         }}
                         className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
                       >
-                        {sequenceGroups.map((group) => (
-                          <option key={group.name} value={group.name}>
-                            {group.name} ({group.totalCount} records)
-                          </option>
+                        <option value="">Select an Issue</option>
+                        {sequenceGroupAuditIssueId && !sequenceGroupAuditSelection.scope && (
+                          <option value={sequenceGroupAuditIssueId}>Unavailable Issue</option>
+                        )}
+                        {timelineIssueOptions.map((issue) => (
+                          <option key={issue.id} value={issue.id}>{issue.label}</option>
+                        ))}
+                        {legacySequenceGroupAuditOptions.map((name) => (
+                          <option key={`legacy:${name}`} value={`legacy:${name}`}>Legacy Issue — {name}</option>
                         ))}
                       </select>
+                      {sequenceGroupAuditSelection.error ? (
+                        <span role="alert" className="mt-2 block text-xs font-semibold text-red-700">{sequenceGroupAuditSelection.error}</span>
+                      ) : sequenceGroupAuditSelection.scope?.kind === "legacy" ? (
+                        <span className="mt-2 block text-xs text-neutral-500">Legacy name-only Issue selection. It is available only because the name resolves uniquely.</span>
+                      ) : null}
                     </label>
                   )}
 
@@ -7078,7 +7129,7 @@ ${ungroupedSequenceText}
               <button
                 type="button"
                 onClick={handleRunSequenceGroupAuditExport}
-                disabled={sequenceGroupAuditScope === "selected" && sequenceGroups.length === 0}
+                disabled={sequenceGroupAuditScope === "selected" && !sequenceGroupAuditSelection.scope}
                 className="rounded-md border border-lime-500 bg-lime-400/20 px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {sequenceGroupAuditFormat === "pdf" ? "Print / Save PDF" : "Download"}

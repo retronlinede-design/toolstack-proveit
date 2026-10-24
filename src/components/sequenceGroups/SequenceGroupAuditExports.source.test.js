@@ -14,7 +14,7 @@ test("Issue Audit exposes all three export scopes with accessible descriptions",
   assert.match(source, /aria-pressed=\{sequenceGroupAuditScope === value\}/);
 });
 
-test("each scope invokes its dedicated exporter and selected export keeps its original helpers", () => {
+test("each scope invokes its dedicated exporter and selected export retains canonical Issue scope", () => {
   for (const helper of [
     "buildAllSequenceGroupAuditsExport",
     "exportAllSequenceGroupAuditsMarkdown",
@@ -25,9 +25,19 @@ test("each scope invokes its dedicated exporter and selected export keeps its or
     "printSequenceGroupAuditPdf",
   ]) assert.match(source, new RegExp(`${helper}\\(`));
 
-  assert.match(source, /sequenceGroupAuditScope === "selected" && !selectedSequenceGroupAuditGroup/);
-  assert.match(source, /sequenceGroupAuditScope === "selected" && sequenceGroups\.length === 0/);
+  assert.match(source, /resolveIssueExportScope/);
+  assert.match(source, /sequenceGroupAuditIssueId/);
+  assert.match(source, /sequenceGroupAuditSelection\.scope\.issueId/);
+  assert.match(source, /Select an existing Issue before creating this audit export/);
+  assert.doesNotMatch(source, /return options\[0\] \|\| ""/);
   assert.match(source, /URL\.revokeObjectURL\(url\)/);
+});
+
+test("Issue Manager audit actions pass canonical Issue selection rather than a display name", () => {
+  const manager = readFileSync(new URL("./SequenceGroupManager.jsx", import.meta.url), "utf8");
+  assert.match(manager, /onOpenAuditExport\?\.\(getIssueExportScope\(group\)\)/);
+  assert.match(manager, /onOpenAuditExport\?\.\(getIssueExportScope\(selectedGroup\)\)/);
+  assert.doesNotMatch(manager, /onOpenAuditExport\?\.\(group\.name\)/);
 });
 
 test("consolidated downloads use safe scope filenames and existing MIME types", () => {
