@@ -99,10 +99,15 @@ export default function AiWorkspaceTab({
             <nav aria-label="AI handoff tools" className="space-y-3">
               {workspaceSections.map((section) => {
                 const SectionIcon = ICONS[section.icon] || FileText;
-                return <section key={section.id} data-ai-workspace-section>
-                  <div className="flex items-start gap-2"><span><SectionIcon className="h-4 w-4" aria-hidden="true" /></span><div className="min-w-0"><h3>{section.title}</h3><p>{section.description}</p></div></div>
-                  <div className="mt-2 grid gap-1.5">{(section.tasks || []).map((task) => <button key={`${section.id}-${task.id}`} type="button" data-ai-workspace-task aria-pressed={activeTaskId === task.id} onClick={() => onSelectTask(task)}><span>{task.title}</span><small>{task.technicalTool}</small></button>)}</div>
-                </section>;
+                const groups = section.groups || [{ id: section.id, title: "", description: "", tasks: section.tasks || [] }];
+                const taskGroups = <div className="mt-2 space-y-3">{groups.map((group) => <div key={group.id} data-ai-workspace-task-group>
+                  {group.title && <><h4>{group.title}</h4><p>{group.description}</p></>}
+                  <div className="mt-2 grid gap-1.5">{(group.tasks || []).map((task) => <button key={`${section.id}-${group.id}-${task.id}`} type="button" data-ai-workspace-task aria-pressed={activeTaskId === task.id} onClick={() => onSelectTask(task)}><span>{task.title}</span><small>{task.technicalTool}</small></button>)}</div>
+                </div>)}</div>;
+                const heading = <div className="flex items-start gap-2"><span><SectionIcon className="h-4 w-4" aria-hidden="true" /></span><div className="min-w-0"><h3>{section.title}</h3><p>{section.description}</p></div></div>;
+                return section.collapsedByDefault
+                  ? <details key={section.id} data-ai-workspace-section data-ai-workspace-advanced><summary>{heading}</summary>{taskGroups}</details>
+                  : <section key={section.id} data-ai-workspace-section>{heading}{taskGroups}</section>;
               })}
             </nav>
           </section>

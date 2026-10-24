@@ -1008,9 +1008,17 @@
 .proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-navigation] { border: 1px solid var(--pi-border); border-radius: .8rem; background: #0d1928; padding: .9rem; }
 .proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-section] { border-top: 1px solid #263a51; padding-top: .75rem; }
 .proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-section]:first-of-type { border-top: 0; padding-top: .75rem; }
+.proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-advanced] > summary { cursor: pointer; list-style: none; padding-right: 1.5rem; position: relative; }
+.proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-advanced] > summary::-webkit-details-marker { display: none; }
+.proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-advanced] > summary::after { color: var(--pi-muted); content: "⌄"; font-size: 1rem; position: absolute; right: .15rem; top: .1rem; transition: transform .16s ease; }
+.proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-advanced][open] > summary::after { transform: rotate(180deg); }
+.proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-advanced] > summary:focus-visible { outline: 2px solid var(--pi-focus); outline-offset: 3px; border-radius: .45rem; }
 .proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-section] h3 { color: #c6d7e9; font-size: .72rem; font-weight: 750; letter-spacing: .06em; margin: 0; text-transform: uppercase; }
 .proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-section] p { color: #7891aa; font-size: .72rem; line-height: 1.35; margin: .15rem 0 0; }
-.proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-section] > div > span { align-items: center; background: #13293a; border-radius: .45rem; color: var(--pi-accent); display: flex; height: 1.75rem; justify-content: center; width: 1.75rem; }
+.proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-section] > div > span, .proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-section] > summary > div > span { align-items: center; background: #13293a; border-radius: .45rem; color: var(--pi-accent); display: flex; height: 1.75rem; justify-content: center; width: 1.75rem; }
+.proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-task-group] + [data-ai-workspace-task-group] { border-top: 1px solid #263a51; padding-top: .7rem; }
+.proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-task-group] h4 { color: #b8d8d3; font-size: .68rem; font-weight: 750; letter-spacing: .06em; margin: 0; text-transform: uppercase; }
+.proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-task-group] > p { margin-top: .18rem; }
 .proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-task] { align-items: start; border: 1px solid transparent; border-radius: .5rem; background: transparent; color: var(--pi-muted); display: flex; flex-direction: column; gap: .12rem; padding: .45rem .55rem; text-align: left; width: 100%; }
 .proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-task] small { color: #7891aa; margin: 0; }
 .proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-task]:hover { border-color: #31506b; background: #13293a; color: var(--pi-text); }

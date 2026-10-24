@@ -27,7 +27,9 @@ test("AI Workspace remains a sectioned case-specific interface", () => {
   assert.match(workspace, /Handoffs &amp; exports/);
   assert.match(workspace, /Reviewed updates/);
   assert.match(workspace, /workspaceSections\.map/);
-  assert.match(workspace, /\(section\.tasks \|\| \[\]\)\.map/);
+  assert.match(workspace, /section\.groups \|\|/);
+  assert.match(workspace, /data-ai-workspace-task-group/);
+  assert.match(workspace, /data-ai-workspace-advanced/);
   assert.match(workspace, /SectionIcon/);
   assert.match(workspace, /\{task\.technicalTool\}/);
 });
@@ -43,7 +45,7 @@ test("AI Workspace entry points retain their requested tool and reset workspace 
   assert.match(caseDetail, /setActiveTab\("ai-workspace"\)/);
   assert.match(caseDetail, /onOpenAiWorkspace=\{\(\) => openAiWorkspace/);
   assert.match(caseDetail, /onClick=\{\(\) => openAiWorkspace\(activeAiTool/);
-  assert.match(caseDetail, /setActiveAiTask\("review-entire-investigation"\)/);
+  assert.match(caseDetail, /setActiveAiTask\("download-ai-workspace-snapshot"\)/);
   assert.match(caseDetail, /\[selectedCase\?\.id\]\);/);
   assert.match(caseDetail, /The selected Issue is no longer available/);
 });

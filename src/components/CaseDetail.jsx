@@ -294,7 +294,7 @@ export default function CaseDetail({
   const [overviewWatchItem, setOverviewWatchItem] = useState(undefined);
   const [ideas, setIdeas] = useState([]);
   const [workspaceActionMenuOpen, setWorkspaceActionMenuOpen] = useState(false);
-  const [activeAiTask, setActiveAiTask] = useState("review-entire-investigation");
+  const [activeAiTask, setActiveAiTask] = useState("download-ai-workspace-snapshot");
   const [activeAiTool, setActiveAiTool] = useState("missing-function-summaries");
   const [aiToolsSequenceGroup, setAiToolsSequenceGroup] = useState("");
   const [aiToolsFeedback, setAiToolsFeedback] = useState("");
@@ -302,7 +302,7 @@ export default function CaseDetail({
   const [showExportMenu, setShowExportMenu] = useState(false);
 
   useEffect(() => {
-    setActiveAiTask("review-entire-investigation");
+    setActiveAiTask("download-ai-workspace-snapshot");
     setActiveAiTool("missing-function-summaries");
     setAiToolsSequenceGroup("");
     setAiToolsFeedback("");
@@ -1207,7 +1207,7 @@ export default function CaseDetail({
   function openAiWorkspace(toolId, requestedIssueId = "") {
     const nextIssueId = selectedSequenceGroupId || timelineIssueOptions[0]?.id || "";
     const matchingTask = AI_WORKSPACE_SECTIONS
-      .flatMap((section) => section.tasks || [])
+      .flatMap((section) => section.groups?.flatMap((group) => group.tasks || []) || section.tasks || [])
       .find((task) => task.toolId === toolId || task.actionKind === toolId);
     if (matchingTask) setActiveAiTask(matchingTask.id);
     setActiveAiTool(toolId);
@@ -3697,7 +3697,7 @@ ${ungroupedSequenceText}
   const aiToolOptions = AI_TOOL_OPTIONS;
   const aiWorkspaceSections = AI_WORKSPACE_SECTIONS;
   const aiToolById = new Map(aiToolOptions.map((tool) => [tool.id, tool]));
-  const aiWorkspaceTasks = aiWorkspaceSections.flatMap((section) => section.tasks || []);
+  const aiWorkspaceTasks = aiWorkspaceSections.flatMap((section) => section.groups?.flatMap((group) => group.tasks || []) || section.tasks || []);
   const activeAiTaskOption = aiWorkspaceTasks.find((task) => task.id === activeAiTask) || aiWorkspaceTasks[0];
   const activeAiTaskGuidance = AI_TASK_GUIDANCE[activeAiTaskOption?.id] || {};
   const activeAiToolOption = aiToolById.get(activeAiTaskOption?.toolId) || aiToolById.get(activeAiTool) || aiToolOptions[0];

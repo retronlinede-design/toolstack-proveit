@@ -22,6 +22,13 @@ test("AI Workspace task selection has explicit state and keyboard-visible focus"
   assert.match(styles, /\[data-ai-workspace-task\]:focus-visible/);
 });
 
+test("AI Workspace keeps advanced and transitional tools subordinate by default", () => {
+  assert.match(workspace, /data-ai-workspace-advanced/);
+  assert.match(workspace, /<details key=\{section\.id\}/);
+  assert.match(workspace, /data-ai-workspace-task-group/);
+  assert.match(styles, /\[data-ai-workspace-advanced\] > summary:focus-visible/);
+});
+
 test("AI Workspace keeps feedback announced and actions in its working area", () => {
   assert.match(workspace, /data-ai-workspace-feedback role="status" aria-live="polite"/);
   assert.match(workspace, /data-ai-workspace-actions aria-label="Selected tool actions"/);
