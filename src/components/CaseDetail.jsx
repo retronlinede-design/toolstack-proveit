@@ -366,7 +366,7 @@ export default function CaseDetail({
   const [caseStructureReportOpen, setCaseStructureReportOpen] = useState(false);
   const [clientReportGeneratorOpen, setClientReportGeneratorOpen] = useState(false);
   const [threadIssueReportOpen, setThreadIssueReportOpen] = useState(false);
-  const [threadIssueReportSequenceGroup, setThreadIssueReportSequenceGroup] = useState("");
+  const [threadIssueReportIssueId, setThreadIssueReportIssueId] = useState("");
   const [threadIssueReportVisibility, setThreadIssueReportVisibility] = useState({
     diagnostics: true,
     documents: true,
@@ -375,19 +375,19 @@ export default function CaseDetail({
   });
   const [evidencePackReportOpen, setEvidencePackReportOpen] = useState(false);
   const [evidencePackScopeType, setEvidencePackScopeType] = useState("case");
-  const [evidencePackSequenceGroup, setEvidencePackSequenceGroup] = useState("");
+  const [evidencePackIssueId, setEvidencePackIssueId] = useState("");
   const [documentPackReportOpen, setDocumentPackReportOpen] = useState(false);
   const [documentPackScopeType, setDocumentPackScopeType] = useState("case");
-  const [documentPackSequenceGroup, setDocumentPackSequenceGroup] = useState("");
+  const [documentPackIssueId, setDocumentPackIssueId] = useState("");
   const [ledgerPackReportOpen, setLedgerPackReportOpen] = useState(false);
   const [ledgerPackScopeType, setLedgerPackScopeType] = useState("case");
-  const [ledgerPackSequenceGroup, setLedgerPackSequenceGroup] = useState("");
+  const [ledgerPackIssueId, setLedgerPackIssueId] = useState("");
   const [caseBundleReportOpen, setCaseBundleReportOpen] = useState(false);
   const [executiveSummaryReportOpen, setExecutiveSummaryReportOpen] = useState(true);
   const [executiveSummaryPolishDraft, setExecutiveSummaryPolishDraft] = useState("");
   const [executiveSummaryPolishFeedback, setExecutiveSummaryPolishFeedback] = useState("");
   const [caseBundleScopeType, setCaseBundleScopeType] = useState("case");
-  const [caseBundleSequenceGroup, setCaseBundleSequenceGroup] = useState("");
+  const [caseBundleIssueId, setCaseBundleIssueId] = useState("");
   const [caseBundleSections, setCaseBundleSections] = useState({
     threadIssue: true,
     evidencePack: true,
@@ -460,7 +460,7 @@ export default function CaseDetail({
     setAiToolsSequenceGroup("");
     setAiToolsFeedback("The selected Issue is no longer available. Choose an Issue before creating an Issue-scoped handoff.");
   }, [aiToolsSequenceGroup, timelineIssueOptions]);
-  const threadIssueReportSequenceOptions = useMemo(() => sequenceGroups.map((group) => group.name), [sequenceGroups]);
+  const reportCentreIssues = useMemo(() => getReportCentreIssueOptions(selectedCase), [selectedCase]);
   const sequenceGroupAuditSelection = useMemo(() => {
     const issueId = safeText(sequenceGroupAuditIssueId).trim();
     const legacyName = safeText(sequenceGroupAuditLegacyName).trim();
@@ -503,7 +503,6 @@ export default function CaseDetail({
     () => scanIncidentDateMismatches(selectedCase),
     [selectedCase]
   );
-  const reportCentreIssues = useMemo(() => getReportCentreIssueOptions(selectedCase), [selectedCase]);
   const reportCentreIssueSelection = useMemo(() => resolveReportCentreIssueSelection(reportCentreIssues, reportCentreIssueId), [reportCentreIssues, reportCentreIssueId]);
   const selectedReportCentreIssue = reportCentreIssueSelection.selectedIssue;
   const externalDraftingScope = useMemo(() => {
@@ -518,70 +517,75 @@ export default function CaseDetail({
     }
     return { scope: { issueId: selectedReportCentreIssue.id }, error: "" };
   }, [externalDraftingScopeType, reportCentreIssueSelection.requestedIssueId, selectedReportCentreIssue]);
-  const selectedThreadIssueReportSequenceGroup = useMemo(() => {
-    if (threadIssueReportSequenceOptions.includes(threadIssueReportSequenceGroup)) {
-      return threadIssueReportSequenceGroup;
-    }
-    return threadIssueReportSequenceOptions[0] || "";
-  }, [threadIssueReportSequenceGroup, threadIssueReportSequenceOptions]);
+  const threadIssueReportIssueSelection = useMemo(
+    () => resolveReportCentreIssueSelection(reportCentreIssues, threadIssueReportIssueId),
+    [reportCentreIssues, threadIssueReportIssueId]
+  );
+  const selectedThreadIssueReportIssue = threadIssueReportIssueSelection.selectedIssue;
   const threadIssueReport = useMemo(() => {
-    if (!selectedCase) return null;
-    return buildThreadIssueReport(selectedCase, selectedThreadIssueReportSequenceGroup);
-  }, [selectedCase, selectedThreadIssueReportSequenceGroup]);
-  const selectedEvidencePackSequenceGroup = useMemo(() => {
-    if (threadIssueReportSequenceOptions.includes(evidencePackSequenceGroup)) {
-      return evidencePackSequenceGroup;
-    }
-    return threadIssueReportSequenceOptions[0] || "";
-  }, [evidencePackSequenceGroup, threadIssueReportSequenceOptions]);
+    if (!selectedCase || !selectedThreadIssueReportIssue) return null;
+    return buildThreadIssueReport(selectedCase, selectedThreadIssueReportIssue.name, {
+      issueId: selectedThreadIssueReportIssue.id,
+    });
+  }, [selectedCase, selectedThreadIssueReportIssue]);
+  const evidencePackIssueSelection = useMemo(
+    () => resolveReportCentreIssueSelection(reportCentreIssues, evidencePackIssueId),
+    [evidencePackIssueId, reportCentreIssues]
+  );
+  const selectedEvidencePackIssue = evidencePackIssueSelection.selectedIssue;
   const evidencePackReport = useMemo(() => {
     if (!selectedCase) return null;
+    if (evidencePackScopeType === "sequenceGroup" && !selectedEvidencePackIssue) return null;
     return buildEvidencePackReport(selectedCase, {
       scopeType: evidencePackScopeType,
-      sequenceGroup: selectedEvidencePackSequenceGroup,
+      issueId: selectedEvidencePackIssue?.id,
+      sequenceGroup: selectedEvidencePackIssue?.name,
     });
-  }, [selectedCase, evidencePackScopeType, selectedEvidencePackSequenceGroup]);
-  const selectedDocumentPackSequenceGroup = useMemo(() => {
-    if (threadIssueReportSequenceOptions.includes(documentPackSequenceGroup)) {
-      return documentPackSequenceGroup;
-    }
-    return threadIssueReportSequenceOptions[0] || "";
-  }, [documentPackSequenceGroup, threadIssueReportSequenceOptions]);
+  }, [selectedCase, evidencePackScopeType, selectedEvidencePackIssue]);
+  const documentPackIssueSelection = useMemo(
+    () => resolveReportCentreIssueSelection(reportCentreIssues, documentPackIssueId),
+    [documentPackIssueId, reportCentreIssues]
+  );
+  const selectedDocumentPackIssue = documentPackIssueSelection.selectedIssue;
   const documentPackReport = useMemo(() => {
     if (!selectedCase) return null;
+    if (documentPackScopeType === "sequenceGroup" && !selectedDocumentPackIssue) return null;
     return buildDocumentPackReport(selectedCase, {
       scopeType: documentPackScopeType,
-      sequenceGroup: selectedDocumentPackSequenceGroup,
+      issueId: selectedDocumentPackIssue?.id,
+      sequenceGroup: selectedDocumentPackIssue?.name,
     });
-  }, [selectedCase, documentPackScopeType, selectedDocumentPackSequenceGroup]);
-  const selectedLedgerPackSequenceGroup = useMemo(() => {
-    if (threadIssueReportSequenceOptions.includes(ledgerPackSequenceGroup)) {
-      return ledgerPackSequenceGroup;
-    }
-    return threadIssueReportSequenceOptions[0] || "";
-  }, [ledgerPackSequenceGroup, threadIssueReportSequenceOptions]);
+  }, [selectedCase, documentPackScopeType, selectedDocumentPackIssue]);
+  const ledgerPackIssueSelection = useMemo(
+    () => resolveReportCentreIssueSelection(reportCentreIssues, ledgerPackIssueId),
+    [ledgerPackIssueId, reportCentreIssues]
+  );
+  const selectedLedgerPackIssue = ledgerPackIssueSelection.selectedIssue;
   const ledgerPackReport = useMemo(() => {
     if (!selectedCase) return null;
+    if (ledgerPackScopeType === "sequenceGroup" && !selectedLedgerPackIssue) return null;
     return buildLedgerPackReport(selectedCase, {
       scopeType: ledgerPackScopeType,
-      sequenceGroup: selectedLedgerPackSequenceGroup,
+      issueId: selectedLedgerPackIssue?.id,
+      sequenceGroup: selectedLedgerPackIssue?.name,
     });
-  }, [selectedCase, ledgerPackScopeType, selectedLedgerPackSequenceGroup]);
-  const selectedCaseBundleSequenceGroup = useMemo(() => {
-    if (threadIssueReportSequenceOptions.includes(caseBundleSequenceGroup)) {
-      return caseBundleSequenceGroup;
-    }
-    return threadIssueReportSequenceOptions[0] || "";
-  }, [caseBundleSequenceGroup, threadIssueReportSequenceOptions]);
+  }, [selectedCase, ledgerPackScopeType, selectedLedgerPackIssue]);
+  const caseBundleIssueSelection = useMemo(
+    () => resolveReportCentreIssueSelection(reportCentreIssues, caseBundleIssueId),
+    [caseBundleIssueId, reportCentreIssues]
+  );
+  const selectedCaseBundleIssue = caseBundleIssueSelection.selectedIssue;
   const caseBundleReport = useMemo(() => {
     if (!selectedCase) return null;
+    if (caseBundleScopeType === "sequenceGroup" && !selectedCaseBundleIssue) return null;
     return buildCaseBundleReport(selectedCase, {
       scopeType: caseBundleScopeType,
-      sequenceGroup: selectedCaseBundleSequenceGroup,
+      issueId: selectedCaseBundleIssue?.id,
+      sequenceGroup: selectedCaseBundleIssue?.name,
     }, {
       sections: caseBundleSections,
     });
-  }, [selectedCase, caseBundleScopeType, selectedCaseBundleSequenceGroup, caseBundleSections]);
+  }, [selectedCase, caseBundleScopeType, selectedCaseBundleIssue, caseBundleSections]);
   const executiveSummaryReport = useMemo(() => {
     if (!selectedCase) return null;
     return buildExecutiveSummaryReport(selectedCase);
@@ -5531,18 +5535,21 @@ ${ungroupedSequenceText}
                             <label className="text-xs font-bold uppercase tracking-wider text-neutral-500" htmlFor="case-bundle-sequence-group">
                               Issue
                             </label>
-                            {threadIssueReportSequenceOptions.length > 0 ? (
+                            {reportCentreIssues.length > 0 ? <>
                               <select
                                 id="case-bundle-sequence-group"
-                                value={selectedCaseBundleSequenceGroup}
-                                onChange={(event) => setCaseBundleSequenceGroup(event.target.value)}
+                                value={caseBundleIssueId}
+                                onChange={(event) => setCaseBundleIssueId(event.target.value)}
                                 className="mt-2 w-full min-w-60 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
                               >
-                                {threadIssueReportSequenceOptions.map((groupName) => (
-                                  <option key={groupName} value={groupName}>{groupName}</option>
+                                <option value="">Select an Issue</option>
+                                {reportCentreIssues.map((issue) => (
+                                  <option key={issue.id} value={issue.id}>{issue.label}</option>
                                 ))}
                               </select>
-                            ) : (
+                              {caseBundleIssueSelection.requestedIssueId && !selectedCaseBundleIssue ? (
+                                <p className="mt-2 text-sm text-amber-700" role="status">Issue no longer available. Choose another Issue.</p>
+                              ) : null}</> : (
                               <p className="mt-2 text-sm text-neutral-600">No Issues exist in this case yet.</p>
                             )}
                           </div>
@@ -5570,7 +5577,7 @@ ${ungroupedSequenceText}
                         <button
                           type="button"
                           onClick={() => window.print()}
-                          disabled={caseBundleScopeType === "sequenceGroup" && !selectedCaseBundleSequenceGroup}
+                          disabled={caseBundleScopeType === "sequenceGroup" && !selectedCaseBundleIssue}
                           className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] transition-colors hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:shadow-none"
                         >
                           Print / Save PDF
@@ -5613,18 +5620,21 @@ ${ungroupedSequenceText}
                           <label className="text-xs font-bold uppercase tracking-wider text-neutral-500" htmlFor="thread-issue-report-sequence-group">
                             Issue
                           </label>
-                          {threadIssueReportSequenceOptions.length > 0 ? (
+                          {reportCentreIssues.length > 0 ? <>
                             <select
                               id="thread-issue-report-sequence-group"
-                              value={selectedThreadIssueReportSequenceGroup}
-                              onChange={(event) => setThreadIssueReportSequenceGroup(event.target.value)}
+                              value={threadIssueReportIssueId}
+                              onChange={(event) => setThreadIssueReportIssueId(event.target.value)}
                               className="mt-2 w-full min-w-60 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
                             >
-                              {threadIssueReportSequenceOptions.map((groupName) => (
-                                <option key={groupName} value={groupName}>{groupName}</option>
+                              <option value="">Select an Issue</option>
+                              {reportCentreIssues.map((issue) => (
+                                <option key={issue.id} value={issue.id}>{issue.label}</option>
                               ))}
                             </select>
-                          ) : (
+                            {threadIssueReportIssueSelection.requestedIssueId && !selectedThreadIssueReportIssue ? (
+                              <p className="mt-2 text-sm text-amber-700" role="status">Issue no longer available. Choose another Issue.</p>
+                            ) : null}</> : (
                             <p className="mt-2 text-sm text-neutral-600">
                               No Issues exist in this case yet.
                             </p>
@@ -5651,7 +5661,7 @@ ${ungroupedSequenceText}
                         <button
                           type="button"
                           onClick={() => window.print()}
-                          disabled={!selectedThreadIssueReportSequenceGroup}
+                          disabled={!selectedThreadIssueReportIssue}
                           className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] transition-colors hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:shadow-none"
                         >
                           Print / Save PDF
@@ -5710,18 +5720,21 @@ ${ungroupedSequenceText}
                             <label className="text-xs font-bold uppercase tracking-wider text-neutral-500" htmlFor="ledger-pack-sequence-group">
                               Issue
                             </label>
-                            {threadIssueReportSequenceOptions.length > 0 ? (
+                            {reportCentreIssues.length > 0 ? <>
                               <select
                                 id="ledger-pack-sequence-group"
-                                value={selectedLedgerPackSequenceGroup}
-                                onChange={(event) => setLedgerPackSequenceGroup(event.target.value)}
+                                value={ledgerPackIssueId}
+                                onChange={(event) => setLedgerPackIssueId(event.target.value)}
                                 className="mt-2 w-full min-w-60 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
                               >
-                                {threadIssueReportSequenceOptions.map((groupName) => (
-                                  <option key={groupName} value={groupName}>{groupName}</option>
+                                <option value="">Select an Issue</option>
+                                {reportCentreIssues.map((issue) => (
+                                  <option key={issue.id} value={issue.id}>{issue.label}</option>
                                 ))}
                               </select>
-                            ) : (
+                              {ledgerPackIssueSelection.requestedIssueId && !selectedLedgerPackIssue ? (
+                                <p className="mt-2 text-sm text-amber-700" role="status">Issue no longer available. Choose another Issue.</p>
+                              ) : null}</> : (
                               <p className="mt-2 text-sm text-neutral-600">No Issues exist in this case yet.</p>
                             )}
                           </div>
@@ -5729,7 +5742,7 @@ ${ungroupedSequenceText}
                         <button
                           type="button"
                           onClick={() => window.print()}
-                          disabled={ledgerPackScopeType === "sequenceGroup" && !selectedLedgerPackSequenceGroup}
+                          disabled={ledgerPackScopeType === "sequenceGroup" && !selectedLedgerPackIssue}
                           className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] transition-colors hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:shadow-none"
                         >
                           Print / Save PDF
@@ -5787,18 +5800,21 @@ ${ungroupedSequenceText}
                             <label className="text-xs font-bold uppercase tracking-wider text-neutral-500" htmlFor="document-pack-sequence-group">
                               Issue
                             </label>
-                            {threadIssueReportSequenceOptions.length > 0 ? (
+                            {reportCentreIssues.length > 0 ? <>
                               <select
                                 id="document-pack-sequence-group"
-                                value={selectedDocumentPackSequenceGroup}
-                                onChange={(event) => setDocumentPackSequenceGroup(event.target.value)}
+                                value={documentPackIssueId}
+                                onChange={(event) => setDocumentPackIssueId(event.target.value)}
                                 className="mt-2 w-full min-w-60 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
                               >
-                                {threadIssueReportSequenceOptions.map((groupName) => (
-                                  <option key={groupName} value={groupName}>{groupName}</option>
+                                <option value="">Select an Issue</option>
+                                {reportCentreIssues.map((issue) => (
+                                  <option key={issue.id} value={issue.id}>{issue.label}</option>
                                 ))}
                               </select>
-                            ) : (
+                              {documentPackIssueSelection.requestedIssueId && !selectedDocumentPackIssue ? (
+                                <p className="mt-2 text-sm text-amber-700" role="status">Issue no longer available. Choose another Issue.</p>
+                              ) : null}</> : (
                               <p className="mt-2 text-sm text-neutral-600">No Issues exist in this case yet.</p>
                             )}
                           </div>
@@ -5806,7 +5822,7 @@ ${ungroupedSequenceText}
                         <button
                           type="button"
                           onClick={() => window.print()}
-                          disabled={documentPackScopeType === "sequenceGroup" && !selectedDocumentPackSequenceGroup}
+                          disabled={documentPackScopeType === "sequenceGroup" && !selectedDocumentPackIssue}
                           className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] transition-colors hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:shadow-none"
                         >
                           Print / Save PDF
@@ -5864,18 +5880,21 @@ ${ungroupedSequenceText}
                             <label className="text-xs font-bold uppercase tracking-wider text-neutral-500" htmlFor="evidence-pack-sequence-group">
                               Issue
                             </label>
-                            {threadIssueReportSequenceOptions.length > 0 ? (
+                            {reportCentreIssues.length > 0 ? <>
                               <select
                                 id="evidence-pack-sequence-group"
-                                value={selectedEvidencePackSequenceGroup}
-                                onChange={(event) => setEvidencePackSequenceGroup(event.target.value)}
+                                value={evidencePackIssueId}
+                                onChange={(event) => setEvidencePackIssueId(event.target.value)}
                                 className="mt-2 w-full min-w-60 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
                               >
-                                {threadIssueReportSequenceOptions.map((groupName) => (
-                                  <option key={groupName} value={groupName}>{groupName}</option>
+                                <option value="">Select an Issue</option>
+                                {reportCentreIssues.map((issue) => (
+                                  <option key={issue.id} value={issue.id}>{issue.label}</option>
                                 ))}
                               </select>
-                            ) : (
+                              {evidencePackIssueSelection.requestedIssueId && !selectedEvidencePackIssue ? (
+                                <p className="mt-2 text-sm text-amber-700" role="status">Issue no longer available. Choose another Issue.</p>
+                              ) : null}</> : (
                               <p className="mt-2 text-sm text-neutral-600">No Issues exist in this case yet.</p>
                             )}
                           </div>
@@ -5883,7 +5902,7 @@ ${ungroupedSequenceText}
                         <button
                           type="button"
                           onClick={() => window.print()}
-                          disabled={evidencePackScopeType === "sequenceGroup" && !selectedEvidencePackSequenceGroup}
+                          disabled={evidencePackScopeType === "sequenceGroup" && !selectedEvidencePackIssue}
                           className="rounded-lg border border-lime-500 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 shadow-[0_2px_4px_rgba(60,60,60,0.2)] transition-colors hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:shadow-none"
                         >
                           Print / Save PDF

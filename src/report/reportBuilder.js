@@ -1,5 +1,6 @@
 import { analyzeCaseDiagnostics, analyzeSequenceGroup } from "../diagnostics/caseDiagnostics.js";
 import { resolveRecordById } from "../domain/linkingResolvers.js";
+import { recordMatchesIssueExportScope, resolveIssueExportScope } from "../export/issueScope.js";
 
 export const THREAD_ISSUE_REPORT = "THREAD_ISSUE_REPORT";
 export const EVIDENCE_PACK_REPORT = "EVIDENCE_PACK_REPORT";
@@ -58,10 +59,6 @@ function getSummary(record = {}, recordType = "record") {
   if (recordType === "strategy") return shortText(record.objective || record.description || record.notes || record.source);
   if (recordType === "watch") return shortText(record.watchFor || record.latestObservation || record.rationale);
   return shortText(record.description || record.summary || record.notes);
-}
-
-function isSameSequenceGroup(record = {}, sequenceGroup = "") {
-  return compactText(record.sequenceGroup) === sequenceGroup;
 }
 
 function getRecordLinkIds(record = {}) {
@@ -236,12 +233,25 @@ function groupChronologyItems(items = []) {
   return { groups, undated };
 }
 
-function getIncludedRecordIds(caseItem = {}, sequenceGroup = "") {
-  if (!sequenceGroup) return [];
+function resolveScopedReportIssue(caseItem = {}, { issueId = "", sequenceGroup = "" } = {}) {
+  const requestedIssueId = compactText(issueId);
+  const requestedName = compactText(sequenceGroup);
+  if (!requestedIssueId && !requestedName) return null;
+  try {
+    return resolveIssueExportScope(caseItem, requestedIssueId
+      ? { issueId: requestedIssueId, issueName: requestedName }
+      : { issueName: requestedName });
+  } catch {
+    return null;
+  }
+}
+
+function getIncludedRecordIds(caseItem = {}, issueScope = null) {
+  if (!issueScope) return [];
 
   const allRecords = collectTypedRecords(caseItem);
   const primaryRecords = allRecords.filter(({ record, recordType }) => (
-    recordType !== "ledger" && isSameSequenceGroup(record, sequenceGroup)
+    recordType !== "ledger" && recordMatchesIssueExportScope(record, issueScope)
   ));
   const primaryIds = new Set(primaryRecords.map(({ record }) => record.id));
   const includedIds = new Set(primaryIds);
@@ -581,9 +591,13 @@ function buildOpenQuestionsAndNextActions(caseItem, strategyRecords, sequenceGro
 }
 
 export function buildThreadIssueReport(caseItem = {}, sequenceGroupValue = "", options = {}) {
-  const sequenceGroup = compactText(sequenceGroupValue);
+  const issueScope = resolveScopedReportIssue(caseItem, {
+    issueId: options.issueId,
+    sequenceGroup: sequenceGroupValue,
+  });
+  const sequenceGroup = issueScope?.name || "";
   const generatedAt = options.generatedAt || new Date().toISOString();
-  const includedRecordIds = getIncludedRecordIds(caseItem, sequenceGroup);
+  const includedRecordIds = getIncludedRecordIds(caseItem, issueScope);
   const includedIdSet = new Set(includedRecordIds);
   const allRecords = collectTypedRecords(caseItem).filter(({ record }) => includedIdSet.has(record.id));
   const incidents = allRecords.filter(({ recordType }) => recordType === "incident").map(({ record }) => record);
@@ -651,22 +665,28 @@ export function buildThreadIssueReport(caseItem = {}, sequenceGroupValue = "", o
   };
 }
 
-function normalizeEvidencePackScope(scope = {}) {
+function normalizeScopedReportScope(caseItem = {}, scope = {}) {
   const scopeType = scope.scopeType === "sequenceGroup" ? "sequenceGroup" : "case";
+  const issueScope = scopeType === "sequenceGroup"
+    ? resolveScopedReportIssue(caseItem, scope)
+    : null;
   return {
     scopeType,
-    sequenceGroup: scopeType === "sequenceGroup" ? compactText(scope.sequenceGroup) : "",
+    issueId: issueScope?.issueId || "",
+    sequenceGroup: issueScope?.name || "",
+    issueScope,
   };
 }
 
 function getEvidencePackEvidenceRecords(caseItem = {}, scope = {}) {
-  const normalizedScope = normalizeEvidencePackScope(scope);
+  const normalizedScope = normalizeScopedReportScope(caseItem, scope);
   const evidence = (caseItem.evidence || []).filter((item) => item?.id);
 
   if (normalizedScope.scopeType !== "sequenceGroup") return evidence;
   if (!normalizedScope.sequenceGroup) return [];
 
   const threadReport = buildThreadIssueReport(caseItem, normalizedScope.sequenceGroup, {
+    issueId: normalizedScope.issueId,
     generatedAt: scope.generatedAt,
   });
   const includedIds = new Set(threadReport.includedRecordIds);
@@ -730,7 +750,7 @@ function buildEvidencePackDiagnostics(caseItem = {}, evidenceRecords = [], suppo
 }
 
 export function buildEvidencePackReport(caseItem = {}, scope = {}, options = {}) {
-  const normalizedScope = normalizeEvidencePackScope(scope);
+  const normalizedScope = normalizeScopedReportScope(caseItem, scope);
   const generatedAt = options.generatedAt || scope.generatedAt || new Date().toISOString();
   const evidenceRecords = getEvidencePackEvidenceRecords(caseItem, { ...normalizedScope, generatedAt });
   const evidenceMatrix = evidenceRecords.map((item) => buildEvidencePackEvidence(caseItem, item));
@@ -782,22 +802,15 @@ export function buildEvidencePackReport(caseItem = {}, scope = {}, options = {})
   };
 }
 
-function normalizeDocumentPackScope(scope = {}) {
-  const scopeType = scope.scopeType === "sequenceGroup" ? "sequenceGroup" : "case";
-  return {
-    scopeType,
-    sequenceGroup: scopeType === "sequenceGroup" ? compactText(scope.sequenceGroup) : "",
-  };
-}
-
 function getDocumentPackRecords(caseItem = {}, scope = {}) {
-  const normalizedScope = normalizeDocumentPackScope(scope);
+  const normalizedScope = normalizeScopedReportScope(caseItem, scope);
   const documents = (caseItem.documents || []).filter((item) => item?.id);
 
   if (normalizedScope.scopeType !== "sequenceGroup") return documents;
   if (!normalizedScope.sequenceGroup) return [];
 
   const threadReport = buildThreadIssueReport(caseItem, normalizedScope.sequenceGroup, {
+    issueId: normalizedScope.issueId,
     generatedAt: scope.generatedAt,
   });
   const includedIds = new Set(threadReport.includedRecordIds);
@@ -842,7 +855,7 @@ function buildDocumentPackDiagnostics(caseItem = {}, documentRecords = []) {
 }
 
 export function buildDocumentPackReport(caseItem = {}, scope = {}, options = {}) {
-  const normalizedScope = normalizeDocumentPackScope(scope);
+  const normalizedScope = normalizeScopedReportScope(caseItem, scope);
   const generatedAt = options.generatedAt || scope.generatedAt || new Date().toISOString();
   const documentRecords = getDocumentPackRecords(caseItem, { ...normalizedScope, generatedAt });
   const documentMatrix = documentRecords.map((item) => buildDocumentPackDocument(caseItem, item));
@@ -897,22 +910,15 @@ export function buildDocumentPackReport(caseItem = {}, scope = {}, options = {})
   };
 }
 
-function normalizeLedgerPackScope(scope = {}) {
-  const scopeType = scope.scopeType === "sequenceGroup" ? "sequenceGroup" : "case";
-  return {
-    scopeType,
-    sequenceGroup: scopeType === "sequenceGroup" ? compactText(scope.sequenceGroup) : "",
-  };
-}
-
 function getLedgerPackRecords(caseItem = {}, scope = {}) {
-  const normalizedScope = normalizeLedgerPackScope(scope);
+  const normalizedScope = normalizeScopedReportScope(caseItem, scope);
   const ledger = (caseItem.ledger || []).filter((item) => item?.id);
 
   if (normalizedScope.scopeType !== "sequenceGroup") return ledger;
   if (!normalizedScope.sequenceGroup) return [];
 
   const threadReport = buildThreadIssueReport(caseItem, normalizedScope.sequenceGroup, {
+    issueId: normalizedScope.issueId,
     generatedAt: scope.generatedAt,
   });
   const includedIds = new Set(threadReport.includedRecordIds);
@@ -948,7 +954,7 @@ function buildLedgerPackDiagnostics(caseItem = {}, ledgerRecords = []) {
 }
 
 export function buildLedgerPackReport(caseItem = {}, scope = {}, options = {}) {
-  const normalizedScope = normalizeLedgerPackScope(scope);
+  const normalizedScope = normalizeScopedReportScope(caseItem, scope);
   const generatedAt = options.generatedAt || scope.generatedAt || new Date().toISOString();
   const ledgerRecords = getLedgerPackRecords(caseItem, { ...normalizedScope, generatedAt });
   const ledgerMatrix = ledgerRecords.map((item) => buildLedgerPackEntry(caseItem, item));
@@ -1008,14 +1014,6 @@ const DEFAULT_CASE_BUNDLE_SECTIONS = {
   diagnosticsSummary: true,
 };
 
-function normalizeCaseBundleScope(scope = {}) {
-  const scopeType = scope.scopeType === "sequenceGroup" ? "sequenceGroup" : "case";
-  return {
-    scopeType,
-    sequenceGroup: scopeType === "sequenceGroup" ? compactText(scope.sequenceGroup) : "",
-  };
-}
-
 function normalizeCaseBundleSections(sections = {}) {
   return {
     ...DEFAULT_CASE_BUNDLE_SECTIONS,
@@ -1027,7 +1025,10 @@ function normalizeCaseBundleSections(sections = {}) {
 
 function getScopeIncludedIds(caseItem = {}, normalizedScope = {}, generatedAt = "") {
   if (normalizedScope.scopeType !== "sequenceGroup" || !normalizedScope.sequenceGroup) return null;
-  return new Set(buildThreadIssueReport(caseItem, normalizedScope.sequenceGroup, { generatedAt }).includedRecordIds);
+  return new Set(buildThreadIssueReport(caseItem, normalizedScope.sequenceGroup, {
+    generatedAt,
+    issueId: normalizedScope.issueId,
+  }).includedRecordIds);
 }
 
 function buildStrategyActionsSummary(caseItem = {}, normalizedScope = {}, includedIds = null) {
@@ -2139,14 +2140,14 @@ function buildBundleContentsSummary(selectedSections, sections) {
 }
 
 export function buildCaseBundleReport(caseItem = {}, scope = {}, options = {}) {
-  const normalizedScope = normalizeCaseBundleScope(scope);
+  const normalizedScope = normalizeScopedReportScope(caseItem, scope);
   const selectedSections = normalizeCaseBundleSections(options.sections || scope.sections || {});
   const generatedAt = options.generatedAt || scope.generatedAt || new Date().toISOString();
   const childScope = { ...normalizedScope, generatedAt };
   const includedIds = getScopeIncludedIds(caseItem, normalizedScope, generatedAt);
   const sections = {
     threadIssue: selectedSections.threadIssue && normalizedScope.scopeType === "sequenceGroup" && normalizedScope.sequenceGroup
-      ? buildThreadIssueReport(caseItem, normalizedScope.sequenceGroup, { generatedAt })
+      ? buildThreadIssueReport(caseItem, normalizedScope.sequenceGroup, { generatedAt, issueId: normalizedScope.issueId })
       : null,
     evidencePack: selectedSections.evidencePack ? buildEvidencePackReport(caseItem, childScope, { generatedAt }) : null,
     documentPack: selectedSections.documentPack ? buildDocumentPackReport(caseItem, childScope, { generatedAt }) : null,

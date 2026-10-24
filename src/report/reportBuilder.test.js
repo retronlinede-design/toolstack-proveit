@@ -132,6 +132,34 @@ function buildCase() {
   };
 }
 
+function buildCanonicalIssueCase() {
+  return {
+    id: "case-canonical-issues",
+    name: "Canonical scope case",
+    issues: [
+      { id: "issue-a", reference: "ISS-001", name: "Shared issue" },
+      { id: "issue-b", reference: "ISS-002", name: "Shared issue" },
+    ],
+    incidents: [
+      { id: "inc-a", title: "A incident", sequenceGroupId: "issue-a", sequenceGroup: "Shared issue" },
+      { id: "inc-b", title: "B incident", sequenceGroupId: "issue-b", sequenceGroup: "Shared issue" },
+      { id: "inc-stale", title: "Stale incident", sequenceGroupId: "removed-issue", sequenceGroup: "Shared issue" },
+      { id: "inc-legacy", title: "Ambiguous legacy incident", sequenceGroup: "Shared issue" },
+    ],
+    evidence: [
+      { id: "ev-a", title: "A evidence", sequenceGroupId: "issue-a", sequenceGroup: "Shared issue" },
+      { id: "ev-b", title: "B evidence", sequenceGroupId: "issue-b", sequenceGroup: "Shared issue" },
+    ],
+    documents: [
+      { id: "doc-a", title: "A document", sequenceGroupId: "issue-a", sequenceGroup: "Shared issue" },
+      { id: "doc-b", title: "B document", sequenceGroupId: "issue-b", sequenceGroup: "Shared issue" },
+    ],
+    strategy: [],
+    ledger: [],
+    watchItems: [],
+  };
+}
+
 test("structured strategy projection prefers objective and resolves planning metadata", () => {
   const source = { id: "s1", title: "Plan", objective: "Primary objective", description: "Primary objective", rationale: "Because", desiredOutcome: "Resolved", priority: "high", reviewDate: "2026-07-23", ownerPartyId: "p1", assumptions: [" Assumption "], risks: [{ text: "Risk" }], nextSteps: ["Act"] };
   const caseItem = { parties: [{ id: "p1", displayName: "Case Owner" }] };
@@ -238,6 +266,84 @@ test("buildThreadIssueReport includes matching sequenceGroup records plus direct
   assert.deepEqual(report.evidence.map((item) => item.id), ["ev-1"]);
   assert.deepEqual(report.documents.map((item) => item.id), ["doc-1"]);
   assert.deepEqual(report.ledger.map((item) => item.id), ["led-1"]);
+});
+
+test("legacy Case Documentation reports scope direct records by canonical Issue ID, not a duplicate display name", () => {
+  const caseItem = buildCanonicalIssueCase();
+  const thread = buildThreadIssueReport(caseItem, "Shared issue", {
+    issueId: "issue-a",
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+  const evidence = buildEvidencePackReport(caseItem, {
+    scopeType: "sequenceGroup",
+    issueId: "issue-a",
+    sequenceGroup: "Shared issue",
+  }, { generatedAt: "2024-02-01T00:00:00.000Z" });
+  const documents = buildDocumentPackReport(caseItem, {
+    scopeType: "sequenceGroup",
+    issueId: "issue-a",
+    sequenceGroup: "Shared issue",
+  }, { generatedAt: "2024-02-01T00:00:00.000Z" });
+  const bundle = buildCaseBundleReport(caseItem, {
+    scopeType: "sequenceGroup",
+    issueId: "issue-a",
+    sequenceGroup: "Shared issue",
+  }, { generatedAt: "2024-02-01T00:00:00.000Z" });
+
+  assert.deepEqual(thread.includedRecordIds.sort(), ["doc-a", "ev-a", "inc-a"]);
+  assert.deepEqual(evidence.includedEvidenceIds, ["ev-a"]);
+  assert.deepEqual(documents.includedDocumentIds, ["doc-a"]);
+  assert.deepEqual(bundle.sections.threadIssue.includedRecordIds.sort(), ["doc-a", "ev-a", "inc-a"]);
+});
+
+test("legacy Case Documentation reports fail closed for stale canonical IDs and ambiguous legacy Issue names", () => {
+  const caseItem = buildCanonicalIssueCase();
+  const stale = buildEvidencePackReport(caseItem, {
+    scopeType: "sequenceGroup",
+    issueId: "removed-issue",
+    sequenceGroup: "Shared issue",
+  }, { generatedAt: "2024-02-01T00:00:00.000Z" });
+  const ambiguousLegacy = buildDocumentPackReport(caseItem, {
+    scopeType: "sequenceGroup",
+    sequenceGroup: "Shared issue",
+  }, { generatedAt: "2024-02-01T00:00:00.000Z" });
+
+  assert.equal(stale.sequenceGroup, "");
+  assert.deepEqual(stale.includedEvidenceIds, []);
+  assert.equal(ambiguousLegacy.sequenceGroup, "");
+  assert.deepEqual(ambiguousLegacy.includedDocumentIds, []);
+});
+
+test("canonical Issue scope survives renames and follows record reassignment", () => {
+  const caseItem = buildCanonicalIssueCase();
+  caseItem.issues[0].name = "Renamed issue";
+  caseItem.incidents[0].sequenceGroup = "Old issue label";
+  const renamed = buildThreadIssueReport(caseItem, "Shared issue", {
+    issueId: "issue-a",
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+  caseItem.incidents[0].sequenceGroupId = "issue-b";
+  const reassigned = buildThreadIssueReport(caseItem, "Renamed issue", {
+    issueId: "issue-a",
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+
+  assert.equal(renamed.sequenceGroup, "Renamed issue");
+  assert.equal(renamed.includedRecordIds.includes("inc-a"), true);
+  assert.equal(reassigned.includedRecordIds.includes("inc-a"), false);
+});
+
+test("legacy name-only records remain reportable only for a uniquely resolvable Issue", () => {
+  const caseItem = buildCanonicalIssueCase();
+  caseItem.issues = [{ id: "issue-unique", reference: "ISS-003", name: "Unique issue" }];
+  caseItem.incidents = [{ id: "inc-legacy", title: "Legacy", sequenceGroup: "Unique issue" }];
+
+  const report = buildThreadIssueReport(caseItem, "Unique issue", {
+    issueId: "issue-unique",
+    generatedAt: "2024-02-01T00:00:00.000Z",
+  });
+
+  assert.deepEqual(report.includedRecordIds, ["inc-legacy"]);
 });
 
 test("buildThreadIssueReport sorts chronology by date with missing dates last", () => {
