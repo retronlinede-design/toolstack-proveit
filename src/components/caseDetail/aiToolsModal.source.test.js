@@ -5,12 +5,12 @@ import { readFileSync } from "node:fs";
 const caseDetail = readFileSync("src/components/CaseDetail.jsx", "utf8");
 const workspace = readFileSync("src/components/caseDetail/AiWorkspaceTab.jsx", "utf8");
 
-test("AI Workspace is rendered as a case tab with its sectioned controls", () => {
+test("AI Workspace is rendered as a case tab with its full-width tool controls", () => {
   assert.match(caseDetail, /activeTab === "ai-workspace"/);
   assert.match(caseDetail, /<AiWorkspaceTab/);
-  assert.match(workspace, /case-file-ai-workspace-layout/);
+  assert.match(workspace, /data-ai-workspace-tool-navigation/);
   assert.match(workspace, /data-ai-workspace-primary/);
-  assert.match(workspace, /data-ai-workspace-rail/);
+  assert.doesNotMatch(workspace, /data-ai-workspace-rail/);
   assert.match(workspace, /Selected tool/);
   assert.match(workspace, /Technical tool/);
   assert.match(workspace, /Use this when/);
@@ -24,13 +24,14 @@ test("AI Workspace remains a sectioned case-specific interface", () => {
   assert.match(workspace, /AI Workspace/);
   assert.match(workspace, /Case-specific AI workspace/);
   assert.match(workspace, /Prepare bounded external AI handoffs and reviewed updates/);
-  assert.match(workspace, /Handoffs &amp; exports/);
+  assert.match(workspace, /Case Context/);
+  assert.match(workspace, /Issue Review/);
+  assert.match(workspace, /Case Quality/);
   assert.match(workspace, /Reviewed updates/);
-  assert.match(workspace, /workspaceSections\.map/);
-  assert.match(workspace, /section\.groups \|\|/);
-  assert.match(workspace, /data-ai-workspace-task-group/);
+  assert.match(workspace, /navigationGroups\.map/);
+  assert.match(workspace, /sectionById\.get\("share-case-context"\)/);
   assert.match(workspace, /data-ai-workspace-advanced/);
-  assert.match(workspace, /SectionIcon/);
+  assert.match(workspace, /data-ai-workspace-tool-list/);
   assert.match(workspace, /\{task\.technicalTool\}/);
 });
 
@@ -51,9 +52,9 @@ test("AI Workspace entry points retain their requested tool and reset workspace 
 });
 
 test("AI Workspace shows canonical case context and does not embed Reports Centre articles", () => {
-  assert.match(workspace, /Case identifier/);
+  assert.match(workspace, /Case ID/);
   assert.match(workspace, /caseRevision/);
-  assert.match(workspace, /Active scope/);
+  assert.match(workspace, /<dt>Scope<\/dt>/);
   assert.match(workspace, /issue\.id === issueSelection/);
   assert.doesNotMatch(workspace, /recommendedContent/);
   assert.doesNotMatch(workspace, /IncidentScheduleReportArticle|ChronologyReportArticle|CaseAuditReportArticle/);
@@ -87,7 +88,7 @@ test("Issue Review selects an existing scoped builder and retains legacy task co
   assert.match(caseDetail, /function selectIssueReviewMode\(modeId\)/);
   assert.match(caseDetail, /task\.actionKind === "issue-review"/);
   assert.match(caseDetail, /setIssueReviewMode\(ISSUE_REVIEW_MODES\[0\]\.id\)/);
-  assert.match(workspace, /data-ai-workspace-issue-review/);
+  assert.match(workspace, /type="issue-review"/);
   assert.match(workspace, /Issue Review modes/);
   assert.match(workspace, /selectedIssueReviewMode\.toolId/);
   assert.match(workspace, /disabled=\{disabledForMissingIssue\}/);
@@ -107,7 +108,7 @@ test("Case Quality Review selects an existing audit builder without changing its
   assert.match(caseDetail, /const legacyMode = CASE_QUALITY_REVIEW_MODES\.find\(\(mode\) => mode\.legacyTaskId === activeAiTask\)/);
   assert.match(caseDetail, /function selectCaseQualityReviewMode\(modeId\)/);
   assert.match(caseDetail, /setAiToolsFeedback\(""\)/);
-  assert.match(workspace, /data-ai-workspace-quality-review/);
+  assert.match(workspace, /type="quality"/);
   assert.match(workspace, /Case Quality Review checks/);
   assert.match(workspace, /selectedCaseQualityReviewMode\.toolId/);
   assert.match(workspace, /They do not run embedded AI analysis or change case data/);

@@ -8,9 +8,9 @@ const styles = readFileSync(new URL("../../index.css", import.meta.url), "utf8")
 test("AI Workspace exposes a dedicated dark-navy styling scope", () => {
   assert.match(workspace, /className="case-file-ai-workspace"/);
   assert.match(styles, /\.case-file-ai-workspace \{ border: 1px solid var\(--pi-border\)/);
-  assert.match(styles, /case-file-ai-workspace-layout/);
-  assert.match(styles, /\[data-ai-workspace-rail\]/);
-  assert.match(styles, /\[data-ai-workspace-navigation\]/);
+  assert.match(workspace, /data-ai-workspace-tool-navigation/);
+  assert.match(styles, /\[data-ai-workspace-tool-navigation\] \{ display: flex/);
+  assert.match(styles, /overflow-x: auto/);
   assert.match(styles, /\[data-ai-workspace-primary\]/);
   assert.match(styles, /var\(--pi-accent\)/);
 });
@@ -24,9 +24,9 @@ test("AI Workspace task selection has explicit state and keyboard-visible focus"
 
 test("AI Workspace keeps advanced and transitional tools subordinate by default", () => {
   assert.match(workspace, /data-ai-workspace-advanced/);
-  assert.match(workspace, /<details key=\{section\.id\}/);
-  assert.match(workspace, /data-ai-workspace-task-group/);
-  assert.match(styles, /\[data-ai-workspace-advanced\] > summary:focus-visible/);
+  assert.match(workspace, /<details key=\{group\.id\} data-ai-workspace-advanced open=\{groupIsActive\}/);
+  assert.match(workspace, /label: "Advanced"/);
+  assert.match(styles, /\[data-ai-workspace-advanced\] summary:focus-visible/);
 });
 
 test("AI Workspace keeps feedback announced and actions in its working area", () => {
@@ -37,19 +37,27 @@ test("AI Workspace keeps feedback announced and actions in its working area", ()
 });
 
 test("Case Quality Review uses an accessible active-mode selector", () => {
-  assert.match(workspace, /data-ai-workspace-quality-modes/);
-  assert.match(workspace, /aria-pressed=\{selectedCaseQualityReviewMode\.id === mode\.id\}/);
-  assert.match(styles, /data-ai-workspace-quality-modes/);
+  assert.match(workspace, /data-ai-workspace-review-modes=\{type\}/);
+  assert.match(workspace, /aria-pressed=\{selectedMode\.id === mode\.id\}/);
+  assert.match(styles, /data-ai-workspace-review-modes/);
   assert.match(styles, /button\[aria-pressed="true"\]/);
   assert.match(styles, /grid-template-columns: repeat\(2/);
 });
 
 test("Issue Review reuses the accessible two-mode presentation", () => {
-  assert.match(workspace, /data-ai-workspace-issue-review-modes/);
-  assert.match(workspace, /aria-pressed=\{selectedIssueReviewMode\.id === mode\.id\}/);
+  assert.match(workspace, /type="issue-review"/);
+  assert.match(workspace, /label="Issue Review modes"/);
   assert.match(workspace, /Issue Review modes/);
-  assert.match(styles, /data-ai-workspace-issue-review-modes/);
-  assert.match(styles, /data-ai-workspace-issue-review/);
+  assert.match(styles, /data-ai-workspace-review/);
+});
+
+test("AI Workspace uses a full-width working panel without the legacy rail", () => {
+  assert.match(workspace, /data-ai-workspace-tool-navigation aria-label="AI Workspace tools"/);
+  assert.match(workspace, /data-ai-workspace-reviewed-updates/);
+  assert.match(workspace, /<main data-ai-workspace-primary>/);
+  assert.doesNotMatch(workspace, /data-ai-workspace-rail/);
+  assert.doesNotMatch(workspace, /case-file-ai-workspace-layout/);
+  assert.match(styles, /\[data-ai-workspace-details\] \{ width: 100%/);
 });
 
 test("AI Workspace scope is based on the active tool and warns before a stale Issue handoff", () => {
