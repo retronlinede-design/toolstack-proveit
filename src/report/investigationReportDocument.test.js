@@ -68,6 +68,32 @@ test("source references are deterministic, visible in Markdown, and do not claim
   assert.equal(exportedJson.sections.find((item) => item.id === "source-register").groups.find((group) => group.id === "direct-issue-records").items[0].recordId, "i1");
 });
 
+test("duplicate Issue names retain canonical direct membership and separately label linked context", () => {
+  const source = {
+    id: "duplicate-names", name: "Duplicate names", issues: [
+      { id: "issue-a", reference: "ISS-001", name: "Same", status: "open", priority: "high", createdAt: "2026-01-01", updatedAt: "2026-01-01" },
+      { id: "issue-b", reference: "ISS-002", name: "Same", status: "open", priority: "normal", createdAt: "2026-01-01", updatedAt: "2026-01-01" },
+    ],
+    incidents: [
+      { id: "direct-a", title: "Direct A", sequenceGroupId: "issue-a", sequenceGroup: "Same", linkedRecordIds: ["context-b"] },
+      { id: "context-b", title: "Context B", sequenceGroupId: "issue-b", sequenceGroup: "Same", linkedRecordIds: ["direct-a"] },
+      { id: "invalid", title: "Invalid assignment", sequenceGroupId: "missing", sequenceGroup: "Same" },
+    ],
+    evidence: [], documents: [], ledger: [], strategy: [], watchItems: [],
+  };
+  const model = buildCaseReportModel(source, { scope: "sequenceGroup", issueId: "issue-a", generatedAt, includeDiagnostics: true });
+  const document = buildInvestigationReportDocument(model, getReportDefinition("investigation"), { generatedAt });
+  const sourceRegister = document.sections.find((item) => item.id === "source-register");
+  const direct = sourceRegister.groups.find((group) => group.id === "direct-issue-records").items;
+  const linked = sourceRegister.groups.find((group) => group.id === "linked-context").items;
+
+  assert.deepEqual(direct.map((item) => item.recordId), ["direct-a"]);
+  assert.deepEqual(linked.map((item) => item.recordId), ["context-b"]);
+  assert.equal(JSON.stringify(document).includes("Invalid assignment"), false);
+  assert.match(formatReportDocumentAsMarkdown(document), /Direct Issue record/);
+  assert.match(formatReportDocumentAsMarkdown(document), /Additional linked context/);
+});
+
 test("empty, metadata-only, and missing Issue states are explicit", () => {
   const empty = build({ id: "empty", name: "Empty", incidents: [], evidence: [], documents: [], ledger: [], strategy: [], watchItems: [] }).document; assert.equal(empty.summary.summaryText, "No investigation records are available in this case.");
   const source = caseFixture(); source.issues.push({ id: "issue-empty", reference: "ISS-004", name: "Metadata Only", status: "open", priority: "normal", createdAt: "2026-01-01", updatedAt: "2026-01-01" });

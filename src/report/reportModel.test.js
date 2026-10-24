@@ -176,3 +176,59 @@ test("Issue scope resolves by immutable ID and exposes human reference after ren
   assert.equal(model.scope.displayLabel, "ISS-003 — Renamed Issue");
   assert.equal(model.sequenceGroups.find((group) => group.issueId === "issue_stable").priority, "high");
 });
+
+test("canonical Issue membership never falls back from an explicit ID to a duplicate or stale name", () => {
+  const source = {
+    id: "membership-case",
+    issues: [
+      { id: "issue-a", reference: "ISS-001", name: "Same name", status: "open", priority: "high", createdAt: "2026-01-01", updatedAt: "2026-01-01" },
+      { id: "issue-b", reference: "ISS-002", name: "Same name", status: "open", priority: "normal", createdAt: "2026-01-01", updatedAt: "2026-01-01" },
+    ],
+    retiredIssues: [{ id: "retired-issue", reference: "ISS-003", name: "Retired issue" }],
+    incidents: [
+      { id: "a", title: "A", sequenceGroupId: "issue-a", sequenceGroup: "Same name" },
+      { id: "b", title: "B", sequenceGroupId: "issue-b", sequenceGroup: "Same name" },
+      { id: "invalid", title: "Invalid", sequenceGroupId: "missing-issue", sequenceGroup: "Same name" },
+      { id: "retired", title: "Retired", sequenceGroupId: "retired-issue", sequenceGroup: "Retired issue" },
+      { id: "ambiguous-legacy", title: "Ambiguous legacy", sequenceGroup: "Same name" },
+    ],
+    evidence: [], documents: [], ledger: [], strategy: [], watchItems: [],
+  };
+  const before = structuredClone(source);
+  const issueA = buildCaseReportModel(source, { scope: "sequenceGroup", issueId: "issue-a", sequenceGroupName: "Same name", includeDiagnostics: false });
+  const issueB = buildCaseReportModel(source, { scope: "sequenceGroup", issueId: "issue-b", sequenceGroupName: "Same name", includeDiagnostics: false });
+
+  assert.deepEqual(issueA.records.primaryScopedRecords.map((record) => record.id), ["a"]);
+  assert.deepEqual(issueB.records.primaryScopedRecords.map((record) => record.id), ["b"]);
+  assert.equal(issueA.sequenceGroups.filter((group) => group.name === "Same name").length, 2);
+  assert.deepEqual(source, before);
+});
+
+test("legacy name-only membership remains available only when unambiguous and canonical membership survives rename and reassignment", () => {
+  const source = {
+    id: "membership-lifecycle",
+    issues: [
+      { id: "issue-a", reference: "ISS-001", name: "Alpha", status: "open", priority: "high", createdAt: "2026-01-01", updatedAt: "2026-01-01" },
+      { id: "issue-b", reference: "ISS-002", name: "Beta", status: "open", priority: "normal", createdAt: "2026-01-01", updatedAt: "2026-01-01" },
+    ],
+    incidents: [
+      { id: "canonical", title: "Canonical", sequenceGroupId: "issue-a", sequenceGroup: "Outdated Alpha name" },
+      { id: "legacy", title: "Legacy", sequenceGroup: "Alpha" },
+    ],
+    evidence: [], documents: [], ledger: [], strategy: [], watchItems: [],
+  };
+
+  const renamed = structuredClone(source);
+  renamed.issues[0].name = "Renamed Alpha";
+  renamed.incidents[1].sequenceGroup = "Renamed Alpha";
+  const renamedModel = buildCaseReportModel(renamed, { scope: "sequenceGroup", issueId: "issue-a", includeDiagnostics: false });
+  assert.deepEqual(renamedModel.records.primaryScopedRecords.map((record) => record.id), ["canonical", "legacy"]);
+
+  const reassigned = structuredClone(renamed);
+  reassigned.incidents[0].sequenceGroupId = "issue-b";
+  reassigned.incidents[0].sequenceGroup = "Beta";
+  const afterReassignment = buildCaseReportModel(reassigned, { scope: "sequenceGroup", issueId: "issue-a", includeDiagnostics: false });
+  const destination = buildCaseReportModel(reassigned, { scope: "sequenceGroup", issueId: "issue-b", includeDiagnostics: false });
+  assert.deepEqual(afterReassignment.records.primaryScopedRecords.map((record) => record.id), ["legacy"]);
+  assert.deepEqual(destination.records.primaryScopedRecords.map((record) => record.id), ["canonical"]);
+});

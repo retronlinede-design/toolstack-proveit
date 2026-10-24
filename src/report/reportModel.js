@@ -1,5 +1,4 @@
 import { analyzeCaseDiagnostics } from "../diagnostics/caseDiagnostics.js";
-import { getCaseSequenceGroupDetails } from "../domain/caseDomain.js";
 import { buildSequenceGroupAuditReport } from "../export/sequenceGroupAuditExport.js";
 import { getIssueDisplayLabel, normalizeCaseIssues } from "../domain/issueDomain.js";
 import {
@@ -138,30 +137,86 @@ function resolveReferences(records, parties) {
   return { records: resolvedRecords, unresolvedReferences: [...unresolved.values()] };
 }
 
-function buildGroups(caseData, records, sequenceGroupMeta, includeDiagnostics) {
-  const domainDetails = getCaseSequenceGroupDetails(caseData);
-  const definitions = new Map();
-  (caseData.issues || []).forEach((issue) => definitions.set(normaliseGroup(issue.name), { name: issue.name, issue, registered: true, inferred: false }));
-  domainDetails.groups.forEach((group) => {
-    const key = normaliseGroup(group.name);
-    definitions.set(key, { ...(definitions.get(key) || {}), name: group.name, inferred: true });
-  });
-  Object.keys(sequenceGroupMeta).forEach((name) => definitions.set(normaliseGroup(name), {
-    ...(definitions.get(normaliseGroup(name)) || {}),
-    name,
-    registered: true,
-    inferred: definitions.has(normaliseGroup(name)),
-  }));
-  records.forEach((record) => {
-    if (!record.sequenceGroup) return;
-    const key = normaliseGroup(record.sequenceGroup);
-    if (!definitions.has(key)) definitions.set(key, { name: record.sequenceGroup, registered: false, inferred: true });
+function createIssueMembershipResolver(caseData = {}) {
+  const activeIssues = Array.isArray(caseData.issues) ? caseData.issues.filter((issue) => text(issue?.id)) : [];
+  const issuesById = new Map();
+  const issuesByName = new Map();
+  const retiredIds = new Set((Array.isArray(caseData.retiredIssues) ? caseData.retiredIssues : []).map((issue) => text(issue?.id)).filter(Boolean));
+  const retiredNames = new Set((Array.isArray(caseData.retiredIssues) ? caseData.retiredIssues : []).map((issue) => normaliseGroup(issue?.name)).filter(Boolean));
+  const sourceRecords = new Map();
+
+  activeIssues.forEach((issue) => {
+    const byId = issuesById.get(issue.id) || [];
+    byId.push(issue);
+    issuesById.set(issue.id, byId);
+    const key = normaliseGroup(issue.name);
+    if (!key) return;
+    const byName = issuesByName.get(key) || [];
+    byName.push(issue);
+    issuesByName.set(key, byName);
   });
 
-  const groups = [...definitions.values()]
-    .sort((a, b) => a.name.localeCompare(b.name))
+  REPORT_MODEL_RECORD_TYPES.forEach(({ type, collection }) => {
+    (Array.isArray(caseData[collection]) ? caseData[collection] : []).forEach((record) => {
+      if (text(record?.id)) sourceRecords.set(`${type}:${text(record.id)}`, record);
+    });
+  });
+
+  function resolve(record = {}) {
+    const sourceRecord = sourceRecords.get(`${record.type}:${record.id}`) || record;
+    const explicitIssueId = text(sourceRecord.sequenceGroupId);
+    if (explicitIssueId) {
+      const matches = issuesById.get(explicitIssueId) || [];
+      return matches.length === 1
+        ? { kind: "canonical", issue: matches[0] }
+        : { kind: retiredIds.has(explicitIssueId) ? "retired" : "invalid-id" };
+    }
+
+    const legacyName = text(sourceRecord.sequenceGroup);
+    const key = normaliseGroup(legacyName);
+    if (!key) return { kind: "unassigned" };
+    if (retiredNames.has(key)) return { kind: "retired" };
+    const matches = issuesByName.get(key) || [];
+    if (matches.length === 1) return { kind: "canonical", issue: matches[0], legacyFallback: true };
+    if (matches.length > 1) return { kind: "ambiguous-legacy-name", name: legacyName };
+    return { kind: "legacy", name: legacyName };
+  }
+
+  return { activeIssues, retiredNames, resolve };
+}
+
+function buildGroups(originalCaseData, records, sequenceGroupMeta, includeDiagnostics) {
+  const membership = createIssueMembershipResolver(originalCaseData);
+  const definitions = membership.activeIssues.map((issue) => ({
+    key: `issue:${issue.id}`,
+    name: issue.name,
+    issue,
+    registered: true,
+    inferred: false,
+  }));
+  const legacyDefinitions = new Map();
+  const addLegacyDefinition = (name, registered = false) => {
+    const key = normaliseGroup(name);
+    if (!key || membership.retiredNames.has(key) || (membership.activeIssues.filter((issue) => normaliseGroup(issue.name) === key).length > 0)) return;
+    const existing = legacyDefinitions.get(key);
+    legacyDefinitions.set(key, { key: `legacy:${key}`, name: text(name), issue: null, registered: registered || existing?.registered || false, inferred: Boolean(existing) || !registered });
+  };
+  Object.keys(sequenceGroupMeta).forEach((name) => addLegacyDefinition(name, true));
+  records.forEach((record) => {
+    const resolved = membership.resolve(record);
+    if (resolved.kind === "legacy") addLegacyDefinition(resolved.name);
+  });
+  definitions.push(...legacyDefinitions.values());
+
+  const groups = definitions
+    .sort((a, b) => a.name.localeCompare(b.name) || String(a.issue?.id || "").localeCompare(String(b.issue?.id || "")))
     .map((definition, order) => {
-      const matching = records.filter((record) => normaliseGroup(record.sequenceGroup) === normaliseGroup(definition.name));
+      const matching = records.filter((record) => {
+        const resolved = membership.resolve(record);
+        return definition.issue
+          ? resolved.kind === "canonical" && resolved.issue.id === definition.issue.id
+          : resolved.kind === "legacy" && normaliseGroup(resolved.name) === normaliseGroup(definition.name);
+      });
       const recordsByType = Object.fromEntries(REPORT_MODEL_RECORD_TYPES.map(({ type }) => [type, matching.filter((record) => record.type === type).map(recordReference)]));
       const totalsByType = Object.fromEntries(REPORT_MODEL_RECORD_TYPES.map(({ type }) => [type, recordsByType[type].length]));
       const description = text(sequenceGroupMeta[definition.name]?.description)
@@ -190,11 +245,14 @@ function buildGroups(caseData, records, sequenceGroupMeta, includeDiagnostics) {
         totals: { uniqueRecordCount: new Set(matching.map(recordReference)).size, byType: totalsByType },
         recordIds: matching.map(recordReference),
         recordsByType,
-        diagnostics: includeDiagnostics ? buildSequenceGroupAuditReport(caseData, definition.name, { sequenceGroupMeta }).diagnostics : null,
+        diagnostics: includeDiagnostics ? buildSequenceGroupAuditReport(originalCaseData, definition.name, {
+          sequenceGroupMeta,
+          ...(definition.issue ? { issueId: definition.issue.id } : {}),
+        }).diagnostics : null,
       };
     });
 
-  return { groups, domainUngrouped: domainDetails.ungroupedRecords };
+  return { groups, membership };
 }
 
 function buildChronology(records) {
@@ -230,14 +288,19 @@ export function buildCaseReportModel(caseData, options = {}) {
   const revisionRecords = includeArchived
     ? allRecords
     : resolveReferences(collectRecords(source, true), parties).records;
-  const { groups } = buildGroups(source, allRecords, sequenceGroupMeta, includeDiagnostics);
+  const { groups, membership } = buildGroups(rawSource, allRecords, sequenceGroupMeta, includeDiagnostics);
   const selectedGroup = requestedScope === "sequenceGroup"
     ? groups.find((group) => requestedIssueId ? group.issueId === requestedIssueId : normaliseGroup(group.name) === normaliseGroup(requestedGroup))
     : null;
   const scopeIsValid = requestedScope === "case" || Boolean(selectedGroup);
   const primaryScopedRecords = requestedScope === "case"
     ? allRecords
-    : scopeIsValid ? allRecords.filter((record) => normaliseGroup(record.sequenceGroup) === normaliseGroup(selectedGroup.name)) : [];
+    : scopeIsValid ? allRecords.filter((record) => {
+      const resolved = membership.resolve(record);
+      return selectedGroup.issueId
+        ? resolved.kind === "canonical" && resolved.issue.id === selectedGroup.issueId
+        : resolved.kind === "legacy" && normaliseGroup(resolved.name) === normaliseGroup(selectedGroup.name);
+    }) : [];
   const scopedReferences = new Set(primaryScopedRecords.map(recordReference));
   const scopedUnresolved = resolved.unresolvedReferences.filter((item) => {
     if (requestedScope === "case") return true;
