@@ -79,3 +79,15 @@ test("Issue-scoped AI handoff controls retain canonical Issue IDs", () => {
   assert.match(caseDetail, /\.\.\.scope/);
   assert.match(workspace, /option key=\{issue\.id\} value=\{issue\.id\}/);
 });
+
+test("Case Quality Review selects an existing audit builder without changing its output pathway", () => {
+  assert.match(caseDetail, /CASE_QUALITY_REVIEW_MODES\.find\(\(mode\) => mode\.toolId === toolId \|\| mode\.legacyTaskId === toolId\)/);
+  assert.match(caseDetail, /setActiveAiTask\(qualityMode \? "case-quality-review"/);
+  assert.match(caseDetail, /const legacyMode = CASE_QUALITY_REVIEW_MODES\.find\(\(mode\) => mode\.legacyTaskId === activeAiTask\)/);
+  assert.match(caseDetail, /function selectCaseQualityReviewMode\(modeId\)/);
+  assert.match(caseDetail, /setAiToolsFeedback\(""\)/);
+  assert.match(workspace, /data-ai-workspace-quality-review/);
+  assert.match(workspace, /Case Quality Review checks/);
+  assert.match(workspace, /selectedCaseQualityReviewMode\.toolId/);
+  assert.match(workspace, /They do not run embedded AI analysis or change case data/);
+});

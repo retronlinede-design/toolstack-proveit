@@ -89,6 +89,37 @@ export const AI_TOOL_OPTIONS = [
   },
 ];
 
+export const CASE_QUALITY_REVIEW_MODES = [
+  {
+    id: "investigation-gaps",
+    legacyTaskId: "find-investigation-gaps",
+    toolId: "weak-links-audit",
+    label: "Investigation Gaps",
+    description: "Checks for disconnected, unsupported, duplicated, or otherwise weak case records.",
+  },
+  {
+    id: "evidence-summaries",
+    legacyTaskId: "improve-evidence-summaries",
+    toolId: "missing-function-summaries",
+    label: "Evidence Summaries",
+    description: "Identifies evidence whose recorded proof purpose is missing or unclear.",
+  },
+  {
+    id: "ungrouped-incidents",
+    legacyTaskId: "review-ungrouped-incidents",
+    toolId: "ungrouped-incidents-audit",
+    label: "Ungrouped Incidents",
+    description: "Lists incidents that are not assigned to an Issue for external review.",
+  },
+  {
+    id: "ungrouped-evidence",
+    legacyTaskId: "review-ungrouped-evidence",
+    toolId: "ungrouped-evidence-audit",
+    label: "Ungrouped Evidence",
+    description: "Lists evidence that is not assigned to an Issue for external review.",
+  },
+];
+
 export const AI_WORKSPACE_SECTIONS = [
   {
     id: "share-case-context",
@@ -111,10 +142,7 @@ export const AI_WORKSPACE_SECTIONS = [
         { id: "complete-investigation-thread", title: "Completion & Gaps", toolId: "chain-completion-pack", technicalTool: "Chain Completion Pack", useThisWhen: "Use this when one Issue needs missing proof, weak-link, or completion checks.", bestGpt: ["Investigation Review GPT", "Legal Specialist"] },
       ] },
       { id: "case-quality-review", title: "Case Quality Review", description: "Run targeted diagnostics for evidence purpose, assignment, and relationship gaps.", tasks: [
-        { id: "find-investigation-gaps", title: "Find Investigation Gaps", toolId: "weak-links-audit", technicalTool: "Weak Links Audit", useThisWhen: "Use this when records feel disconnected, unsupported, duplicated, or hard to trust.", bestGpt: ["Investigation Review GPT", "Legal Specialist", "General ChatGPT"] },
-        { id: "improve-evidence-summaries", title: "Improve Evidence Summaries", toolId: "missing-function-summaries", technicalTool: "Missing Function Summaries", useThisWhen: "Use this when evidence exists but its proof purpose is unclear or incomplete.", bestGpt: ["Investigation Review GPT", "Legal Specialist"] },
-        { id: "review-ungrouped-incidents", title: "Review Ungrouped Incidents", toolId: "ungrouped-incidents-audit", technicalTool: "Ungrouped Incidents Audit", useThisWhen: "Use this when incidents need assigning to Issues.", bestGpt: ["Investigation Review GPT", "General ChatGPT"] },
-        { id: "review-ungrouped-evidence", title: "Review Ungrouped Evidence", toolId: "ungrouped-evidence-audit", technicalTool: "Ungrouped Evidence Audit", useThisWhen: "Use this when evidence needs assigning to Issues.", bestGpt: ["Investigation Review GPT", "General ChatGPT"] },
+        { id: "case-quality-review", title: "Case Quality Review", technicalTool: "Targeted case diagnostics", actionKind: "case-quality-review", purpose: "Choose one existing quality check, then prepare its bounded JSON or Markdown handoff for external AI review.", useThisWhen: "Use this to review case-wide evidence, assignment, and relationship quality without changing case data.", bestGpt: ["Investigation Review GPT", "Legal Specialist", "General ChatGPT"], contains: ["One selected diagnostic export", "Canonical record identifiers", "Bounded record summaries"], doesNotInclude: ["Original files", "Binary attachments", "Embedded AI analysis", "Import capability"], safety: ["Read Only", "External handoff", "Does not change case data"] },
       ] },
     ],
   },
@@ -189,76 +217,20 @@ export const AI_TASK_GUIDANCE = {
       "Summarise the strongest and weakest parts of this case.",
     ],
   },
-  "find-investigation-gaps": {
+  "case-quality-review": {
     workflow: [
-      "Copy the gap audit export.",
-      "Open an investigation review GPT.",
-      "Paste the export.",
-      "Ask it to identify missing proof, weak links, and unsupported records.",
-      "Review each recommendation in ProveIt before changing the case.",
-    ],
-    recommendedGpt: "Investigation Review GPT",
-    alsoSuitableFor: ["General ChatGPT", "Legal Specialist"],
-    exampleQuestions: [
-      "What evidence is missing?",
-      "Which incidents are unsupported?",
-      "Which documents need better links?",
-      "Where are the weakest areas of the investigation?",
-      "Which links should I fix first?",
-    ],
-  },
-  "improve-evidence-summaries": {
-    workflow: [
-      "Copy the evidence summary export.",
-      "Open an investigation review or legal GPT.",
-      "Paste the export.",
-      "Ask for clearer proof-purpose summaries.",
-      "Use the response to update evidence summaries manually where appropriate.",
+      "Choose the quality check you need.",
+      "Copy its existing JSON pack or Markdown prompt.",
+      "Review it with an external investigation or legal AI service.",
+      "Verify recommendations in ProveIt before making any changes.",
     ],
     recommendedGpt: "Investigation Review GPT",
     alsoSuitableFor: ["Legal Specialist", "General ChatGPT"],
     exampleQuestions: [
-      "Which evidence summaries are too vague?",
-      "Rewrite these evidence summaries in plain investigative language.",
-      "What does each evidence item prove?",
-      "Which evidence summaries need more context?",
-      "Identify evidence that does not clearly support an allegation.",
-    ],
-  },
-  "review-ungrouped-incidents": {
-    workflow: [
-      "Copy the ungrouped incidents audit.",
-      "Open an investigation review GPT.",
-      "Paste the export.",
-      "Ask which incidents belong in existing issue threads.",
-      "Review the recommendations before assigning Issues in ProveIt.",
-    ],
-    recommendedGpt: "Investigation Review GPT",
-    alsoSuitableFor: ["General ChatGPT", "Legal Specialist"],
-    exampleQuestions: [
-      "Which incidents should be grouped together?",
-      "Which incidents belong to an existing issue thread?",
-      "Are any incidents duplicates or near-duplicates?",
-      "Which incidents need more evidence before grouping?",
-      "Suggest Issues for these incidents.",
-    ],
-  },
-  "review-ungrouped-evidence": {
-    workflow: [
-      "Copy the ungrouped evidence audit.",
-      "Open an investigation review GPT.",
-      "Paste the export.",
-      "Ask which evidence belongs to existing issue threads.",
-      "Review the recommendations before assigning Issues in ProveIt.",
-    ],
-    recommendedGpt: "Investigation Review GPT",
-    alsoSuitableFor: ["General ChatGPT", "Legal Specialist"],
-    exampleQuestions: [
-      "Which evidence items should be grouped with existing incidents?",
-      "Which evidence items are not connected to an issue thread?",
-      "Does any evidence appear unrelated?",
-      "Which evidence needs better incident links?",
-      "Suggest Issues for these evidence items.",
+      "What gaps or weak links should I address first?",
+      "Which evidence summaries need clearer proof purpose?",
+      "Which ungrouped records need Issue review?",
+      "What should be checked before reporting?",
     ],
   },
   "review-investigation-thread": {

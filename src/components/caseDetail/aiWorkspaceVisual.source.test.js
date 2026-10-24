@@ -35,3 +35,10 @@ test("AI Workspace keeps feedback announced and actions in its working area", ()
   assert.match(workspace, /data-ai-workspace-action=\{kind\}/);
   assert.match(styles, /\[data-ai-workspace-actions\] \{ display: flex/);
 });
+
+test("Case Quality Review uses an accessible active-mode selector", () => {
+  assert.match(workspace, /data-ai-workspace-quality-modes/);
+  assert.match(workspace, /aria-pressed=\{selectedCaseQualityReviewMode\.id === mode\.id\}/);
+  assert.match(styles, /\[data-ai-workspace-quality-modes\] button\[aria-pressed="true"\]/);
+  assert.match(styles, /\[data-ai-workspace-quality-modes\] \{ display: grid; gap: \.45rem; grid-template-columns: repeat\(2/);
+});

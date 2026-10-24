@@ -8,6 +8,7 @@ export default function AiWorkspaceTab({
   activeTaskActionKind, activeTaskToolId, activeTaskPurpose, activeTaskBestGpt, activeTaskContains,
   activeTaskDoesNotInclude, activeTaskSafety, activeTaskWorkflow, activeRecommendedGpt,
   activeAlsoSuitableGpts, activeExampleQuestions, issueOptions, issueSelection,
+  caseQualityReviewModes = [], selectedCaseQualityReviewModeId, onCaseQualityReviewModeChange,
   caseName, caseId, caseRevision, caseSliceRecordIdsText, feedback, onSelectTask, onIssueSelectionChange,
   onCaseSliceRecordIdsChange, onCopyRecommendedGptJson, onDownloadSplitReasoningPackage,
   onDownloadCurrentCase, onCopyToolJson, onCopyToolMarkdown, onCopyLinkMap, onDownloadProtocolJson, onDownloadProtocolMarkdown,
@@ -17,6 +18,7 @@ export default function AiWorkspaceTab({
   const hasScopeControl = activeToolNeedsIssue;
   const activeScopeLabel = !selectedIssue ? "Entire Case" : selectedIssue.label;
   const disabledForMissingIssue = activeToolNeedsIssue && !issueSelection;
+  const selectedCaseQualityReviewMode = caseQualityReviewModes.find((mode) => mode.id === selectedCaseQualityReviewModeId) || caseQualityReviewModes[0];
 
   return (
     <section className="case-file-ai-workspace" aria-labelledby="ai-workspace-heading">
@@ -49,11 +51,33 @@ export default function AiWorkspaceTab({
               </label>
             )}
 
+            {activeTaskActionKind === "case-quality-review" && selectedCaseQualityReviewMode && (
+              <section data-ai-workspace-quality-review aria-labelledby="case-quality-review-heading">
+                <div className="case-file-ai-workspace-label">Quality check</div>
+                <h4 id="case-quality-review-heading">Choose a focused check</h4>
+                <div role="group" aria-label="Case Quality Review checks" data-ai-workspace-quality-modes>
+                  {caseQualityReviewModes.map((mode) => (
+                    <button
+                      key={mode.id}
+                      type="button"
+                      aria-pressed={selectedCaseQualityReviewMode.id === mode.id}
+                      onClick={() => onCaseQualityReviewModeChange?.(mode.id)}
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
+                </div>
+                <p data-ai-workspace-quality-description>{selectedCaseQualityReviewMode.description}</p>
+                <p data-ai-workspace-quality-notice>Copy actions prepare this bounded material for external AI review. They do not run embedded AI analysis or change case data.</p>
+              </section>
+            )}
+
             <div data-ai-workspace-actions aria-label="Selected tool actions">
               {activeTaskActionKind === "reasoning-snapshot" && <Action kind="copy" onClick={onCopyRecommendedGptJson}>Copy Recommended GPT JSON</Action>}
               {activeTaskActionKind === "split-reasoning-package" && <Action kind="download" onClick={onDownloadSplitReasoningPackage}>Download ZIP</Action>}
               {activeTaskActionKind === "ai-workspace-snapshot" && <Action kind="download" onClick={onDownloadCurrentCase}>Download CURRENT_CASE.json</Action>}
               {activeTaskActionKind === "ai-tool" && <><Action kind="copy" disabled={disabledForMissingIssue} onClick={() => onCopyToolJson(activeTaskToolId)}>Copy JSON</Action><Action kind="copy" disabled={disabledForMissingIssue} onClick={() => onCopyToolMarkdown(activeTaskToolId)}>Copy Markdown Prompt</Action></>}
+              {activeTaskActionKind === "case-quality-review" && <><Action kind="copy" onClick={() => onCopyToolJson(selectedCaseQualityReviewMode.toolId)}>Copy JSON</Action><Action kind="copy" onClick={() => onCopyToolMarkdown(selectedCaseQualityReviewMode.toolId)}>Copy Markdown Prompt</Action></>}
               {activeTaskActionKind === "link-map" && <Action kind="copy" onClick={() => onCopyLinkMap?.(caseId)}>Copy Link Map JSON</Action>}
               {activeTaskActionKind === "protocol-pack" && <><Action kind="download" onClick={onDownloadProtocolJson}>Download JSON</Action><Action kind="download" onClick={onDownloadProtocolMarkdown}>Download Markdown</Action></>}
               {activeTaskActionKind === "gpt-update" && onOpenGptUpdate && <Action kind="reviewed-update" onClick={onOpenGptUpdate}>Open GPT Update</Action>}
