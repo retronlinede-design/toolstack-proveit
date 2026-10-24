@@ -2,60 +2,76 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const source = readFileSync("src/components/CaseDetail.jsx", "utf8");
+const caseDetail = readFileSync("src/components/CaseDetail.jsx", "utf8");
+const workspace = readFileSync("src/components/caseDetail/AiWorkspaceTab.jsx", "utf8");
 
-test("AI Tools modal is viewport constrained with separated right-pane actions", () => {
-  assert.match(source, /max-h-\[90vh\]/);
-  assert.match(source, /flex max-h-\[90vh\] w-full max-w-4xl flex-col overflow-hidden/);
-  assert.match(source, /role="dialog"/);
-  assert.match(source, /aria-modal="true"/);
-  assert.match(source, /aria-labelledby="ai-tools-modal-title"/);
-  assert.match(source, /grid min-h-0 flex-1 overflow-hidden/);
-  assert.match(source, /max-h-56 overflow-y-auto overscroll-contain/);
-  assert.match(source, /min-h-0 space-y-4 overflow-y-auto overscroll-contain/);
-  assert.match(source, /sticky top-0 shrink-0 rounded-md/);
-  assert.match(source, /Selected Task/);
-  assert.match(source, /Technical Tool/);
-  assert.match(source, /Use This When/);
-  assert.match(source, /Best GPT/);
-  assert.match(source, /Workflow/);
-  assert.match(source, /Recommended GPT/);
-  assert.match(source, /Example Questions/);
-  assert.match(source, /mt-3 flex flex-wrap gap-2/);
+test("AI Workspace is rendered as a case tab with its sectioned controls", () => {
+  assert.match(caseDetail, /activeTab === "ai-workspace"/);
+  assert.match(caseDetail, /<AiWorkspaceTab/);
+  assert.match(workspace, /case-file-ai-workspace-layout/);
+  assert.match(workspace, /data-ai-workspace-primary/);
+  assert.match(workspace, /data-ai-workspace-rail/);
+  assert.match(workspace, /Selected tool/);
+  assert.match(workspace, /Technical tool/);
+  assert.match(workspace, /Use this when/);
+  assert.match(workspace, /Best suited to/);
+  assert.match(workspace, /Workflow/);
+  assert.match(workspace, /Recommended GPT/);
+  assert.match(workspace, /Example questions/);
 });
 
-test("AI modal is presented as a sectioned AI Workspace", () => {
-  assert.match(source, /AI Workspace/);
-  assert.match(source, /AI command center/);
-  assert.match(source, /aiWorkspaceSections\.map/);
-  assert.match(source, /\(section\.tasks \|\| \[\]\)\.map/);
-  assert.match(source, /SectionIcon/);
-  assert.match(source, /Uses: \{task\.technicalTool\}/);
+test("AI Workspace remains a sectioned case-specific interface", () => {
+  assert.match(workspace, /AI Workspace/);
+  assert.match(workspace, /Case-specific AI workspace/);
+  assert.match(workspace, /Prepare bounded external AI handoffs and reviewed updates/);
+  assert.match(workspace, /Handoffs &amp; exports/);
+  assert.match(workspace, /Reviewed updates/);
+  assert.match(workspace, /workspaceSections\.map/);
+  assert.match(workspace, /\(section\.tasks \|\| \[\]\)\.map/);
+  assert.match(workspace, /SectionIcon/);
+  assert.match(workspace, /\{task\.technicalTool\}/);
 });
 
-test("AI Tools modal supports Escape close and focus containment", () => {
-  assert.match(source, /function handleAiToolsKeyDown/);
-  assert.match(source, /event\.key === "Escape"/);
-  assert.match(source, /setAiToolsOpen\(false\)/);
-  assert.match(source, /event\.key !== "Tab"/);
-  assert.match(source, /firstElement\.focus\(\)/);
-  assert.match(source, /lastElement\.focus\(\)/);
-  assert.match(source, /previouslyFocusedElement\.focus/);
+test("obsolete AI modal state and document-level keyboard handlers are removed", () => {
+  assert.doesNotMatch(caseDetail, /aiToolsOpen/);
+  assert.doesNotMatch(caseDetail, /handleAiToolsKeyDown/);
+  assert.match(workspace, /onOpenGptUpdate/);
+});
+
+test("AI Workspace entry points retain their requested tool and reset workspace context per case", () => {
+  assert.match(caseDetail, /function openAiWorkspace\(toolId, requestedIssueId = ""\)/);
+  assert.match(caseDetail, /setActiveTab\("ai-workspace"\)/);
+  assert.match(caseDetail, /onOpenAiWorkspace=\{\(\) => openAiWorkspace/);
+  assert.match(caseDetail, /onClick=\{\(\) => openAiWorkspace\(activeAiTool/);
+  assert.match(caseDetail, /setActiveAiTask\("review-entire-investigation"\)/);
+  assert.match(caseDetail, /\[selectedCase\?\.id\]\);/);
+  assert.match(caseDetail, /The selected Issue is no longer available/);
+});
+
+test("AI Workspace shows canonical case context and does not embed Reports Centre articles", () => {
+  assert.match(workspace, /Case identifier/);
+  assert.match(workspace, /caseRevision/);
+  assert.match(workspace, /Active scope/);
+  assert.match(workspace, /issue\.id === issueSelection/);
+  assert.doesNotMatch(workspace, /recommendedContent/);
+  assert.doesNotMatch(workspace, /IncidentScheduleReportArticle|ChronologyReportArticle|CaseAuditReportArticle/);
+  assert.match(caseDetail, /caseName=\{selectedCase\.name\}/);
+  assert.match(caseDetail, /caseRevision=\{selectedCase\.revision\}/);
 });
 
 test("AI Tools modal exposes specialist prompt only for management report builder pack", () => {
-  assert.match(source, /buildManagementReportBuilderSpecialistPrompt/);
-  assert.match(source, /function buildAiToolSpecialistPrompt/);
-  assert.match(source, /function handleCopyAiToolSpecialistPrompt/);
-  assert.match(source, /activeAiToolUsesReportBuilderScope && \(/);
-  assert.match(source, /Copy Specialist Prompt/);
-  assert.match(source, /Copy Markdown Prompt/);
+  assert.match(caseDetail, /buildManagementReportBuilderSpecialistPrompt/);
+  assert.match(caseDetail, /function buildAiToolSpecialistPrompt/);
+  assert.match(caseDetail, /function handleCopyAiToolSpecialistPrompt/);
+  assert.match(workspace, /activeToolUsesWholeCaseScope/);
+  assert.match(workspace, /Copy Specialist Prompt/);
+  assert.match(workspace, /Copy Markdown Prompt/);
 });
 
 test("Issue-scoped AI handoff controls retain canonical Issue IDs", () => {
-  assert.match(source, /const nextIssueId = selectedSequenceGroupId \|\| timelineIssueOptions\[0\]\?\.id \|\| ""/);
-  assert.match(source, /function getAiToolIssueScope/);
-  assert.match(source, /buildFullChainGptPack\(selectedCase, "", \{/);
-  assert.match(source, /\.\.\.scope/);
-  assert.match(source, /option key=\{issue\.id\} value=\{issue\.id\}/);
+  assert.match(caseDetail, /const nextIssueId = selectedSequenceGroupId \|\| timelineIssueOptions\[0\]\?\.id \|\| ""/);
+  assert.match(caseDetail, /function getAiToolIssueScope/);
+  assert.match(caseDetail, /buildFullChainGptPack\(selectedCase, "", \{/);
+  assert.match(caseDetail, /\.\.\.scope/);
+  assert.match(workspace, /option key=\{issue\.id\} value=\{issue\.id\}/);
 });

@@ -5155,6 +5155,9 @@ ${ungroupedSequenceText}
                           className="mx-auto max-w-6xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
                         />
                       )}
+                      {reportCentreType === "incidentSchedule" && <IncidentScheduleReportArticle reportDocument={reportCentreIncidentDocument} />}
+                      {reportCentreType === "chronologyReport" && <ChronologyReportArticle reportDocument={reportCentreChronologyDocument} />}
+                      {reportCentreType === "caseAudit" && <CaseAuditReportArticle reportDocument={reportCentreCaseAuditDocument} />}
                       {reportCentreType === "client" && (
                         <div className="mx-auto max-w-5xl space-y-5">
                           <ol aria-label="Client Report authoring stages" className="grid gap-2 text-xs font-semibold print:hidden sm:grid-cols-3 lg:grid-cols-6">
@@ -6399,17 +6402,14 @@ ${ungroupedSequenceText}
                 activeRecommendedGpt={activeAiRecommendedGpt}
                 activeAlsoSuitableGpts={activeAiAlsoSuitableGpts}
                 activeExampleQuestions={activeAiExampleQuestions}
-                recommendedContent={<>
-                  {reportCentreType === "incidentSchedule" && <IncidentScheduleReportArticle reportDocument={reportCentreIncidentDocument} className="mx-auto max-w-6xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm dark:border-neutral-700 dark:bg-neutral-900 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none" />}
-                  {reportCentreType === "chronologyReport" && <ChronologyReportArticle reportDocument={reportCentreChronologyDocument} className="mx-auto max-w-5xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm dark:border-neutral-700 dark:bg-neutral-900 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none" />}
-                  {reportCentreType === "caseAudit" && <CaseAuditReportArticle reportDocument={reportCentreCaseAuditDocument} className="mx-auto max-w-6xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm dark:border-neutral-700 dark:bg-neutral-900 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none" />}
-                </>}
                 issueOptions={timelineIssueOptions}
                 issueSelection={aiToolsSequenceGroup}
                 wholeCaseScopeValue={MANAGEMENT_REPORT_BUILDER_WHOLE_CASE}
+                caseName={selectedCase.name}
+                caseId={selectedCase.id}
+                caseRevision={selectedCase.revision}
                 caseSliceRecordIdsText={caseSliceRecordIdsText}
                 feedback={aiToolsFeedback}
-                selectedCaseId={selectedCase.id}
                 onSelectTask={selectAiWorkspaceTask}
                 onIssueSelectionChange={(value) => { setAiToolsSequenceGroup(value); setAiToolsFeedback(""); }}
                 onCaseSliceRecordIdsChange={(value) => { setCaseSliceRecordIdsText(value); setAiToolsFeedback(""); }}
