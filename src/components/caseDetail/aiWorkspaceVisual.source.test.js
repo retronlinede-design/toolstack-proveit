@@ -42,3 +42,11 @@ test("Case Quality Review uses an accessible active-mode selector", () => {
   assert.match(styles, /\[data-ai-workspace-quality-modes\] button\[aria-pressed="true"\]/);
   assert.match(styles, /\[data-ai-workspace-quality-modes\] \{ display: grid; gap: \.45rem; grid-template-columns: repeat\(2/);
 });
+
+test("AI Workspace scope is based on the active tool and warns before a stale Issue handoff", () => {
+  assert.match(workspace, /const activeScopeLabel = activeToolNeedsIssue && selectedIssue \? selectedIssue\.label : "Entire Case"/);
+  assert.match(workspace, /const disabledForMissingIssue = activeToolNeedsIssue && !selectedIssue/);
+  assert.match(workspace, /Issue no longer available\. Choose another Issue\./);
+  assert.match(workspace, /data-ai-workspace-scope-warning role="status"/);
+  assert.match(styles, /\[data-ai-workspace-scope-warning\]/);
+});

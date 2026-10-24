@@ -987,6 +987,7 @@
 .proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-selected-tool-header] p { margin: .4rem 0 0; color: var(--pi-muted); font-size: .88rem; line-height: 1.55; }
 .proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-safety] { border: 1px solid #2f7467; border-radius: 999px; background: #123a35; color: #d2f8ef; font-size: .7rem; font-weight: 700; padding: .32rem .55rem; text-align: center; }
 .proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-feedback] { border: 1px solid #2f7467; border-radius: .65rem; background: #123a35; color: #d2f8ef; margin-bottom: 1rem; padding: .75rem; font-size: .85rem; font-weight: 600; }
+.proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-scope-warning] { border: 1px solid #9a6d32; border-radius: .65rem; background: #302514; color: #ffe0a5; margin: 1rem 0 0; padding: .7rem .75rem; font-size: .82rem; font-weight: 650; line-height: 1.4; }
 .proveit-dark-shell .case-file-ai-workspace-field { display: block; margin-top: 1rem; }
 .proveit-dark-shell .case-file-ai-workspace-field > span { display: block; color: #b8c8d9; font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .proveit-dark-shell .case-file-ai-workspace :is(select, textarea) { width: 100%; border: 1px solid #39556f; border-radius: .55rem; background: #0d1928; color: var(--pi-text); margin-top: .35rem; padding: .58rem .7rem; }

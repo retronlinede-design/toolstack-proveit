@@ -80,6 +80,14 @@ test("Issue-scoped AI handoff controls retain canonical Issue IDs", () => {
   assert.match(workspace, /option key=\{issue\.id\} value=\{issue\.id\}/);
 });
 
+test("AI Workspace preserves Issue identity but disables a stale scoped handoff", () => {
+  assert.match(caseDetail, /if \(timelineIssueOptions\.some\(\(issue\) => issue\.id === aiToolsSequenceGroup\)\) return/);
+  assert.match(caseDetail, /setAiToolsSequenceGroup\(""\)/);
+  assert.match(caseDetail, /The selected Issue is no longer available\. Choose an Issue before creating an Issue-scoped handoff\./);
+  assert.match(workspace, /activeToolNeedsIssue && !selectedIssue/);
+  assert.match(workspace, /disabled=\{disabledForMissingIssue\}/);
+});
+
 test("Case Quality Review selects an existing audit builder without changing its output pathway", () => {
   assert.match(caseDetail, /CASE_QUALITY_REVIEW_MODES\.find\(\(mode\) => mode\.toolId === toolId \|\| mode\.legacyTaskId === toolId\)/);
   assert.match(caseDetail, /setActiveAiTask\(qualityMode \? "case-quality-review"/);

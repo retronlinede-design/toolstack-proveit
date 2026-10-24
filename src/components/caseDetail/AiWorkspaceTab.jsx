@@ -16,8 +16,13 @@ export default function AiWorkspaceTab({
 }) {
   const selectedIssue = issueOptions.find((issue) => issue.id === issueSelection);
   const hasScopeControl = activeToolNeedsIssue;
-  const activeScopeLabel = !selectedIssue ? "Entire Case" : selectedIssue.label;
-  const disabledForMissingIssue = activeToolNeedsIssue && !issueSelection;
+  // A retained Issue selection is useful when returning to an Issue tool, but
+  // must never make a whole-case handoff appear to be Issue-scoped.
+  const activeScopeLabel = activeToolNeedsIssue && selectedIssue ? selectedIssue.label : "Entire Case";
+  const disabledForMissingIssue = activeToolNeedsIssue && !selectedIssue;
+  const issueScopeNotice = activeToolNeedsIssue && !selectedIssue
+    ? (issueSelection ? "Issue no longer available. Choose another Issue." : "Choose an Issue before creating an Issue-scoped handoff.")
+    : "";
   const selectedCaseQualityReviewMode = caseQualityReviewModes.find((mode) => mode.id === selectedCaseQualityReviewModeId) || caseQualityReviewModes[0];
 
   return (
@@ -50,6 +55,8 @@ export default function AiWorkspaceTab({
                 <small>Use JSON arrays or one line per type: incidents, evidence, documents, strategy, ledger.</small>
               </label>
             )}
+
+            {issueScopeNotice && <p data-ai-workspace-scope-warning role="status">{issueScopeNotice}</p>}
 
             {activeTaskActionKind === "case-quality-review" && selectedCaseQualityReviewMode && (
               <section data-ai-workspace-quality-review aria-labelledby="case-quality-review-heading">
