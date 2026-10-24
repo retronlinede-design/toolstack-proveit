@@ -71,3 +71,15 @@ test("Timeline Issue filtering does not mutate mixed canonical or legacy source 
   assert.deepEqual(items.filter((item) => isTimelineItemInIssueFilter(caseData, item, "issue-1")), [items[0]]);
   assert.deepEqual(items, before);
 });
+
+test("the shared Issue filter rules apply equally to Incident and Evidence records without changing their source data", () => {
+  const incident = { id: "inc-1", sequenceGroupId: "issue-1", sequenceGroup: "Repairs" };
+  const evidence = { id: "ev-1", sequenceGroup: "Payments" };
+  const unassignedEvidence = { id: "ev-2" };
+  const before = structuredClone({ incident, evidence, unassignedEvidence });
+
+  assert.equal(isTimelineItemInIssueFilter(caseData, { source: incident }, "issue-1"), true);
+  assert.equal(isTimelineItemInIssueFilter(caseData, { source: evidence }, "issue-2"), true);
+  assert.equal(isTimelineItemInIssueFilter(caseData, { source: unassignedEvidence }, TIMELINE_UNASSIGNED_ISSUES_FILTER), true);
+  assert.deepEqual({ incident, evidence, unassignedEvidence }, before);
+});

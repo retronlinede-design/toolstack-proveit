@@ -382,17 +382,13 @@ export default function CaseDetail({
     return options[0] || "";
   }, [sequenceGroups, sequenceGroupAuditGroup]);
   useEffect(() => {
-    if (incidentSequenceGroupFilter === "all" || incidentSequenceGroupFilter === "__ungrouped__") return;
-    if (!sequenceGroups.some((group) => group.name === incidentSequenceGroupFilter)) {
-      setIncidentSequenceGroupFilter("all");
-    }
-  }, [incidentSequenceGroupFilter, sequenceGroups]);
+    if (isTimelineIssueFilterValid(selectedCase, incidentSequenceGroupFilter)) return;
+    setIncidentSequenceGroupFilter(TIMELINE_ALL_ISSUES_FILTER);
+  }, [incidentSequenceGroupFilter, selectedCase]);
   useEffect(() => {
-    if (evidenceSequenceGroupFilter === "all" || evidenceSequenceGroupFilter === "__ungrouped__") return;
-    if (!sequenceGroups.some((group) => group.name === evidenceSequenceGroupFilter)) {
-      setEvidenceSequenceGroupFilter("all");
-    }
-  }, [evidenceSequenceGroupFilter, sequenceGroups]);
+    if (isTimelineIssueFilterValid(selectedCase, evidenceSequenceGroupFilter)) return;
+    setEvidenceSequenceGroupFilter(TIMELINE_ALL_ISSUES_FILTER);
+  }, [evidenceSequenceGroupFilter, selectedCase]);
   useEffect(() => {
     if (isTimelineIssueFilterValid(selectedCase, timelineSequenceGroupFilter)) return;
     setTimelineSequenceGroupFilter(TIMELINE_ALL_ISSUES_FILTER);
@@ -2109,10 +2105,7 @@ ${strategyFocus.join("\n") || "—"}`;
     scrollToEvidenceList();
   };
   const evidenceMatchesSequenceGroup = (evidence) => {
-    const sequenceGroup = safeText(evidence?.sequenceGroup).trim();
-    if (evidenceSequenceGroupFilter === "all") return true;
-    if (evidenceSequenceGroupFilter === "__ungrouped__") return !sequenceGroup;
-    return sequenceGroup === evidenceSequenceGroupFilter;
+    return isTimelineItemInIssueFilter(selectedCase, { source: evidence }, evidenceSequenceGroupFilter);
   };
   const evidenceSearchQuery = evidenceSearch.trim().toLowerCase();
   const evidenceMatchesSearch = (evidence) => {
@@ -2156,7 +2149,9 @@ ${strategyFocus.join("\n") || "—"}`;
     if (evidenceQuickFilter === "missing-parties") return !evidenceHasParties(evidence);
     if (evidenceQuickFilter === "missing-summary") return !evidenceHasFunctionSummary(evidence);
     if (evidenceQuickFilter === "missing-attachments") return !evidenceHasAttachmentOrAvailability(evidence);
-    if (evidenceQuickFilter === "ungrouped") return !safeText(evidence?.sequenceGroup).trim();
+    if (evidenceQuickFilter === "ungrouped") {
+      return isTimelineItemInIssueFilter(selectedCase, { source: evidence }, TIMELINE_UNASSIGNED_ISSUES_FILTER);
+    }
     if (evidenceQuickFilter === "recent") {
       const evidenceTime = parseCalendarDate(evidence?.eventDate);
       return evidenceTime !== null && latestEvidenceTime !== null && evidenceTime >= latestEvidenceTime - 1000 * 60 * 60 * 24 * 30;
@@ -2288,10 +2283,7 @@ ${strategyFocus.join("\n") || "—"}`;
   };
   const incidentSearchQuery = incidentSearch.trim().toLowerCase();
   const incidentMatchesSequenceGroup = (incident) => {
-    const sequenceGroup = safeText(incident?.sequenceGroup).trim();
-    if (incidentSequenceGroupFilter === "all") return true;
-    if (incidentSequenceGroupFilter === "__ungrouped__") return !sequenceGroup;
-    return sequenceGroup === incidentSequenceGroupFilter;
+    return isTimelineItemInIssueFilter(selectedCase, { source: incident }, incidentSequenceGroupFilter);
   };
   const filteredIncidents = allIncidents.filter((incident) => {
     if (!incidentMatchesSequenceGroup(incident)) return false;
@@ -4674,11 +4666,11 @@ ${ungroupedSequenceText}
                           onChange={(event) => setEvidenceSequenceGroupFilter(event.target.value)}
                           className="case-file-evidence-select mt-2 block w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 outline-none transition-colors sm:w-60"
                         >
-                          <option value="all">All Issues</option>
-                          <option value="__ungrouped__">Evidence without an Issue</option>
-                          {sequenceGroups.map((group) => (
-                            <option key={group.name} value={group.name}>
-                              {group.name}
+                          <option value={TIMELINE_ALL_ISSUES_FILTER}>All Issues</option>
+                          <option value={TIMELINE_UNASSIGNED_ISSUES_FILTER}>Evidence without an Issue</option>
+                          {timelineIssueOptions.map((issue) => (
+                            <option key={issue.id} value={issue.id}>
+                              {issue.label}
                             </option>
                           ))}
                         </select>
@@ -4706,7 +4698,7 @@ ${ungroupedSequenceText}
                           onClick={() => {
                             setEvidenceSearch("");
                             setEvidenceFilter("all");
-                            setEvidenceSequenceGroupFilter("all");
+                            setEvidenceSequenceGroupFilter(TIMELINE_ALL_ISSUES_FILTER);
                           }}
                           className="case-file-evidence-clear rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-600 transition-colors"
                         >
@@ -4897,11 +4889,11 @@ ${ungroupedSequenceText}
                           onChange={(event) => setIncidentSequenceGroupFilter(event.target.value)}
                           className="mt-2 block w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 outline-none transition-colors focus:border-lime-500 sm:w-60"
                         >
-                          <option value="all">All Issues</option>
-                          <option value="__ungrouped__">Incidents without an Issue</option>
-                          {sequenceGroups.map((group) => (
-                            <option key={group.name} value={group.name}>
-                              {group.name}
+                          <option value={TIMELINE_ALL_ISSUES_FILTER}>All Issues</option>
+                          <option value={TIMELINE_UNASSIGNED_ISSUES_FILTER}>Incidents without an Issue</option>
+                          {timelineIssueOptions.map((issue) => (
+                            <option key={issue.id} value={issue.id}>
+                              {issue.label}
                             </option>
                           ))}
                         </select>
@@ -4943,7 +4935,7 @@ ${ungroupedSequenceText}
                           onClick={() => {
                             setIncidentSearch("");
                             setIncidentFilter("all");
-                            setIncidentSequenceGroupFilter("all");
+                            setIncidentSequenceGroupFilter(TIMELINE_ALL_ISSUES_FILTER);
                           }}
                           className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-600 transition-colors hover:bg-neutral-50"
                         >

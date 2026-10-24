@@ -22,6 +22,17 @@ test("timeline filters expose state and an accessible selector name", () => {
   assert.match(caseDetail, /isTimelineItemInIssueFilter\(selectedCase, item, timelineSequenceGroupFilter\)/);
 });
 
+test("Incident and Evidence Issue filters reuse canonical Issue IDs while preserving their independent search and sort pipelines", () => {
+  assert.match(caseDetail, /isTimelineItemInIssueFilter\(selectedCase, \{ source: evidence \}, evidenceSequenceGroupFilter\)/);
+  assert.match(caseDetail, /isTimelineItemInIssueFilter\(selectedCase, \{ source: incident \}, incidentSequenceGroupFilter\)/);
+  assert.match(caseDetail, /isTimelineItemInIssueFilter\(selectedCase, \{ source: evidence \}, TIMELINE_UNASSIGNED_ISSUES_FILTER\)/);
+  assert.match(caseDetail, /timelineIssueOptions\.map\(\(issue\) => \(/);
+  assert.match(caseDetail, /const sortedFilteredEvidence = \[\.\.\.filteredEvidence\]\.sort\(compareRecordsNewestFirst\)/);
+  assert.match(caseDetail, /const sortedFilteredIncidents = \[\.\.\.filteredIncidents\]\.sort\(\(a, b\) => \{/);
+  assert.match(caseDetail, /return evidenceMatchesSearch\(evidence\)/);
+  assert.match(caseDetail, /return incidentMatchesSearch\(incident\)/);
+});
+
 test("timeline retains scoped, accessible event controls and type-safe source navigation", () => {
   assert.match(caseDetail, /case-file-timeline/);
   for (const recordType of ["incident", "evidence", "document", "ledger", "strategy"]) {
