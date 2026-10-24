@@ -994,14 +994,14 @@
 .proveit-dark-shell .case-file-ai-workspace textarea { resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .75rem; line-height: 1.45; }
 .proveit-dark-shell .case-file-ai-workspace :is(select, textarea):focus-visible, .proveit-dark-shell .case-file-ai-workspace :is(button, summary):focus-visible { outline: 2px solid var(--pi-focus); outline-offset: 2px; }
 .proveit-dark-shell .case-file-ai-workspace small { display: block; color: var(--pi-muted); font-size: .72rem; line-height: 1.4; margin-top: .35rem; }
-.proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-quality-review] { border: 1px solid #35506a; border-radius: .7rem; background: #0d1928; margin-top: 1rem; padding: .9rem; }
-.proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-quality-review] h4 { color: var(--pi-text); font-size: .94rem; font-weight: 700; margin: .3rem 0 0; }
-.proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-quality-modes] { display: grid; gap: .45rem; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: .75rem; }
-.proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-quality-modes] button { border: 1px solid #39556f; border-radius: .5rem; background: #13293a; color: #c6d7e9; min-height: 2.2rem; padding: .42rem .55rem; font-size: .78rem; font-weight: 700; text-align: left; }
-.proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-quality-modes] button:hover { border-color: var(--pi-accent); background: #1d4250; }
-.proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-quality-modes] button[aria-pressed="true"] { border-color: var(--pi-accent); background: #163747; color: #effffc; box-shadow: inset 3px 0 0 var(--pi-accent); }
-.proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-quality-description] { color: #c6d7e9; font-size: .84rem; line-height: 1.45; margin: .75rem 0 0; }
-.proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-quality-notice] { color: #a9bbcf; font-size: .74rem; line-height: 1.45; margin: .45rem 0 0; }
+.proveit-dark-shell .case-file-ai-workspace :is([data-ai-workspace-quality-review], [data-ai-workspace-issue-review]) { border: 1px solid #35506a; border-radius: .7rem; background: #0d1928; margin-top: 1rem; padding: .9rem; }
+.proveit-dark-shell .case-file-ai-workspace :is([data-ai-workspace-quality-review], [data-ai-workspace-issue-review]) h4 { color: var(--pi-text); font-size: .94rem; font-weight: 700; margin: .3rem 0 0; }
+.proveit-dark-shell .case-file-ai-workspace :is([data-ai-workspace-quality-modes], [data-ai-workspace-issue-review-modes]) { display: grid; gap: .45rem; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: .75rem; }
+.proveit-dark-shell .case-file-ai-workspace :is([data-ai-workspace-quality-modes], [data-ai-workspace-issue-review-modes]) button { border: 1px solid #39556f; border-radius: .5rem; background: #13293a; color: #c6d7e9; min-height: 2.2rem; padding: .42rem .55rem; font-size: .78rem; font-weight: 700; text-align: left; }
+.proveit-dark-shell .case-file-ai-workspace :is([data-ai-workspace-quality-modes], [data-ai-workspace-issue-review-modes]) button:hover { border-color: var(--pi-accent); background: #1d4250; }
+.proveit-dark-shell .case-file-ai-workspace :is([data-ai-workspace-quality-modes], [data-ai-workspace-issue-review-modes]) button[aria-pressed="true"] { border-color: var(--pi-accent); background: #163747; color: #effffc; box-shadow: inset 3px 0 0 var(--pi-accent); }
+.proveit-dark-shell .case-file-ai-workspace :is([data-ai-workspace-quality-description], [data-ai-workspace-issue-review-description]) { color: #c6d7e9; font-size: .84rem; line-height: 1.45; margin: .75rem 0 0; }
+.proveit-dark-shell .case-file-ai-workspace :is([data-ai-workspace-quality-notice], [data-ai-workspace-issue-review-notice]) { color: #a9bbcf; font-size: .74rem; line-height: 1.45; margin: .45rem 0 0; }
 .proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-actions] { display: flex; flex-wrap: wrap; gap: .55rem; border-top: 1px solid var(--pi-border); margin-top: 1.1rem; padding-top: 1rem; }
 .proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-action] { border: 1px solid #3b617e; border-radius: .55rem; background: #13293a; color: var(--pi-text); min-height: 2.35rem; padding: .5rem .75rem; font-size: .8rem; font-weight: 700; }
 .proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-action]:hover:not(:disabled) { border-color: var(--pi-accent); background: #1d4250; }
@@ -1046,7 +1046,7 @@
   .proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-header-context] { justify-content: start; }
   .proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-selected-tool-header] { align-items: stretch; flex-direction: column; }
   .proveit-dark-shell .case-file-ai-workspace-detail-grid { grid-template-columns: 1fr; }
-  .proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-quality-modes] { grid-template-columns: 1fr; }
+  .proveit-dark-shell .case-file-ai-workspace :is([data-ai-workspace-quality-modes], [data-ai-workspace-issue-review-modes]) { grid-template-columns: 1fr; }
   .proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-primary], .proveit-dark-shell .case-file-ai-workspace [data-ai-workspace-rail] { padding: .85rem; }
 }
 .proveit-dark-shell .front-page-primary-action, .proveit-dark-shell .case-primary-action { border-color: var(--pi-accent) !important; background: var(--pi-accent) !important; color: #06211f !important; }

@@ -9,6 +9,7 @@ export default function AiWorkspaceTab({
   activeTaskDoesNotInclude, activeTaskSafety, activeTaskWorkflow, activeRecommendedGpt,
   activeAlsoSuitableGpts, activeExampleQuestions, issueOptions, issueSelection,
   caseQualityReviewModes = [], selectedCaseQualityReviewModeId, onCaseQualityReviewModeChange,
+  issueReviewModes = [], selectedIssueReviewModeId, onIssueReviewModeChange,
   caseName, caseId, caseRevision, caseSliceRecordIdsText, feedback, onSelectTask, onIssueSelectionChange,
   onCaseSliceRecordIdsChange, onCopyRecommendedGptJson, onDownloadSplitReasoningPackage,
   onDownloadCurrentCase, onCopyToolJson, onCopyToolMarkdown, onCopyLinkMap, onDownloadProtocolJson, onDownloadProtocolMarkdown,
@@ -24,6 +25,7 @@ export default function AiWorkspaceTab({
     ? (issueSelection ? "Issue no longer available. Choose another Issue." : "Choose an Issue before creating an Issue-scoped handoff.")
     : "";
   const selectedCaseQualityReviewMode = caseQualityReviewModes.find((mode) => mode.id === selectedCaseQualityReviewModeId) || caseQualityReviewModes[0];
+  const selectedIssueReviewMode = issueReviewModes.find((mode) => mode.id === selectedIssueReviewModeId) || issueReviewModes[0];
 
   return (
     <section className="case-file-ai-workspace" aria-labelledby="ai-workspace-heading">
@@ -79,12 +81,34 @@ export default function AiWorkspaceTab({
               </section>
             )}
 
+            {activeTaskActionKind === "issue-review" && selectedIssueReviewMode && (
+              <section data-ai-workspace-issue-review aria-labelledby="issue-review-heading">
+                <div className="case-file-ai-workspace-label">Issue review</div>
+                <h4 id="issue-review-heading">Choose a focused review</h4>
+                <div role="group" aria-label="Issue Review modes" data-ai-workspace-issue-review-modes>
+                  {issueReviewModes.map((mode) => (
+                    <button
+                      key={mode.id}
+                      type="button"
+                      aria-pressed={selectedIssueReviewMode.id === mode.id}
+                      onClick={() => onIssueReviewModeChange?.(mode.id)}
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
+                </div>
+                <p data-ai-workspace-issue-review-description>{selectedIssueReviewMode.description}</p>
+                <p data-ai-workspace-issue-review-notice>Copy actions prepare this bounded material for external AI review. They do not run embedded AI analysis or change case data.</p>
+              </section>
+            )}
+
             <div data-ai-workspace-actions aria-label="Selected tool actions">
               {activeTaskActionKind === "reasoning-snapshot" && <Action kind="copy" onClick={onCopyRecommendedGptJson}>Copy Recommended GPT JSON</Action>}
               {activeTaskActionKind === "split-reasoning-package" && <Action kind="download" onClick={onDownloadSplitReasoningPackage}>Download ZIP</Action>}
               {activeTaskActionKind === "ai-workspace-snapshot" && <Action kind="download" onClick={onDownloadCurrentCase}>Download CURRENT_CASE.json</Action>}
               {activeTaskActionKind === "ai-tool" && <><Action kind="copy" disabled={disabledForMissingIssue} onClick={() => onCopyToolJson(activeTaskToolId)}>Copy JSON</Action><Action kind="copy" disabled={disabledForMissingIssue} onClick={() => onCopyToolMarkdown(activeTaskToolId)}>Copy Markdown Prompt</Action></>}
               {activeTaskActionKind === "case-quality-review" && <><Action kind="copy" onClick={() => onCopyToolJson(selectedCaseQualityReviewMode.toolId)}>Copy JSON</Action><Action kind="copy" onClick={() => onCopyToolMarkdown(selectedCaseQualityReviewMode.toolId)}>Copy Markdown Prompt</Action></>}
+              {activeTaskActionKind === "issue-review" && <><Action kind="copy" disabled={disabledForMissingIssue} onClick={() => onCopyToolJson(selectedIssueReviewMode.toolId)}>Copy JSON</Action><Action kind="copy" disabled={disabledForMissingIssue} onClick={() => onCopyToolMarkdown(selectedIssueReviewMode.toolId)}>Copy Markdown Prompt</Action></>}
               {activeTaskActionKind === "link-map" && <Action kind="copy" onClick={() => onCopyLinkMap?.(caseId)}>Copy Link Map JSON</Action>}
               {activeTaskActionKind === "protocol-pack" && <><Action kind="download" onClick={onDownloadProtocolJson}>Download JSON</Action><Action kind="download" onClick={onDownloadProtocolMarkdown}>Download Markdown</Action></>}
               {activeTaskActionKind === "gpt-update" && onOpenGptUpdate && <Action kind="reviewed-update" onClick={onOpenGptUpdate}>Open GPT Update</Action>}

@@ -80,6 +80,19 @@ test("Issue-scoped AI handoff controls retain canonical Issue IDs", () => {
   assert.match(workspace, /option key=\{issue\.id\} value=\{issue\.id\}/);
 });
 
+test("Issue Review selects an existing scoped builder and retains legacy task compatibility", () => {
+  assert.match(caseDetail, /ISSUE_REVIEW_MODES\.find\(\(mode\) => mode\.toolId === toolId \|\| mode\.legacyTaskId === toolId\)/);
+  assert.match(caseDetail, /setActiveAiTask\(qualityMode \? "case-quality-review" : issueReviewMode \? "issue-review"/);
+  assert.match(caseDetail, /const legacyIssueMode = ISSUE_REVIEW_MODES\.find\(\(mode\) => mode\.legacyTaskId === activeAiTask\)/);
+  assert.match(caseDetail, /function selectIssueReviewMode\(modeId\)/);
+  assert.match(caseDetail, /task\.actionKind === "issue-review"/);
+  assert.match(caseDetail, /setIssueReviewMode\(ISSUE_REVIEW_MODES\[0\]\.id\)/);
+  assert.match(workspace, /data-ai-workspace-issue-review/);
+  assert.match(workspace, /Issue Review modes/);
+  assert.match(workspace, /selectedIssueReviewMode\.toolId/);
+  assert.match(workspace, /disabled=\{disabledForMissingIssue\}/);
+});
+
 test("AI Workspace preserves Issue identity but disables a stale scoped handoff", () => {
   assert.match(caseDetail, /if \(timelineIssueOptions\.some\(\(issue\) => issue\.id === aiToolsSequenceGroup\)\) return/);
   assert.match(caseDetail, /setAiToolsSequenceGroup\(""\)/);

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { AI_TASK_GUIDANCE, AI_TOOL_OPTIONS, AI_WORKSPACE_SECTIONS, CASE_QUALITY_REVIEW_MODES } from "./aiToolsConfig.js";
+import { AI_TASK_GUIDANCE, AI_TOOL_OPTIONS, AI_WORKSPACE_SECTIONS, CASE_QUALITY_REVIEW_MODES, ISSUE_REVIEW_MODES } from "./aiToolsConfig.js";
 
 test("AI Tools modal selector still lists all GPT work packs", () => {
   assert.deepEqual(
@@ -31,14 +31,13 @@ test("AI Workspace groups the retained tasks into the simplified workspace secti
 
   const availableToolIds = new Set(AI_TOOL_OPTIONS.map((tool) => tool.id));
   const tasks = AI_WORKSPACE_SECTIONS.flatMap((section) => section.groups?.flatMap((group) => group.tasks) || section.tasks || []);
-  assert.equal(tasks.length, 9);
+  assert.equal(tasks.length, 8);
   assert.deepEqual(
     tasks.map((task) => task.id),
     [
       "download-ai-workspace-snapshot",
       "download-split-reasoning-package",
-      "review-investigation-thread",
-      "complete-investigation-thread",
+      "issue-review",
       "case-quality-review",
       "advanced-reasoning-snapshot",
       "review-selected-records",
@@ -51,7 +50,7 @@ test("AI Workspace groups the retained tasks into the simplified workspace secti
   assert.equal(tasks.some((task) => task.id === "prepare-management-report"), false);
   assert.equal(tasks.some((task) => task.id === "specialist-review-prompt"), false);
   assert.equal(tasks.some((task) => task.id === "improve-report-narrative"), false);
-  for (const legacyTaskId of ["find-investigation-gaps", "improve-evidence-summaries", "review-ungrouped-incidents", "review-ungrouped-evidence", "advanced-sequence-group-audit"]) assert.equal(tasks.some((task) => task.id === legacyTaskId), false);
+  for (const legacyTaskId of ["find-investigation-gaps", "improve-evidence-summaries", "review-ungrouped-incidents", "review-ungrouped-evidence", "review-investigation-thread", "complete-investigation-thread", "advanced-sequence-group-audit"]) assert.equal(tasks.some((task) => task.id === legacyTaskId), false);
   assert.equal(AI_WORKSPACE_SECTIONS.find((section) => section.id === "advanced-ai-tools")?.collapsedByDefault, true);
   for (const section of AI_WORKSPACE_SECTIONS) {
     assert.ok(section.description);
@@ -82,4 +81,15 @@ test("Case Quality Review retains each existing audit builder as a selectable mo
     ]
   );
   assert.ok(AI_TASK_GUIDANCE["case-quality-review"]);
+});
+
+test("Issue Review retains both existing Issue handoff builders as selectable modes", () => {
+  assert.deepEqual(
+    ISSUE_REVIEW_MODES.map(({ id, legacyTaskId, toolId }) => ({ id, legacyTaskId, toolId })),
+    [
+      { id: "full-review", legacyTaskId: "review-investigation-thread", toolId: "full-chain-gpt-pack" },
+      { id: "completion-gaps", legacyTaskId: "complete-investigation-thread", toolId: "chain-completion-pack" },
+    ]
+  );
+  assert.ok(AI_TASK_GUIDANCE["issue-review"]);
 });

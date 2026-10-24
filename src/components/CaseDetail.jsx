@@ -135,7 +135,7 @@ import PartiesTab from "./caseDetail/PartiesTab";
 import RecordsTab from "./caseDetail/RecordsTab";
 import StrategyWorkspace from "./caseDetail/StrategyWorkspace";
 import WatchWorkspace, { WatchEditor } from "./caseDetail/WatchWorkspace";
-import { AI_TASK_GUIDANCE, AI_TOOL_OPTIONS, AI_WORKSPACE_SECTIONS, CASE_QUALITY_REVIEW_MODES } from "./caseDetail/aiToolsConfig.js";
+import { AI_TASK_GUIDANCE, AI_TOOL_OPTIONS, AI_WORKSPACE_SECTIONS, CASE_QUALITY_REVIEW_MODES, ISSUE_REVIEW_MODES } from "./caseDetail/aiToolsConfig.js";
 import { sortChronological } from "./caseDetail/ledgerViewHelpers";
 import { confirmAndArchiveOpenStrategy } from "./caseDetail/strategyWorkspaceHelpers.js";
 import {
@@ -299,6 +299,7 @@ export default function CaseDetail({
   const [aiToolsSequenceGroup, setAiToolsSequenceGroup] = useState("");
   const [aiToolsFeedback, setAiToolsFeedback] = useState("");
   const [caseQualityReviewMode, setCaseQualityReviewMode] = useState(CASE_QUALITY_REVIEW_MODES[0].id);
+  const [issueReviewMode, setIssueReviewMode] = useState(ISSUE_REVIEW_MODES[0].id);
   const [caseSliceRecordIdsText, setCaseSliceRecordIdsText] = useState("");
   const [showExportMenu, setShowExportMenu] = useState(false);
 
@@ -308,14 +309,23 @@ export default function CaseDetail({
     setAiToolsSequenceGroup("");
     setAiToolsFeedback("");
     setCaseQualityReviewMode(CASE_QUALITY_REVIEW_MODES[0].id);
+    setIssueReviewMode(ISSUE_REVIEW_MODES[0].id);
     setCaseSliceRecordIdsText("");
   }, [selectedCase?.id]);
   useEffect(() => {
     const legacyMode = CASE_QUALITY_REVIEW_MODES.find((mode) => mode.legacyTaskId === activeAiTask);
-    if (!legacyMode) return;
-    setActiveAiTask("case-quality-review");
-    setActiveAiTool(legacyMode.toolId);
-    setCaseQualityReviewMode(legacyMode.id);
+    if (legacyMode) {
+      setActiveAiTask("case-quality-review");
+      setActiveAiTool(legacyMode.toolId);
+      setCaseQualityReviewMode(legacyMode.id);
+      setAiToolsFeedback("");
+      return;
+    }
+    const legacyIssueMode = ISSUE_REVIEW_MODES.find((mode) => mode.legacyTaskId === activeAiTask);
+    if (!legacyIssueMode) return;
+    setActiveAiTask("issue-review");
+    setActiveAiTool(legacyIssueMode.toolId);
+    setIssueReviewMode(legacyIssueMode.id);
     setAiToolsFeedback("");
   }, [activeAiTask]);
   const [timelineView, setTimelineView] = useState("all");
@@ -1263,12 +1273,14 @@ export default function CaseDetail({
   function openAiWorkspace(toolId, requestedIssueId = "") {
     const nextIssueId = selectedSequenceGroupId || timelineIssueOptions[0]?.id || "";
     const qualityMode = CASE_QUALITY_REVIEW_MODES.find((mode) => mode.toolId === toolId || mode.legacyTaskId === toolId);
+    const issueReviewMode = ISSUE_REVIEW_MODES.find((mode) => mode.toolId === toolId || mode.legacyTaskId === toolId);
     const matchingTask = AI_WORKSPACE_SECTIONS
       .flatMap((section) => section.groups?.flatMap((group) => group.tasks || []) || section.tasks || [])
       .find((task) => task.toolId === toolId || task.actionKind === toolId);
-    setActiveAiTask(qualityMode ? "case-quality-review" : matchingTask?.id || "download-ai-workspace-snapshot");
-    setActiveAiTool(qualityMode?.toolId || matchingTask?.toolId || "");
+    setActiveAiTask(qualityMode ? "case-quality-review" : issueReviewMode ? "issue-review" : matchingTask?.id || "download-ai-workspace-snapshot");
+    setActiveAiTool(qualityMode?.toolId || issueReviewMode?.toolId || matchingTask?.toolId || "");
     if (qualityMode) setCaseQualityReviewMode(qualityMode.id);
+    if (issueReviewMode) setIssueReviewMode(issueReviewMode.id);
     setAiToolsSequenceGroup(requestedIssueId || nextIssueId);
     setAiToolsFeedback("");
     setActiveTab("ai-workspace");
@@ -1280,8 +1292,11 @@ export default function CaseDetail({
     if (task.actionKind === "case-quality-review") {
       const selectedMode = CASE_QUALITY_REVIEW_MODES.find((mode) => mode.id === caseQualityReviewMode) || CASE_QUALITY_REVIEW_MODES[0];
       setActiveAiTool(selectedMode.toolId);
+    } else if (task.actionKind === "issue-review") {
+      const selectedMode = ISSUE_REVIEW_MODES.find((mode) => mode.id === issueReviewMode) || ISSUE_REVIEW_MODES[0];
+      setActiveAiTool(selectedMode.toolId);
     } else if (task.toolId) setActiveAiTool(task.toolId);
-    if ((task.toolId === "chain-completion-pack" || task.toolId === "full-chain-gpt-pack") && !aiToolsSequenceGroup) {
+    if ((task.actionKind === "issue-review" || task.toolId === "chain-completion-pack" || task.toolId === "full-chain-gpt-pack") && !aiToolsSequenceGroup) {
       setAiToolsSequenceGroup(selectedSequenceGroupId || timelineIssueOptions[0]?.id || "");
     }
     setAiToolsFeedback("");
@@ -1290,6 +1305,13 @@ export default function CaseDetail({
   function selectCaseQualityReviewMode(modeId) {
     const nextMode = CASE_QUALITY_REVIEW_MODES.find((mode) => mode.id === modeId) || CASE_QUALITY_REVIEW_MODES[0];
     setCaseQualityReviewMode(nextMode.id);
+    setActiveAiTool(nextMode.toolId);
+    setAiToolsFeedback("");
+  }
+
+  function selectIssueReviewMode(modeId) {
+    const nextMode = ISSUE_REVIEW_MODES.find((mode) => mode.id === modeId) || ISSUE_REVIEW_MODES[0];
+    setIssueReviewMode(nextMode.id);
     setActiveAiTool(nextMode.toolId);
     setAiToolsFeedback("");
   }
@@ -3770,11 +3792,12 @@ ${ungroupedSequenceText}
   const aiWorkspaceTasks = aiWorkspaceSections.flatMap((section) => section.groups?.flatMap((group) => group.tasks || []) || section.tasks || []);
   const activeAiTaskOption = aiWorkspaceTasks.find((task) => task.id === activeAiTask) || aiWorkspaceTasks[0];
   const selectedCaseQualityReviewMode = CASE_QUALITY_REVIEW_MODES.find((mode) => mode.id === caseQualityReviewMode) || CASE_QUALITY_REVIEW_MODES[0];
+  const selectedIssueReviewMode = ISSUE_REVIEW_MODES.find((mode) => mode.id === issueReviewMode) || ISSUE_REVIEW_MODES[0];
   const activeAiTaskGuidance = AI_TASK_GUIDANCE[activeAiTaskOption?.id] || {};
   const activeAiToolOption = aiToolById.get(activeAiTaskOption?.toolId) || aiToolById.get(activeAiTool) || aiToolOptions[0];
   const activeAiTaskActionKind = activeAiTaskOption?.actionKind || "ai-tool";
-  const activeAiTaskToolId = activeAiTaskOption?.actionKind === "case-quality-review" ? selectedCaseQualityReviewMode.toolId : activeAiTaskOption?.toolId || activeAiTool;
-  const activeAiTaskPurpose = activeAiTaskOption?.actionKind === "case-quality-review" ? selectedCaseQualityReviewMode.description : activeAiTaskOption?.purpose || activeAiToolOption.purpose;
+  const activeAiTaskToolId = activeAiTaskOption?.actionKind === "case-quality-review" ? selectedCaseQualityReviewMode.toolId : activeAiTaskOption?.actionKind === "issue-review" ? selectedIssueReviewMode.toolId : activeAiTaskOption?.toolId || activeAiTool;
+  const activeAiTaskPurpose = activeAiTaskOption?.actionKind === "case-quality-review" ? selectedCaseQualityReviewMode.description : activeAiTaskOption?.actionKind === "issue-review" ? selectedIssueReviewMode.description : activeAiTaskOption?.purpose || activeAiToolOption.purpose;
   const activeAiTaskContains = activeAiTaskOption?.contains || activeAiToolOption.contains || [];
   const activeAiTaskBestGpt = activeAiTaskOption?.bestGpt || activeAiToolOption.bestUsedFor || [];
   const activeAiTaskDoesNotInclude = activeAiTaskOption?.doesNotInclude || activeAiToolOption.doesNotInclude || [];
@@ -6479,6 +6502,8 @@ ${ungroupedSequenceText}
                 activeExampleQuestions={activeAiExampleQuestions}
                 caseQualityReviewModes={CASE_QUALITY_REVIEW_MODES}
                 selectedCaseQualityReviewModeId={selectedCaseQualityReviewMode.id}
+                issueReviewModes={ISSUE_REVIEW_MODES}
+                selectedIssueReviewModeId={selectedIssueReviewMode.id}
                 issueOptions={timelineIssueOptions}
                 issueSelection={aiToolsSequenceGroup}
                 caseName={selectedCase.name}
@@ -6488,6 +6513,7 @@ ${ungroupedSequenceText}
                 feedback={aiToolsFeedback}
                 onSelectTask={selectAiWorkspaceTask}
                 onCaseQualityReviewModeChange={selectCaseQualityReviewMode}
+                onIssueReviewModeChange={selectIssueReviewMode}
                 onIssueSelectionChange={(value) => { setAiToolsSequenceGroup(value); setAiToolsFeedback(""); }}
                 onCaseSliceRecordIdsChange={(value) => { setCaseSliceRecordIdsText(value); setAiToolsFeedback(""); }}
                 onCopyRecommendedGptJson={handleCopyRecommendedGptJson}

@@ -120,6 +120,23 @@ export const CASE_QUALITY_REVIEW_MODES = [
   },
 ];
 
+export const ISSUE_REVIEW_MODES = [
+  {
+    id: "full-review",
+    legacyTaskId: "review-investigation-thread",
+    toolId: "full-chain-gpt-pack",
+    label: "Full Review",
+    description: "Prepares the complete bounded evidence, chronology, and linked context for one selected Issue.",
+  },
+  {
+    id: "completion-gaps",
+    legacyTaskId: "complete-investigation-thread",
+    toolId: "chain-completion-pack",
+    label: "Completion & Gaps",
+    description: "Prepares the existing Issue completion and gap check for one selected Issue.",
+  },
+];
+
 export const AI_WORKSPACE_SECTIONS = [
   {
     id: "share-case-context",
@@ -137,9 +154,8 @@ export const AI_WORKSPACE_SECTIONS = [
     icon: "Search",
     description: "Review one Issue or identify case-wide evidence and relationship gaps before acting.",
     groups: [
-      { id: "issue-review", title: "Issue Review", description: "Review one canonical Issue using bounded records and linked context.", tasks: [
-        { id: "review-investigation-thread", title: "Full Review", toolId: "full-chain-gpt-pack", technicalTool: "Full Chain GPT Pack", useThisWhen: "Use this when one Issue needs a complete evidence and chronology review.", bestGpt: ["Legal Specialist", "Investigation Review GPT", "Management Specialist"] },
-        { id: "complete-investigation-thread", title: "Completion & Gaps", toolId: "chain-completion-pack", technicalTool: "Chain Completion Pack", useThisWhen: "Use this when one Issue needs missing proof, weak-link, or completion checks.", bestGpt: ["Investigation Review GPT", "Legal Specialist"] },
+      { id: "issue-review", title: "Issue handoff", description: "Review one canonical Issue using bounded records and linked context.", tasks: [
+        { id: "issue-review", title: "Issue Review", technicalTool: "Selected Issue handoff", actionKind: "issue-review", purpose: "Choose a focused Issue review, then prepare its existing bounded JSON or Markdown handoff for external AI review.", useThisWhen: "Use this to review one selected Issue without changing case data.", bestGpt: ["Legal Specialist", "Investigation Review GPT", "Management Specialist"], contains: ["One selected canonical Issue", "Bounded records and linked context", "Canonical record identifiers"], doesNotInclude: ["Original files", "Binary attachments", "Embedded AI analysis", "Import capability"], safety: ["Read Only", "External handoff", "Does not change case data"] },
       ] },
       { id: "case-quality-review", title: "Case Quality Review", description: "Run targeted diagnostics for evidence purpose, assignment, and relationship gaps.", tasks: [
         { id: "case-quality-review", title: "Case Quality Review", technicalTool: "Targeted case diagnostics", actionKind: "case-quality-review", purpose: "Choose one existing quality check, then prepare its bounded JSON or Markdown handoff for external AI review.", useThisWhen: "Use this to review case-wide evidence, assignment, and relationship quality without changing case data.", bestGpt: ["Investigation Review GPT", "Legal Specialist", "General ChatGPT"], contains: ["One selected diagnostic export", "Canonical record identifiers", "Bounded record summaries"], doesNotInclude: ["Original files", "Binary attachments", "Embedded AI analysis", "Import capability"], safety: ["Read Only", "External handoff", "Does not change case data"] },
@@ -231,6 +247,23 @@ export const AI_TASK_GUIDANCE = {
       "Which evidence summaries need clearer proof purpose?",
       "Which ungrouped records need Issue review?",
       "What should be checked before reporting?",
+    ],
+  },
+  "issue-review": {
+    workflow: [
+      "Choose the Issue review you need.",
+      "Select the canonical Issue to review.",
+      "Copy its existing JSON pack or Markdown prompt.",
+      "Review it with an external investigation or legal AI service.",
+      "Verify recommendations in ProveIt before making any changes.",
+    ],
+    recommendedGpt: "Legal Specialist",
+    alsoSuitableFor: ["Investigation Review GPT", "Management Specialist", "General ChatGPT"],
+    exampleQuestions: [
+      "Analyse this Issue and its supporting records.",
+      "Assess the evidence and chronology for this Issue.",
+      "What contradictions or gaps need attention?",
+      "What additional enquiries should I make?",
     ],
   },
   "review-investigation-thread": {

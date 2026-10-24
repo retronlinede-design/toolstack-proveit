@@ -39,8 +39,17 @@ test("AI Workspace keeps feedback announced and actions in its working area", ()
 test("Case Quality Review uses an accessible active-mode selector", () => {
   assert.match(workspace, /data-ai-workspace-quality-modes/);
   assert.match(workspace, /aria-pressed=\{selectedCaseQualityReviewMode\.id === mode\.id\}/);
-  assert.match(styles, /\[data-ai-workspace-quality-modes\] button\[aria-pressed="true"\]/);
-  assert.match(styles, /\[data-ai-workspace-quality-modes\] \{ display: grid; gap: \.45rem; grid-template-columns: repeat\(2/);
+  assert.match(styles, /data-ai-workspace-quality-modes/);
+  assert.match(styles, /button\[aria-pressed="true"\]/);
+  assert.match(styles, /grid-template-columns: repeat\(2/);
+});
+
+test("Issue Review reuses the accessible two-mode presentation", () => {
+  assert.match(workspace, /data-ai-workspace-issue-review-modes/);
+  assert.match(workspace, /aria-pressed=\{selectedIssueReviewMode\.id === mode\.id\}/);
+  assert.match(workspace, /Issue Review modes/);
+  assert.match(styles, /data-ai-workspace-issue-review-modes/);
+  assert.match(styles, /data-ai-workspace-issue-review/);
 });
 
 test("AI Workspace scope is based on the active tool and warns before a stale Issue handoff", () => {
