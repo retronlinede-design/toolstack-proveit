@@ -123,6 +123,7 @@ import {
   TIMELINE_ALL_ISSUES_FILTER,
   TIMELINE_UNASSIGNED_ISSUES_FILTER,
 } from "./caseDetail/timelineIssueFilter.js";
+import { resolveTimelineIssueNavigationTarget } from "./caseDetail/timelineIssueNavigation.js";
 import ActiveLedgerRecordModal from "./caseDetail/ActiveLedgerRecordModal";
 import DocumentsTab from "./caseDetail/DocumentsTab";
 import FloatingWorkspaceMenu from "./caseDetail/FloatingWorkspaceMenu";
@@ -194,9 +195,27 @@ function renderCompactLinkRow(label, items, renderChip) {
   );
 }
 
-function renderSequenceGroupChip(value) {
+function renderSequenceGroupChip(value, { navigationIssue, onOpenIssue } = {}) {
   const sequenceGroup = typeof value === "string" ? value.trim() : "";
   if (!sequenceGroup) return null;
+
+  const issueLabel = [navigationIssue?.reference, navigationIssue?.name].filter(Boolean).join(" — ") || sequenceGroup;
+  if (navigationIssue?.id && typeof onOpenIssue === "function") {
+    return (
+      <button
+        type="button"
+        className="case-file-timeline-issue-link inline-flex max-w-full items-center gap-1 rounded border border-neutral-200 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-600"
+        onClick={(event) => {
+          event.stopPropagation();
+          onOpenIssue(navigationIssue.id);
+        }}
+        aria-label={`Open Issue ${issueLabel}`}
+      >
+        <Tags className="h-3 w-3 shrink-0 text-neutral-400" aria-hidden="true" />
+        <span className="truncate">{sequenceGroup}</span>
+      </button>
+    );
+  }
 
   return (
     <span className="inline-flex max-w-full items-center gap-1 rounded border border-neutral-200 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-600">
@@ -6444,6 +6463,7 @@ ${ungroupedSequenceText}
                             const detailsId = `timeline-details-${itemKey}`;
                             const isExpanded = expandedTimelineItems.has(itemKey);
                             const hasFullSummary = item.fullSummary && item.fullSummary !== item.summary;
+                            const timelineIssueNavigationTarget = resolveTimelineIssueNavigationTarget(selectedCase, item.source);
                             return (
                               <article
                                 key={itemKey}
@@ -6462,7 +6482,10 @@ ${ungroupedSequenceText}
                                         {detailLabelMap[item.typeDetail]}
                                       </span>
                                     )}
-                                    {renderSequenceGroupChip(item.source?.sequenceGroup)}
+                                    {renderSequenceGroupChip(item.source?.sequenceGroup, {
+                                      navigationIssue: timelineIssueNavigationTarget,
+                                      onOpenIssue: openSequenceGroupManager,
+                                    })}
                                     {isTimelineMilestone && <span className="case-file-timeline-milestone">Milestone</span>}
                                   </div>
                                   <h5 className="case-file-timeline-event-title">{item.title}</h5>

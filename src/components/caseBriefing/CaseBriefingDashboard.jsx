@@ -46,7 +46,7 @@ function IssueCard({ issue, onOpenIssue }) {
 
   return (
     <li>
-      <button type="button" onClick={() => onOpenIssue?.(issue.name)} className="case-file-overview-issue-card" aria-label={accessibleSummary}>
+      <button type="button" onClick={() => onOpenIssue?.(issue.id || issue.name)} className="case-file-overview-issue-card" aria-label={accessibleSummary}>
         <span className="case-file-overview-issue-card-topline">
           <span className="case-file-overview-issue-name">{issueName}</span>
           <span className="case-file-overview-open-label" aria-hidden="true">Open Issue Manager</span>
@@ -124,7 +124,7 @@ export default function CaseBriefingDashboard({ model, onOpenIssue, onOpenItem, 
       )}
 
       <OverviewSection title="Active Issues" description="Issues organise related Incidents, Evidence, and other case records.">
-        {issues.length ? <ul className="case-file-overview-issue-grid" aria-label="Active Issues">{issues.map((issue) => <IssueCard key={issue.name} issue={issue} onOpenIssue={onOpenIssue} />)}</ul> : <div className="case-file-overview-empty-list"><p>No active Issues are recorded.</p><button type="button" className="case-file-overview-button is-compact" onClick={() => onOpenIssue?.("")}>Open Issue Manager</button></div>}
+        {issues.length ? <ul className="case-file-overview-issue-grid" aria-label="Active Issues">{issues.map((issue) => <IssueCard key={issue.id || issue.name} issue={issue} onOpenIssue={onOpenIssue} />)}</ul> : <div className="case-file-overview-empty-list"><p>No active Issues are recorded.</p><button type="button" className="case-file-overview-button is-compact" onClick={() => onOpenIssue?.("")}>Open Issue Manager</button></div>}
       </OverviewSection>
 
       <div className="case-file-overview-operational-grid">

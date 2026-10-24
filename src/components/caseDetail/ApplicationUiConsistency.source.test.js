@@ -43,7 +43,10 @@ test("timeline retains scoped, accessible event controls and type-safe source na
   assert.match(caseDetail, /aria-expanded=\{isExpanded\}/);
   assert.match(caseDetail, /aria-controls=\{detailsId\}/);
   assert.match(caseDetail, /openLinkedRecord\(item\.id, item\.recordType\)/);
-  assert.match(caseDetail, /renderSequenceGroupChip\(item\.source\?\.sequenceGroup\)/);
+  assert.match(caseDetail, /resolveTimelineIssueNavigationTarget\(selectedCase, item\.source\)/);
+  assert.match(caseDetail, /navigationIssue: timelineIssueNavigationTarget/);
+  assert.match(caseDetail, /event\.stopPropagation\(\)/);
+  assert.match(caseDetail, /aria-label=\{`Open Issue \$\{issueLabel\}`\}/);
   assert.match(caseDetail, /role="status"/);
   assert.match(styles, /\.case-file-timeline-event \{[\s\S]*grid-template-columns/);
   assert.match(styles, /@media \(max-width: 640px\)[\s\S]*\.case-file-timeline-event \{ grid-template-columns: 1fr/);

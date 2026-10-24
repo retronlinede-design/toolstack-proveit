@@ -1188,7 +1188,8 @@
 .proveit-dark-shell .case-file-timeline-issue-select,
 .proveit-dark-shell .case-file-timeline-clear,
 .proveit-dark-shell .case-file-timeline-disclosure,
-.proveit-dark-shell .case-file-timeline-open-record {
+.proveit-dark-shell .case-file-timeline-open-record,
+.proveit-dark-shell .case-file-timeline-issue-link {
   min-height: 2rem;
   border: 1px solid var(--case-file-border);
   border-radius: .45rem;
@@ -1204,7 +1205,8 @@
 .proveit-dark-shell .case-file-timeline-filter:hover,
 .proveit-dark-shell .case-file-timeline-clear:hover,
 .proveit-dark-shell .case-file-timeline-disclosure:hover,
-.proveit-dark-shell .case-file-timeline-open-record:hover {
+.proveit-dark-shell .case-file-timeline-open-record:hover,
+.proveit-dark-shell .case-file-timeline-issue-link:hover {
   border-color: color-mix(in srgb, var(--case-file-accent) 58%, var(--case-file-border));
   background: var(--pi-control-hover);
   color: var(--case-file-text);
