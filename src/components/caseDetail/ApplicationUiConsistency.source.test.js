@@ -18,6 +18,8 @@ test("timeline filters expose state and an accessible selector name", () => {
   assert.match(caseDetail, /aria-pressed=\{timelineView === filter\.id\}/);
   assert.match(caseDetail, /aria-pressed=\{timelineMilestonesOnly\}/);
   assert.match(caseDetail, /aria-label="Filter timeline by Issue"/);
+  assert.match(caseDetail, /value=\{issue\.id\}/);
+  assert.match(caseDetail, /isTimelineItemInIssueFilter\(selectedCase, item, timelineSequenceGroupFilter\)/);
 });
 
 test("timeline retains scoped, accessible event controls and type-safe source navigation", () => {

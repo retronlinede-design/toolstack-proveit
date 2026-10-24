@@ -116,7 +116,13 @@ import ActionSummaryPanel from "./caseDetail/ActionSummaryPanel";
 import CaseBriefingDashboard from "./caseBriefing/CaseBriefingDashboard.jsx";
 import { getOverviewRecordLaunch } from "./caseBriefing/overviewRecordLaunch.js";
 import { buildCaseBriefingModel } from "../caseBriefing/buildCaseBriefingModel.js";
-import { assignRecordToIssue, createCaseIssue, deleteCaseIssue, mergeCaseIssues, normalizeCaseIssues, removeRecordFromIssue, resolveCaseIssue, updateCaseIssue } from "../domain/issueDomain.js";
+import { assignRecordToIssue, createCaseIssue, deleteCaseIssue, getCaseIssueSelectionOptions, mergeCaseIssues, normalizeCaseIssues, removeRecordFromIssue, resolveCaseIssue, updateCaseIssue } from "../domain/issueDomain.js";
+import {
+  isTimelineIssueFilterValid,
+  isTimelineItemInIssueFilter,
+  TIMELINE_ALL_ISSUES_FILTER,
+  TIMELINE_UNASSIGNED_ISSUES_FILTER,
+} from "./caseDetail/timelineIssueFilter.js";
 import ActiveLedgerRecordModal from "./caseDetail/ActiveLedgerRecordModal";
 import DocumentsTab from "./caseDetail/DocumentsTab";
 import FloatingWorkspaceMenu from "./caseDetail/FloatingWorkspaceMenu";
@@ -277,7 +283,7 @@ export default function CaseDetail({
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [timelineView, setTimelineView] = useState("all");
   const [timelineMilestonesOnly, setTimelineMilestonesOnly] = useState(false);
-  const [timelineSequenceGroupFilter, setTimelineSequenceGroupFilter] = useState("all");
+  const [timelineSequenceGroupFilter, setTimelineSequenceGroupFilter] = useState(TIMELINE_ALL_ISSUES_FILTER);
   const [expandedTimelineItems, setExpandedTimelineItems] = useState(() => new Set());
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [ledgerFilter, setLedgerFilter] = useState("all");
@@ -368,6 +374,7 @@ export default function CaseDetail({
   const activeGeneratedReportLanguage = normalizeReportLanguage(selectedCase?.activeGeneratedReportLanguage);
   const sequenceGroups = useMemo(() => getCaseSequenceGroups(selectedCase), [selectedCase]);
   const sequenceGroupDetails = useMemo(() => getCaseSequenceGroupDetails(selectedCase), [selectedCase]);
+  const timelineIssueOptions = useMemo(() => getCaseIssueSelectionOptions(selectedCase), [selectedCase]);
   const threadIssueReportSequenceOptions = useMemo(() => sequenceGroups.map((group) => group.name), [sequenceGroups]);
   const selectedSequenceGroupAuditGroup = useMemo(() => {
     const options = sequenceGroups.map((group) => group.name);
@@ -386,6 +393,10 @@ export default function CaseDetail({
       setEvidenceSequenceGroupFilter("all");
     }
   }, [evidenceSequenceGroupFilter, sequenceGroups]);
+  useEffect(() => {
+    if (isTimelineIssueFilterValid(selectedCase, timelineSequenceGroupFilter)) return;
+    setTimelineSequenceGroupFilter(TIMELINE_ALL_ISSUES_FILTER);
+  }, [selectedCase, timelineSequenceGroupFilter]);
   const incidentDateMismatchReport = useMemo(
     () => scanIncidentDateMismatches(selectedCase),
     [selectedCase]
@@ -6357,42 +6368,38 @@ ${ungroupedSequenceText}
                         Milestones only
                       </button>
                     </div>
-                    {sequenceGroups.length > 0 && (
-                      <div className="case-file-timeline-issue-filter">
-                        <select
-                          aria-label="Filter timeline by Issue"
-                          value={timelineSequenceGroupFilter}
-                          onChange={(event) => setTimelineSequenceGroupFilter(event.target.value)}
-                          className="case-file-timeline-issue-select"
+                    <div className="case-file-timeline-issue-filter">
+                      <select
+                        aria-label="Filter timeline by Issue"
+                        value={timelineSequenceGroupFilter}
+                        onChange={(event) => setTimelineSequenceGroupFilter(event.target.value)}
+                        className="case-file-timeline-issue-select"
+                      >
+                        <option value={TIMELINE_ALL_ISSUES_FILTER}>All Issues</option>
+                        <option value={TIMELINE_UNASSIGNED_ISSUES_FILTER}>Records without an Issue</option>
+                        {timelineIssueOptions.map((issue) => (
+                          <option key={issue.id} value={issue.id}>
+                            {issue.label}
+                          </option>
+                        ))}
+                      </select>
+                      {timelineSequenceGroupFilter !== TIMELINE_ALL_ISSUES_FILTER && (
+                        <button
+                          type="button"
+                          onClick={() => setTimelineSequenceGroupFilter(TIMELINE_ALL_ISSUES_FILTER)}
+                          className="case-file-timeline-clear"
                         >
-                          <option value="all">All Issues</option>
-                          {sequenceGroups.map((group) => (
-                            <option key={group.name} value={group.name}>
-                              {group.name}
-                            </option>
-                          ))}
-                        </select>
-                        {timelineSequenceGroupFilter !== "all" && (
-                          <button
-                            type="button"
-                            onClick={() => setTimelineSequenceGroupFilter("all")}
-                            className="case-file-timeline-clear"
-                          >
-                            Clear Issue
-                          </button>
-                        )}
-                      </div>
-                    )}
+                          Clear Issue
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </section>
 
                 {(() => {
                   const filteredTimelineItems = timelineItems.filter((item) => {
                     if (timelineMilestonesOnly && item.isMilestone !== true) return false;
-                    if (
-                      timelineSequenceGroupFilter !== "all" &&
-                      String(item.source?.sequenceGroup || "").trim() !== timelineSequenceGroupFilter
-                    ) return false;
+                    if (!isTimelineItemInIssueFilter(selectedCase, item, timelineSequenceGroupFilter)) return false;
                     if (timelineView === "all") return true;
                     if (timelineView === "payment") return item.recordType === "ledger";
                     return item.recordType === timelineView;
