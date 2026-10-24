@@ -3,6 +3,7 @@ import { resolveRecordById } from "../domain/linkingResolvers.js";
 import { buildExecutiveSummaryReport } from "../report/reportBuilder.js";
 import { exportSequenceGroupAuditJson } from "./sequenceGroupAuditExport.js";
 import { buildIssueIndex, HUMAN_READABLE_ISSUE_PROMPT } from "../domain/issueDomain.js";
+import { filterIssueExportRecords, recordMatchesIssueExportScope, resolveIssueExportScope } from "./issueScope.js";
 
 const PACK_SCHEMA_VERSION = "gpt-audit-pack-1.0";
 const DEFAULT_LIMITS = {
@@ -441,10 +442,6 @@ function sortByChronology(records = []) {
   });
 }
 
-function isInSequenceGroup(record, groupName) {
-  return cleanSequenceGroup(record?.sequenceGroup) === groupName;
-}
-
 function buildAttachmentMetadata(record = {}) {
   const attachments = Array.isArray(record.attachments) ? record.attachments : [];
   const digitalFiles = Array.isArray(record.availability?.digital?.files) ? record.availability.digital.files : [];
@@ -500,7 +497,7 @@ function buildFullChainRecord(caseData, record, recordType, limits) {
   return base;
 }
 
-function collectExternalLinkedRecords(caseData, chainRecords, groupName, limits) {
+function collectExternalLinkedRecords(caseData, chainRecords, scope, limits) {
   const seen = new Set(chainRecords.map(({ record }) => record.id));
   return chainRecords
     .flatMap(({ record }) => getOutgoingLinkIds(record))
@@ -511,7 +508,7 @@ function collectExternalLinkedRecords(caseData, chainRecords, groupName, limits)
     })
     .map((id) => {
       const resolved = resolveRecordById(caseData, id);
-      if (!resolved?.record || isInSequenceGroup(resolved.record, groupName)) return null;
+      if (!resolved?.record || recordMatchesIssueExportScope(resolved.record, scope)) return null;
       return buildFullChainRecord(caseData, resolved.record, resolved.recordType || "record", limits);
     })
     .filter(Boolean);
@@ -541,19 +538,14 @@ function uniqueStrings(values = []) {
 
 export function buildFullChainGptPack(caseData = {}, sequenceGroup = "", options = {}) {
   const limits = { ...DEFAULT_LIMITS, ...(options.limits || {}) };
-  const groupName = cleanSequenceGroup(sequenceGroup);
-  if (!groupName) {
-    throw new Error("sequenceGroup is required for FULL_CHAIN_GPT_PACK");
-  }
-
-  const groups = getCaseSequenceGroups(caseData);
-  const group = groups.find((item) => item.name === groupName);
+  const scope = resolveIssueExportScope(caseData, options.issueId ? { issueId: options.issueId, issueName: sequenceGroup } : sequenceGroup);
+  const groupName = scope.name;
   const recordsByType = {
-    incidents: sortByChronology(getRecordCollection(caseData, "incidents").filter((record) => isInSequenceGroup(record, groupName))),
-    evidence: sortByChronology(getRecordCollection(caseData, "evidence").filter((record) => isInSequenceGroup(record, groupName))),
-    documents: sortByChronology(getRecordCollection(caseData, "documents").filter((record) => isInSequenceGroup(record, groupName))),
-    ledger: sortByChronology(getRecordCollection(caseData, "ledger").filter((record) => isInSequenceGroup(record, groupName))),
-    strategy: sortByChronology(getRecordCollection(caseData, "strategy").filter((record) => isInSequenceGroup(record, groupName))),
+    incidents: sortByChronology(filterIssueExportRecords(getRecordCollection(caseData, "incidents"), scope)),
+    evidence: sortByChronology(filterIssueExportRecords(getRecordCollection(caseData, "evidence"), scope)),
+    documents: sortByChronology(filterIssueExportRecords(getRecordCollection(caseData, "documents"), scope)),
+    ledger: sortByChronology(filterIssueExportRecords(getRecordCollection(caseData, "ledger"), scope)),
+    strategy: sortByChronology(filterIssueExportRecords(getRecordCollection(caseData, "strategy"), scope)),
   };
   const chainRecords = [
     ...recordsByType.incidents.map((record) => ({ record, recordType: "incident" })),
@@ -562,22 +554,23 @@ export function buildFullChainGptPack(caseData = {}, sequenceGroup = "", options
     ...recordsByType.ledger.map((record) => ({ record, recordType: "ledger" })),
     ...recordsByType.strategy.map((record) => ({ record, recordType: "strategy" })),
   ];
-  const audit = exportSequenceGroupAuditJson(caseData, groupName, options);
+  const audit = exportSequenceGroupAuditJson(caseData, groupName, { ...options, issueId: scope.issueId || undefined });
   const evidenceIncidentIds = new Set(recordsByType.evidence.flatMap((record) => list(record.linkedIncidentIds)));
   const incidentEvidenceIds = new Set(recordsByType.incidents.flatMap((record) => list(record.linkedEvidenceIds)));
 
   return buildFullChainEnvelope(caseData, {
     sequenceGroup: {
+      id: scope.issueId || null,
       name: groupName,
       description: safeText(options.sequenceGroupMeta?.[groupName]?.description),
-      counts: group?.counts || {},
+      counts: Object.fromEntries(Object.entries(recordsByType).map(([type, records]) => [type, records.length])),
     },
     incidents: recordsByType.incidents.map((record) => buildFullChainRecord(caseData, record, "incident", limits)),
     evidence: recordsByType.evidence.map((record) => buildFullChainRecord(caseData, record, "evidence", limits)),
     documents: recordsByType.documents.map((record) => buildFullChainRecord(caseData, record, "document", limits)),
     ledger: recordsByType.ledger.map((record) => buildFullChainRecord(caseData, record, "ledger", limits)),
     strategy: recordsByType.strategy.map((record) => buildFullChainRecord(caseData, record, "strategy", limits)),
-    externalLinkedRecords: collectExternalLinkedRecords(caseData, chainRecords, groupName, limits),
+    externalLinkedRecords: collectExternalLinkedRecords(caseData, chainRecords, scope, limits),
     diagnostics: {
       incidentsWithoutEvidence: recordsByType.incidents
         .filter((record) => list(record.linkedEvidenceIds).length === 0 && !evidenceIncidentIds.has(record.id))
@@ -654,13 +647,12 @@ function buildManagementReportBuilderDocument(caseData, record, limits) {
   };
 }
 
-function buildManagementReportBuilderSourceRecords(caseData, groupName, limits) {
+function buildManagementReportBuilderSourceRecords(caseData, scope, limits, legacyGroupName = "") {
+  const select = (collection) => scope
+    ? sortByChronology(filterIssueExportRecords(getRecordCollection(caseData, collection), scope))
+    : sortByChronology(getRecordCollection(caseData, collection).filter((record) => cleanSequenceGroup(record.sequenceGroup) === legacyGroupName));
   const recordsByType = {
-    incidents: sortByChronology(getRecordCollection(caseData, "incidents").filter((record) => isInSequenceGroup(record, groupName))),
-    evidence: sortByChronology(getRecordCollection(caseData, "evidence").filter((record) => isInSequenceGroup(record, groupName))),
-    documents: sortByChronology(getRecordCollection(caseData, "documents").filter((record) => isInSequenceGroup(record, groupName))),
-    ledger: sortByChronology(getRecordCollection(caseData, "ledger").filter((record) => isInSequenceGroup(record, groupName))),
-    strategy: sortByChronology(getRecordCollection(caseData, "strategy").filter((record) => isInSequenceGroup(record, groupName))),
+    incidents: select("incidents"), evidence: select("evidence"), documents: select("documents"), ledger: select("ledger"), strategy: select("strategy"),
   };
 
   return {
@@ -703,13 +695,27 @@ function buildManagementOpenQuestions(chain = {}) {
 
 export function buildManagementReportBuilderPack(caseData = {}, sequenceGroup = "", options = {}) {
   const limits = { ...DEFAULT_LIMITS, ...(options.limits || {}) };
-  const groupName = cleanSequenceGroup(sequenceGroup);
-  const report = buildExecutiveSummaryReport(caseData, options.reportOptions || {});
+  const scope = sequenceGroup || options.issueId
+    ? resolveIssueExportScope(caseData, options.issueId ? { issueId: options.issueId, issueName: sequenceGroup } : sequenceGroup)
+    : null;
+  const groupName = scope?.name || "";
+  const scopedCase = scope
+    ? {
+        ...caseData,
+        issues: scope.issue ? [scope.issue] : [],
+        incidents: filterIssueExportRecords(caseData.incidents, scope),
+        evidence: filterIssueExportRecords(caseData.evidence, scope),
+        documents: filterIssueExportRecords(caseData.documents, scope),
+        ledger: filterIssueExportRecords(caseData.ledger, scope),
+        strategy: filterIssueExportRecords(caseData.strategy, scope),
+      }
+    : caseData;
+  const report = buildExecutiveSummaryReport(scopedCase, options.reportOptions || {});
   const allChains = Array.isArray(report.sequenceChains) ? report.sequenceChains : [];
   const sequenceChains = groupName ? allChains.filter((chain) => chain.name === groupName) : allChains;
 
   const chains = sequenceChains.map((chain) => {
-    const sourceRecords = buildManagementReportBuilderSourceRecords(caseData, chain.name, limits);
+    const sourceRecords = buildManagementReportBuilderSourceRecords(caseData, scope, limits, chain.name);
     const sourceIds = uniqueStrings([
       ...(chain.facts || []).map((item) => item.id || item.incidentId).filter(Boolean),
       ...(chain.proof || []).map((item) => item.id || item.evidenceId).filter(Boolean),
@@ -752,7 +758,7 @@ export function buildManagementReportBuilderPack(caseData = {}, sequenceGroup = 
     },
     reportPurpose: "Create a polished management-facing report inside ChatGPT from this ProveIt handoff package.",
     intendedAudience: "Management, HR, executives, case owners, and other non-technical decision makers.",
-    scope: groupName ? { type: "singleSequenceGroup", sequenceGroup: groupName } : { type: "wholeCase" },
+    scope: groupName ? { type: "singleSequenceGroup", sequenceGroup: groupName, issueId: scope?.issueId || null } : { type: "wholeCase" },
     reportData: {
       title: report.title || "Management Report",
       managementQuestion: report.managementQuestion || "",
@@ -774,10 +780,9 @@ export function buildManagementReportBuilderPack(caseData = {}, sequenceGroup = 
   });
 }
 
-function groupRecords(caseData = {}, sequenceGroup = "", limits = DEFAULT_LIMITS) {
-  const groupName = cleanSequenceGroup(sequenceGroup);
+function groupRecords(caseData = {}, scope, limits = DEFAULT_LIMITS) {
   return getAllRecords(caseData)
-    .filter(({ record }) => cleanSequenceGroup(record.sequenceGroup) === groupName)
+    .filter(({ record }) => recordMatchesIssueExportScope(record, scope))
     .slice(0, limits.records)
     .map(({ record, recordType }) => ({
       record: buildRecord(record, recordType, limits),
@@ -787,18 +792,16 @@ function groupRecords(caseData = {}, sequenceGroup = "", limits = DEFAULT_LIMITS
 
 export function buildChainCompletionPack(caseData = {}, sequenceGroup = "", options = {}) {
   const limits = { ...DEFAULT_LIMITS, ...(options.limits || {}) };
-  const groupName = cleanSequenceGroup(sequenceGroup);
-  if (!groupName) {
-    throw new Error("sequenceGroup is required for CHAIN_COMPLETION_PACK");
-  }
-
-  const audit = exportSequenceGroupAuditJson(caseData, groupName, options);
+  const scope = resolveIssueExportScope(caseData, options.issueId ? { issueId: options.issueId, issueName: sequenceGroup } : sequenceGroup);
+  const groupName = scope.name;
+  const audit = exportSequenceGroupAuditJson(caseData, groupName, { ...options, issueId: scope.issueId || undefined });
   return buildEnvelope(caseData, "CHAIN_COMPLETION_PACK", {
     sequenceGroup: {
+      id: scope.issueId || null,
       name: groupName,
       overview: audit.threadOverview,
     },
-    chainRecords: groupRecords(caseData, groupName, limits),
+    chainRecords: groupRecords(caseData, scope, limits),
     externalLinkedRecords: (audit.externalLinkedRecords || []).map((record) => buildRecord(record, "incident", limits)),
     diagnostics: {
       unsupportedIncidents: audit.unsupportedIncidents || [],

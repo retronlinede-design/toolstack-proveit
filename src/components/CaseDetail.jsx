@@ -1249,67 +1249,76 @@ export default function CaseDetail({
   }
 
   function openAiTool(toolId) {
-    const nextGroup = selectedSequenceGroupName || sequenceGroups[0]?.name || "";
+    const nextIssueId = selectedSequenceGroupId || timelineIssueOptions[0]?.id || "";
     const matchingTask = AI_WORKSPACE_SECTIONS
       .flatMap((section) => section.tasks || [])
       .find((task) => task.toolId === toolId || task.actionKind === toolId);
     if (matchingTask) setActiveAiTask(matchingTask.id);
     setActiveAiTool(toolId);
-    setAiToolsSequenceGroup(toolId === "management-report-builder-pack" ? MANAGEMENT_REPORT_BUILDER_WHOLE_CASE : nextGroup);
+    setAiToolsSequenceGroup(toolId === "management-report-builder-pack" ? MANAGEMENT_REPORT_BUILDER_WHOLE_CASE : nextIssueId);
     setAiToolsFeedback("");
     setAiToolsOpen(true);
     closeWorkspaceActionMenu();
   }
 
-  function buildAiToolJson(toolId, groupName = aiToolsSequenceGroup) {
+  function getAiToolIssueScope(selection = aiToolsSequenceGroup) {
+    if (selection && typeof selection === "object" && !Array.isArray(selection)) return selection;
+    return selection ? { issueId: selection } : {};
+  }
+
+  function buildAiToolJson(toolId, issueSelection = aiToolsSequenceGroup) {
     if (!selectedCase) return null;
+    const scope = getAiToolIssueScope(issueSelection);
     if (toolId === "case-slice-pack") return buildCaseSlicePack(selectedCase, parseCaseSliceRecordIds(caseSliceRecordIdsText));
     if (toolId === "missing-function-summaries") return buildMissingFunctionSummaryPack(selectedCase);
     if (toolId === "ungrouped-evidence-audit") return buildUngroupedEvidenceAuditPack(selectedCase);
     if (toolId === "ungrouped-incidents-audit") return buildUngroupedIncidentsAuditPack(selectedCase);
-    if (toolId === "chain-completion-pack") return buildChainCompletionPack(selectedCase, groupName || sequenceGroups[0]?.name || "");
-    if (toolId === "full-chain-gpt-pack") return buildFullChainGptPack(selectedCase, groupName || sequenceGroups[0]?.name || "", {
+    if (toolId === "chain-completion-pack") return buildChainCompletionPack(selectedCase, "", scope);
+    if (toolId === "full-chain-gpt-pack") return buildFullChainGptPack(selectedCase, "", {
       sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
+      ...scope,
     });
     if (toolId === "management-report-builder-pack") {
-      const selectedGroup = groupName === MANAGEMENT_REPORT_BUILDER_WHOLE_CASE ? "" : groupName;
-      return buildManagementReportBuilderPack(selectedCase, selectedGroup);
+      const selectedScope = issueSelection === MANAGEMENT_REPORT_BUILDER_WHOLE_CASE ? {} : scope;
+      return buildManagementReportBuilderPack(selectedCase, "", selectedScope);
     }
     if (toolId === "weak-links-audit") return buildWeakLinksAuditPack(selectedCase);
     return null;
   }
 
-  function buildAiToolMarkdown(toolId, groupName = aiToolsSequenceGroup) {
+  function buildAiToolMarkdown(toolId, issueSelection = aiToolsSequenceGroup) {
     if (!selectedCase) return "";
+    const scope = getAiToolIssueScope(issueSelection);
     if (toolId === "case-slice-pack") return buildCaseSliceMarkdownPrompt(selectedCase, parseCaseSliceRecordIds(caseSliceRecordIdsText));
     if (toolId === "missing-function-summaries") return buildMissingFunctionSummaryMarkdownPrompt(selectedCase);
     if (toolId === "ungrouped-evidence-audit") return buildUngroupedEvidenceAuditMarkdownPrompt(selectedCase);
     if (toolId === "ungrouped-incidents-audit") return buildUngroupedIncidentsAuditMarkdownPrompt(selectedCase);
-    if (toolId === "chain-completion-pack") return buildChainCompletionMarkdownPrompt(selectedCase, groupName || sequenceGroups[0]?.name || "");
-    if (toolId === "full-chain-gpt-pack") return buildFullChainGptMarkdownPrompt(selectedCase, groupName || sequenceGroups[0]?.name || "", {
+    if (toolId === "chain-completion-pack") return buildChainCompletionMarkdownPrompt(selectedCase, "", scope);
+    if (toolId === "full-chain-gpt-pack") return buildFullChainGptMarkdownPrompt(selectedCase, "", {
       sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
+      ...scope,
     });
     if (toolId === "management-report-builder-pack") {
-      const selectedGroup = groupName === MANAGEMENT_REPORT_BUILDER_WHOLE_CASE ? "" : groupName;
-      return buildManagementReportBuilderMarkdownPrompt(selectedCase, selectedGroup);
+      const selectedScope = issueSelection === MANAGEMENT_REPORT_BUILDER_WHOLE_CASE ? {} : scope;
+      return buildManagementReportBuilderMarkdownPrompt(selectedCase, "", selectedScope);
     }
     if (toolId === "weak-links-audit") return buildWeakLinksAuditMarkdownPrompt(selectedCase);
     return "";
   }
 
-  function buildAiToolSpecialistPrompt(toolId, groupName = aiToolsSequenceGroup) {
+  function buildAiToolSpecialistPrompt(toolId, issueSelection = aiToolsSequenceGroup) {
     if (!selectedCase) return "";
     if (toolId === "management-report-builder-pack") {
-      const selectedGroup = groupName === MANAGEMENT_REPORT_BUILDER_WHOLE_CASE ? "" : groupName;
-      return buildManagementReportBuilderSpecialistPrompt(selectedCase, selectedGroup);
+      const selectedScope = issueSelection === MANAGEMENT_REPORT_BUILDER_WHOLE_CASE ? {} : getAiToolIssueScope(issueSelection);
+      return buildManagementReportBuilderSpecialistPrompt(selectedCase, "", selectedScope);
     }
     return "";
   }
 
-  async function handleCopyAiToolJson(toolId = activeAiTool, groupName = aiToolsSequenceGroup) {
+  async function handleCopyAiToolJson(toolId = activeAiTool, issueSelection = aiToolsSequenceGroup) {
     if (!selectedCase) return;
     try {
-      const payload = buildAiToolJson(toolId, groupName);
+      const payload = buildAiToolJson(toolId, issueSelection);
       if (!payload) return;
       await copySequenceGroupText(JSON.stringify(payload, null, 2));
       setAiToolsFeedback("AI pack JSON copied.");
@@ -1321,10 +1330,10 @@ export default function CaseDetail({
     }
   }
 
-  async function handleCopyAiToolMarkdown(toolId = activeAiTool, groupName = aiToolsSequenceGroup) {
+  async function handleCopyAiToolMarkdown(toolId = activeAiTool, issueSelection = aiToolsSequenceGroup) {
     if (!selectedCase) return;
     try {
-      const markdown = buildAiToolMarkdown(toolId, groupName);
+      const markdown = buildAiToolMarkdown(toolId, issueSelection);
       if (!markdown) return;
       await copySequenceGroupText(markdown);
       setAiToolsFeedback("AI markdown prompt copied.");
@@ -1336,10 +1345,10 @@ export default function CaseDetail({
     }
   }
 
-  async function handleCopyAiToolSpecialistPrompt(toolId = activeAiTool, groupName = aiToolsSequenceGroup) {
+  async function handleCopyAiToolSpecialistPrompt(toolId = activeAiTool, issueSelection = aiToolsSequenceGroup) {
     if (!selectedCase) return;
     try {
-      const prompt = buildAiToolSpecialistPrompt(toolId, groupName);
+      const prompt = buildAiToolSpecialistPrompt(toolId, issueSelection);
       if (!prompt) return;
       await copySequenceGroupText(prompt);
       setAiToolsFeedback("AI specialist prompt copied.");
@@ -6963,7 +6972,7 @@ ${ungroupedSequenceText}
                                   if (task.toolId === "management-report-builder-pack") {
                                     setAiToolsSequenceGroup(MANAGEMENT_REPORT_BUILDER_WHOLE_CASE);
                                   } else if ((task.toolId === "chain-completion-pack" || task.toolId === "full-chain-gpt-pack") && !aiToolsSequenceGroup) {
-                                    setAiToolsSequenceGroup(selectedSequenceGroupName || sequenceGroups[0]?.name || "");
+                                    setAiToolsSequenceGroup(selectedSequenceGroupId || timelineIssueOptions[0]?.id || "");
                                   }
                                   setAiToolsFeedback("");
                                 }}
@@ -7066,11 +7075,11 @@ ${ungroupedSequenceText}
                       {activeAiToolUsesReportBuilderScope && (
                         <option value={MANAGEMENT_REPORT_BUILDER_WHOLE_CASE}>Whole Case</option>
                       )}
-                      {sequenceGroups.length === 0 && !activeAiToolUsesReportBuilderScope ? (
+                      {timelineIssueOptions.length === 0 && !activeAiToolUsesReportBuilderScope ? (
                         <option value="">No Issues available</option>
-                      ) : sequenceGroups.map((group) => (
-                        <option key={group.name} value={group.name}>
-                          {group.name} ({group.totalCount} records)
+                      ) : timelineIssueOptions.map((issue) => (
+                        <option key={issue.id} value={issue.id}>
+                          {issue.label}
                         </option>
                       ))}
                     </select>
@@ -7560,10 +7569,10 @@ ${ungroupedSequenceText}
           onApplyDelta={handleApplySequenceGroupDelta}
           onClearRecord={handleClearSequenceRecord}
           onClose={() => setSequenceGroupManagerOpen(false)}
-          onCopyChainCompletionPackJson={(groupName) => handleCopyAiToolJson("chain-completion-pack", groupName)}
-          onCopyChainCompletionPackMarkdown={(groupName) => handleCopyAiToolMarkdown("chain-completion-pack", groupName)}
-          onCopyFullChainGptPackJson={(groupName) => handleCopyAiToolJson("full-chain-gpt-pack", groupName)}
-          onCopyFullChainGptPackMarkdown={(groupName) => handleCopyAiToolMarkdown("full-chain-gpt-pack", groupName)}
+          onCopyChainCompletionPackJson={(issueSelection) => handleCopyAiToolJson("chain-completion-pack", issueSelection)}
+          onCopyChainCompletionPackMarkdown={(issueSelection) => handleCopyAiToolMarkdown("chain-completion-pack", issueSelection)}
+          onCopyFullChainGptPackJson={(issueSelection) => handleCopyAiToolJson("full-chain-gpt-pack", issueSelection)}
+          onCopyFullChainGptPackMarkdown={(issueSelection) => handleCopyAiToolMarkdown("full-chain-gpt-pack", issueSelection)}
           onCopyReviewPackage={handleCopySequenceGroupReviewPackage}
           onDownloadGroupIndexJson={handleDownloadSequenceGroupsIndexJson}
           onDownloadGroupIndexMarkdown={handleDownloadSequenceGroupsIndexMarkdown}

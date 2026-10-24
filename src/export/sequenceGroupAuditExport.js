@@ -2,6 +2,7 @@ import { getIncidentLinkGroups, sortTimelineItems } from "../domain/caseDomain.j
 import { resolveRecordById } from "../domain/linkingResolvers.js";
 import { sanitizeAttachmentForExport } from "./caseExport.js";
 import { HUMAN_READABLE_ISSUE_PROMPT, getIssueDisplayLabel, resolveCaseIssue } from "../domain/issueDomain.js";
+import { recordMatchesIssueExportScope, resolveIssueExportScope } from "./issueScope.js";
 
 export const SEQUENCE_GROUP_AUDIT_PROMPT =
   "Please audit this Issue for chronology accuracy, evidence strength, missing records, weak links, unsupported claims, escalation readiness, and safe ProveIt updates.";
@@ -180,7 +181,7 @@ function diagnostic(record, recordType, code, message) {
   };
 }
 
-function collectDiagnostics(caseData, groupName, groupIncidents, includedEvidence, groupRecords, externalLinkedRecords) {
+function collectDiagnostics(caseData, scope, groupIncidents, includedEvidence, groupRecords, externalLinkedRecords) {
   const unsupportedIncidents = groupIncidents
     .filter((incident) => incident.evidenceStatus === "needs_evidence")
     .map((incident) => diagnostic(incident, "incident", "incident_needs_evidence", "Incident evidenceStatus is needs_evidence."));
@@ -225,7 +226,7 @@ function collectDiagnostics(caseData, groupName, groupIncidents, includedEvidenc
     for (const incidentId of resolveIncidentIdsFromRecord(caseData, evidence)) {
       const linkedIncident = (caseData.incidents || []).find((incident) => incident.id === incidentId);
       const linkedGroup = cleanSequenceGroup(linkedIncident?.sequenceGroup);
-      if (linkedIncident && linkedGroup && linkedGroup !== groupName) {
+      if (linkedIncident && linkedGroup && !recordMatchesIssueExportScope(linkedIncident, scope)) {
         evidenceLinkedToUnrelatedSequenceGroups.push({
           ...diagnostic(evidence, "evidence", "evidence_linked_to_unrelated_sequence_group", "Evidence is linked to an incident in another Issue."),
           linkedIncidentId: linkedIncident.id,
@@ -297,15 +298,15 @@ function buildLinkMap(caseData, incidents, evidence, documents, externalLinkedRe
 
 export function buildSequenceGroupAuditReport(caseData, sequenceGroup, options = {}) {
   if (!caseData) throw new Error("caseData is required for SEQUENCE_GROUP_FULL_RECORD_AUDIT_REPORT");
-  const groupName = cleanSequenceGroup(sequenceGroup);
-  if (!groupName) throw new Error("sequenceGroup is required for SEQUENCE_GROUP_FULL_RECORD_AUDIT_REPORT");
+  const scope = resolveIssueExportScope(caseData, options.issueId ? { issueId: options.issueId, issueName: sequenceGroup } : sequenceGroup);
+  const groupName = scope.name;
   const groupDescription = text(options.sequenceGroupMeta?.[groupName]?.description);
-  const issue = resolveCaseIssue(caseData, { issueName: groupName });
+  const issue = scope.issue || resolveCaseIssue(caseData, { issueName: groupName });
 
   const incidents = Array.isArray(caseData.incidents) ? caseData.incidents : [];
   const evidenceRecords = Array.isArray(caseData.evidence) ? caseData.evidence : [];
   const documents = Array.isArray(caseData.documents) ? caseData.documents : [];
-  const groupIncidents = incidents.filter((incident) => cleanSequenceGroup(incident.sequenceGroup) === groupName);
+  const groupIncidents = incidents.filter((incident) => recordMatchesIssueExportScope(incident, scope));
   const groupIncidentIds = groupIncidents.map((incident) => incident.id);
 
   const linkedEvidenceIds = unique([
@@ -315,7 +316,7 @@ export function buildSequenceGroupAuditReport(caseData, sequenceGroup, options =
       .map((evidence) => evidence.id),
   ]);
   const includedEvidence = evidenceRecords.filter((evidence) =>
-    cleanSequenceGroup(evidence.sequenceGroup) === groupName || linkedEvidenceIds.includes(evidence.id)
+    recordMatchesIssueExportScope(evidence, scope) || linkedEvidenceIds.includes(evidence.id)
   );
   const includedEvidenceIds = includedEvidence.map((evidence) => evidence.id);
 
@@ -331,7 +332,7 @@ export function buildSequenceGroupAuditReport(caseData, sequenceGroup, options =
   const includedDocuments = documents.filter((doc) => documentIds.includes(doc.id));
   const groupOtherRecords = [
     ...(Array.isArray(caseData.strategy) ? caseData.strategy : [])
-      .filter((record) => cleanSequenceGroup(record.sequenceGroup) === groupName)
+      .filter((record) => recordMatchesIssueExportScope(record, scope))
       .map((record) => ({ ...record, recordType: "strategy" })),
     ...includedDocuments.map((record) => ({ ...record, recordType: "document" })),
   ];
@@ -349,7 +350,7 @@ export function buildSequenceGroupAuditReport(caseData, sequenceGroup, options =
     ...mappedDocuments.map((record) => ({ id: record.id, recordType: "document", date: record.documentDate, title: record.title, status: "" })),
   ].sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")) || String(a.recordType).localeCompare(String(b.recordType)) || String(a.id).localeCompare(String(b.id)));
 
-  const diagnostics = collectDiagnostics(caseData, groupName, groupIncidents, includedEvidence, groupOtherRecords, externalLinkedRecords);
+  const diagnostics = collectDiagnostics(caseData, scope, groupIncidents, includedEvidence, groupOtherRecords, externalLinkedRecords);
   const linkMap = buildLinkMap(caseData, mappedIncidents, mappedEvidence, mappedDocuments, externalLinkedRecords);
 
   return {
@@ -365,7 +366,7 @@ export function buildSequenceGroupAuditReport(caseData, sequenceGroup, options =
       status: caseData.status || "",
     },
     sequenceGroup: groupName,
-    issueId: issue?.id || null,
+    issueId: scope.issueId || issue?.id || null,
     issueReference: issue?.reference || null,
     issueName: issue?.name || groupName,
     issueDisplayLabel: issue ? getIssueDisplayLabel(issue) : groupName,

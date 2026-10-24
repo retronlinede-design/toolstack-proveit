@@ -37,6 +37,13 @@ function getGroupBadgeVariant(status) {
   return "status-neutral";
 }
 
+function getIssueExportScope(group) {
+  return {
+    issueId: group?.issue?.id || "",
+    issueName: group?.name || "",
+  };
+}
+
 function SequenceGroupDeltaPreview({ result }) {
   if (!result) return null;
 
@@ -629,11 +636,11 @@ export default function SequenceGroupManager({
                                 More
                               </summary>
                               <div className="absolute right-0 z-20 mt-2 w-52 rounded-lg border border-neutral-200 bg-white p-2 shadow-xl">
-                                <button type="button" onClick={() => onCopyFullChainGptPackMarkdown?.(group.name)} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Copy Full Chain Markdown</button>
-                                <button type="button" onClick={() => onCopyChainCompletionPackMarkdown?.(group.name)} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Copy Chain Completion Markdown</button>
+                                <button type="button" onClick={() => onCopyFullChainGptPackMarkdown?.(getIssueExportScope(group))} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Copy Full Chain Markdown</button>
+                                <button type="button" onClick={() => onCopyChainCompletionPackMarkdown?.(getIssueExportScope(group))} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Copy Chain Completion Markdown</button>
                                 <button type="button" onClick={() => onOpenAuditExport?.(group.name)} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Open Chain Audit</button>
-                                <button type="button" onClick={() => onCopyFullChainGptPackJson?.(group.name)} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Copy Full Chain JSON</button>
-                                <button type="button" onClick={() => onCopyChainCompletionPackJson?.(group.name)} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Copy Chain Completion JSON</button>
+                                <button type="button" onClick={() => onCopyFullChainGptPackJson?.(getIssueExportScope(group))} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Copy Full Chain JSON</button>
+                                <button type="button" onClick={() => onCopyChainCompletionPackJson?.(getIssueExportScope(group))} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Copy Chain Completion JSON</button>
                               </div>
                             </details>
                           </div>
@@ -911,7 +918,7 @@ export default function SequenceGroupManager({
                         <div className="mt-4 grid gap-3 md:grid-cols-3">
                           <button
                             type="button"
-                            onClick={() => onCopyFullChainGptPackMarkdown?.(selectedGroup.name)}
+                            onClick={() => onCopyFullChainGptPackMarkdown?.(getIssueExportScope(selectedGroup))}
                             className="rounded-lg border border-lime-500 bg-white p-3 text-left text-sm font-bold text-neutral-900 hover:bg-lime-400/20"
                           >
                             Copy Full Chain Markdown
@@ -919,7 +926,7 @@ export default function SequenceGroupManager({
                           </button>
                           <button
                             type="button"
-                            onClick={() => onCopyChainCompletionPackMarkdown?.(selectedGroup.name)}
+                            onClick={() => onCopyChainCompletionPackMarkdown?.(getIssueExportScope(selectedGroup))}
                             className="rounded-lg border border-neutral-300 bg-white p-3 text-left text-sm font-bold text-neutral-700 hover:bg-neutral-50"
                           >
                             Copy Chain Completion Markdown
@@ -941,10 +948,10 @@ export default function SequenceGroupManager({
                       <section className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
                         <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Exports</h4>
                         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                          <button type="button" onClick={() => onCopyFullChainGptPackJson?.(selectedGroup.name)} className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">Copy Full Chain JSON</button>
-                          <button type="button" onClick={() => onCopyFullChainGptPackMarkdown?.(selectedGroup.name)} className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">Copy Full Chain Markdown</button>
-                          <button type="button" onClick={() => onCopyChainCompletionPackJson?.(selectedGroup.name)} className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">Copy Chain Completion JSON</button>
-                          <button type="button" onClick={() => onCopyChainCompletionPackMarkdown?.(selectedGroup.name)} className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">Copy Chain Completion Markdown</button>
+                          <button type="button" onClick={() => onCopyFullChainGptPackJson?.(getIssueExportScope(selectedGroup))} className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">Copy Full Chain JSON</button>
+                          <button type="button" onClick={() => onCopyFullChainGptPackMarkdown?.(getIssueExportScope(selectedGroup))} className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">Copy Full Chain Markdown</button>
+                          <button type="button" onClick={() => onCopyChainCompletionPackJson?.(getIssueExportScope(selectedGroup))} className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">Copy Chain Completion JSON</button>
+                          <button type="button" onClick={() => onCopyChainCompletionPackMarkdown?.(getIssueExportScope(selectedGroup))} className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">Copy Chain Completion Markdown</button>
                           <button type="button" onClick={onDownloadGroupIndexJson} className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">Download Group Index JSON</button>
                           <button type="button" onClick={onDownloadGroupIndexMarkdown} className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">Download Group Index Markdown</button>
                         </div>
@@ -1119,7 +1126,7 @@ export default function SequenceGroupManager({
                 <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Group Management</h4>
                 <RecordActions className="mt-3 grid gap-2" actions={[
                   { key: "merge", label: "Move / Merge Group", variant: "secondary", onClick: () => openEditGroupForm("merge"), disabled: !selectedGroup },
-                  { key: "copy", label: "Copy Full Chain", onClick: () => onCopyFullChainGptPackMarkdown?.(selectedGroup?.name), disabled: !selectedGroup },
+                  { key: "copy", label: "Copy Full Chain", onClick: () => onCopyFullChainGptPackMarkdown?.(getIssueExportScope(selectedGroup)), disabled: !selectedGroup },
                 ]} />
               </section>
               <section className="rounded-xl border border-red-200 bg-red-50/50 p-3 dark:border-red-900 dark:bg-red-950/20">

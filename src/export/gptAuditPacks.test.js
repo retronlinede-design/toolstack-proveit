@@ -197,6 +197,24 @@ function buildCase() {
   };
 }
 
+function buildDuplicateIssueTitleCase() {
+  const caseData = buildCase();
+  caseData.issues = [
+    { id: "issue-repairs-a", reference: "ISS-001", name: "Repair issue", status: "open", priority: "high" },
+    { id: "issue-repairs-b", reference: "ISS-002", name: "Repair issue", status: "open", priority: "medium" },
+  ];
+  caseData.incidents = [
+    { ...caseData.incidents[1], id: "inc-repairs-a", sequenceGroupId: "issue-repairs-a", sequenceGroup: "Repair issue" },
+    { ...caseData.incidents[2], id: "inc-repairs-b", sequenceGroupId: "issue-repairs-b", sequenceGroup: "Repair issue" },
+    { ...caseData.incidents[0], id: "inc-legacy-ambiguous", sequenceGroup: "Repair issue" },
+  ];
+  caseData.evidence = [];
+  caseData.documents = [];
+  caseData.ledger = [];
+  caseData.strategy = [];
+  return caseData;
+}
+
 function assertSafePack(pack) {
   const serialized = JSON.stringify(pack);
   assert.equal(pack.importable, false);
@@ -355,6 +373,42 @@ test("management report builder pack can scope to a single sequence group", () =
   assert.equal(pack.data.scope.type, "singleSequenceGroup");
   assert.equal(pack.data.scope.sequenceGroup, "Repair Chain");
   assert.deepEqual(pack.data.sequenceChains.map((chain) => chain.name), ["Repair Chain"]);
+});
+
+test("canonical Issue scopes never combine same-named Issues or ambiguous legacy records", () => {
+  const caseData = buildDuplicateIssueTitleCase();
+  const baseline = structuredClone(caseData);
+
+  const fullPack = buildFullChainGptPack(caseData, "", { issueId: "issue-repairs-a" });
+  const completionPack = buildChainCompletionPack(caseData, "", { issueId: "issue-repairs-a" });
+  const managementPack = buildManagementReportBuilderPack(caseData, "", { issueId: "issue-repairs-a" });
+
+  assert.equal(fullPack.data.sequenceGroup.id, "issue-repairs-a");
+  assert.deepEqual(fullPack.data.incidents.map((record) => record.id), ["inc-repairs-a"]);
+  assert.deepEqual(completionPack.data.chainRecords.map((item) => item.record.id), ["inc-repairs-a"]);
+  assert.equal(managementPack.data.scope.issueId, "issue-repairs-a");
+  assert.equal(managementPack.data.sourceIds.includes("inc-repairs-a"), true);
+  assert.equal(managementPack.data.sourceIds.includes("inc-repairs-b"), false);
+  assert.equal(managementPack.data.sourceIds.includes("inc-legacy-ambiguous"), false);
+  assert.deepEqual(caseData, baseline);
+});
+
+test("Issue-scoped packs retain canonical selection after rename and reject invalid or ambiguous selections", () => {
+  const caseData = buildDuplicateIssueTitleCase();
+  assert.throws(
+    () => buildChainCompletionPack(caseData, "Repair issue"),
+    /ambiguous/,
+  );
+  caseData.issues[0].name = "Renamed repair issue";
+  caseData.incidents[0].sequenceGroup = "Old repair issue";
+
+  const renamedPack = buildFullChainGptPack(caseData, "", { issueId: "issue-repairs-a" });
+  assert.equal(renamedPack.data.sequenceGroup.name, "Renamed repair issue");
+  assert.deepEqual(renamedPack.data.incidents.map((record) => record.id), ["inc-repairs-a"]);
+  assert.throws(
+    () => buildFullChainGptPack(caseData, "", { issueId: "deleted-issue" }),
+    /no longer available/,
+  );
 });
 
 test("markdown prompts include required safety instructions", () => {

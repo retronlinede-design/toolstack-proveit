@@ -70,3 +70,10 @@ test("SequenceGroupManager saves canonical Issue descriptions through the revisi
   assert.doesNotMatch(source, /Saved canonical description/);
   assert.doesNotMatch(source, /Cleared canonical description/);
 });
+
+test("SequenceGroupManager forwards canonical Issue export scope to AI handoff actions", () => {
+  assert.match(source, /function getIssueExportScope\(group\)/);
+  assert.match(source, /issueId: group\?\.issue\?\.id \|\| ""/);
+  assert.match(source, /onCopyFullChainGptPackJson\?\.\(getIssueExportScope\(group\)\)/);
+  assert.match(source, /onCopyChainCompletionPackMarkdown\?\.\(getIssueExportScope\(selectedGroup\)\)/);
+});

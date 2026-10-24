@@ -51,3 +51,11 @@ test("AI Tools modal exposes specialist prompt only for management report builde
   assert.match(source, /Copy Specialist Prompt/);
   assert.match(source, /Copy Markdown Prompt/);
 });
+
+test("Issue-scoped AI handoff controls retain canonical Issue IDs", () => {
+  assert.match(source, /const nextIssueId = selectedSequenceGroupId \|\| timelineIssueOptions\[0\]\?\.id \|\| ""/);
+  assert.match(source, /function getAiToolIssueScope/);
+  assert.match(source, /buildFullChainGptPack\(selectedCase, "", \{/);
+  assert.match(source, /\.\.\.scope/);
+  assert.match(source, /option key=\{issue\.id\} value=\{issue\.id\}/);
+});
