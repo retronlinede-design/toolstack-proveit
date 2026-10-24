@@ -131,9 +131,6 @@ export const AI_WORKSPACE_SECTIONS = [
         { id: "advanced-link-map", title: "Link Map JSON", technicalTool: "Link Map JSON", actionKind: "link-map", purpose: "Copies the technical relationship map for debugging case links.", useThisWhen: "Use this when you need to inspect structure, missing links, or relationship graph issues.", bestGpt: ["Developer/debug", "Investigation Review GPT"], contains: ["Case", "Incidents", "Evidence", "Documents", "Ledger"], doesNotInclude: ["Original files", "Binary attachments", "Import capability"], safety: ["Read Only", "Does not change case data"] },
         { id: "advanced-gpt-protocol-pack", title: "GPT Protocol Pack", technicalTool: "GPT Protocol Pack", actionKind: "protocol-pack", purpose: "Downloads custom GPT reference instructions and delta protocol examples.", useThisWhen: "Use this when configuring or debugging a specialist GPT, not when sending case data.", bestGpt: ["Developer/debug", "Specialist GPT"], contains: ["Diagnostics"], doesNotInclude: ["Case data", "Original files", "Binary attachments"], safety: ["Read Only", "Does not change case data"] },
       ] },
-      { id: "temporary-reporting-tools", title: "Temporary reporting & Issue tools", description: "These remain here until their approved Reports Centre or Issue Manager relocation.", tasks: [
-        { id: "advanced-sequence-group-audit", title: "Issue Audit", technicalTool: "Issue Audit", actionKind: "sequence-audit", purpose: "Opens the existing Issue audit export workflow.", useThisWhen: "Use this for focused Issue or sequence review exports.", bestGpt: ["Investigation Review GPT", "Legal Specialist"], contains: ["Case", "Incidents", "Evidence", "Documents", "Issues"], doesNotInclude: ["Original files", "Binary attachments", "Import capability"], safety: ["Read Only", "Does not change case data"] },
-      ] },
     ],
   },
 ];
@@ -391,24 +388,6 @@ export const AI_TASK_GUIDANCE = {
       "What will this delta change?",
       "Are any record IDs invalid?",
       "Does this update create duplicate records?",
-    ],
-  },
-  "advanced-sequence-group-audit": {
-    workflow: [
-      "Open the Issue audit tool.",
-      "Select the Issue and output format.",
-      "Copy or download the audit pack.",
-      "Open an investigation or legal GPT.",
-      "Ask for a focused issue-chain review.",
-    ],
-    recommendedGpt: "Investigation Review GPT",
-    alsoSuitableFor: ["Legal Specialist", "General ChatGPT"],
-    exampleQuestions: [
-      "Audit this Issue for weak proof.",
-      "Which incidents in this thread need more evidence?",
-      "Are any linked records outside the issue scope?",
-      "What should be fixed before reporting?",
-      "Summarise the issue-chain risks.",
     ],
   },
 };

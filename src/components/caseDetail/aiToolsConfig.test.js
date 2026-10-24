@@ -31,7 +31,7 @@ test("AI Workspace groups the retained tasks into the simplified workspace secti
 
   const availableToolIds = new Set(AI_TOOL_OPTIONS.map((tool) => tool.id));
   const tasks = AI_WORKSPACE_SECTIONS.flatMap((section) => section.groups?.flatMap((group) => group.tasks) || section.tasks || []);
-  assert.equal(tasks.length, 13);
+  assert.equal(tasks.length, 12);
   assert.deepEqual(
     tasks.map((task) => task.id),
     [
@@ -47,7 +47,6 @@ test("AI Workspace groups the retained tasks into the simplified workspace secti
       "review-selected-records",
       "advanced-link-map",
       "advanced-gpt-protocol-pack",
-      "advanced-sequence-group-audit",
     ]
   );
   assert.equal(tasks.some((task) => task.id === "review-entire-investigation"), false);
@@ -55,6 +54,7 @@ test("AI Workspace groups the retained tasks into the simplified workspace secti
   assert.equal(tasks.some((task) => task.id === "prepare-management-report"), false);
   assert.equal(tasks.some((task) => task.id === "specialist-review-prompt"), false);
   assert.equal(tasks.some((task) => task.id === "improve-report-narrative"), false);
+  assert.equal(tasks.some((task) => task.id === "advanced-sequence-group-audit"), false);
   assert.equal(AI_WORKSPACE_SECTIONS.find((section) => section.id === "advanced-ai-tools")?.collapsedByDefault, true);
   for (const section of AI_WORKSPACE_SECTIONS) {
     assert.ok(section.description);

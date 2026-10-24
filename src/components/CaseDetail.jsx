@@ -6473,7 +6473,6 @@ ${ungroupedSequenceText}
                 onDownloadProtocolJson={handleDownloadGptProtocolPackJson}
                 onDownloadProtocolMarkdown={handleDownloadGptProtocolPackMarkdown}
                 onOpenGptUpdate={onOpenGptDeltaModal}
-                onOpenIssueAudit={openSequenceGroupAuditExport}
               />
             )}
 

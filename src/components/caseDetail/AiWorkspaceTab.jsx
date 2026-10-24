@@ -11,7 +11,7 @@ export default function AiWorkspaceTab({
   caseName, caseId, caseRevision, caseSliceRecordIdsText, feedback, onSelectTask, onIssueSelectionChange,
   onCaseSliceRecordIdsChange, onCopyRecommendedGptJson, onDownloadSplitReasoningPackage,
   onDownloadCurrentCase, onCopyToolJson, onCopyToolMarkdown, onCopyLinkMap, onDownloadProtocolJson, onDownloadProtocolMarkdown,
-  onOpenGptUpdate, onOpenIssueAudit,
+  onOpenGptUpdate,
 }) {
   const selectedIssue = issueOptions.find((issue) => issue.id === issueSelection);
   const hasScopeControl = activeToolNeedsIssue;
@@ -57,7 +57,6 @@ export default function AiWorkspaceTab({
               {activeTaskActionKind === "link-map" && <Action kind="copy" onClick={() => onCopyLinkMap?.(caseId)}>Copy Link Map JSON</Action>}
               {activeTaskActionKind === "protocol-pack" && <><Action kind="download" onClick={onDownloadProtocolJson}>Download JSON</Action><Action kind="download" onClick={onDownloadProtocolMarkdown}>Download Markdown</Action></>}
               {activeTaskActionKind === "gpt-update" && onOpenGptUpdate && <Action kind="reviewed-update" onClick={onOpenGptUpdate}>Open GPT Update</Action>}
-              {activeTaskActionKind === "sequence-audit" && <Action kind="navigate" onClick={onOpenIssueAudit}>Open Issue Audit</Action>}
             </div>
 
             <details data-ai-workspace-task-details>

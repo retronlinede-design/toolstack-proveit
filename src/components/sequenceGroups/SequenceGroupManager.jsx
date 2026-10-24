@@ -638,7 +638,6 @@ export default function SequenceGroupManager({
                               <div className="absolute right-0 z-20 mt-2 w-52 rounded-lg border border-neutral-200 bg-white p-2 shadow-xl">
                                 <button type="button" onClick={() => onCopyFullChainGptPackMarkdown?.(getIssueExportScope(group))} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Copy Full Chain Markdown</button>
                                 <button type="button" onClick={() => onCopyChainCompletionPackMarkdown?.(getIssueExportScope(group))} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Copy Chain Completion Markdown</button>
-                                <button type="button" onClick={() => onOpenAuditExport?.(getIssueExportScope(group))} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Open Chain Audit</button>
                                 <button type="button" onClick={() => onCopyFullChainGptPackJson?.(getIssueExportScope(group))} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Copy Full Chain JSON</button>
                                 <button type="button" onClick={() => onCopyChainCompletionPackJson?.(getIssueExportScope(group))} className="block w-full rounded px-2 py-1.5 text-left text-xs font-semibold text-neutral-700 hover:bg-neutral-50">Copy Chain Completion JSON</button>
                               </div>
@@ -674,6 +673,14 @@ export default function SequenceGroupManager({
                           <span className="rounded border border-neutral-200 bg-neutral-50 px-2 py-0.5">{selectedGroupDateRange}</span>
                         </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => onOpenAuditExport?.(getIssueExportScope(selectedGroup))}
+                        aria-label={`Open Issue Audit for ${selectedGroup.issue ? getIssueDisplayLabel(selectedGroup.issue) : selectedGroup.name}`}
+                        className="shrink-0 rounded-lg border border-[#0f766e] bg-[#0f766e] px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-[#115e59] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2dd4bf] focus-visible:ring-offset-2"
+                      >
+                        Issue Audit
+                      </button>
                     </div>
 
                     <div className="mt-5 flex flex-wrap gap-2 border-b border-neutral-100 pb-3">
@@ -915,7 +922,7 @@ export default function SequenceGroupManager({
                     {selectedSection === "ai tools" && (
                       <section className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
                         <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">AI Tools</h4>
-                        <div className="mt-4 grid gap-3 md:grid-cols-3">
+                        <div className="mt-4 grid gap-3 md:grid-cols-2">
                           <button
                             type="button"
                             onClick={() => onCopyFullChainGptPackMarkdown?.(getIssueExportScope(selectedGroup))}
@@ -931,14 +938,6 @@ export default function SequenceGroupManager({
                           >
                             Copy Chain Completion Markdown
                             <span className="mt-1 block text-xs font-medium leading-5 text-neutral-500">Focused chain gaps and completion prompt.</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onOpenAuditExport?.(getIssueExportScope(selectedGroup))}
-                            className="rounded-lg border border-neutral-300 bg-white p-3 text-left text-sm font-bold text-neutral-700 hover:bg-neutral-50"
-                          >
-                            Open Chain Audit
-                            <span className="mt-1 block text-xs font-medium leading-5 text-neutral-500">Open the existing audit export workflow.</span>
                           </button>
                         </div>
                       </section>

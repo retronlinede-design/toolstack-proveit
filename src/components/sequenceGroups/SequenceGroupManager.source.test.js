@@ -16,7 +16,7 @@ test("SequenceGroupManager keeps grouped sections and required actions available
     "More",
     "Copy Full Chain Markdown",
     "Copy Chain Completion Markdown",
-    "Open Chain Audit",
+    "Issue Audit",
     "Copy Full Chain JSON",
     "Copy Chain Completion JSON",
     "Download Group Index JSON",
@@ -76,4 +76,11 @@ test("SequenceGroupManager forwards canonical Issue export scope to AI handoff a
   assert.match(source, /issueId: group\?\.issue\?\.id \|\| ""/);
   assert.match(source, /onCopyFullChainGptPackJson\?\.\(getIssueExportScope\(group\)\)/);
   assert.match(source, /onCopyChainCompletionPackMarkdown\?\.\(getIssueExportScope\(selectedGroup\)\)/);
+});
+
+test("SequenceGroupManager exposes one primary selected-Issue audit action", () => {
+  assert.match(source, /aria-label=\{`Open Issue Audit for \$\{selectedGroup\.issue/);
+  assert.match(source, /onOpenAuditExport\?\.\(getIssueExportScope\(selectedGroup\)\)/);
+  assert.doesNotMatch(source, /onOpenAuditExport\?\.\(getIssueExportScope\(group\)\)/);
+  assert.doesNotMatch(source, /Open Chain Audit/);
 });

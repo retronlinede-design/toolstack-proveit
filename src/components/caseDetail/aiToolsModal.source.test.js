@@ -59,6 +59,8 @@ test("AI Workspace shows canonical case context and does not embed Reports Centr
   assert.doesNotMatch(workspace, /IncidentScheduleReportArticle|ChronologyReportArticle|CaseAuditReportArticle/);
   assert.match(caseDetail, /caseName=\{selectedCase\.name\}/);
   assert.match(caseDetail, /caseRevision=\{selectedCase\.revision\}/);
+  assert.doesNotMatch(workspace, /Open Issue Audit/);
+  assert.doesNotMatch(workspace, /sequence-audit/);
 });
 
 test("External Drafting Handoff retains the management pack builders outside AI Workspace", () => {

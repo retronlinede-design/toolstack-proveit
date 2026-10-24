@@ -35,8 +35,8 @@ test("each scope invokes its dedicated exporter and selected export retains cano
 
 test("Issue Manager audit actions pass canonical Issue selection rather than a display name", () => {
   const manager = readFileSync(new URL("./SequenceGroupManager.jsx", import.meta.url), "utf8");
-  assert.match(manager, /onOpenAuditExport\?\.\(getIssueExportScope\(group\)\)/);
   assert.match(manager, /onOpenAuditExport\?\.\(getIssueExportScope\(selectedGroup\)\)/);
+  assert.doesNotMatch(manager, /onOpenAuditExport\?\.\(getIssueExportScope\(group\)\)/);
   assert.doesNotMatch(manager, /onOpenAuditExport\?\.\(group\.name\)/);
 });
 
