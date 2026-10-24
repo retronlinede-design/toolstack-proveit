@@ -29,6 +29,7 @@ import SequenceGroupForm from "./SequenceGroupForm.jsx";
 import SequenceGroupManagementModal from "./SequenceGroupManagementModal.jsx";
 import { getManagedSequenceGroupDescription, mergeManagedSequenceGroupDetails } from "./sequenceGroupManagement.js";
 import { getIssueDisplayLabel, resolveCaseIssue } from "../../domain/issueDomain.js";
+import { resolveSequenceGroupSelection } from "./sequenceGroupSelection.js";
 
 function getGroupBadgeVariant(status) {
   if (status === "ready") return "status-positive";
@@ -144,6 +145,7 @@ export default function SequenceGroupManager({
   onValidateDelta,
   search,
   selectedCase,
+  selectedIssueId,
   selectedGroupName,
   sequenceGroupDetails,
   sequenceGroupFeedback,
@@ -174,7 +176,12 @@ export default function SequenceGroupManager({
     : {};
   const managedSequenceGroupDetailsBase = mergeManagedSequenceGroupDetails(sequenceGroupDetails, sequenceGroupMeta);
   const managedSequenceGroupDetails = { ...managedSequenceGroupDetailsBase, groups: managedSequenceGroupDetailsBase.groups.map((group) => ({ ...group, issue: resolveCaseIssue(selectedCase, { issueName: group.name }) })) };
-  const selectedGroup = managedSequenceGroupDetails.groups.find((group) => group.name === selectedGroupName) || managedSequenceGroupDetails.groups[0] || null;
+  const selection = resolveSequenceGroupSelection(selectedCase, managedSequenceGroupDetails.groups, {
+    issueId: selectedIssueId,
+    groupName: selectedGroupName,
+  });
+  const selectedGroup = selection.group;
+  const invalidCanonicalSelection = selection.invalidCanonicalSelection;
   const activeDescriptionGroupName = selectedGroup?.name || "";
   const sequenceDescriptionDraftKey = selectedCase?.id && activeDescriptionGroupName
     ? `${selectedCase.id}:${activeDescriptionGroupName}`
@@ -1001,9 +1008,9 @@ export default function SequenceGroupManager({
                   </>
                 ) : (
                   <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-5 text-center">
-                    <h4 className="text-sm font-semibold text-neutral-900">Create your first Issue</h4>
-                    <p className="mt-1 text-sm text-neutral-500">Groups organise related records into a reviewable investigation chain.</p>
-                    <RecordActions className="mt-4 flex justify-center" actions={[{ key: "create", label: "Create Issue", variant: "primary", onClick: openCreateGroupForm }]} />
+                    <h4 className="text-sm font-semibold text-neutral-900">{invalidCanonicalSelection ? "Selected Issue is no longer available" : "Create your first Issue"}</h4>
+                    <p className="mt-1 text-sm text-neutral-500">{invalidCanonicalSelection ? "Choose another Issue from the list. No other Issue has been selected automatically." : "Groups organise related records into a reviewable investigation chain."}</p>
+                    {!invalidCanonicalSelection && <RecordActions className="mt-4 flex justify-center" actions={[{ key: "create", label: "Create Issue", variant: "primary", onClick: openCreateGroupForm }]} />}
                   </div>
                 )}
               </section>

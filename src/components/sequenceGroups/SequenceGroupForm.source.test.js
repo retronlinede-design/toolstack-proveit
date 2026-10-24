@@ -30,7 +30,7 @@ test("Issue create/edit uses the shared guarded dialog with isolated sessions", 
 });
 
 test("manager callbacks select created and edited groups and confirm destructive deletion", () => {
-  assert.match(caseDetailSource, /setSelectedSequenceGroupName\(result\.issue\.name\)/);
+  assert.match(caseDetailSource, /setSequenceGroupSelection\(\{ issue: result\.issue \}\)/);
   assert.match(caseDetailSource, /window\.confirm/);
   assert.match(caseDetailSource, /records were kept and are now ungrouped/);
 });

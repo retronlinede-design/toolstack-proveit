@@ -117,6 +117,7 @@ import CaseBriefingDashboard from "./caseBriefing/CaseBriefingDashboard.jsx";
 import { getOverviewRecordLaunch } from "./caseBriefing/overviewRecordLaunch.js";
 import { buildCaseBriefingModel } from "../caseBriefing/buildCaseBriefingModel.js";
 import { assignRecordToIssue, createCaseIssue, deleteCaseIssue, getCaseIssueSelectionOptions, mergeCaseIssues, normalizeCaseIssues, removeRecordFromIssue, resolveCaseIssue, updateCaseIssue } from "../domain/issueDomain.js";
+import { didSequenceGroupSelectionChange, resolveSequenceGroupReturnTarget } from "./sequenceGroups/sequenceGroupSelection.js";
 import {
   isTimelineIssueFilterValid,
   isTimelineItemInIssueFilter,
@@ -372,6 +373,7 @@ export default function CaseDetail({
   const [sequenceGroupManagerOpen, setSequenceGroupManagerOpen] = useState(false);
   const [sequenceRenameInputs, setSequenceRenameInputs] = useState({});
   const [sequenceGroupFeedback, setSequenceGroupFeedback] = useState("");
+  const [selectedSequenceGroupId, setSelectedSequenceGroupId] = useState("");
   const [selectedSequenceGroupName, setSelectedSequenceGroupName] = useState("");
   const [sequenceGroupSearch, setSequenceGroupSearch] = useState("");
   const [sequenceMoveInputs, setSequenceMoveInputs] = useState({});
@@ -393,6 +395,34 @@ export default function CaseDetail({
   const activeGeneratedReportLanguage = normalizeReportLanguage(selectedCase?.activeGeneratedReportLanguage);
   const sequenceGroups = useMemo(() => getCaseSequenceGroups(selectedCase), [selectedCase]);
   const sequenceGroupDetails = useMemo(() => getCaseSequenceGroupDetails(selectedCase), [selectedCase]);
+  const selectedCaseRef = useRef(selectedCase);
+
+  useEffect(() => {
+    selectedCaseRef.current = selectedCase;
+  }, [selectedCase]);
+
+  function setSequenceGroupSelection({ issue = null, issueId = "", groupName = "" } = {}) {
+    const resolvedIssue = issue
+      || (safeText(issueId).trim() ? resolveCaseIssue(selectedCase, { issueId }) : null)
+      || (!safeText(issueId).trim() && safeText(groupName).trim() ? resolveCaseIssue(selectedCase, { issueName: groupName }) : null);
+    if (resolvedIssue) {
+      setSelectedSequenceGroupId(resolvedIssue.id);
+      setSelectedSequenceGroupName(resolvedIssue.name);
+      return;
+    }
+    setSelectedSequenceGroupId("");
+    setSelectedSequenceGroupName(safeText(groupName).trim());
+  }
+
+  useEffect(() => {
+    if (!sequenceGroupManagerOpen || !selectedSequenceGroupId) return;
+    const issue = resolveCaseIssue(selectedCase, { issueId: selectedSequenceGroupId });
+    if (!issue) {
+      setSequenceGroupFeedback("The selected Issue is no longer available. Choose another Issue to continue.");
+      return;
+    }
+    if (selectedSequenceGroupName !== issue.name) setSelectedSequenceGroupName(issue.name);
+  }, [selectedCase, selectedSequenceGroupId, selectedSequenceGroupName, sequenceGroupManagerOpen]);
   const timelineIssueOptions = useMemo(() => getCaseIssueSelectionOptions(selectedCase), [selectedCase]);
   const threadIssueReportSequenceOptions = useMemo(() => sequenceGroups.map((group) => group.name), [sequenceGroups]);
   const selectedSequenceGroupAuditGroup = useMemo(() => {
@@ -700,6 +730,8 @@ export default function CaseDetail({
   function openSequenceGroupManager(preferredGroup = "") {
     const preferredIssue = resolveCaseIssue(selectedCase, { issueId: preferredGroup }) || resolveCaseIssue(selectedCase, { issueName: preferredGroup });
     const preferredName = preferredIssue?.name || preferredGroup;
+    const selectedGroup = sequenceGroups.find((group) => group.name === preferredName) || sequenceGroups[0] || null;
+    const selectedIssue = selectedGroup ? resolveCaseIssue(selectedCase, { issueName: selectedGroup.name }) : null;
     setSequenceRenameInputs({});
     setSequenceMoveInputs({});
     setSequenceNewGroupInputs({});
@@ -709,7 +741,7 @@ export default function CaseDetail({
     setHighlightedSequenceRecordKey("");
     setSequenceRelationshipFilter("all");
     setSequenceGroupSearch("");
-    setSelectedSequenceGroupName(sequenceGroups.some((group) => group.name === preferredName) ? preferredName : sequenceGroups[0]?.name || preferredName || "");
+    setSequenceGroupSelection({ issue: selectedIssue, groupName: selectedGroup?.name || "" });
     setSequenceGroupFeedback("");
     setSequenceGroupManagerOpen(true);
   }
@@ -971,7 +1003,7 @@ export default function CaseDetail({
     const result = source && destination && mergeCaseIssues(canonical, source.id, destination.id);
     if (!result?.success || !(await onUpdateCase(result.caseData))) return setSequenceGroupFeedback(result?.errors?.join(" ") || "Issues could not be merged safely.");
     mergeSequenceGroupMeta(selectedCase.id, fromGroup, targetGroup);
-    setSelectedSequenceGroupName(targetGroup);
+    setSequenceGroupSelection({ issue: destination });
     setSequenceGroupFeedback(`Merged "${fromGroup}" into "${targetGroup}".`);
   }
 
@@ -986,7 +1018,7 @@ export default function CaseDetail({
     const result = issue && deleteCaseIssue(canonical, issue.id);
     if (!result?.success || !(await onUpdateCase(result.caseData))) return setSequenceGroupFeedback(result?.errors?.join(" ") || "Issue could not be removed safely.");
     deleteSequenceGroupMeta(selectedCase.id, group.name);
-    setSelectedSequenceGroupName(sequenceGroups.find((item) => item.name !== group.name)?.name || "");
+    setSequenceGroupSelection();
     setSequenceGroupFeedback(`Removed "${group.name}" from ${group.totalCount} record${group.totalCount === 1 ? "" : "s"}.`);
   }
 
@@ -1002,7 +1034,7 @@ export default function CaseDetail({
     const destination = resolveCaseIssue(canonical, { issueName: nextGroup });
     const result = destination && assignRecordToIssue(canonical, record.recordType, record.id, destination.id);
     if (!result?.success || !(await onUpdateCase(result.caseData))) return setSequenceGroupFeedback(result?.errors?.join(" ") || "Record could not be moved safely.");
-    setSelectedSequenceGroupName(nextGroup);
+    setSequenceGroupSelection({ issue: destination });
     setSequenceGroupFeedback(`Moved "${record.title}" to "${nextGroup}".`);
   }
 
@@ -1056,9 +1088,13 @@ export default function CaseDetail({
     closeWorkspaceActionMenu();
   }
 
-  function restoreSequenceGroupManagerAfterEdit(context, { feedback, highlightedKey } = {}) {
+  function restoreSequenceGroupManagerAfterEdit(context, { feedback, highlightedKey, selection } = {}) {
     if (!context) return;
-    setSelectedSequenceGroupName(context.selectedGroupName);
+    const targetSelection = selection || {
+      issueId: context.selectedIssueId,
+      groupName: context.selectedGroupName,
+    };
+    setSequenceGroupSelection(targetSelection);
     setSequenceGroupSearch(context.search);
     setSequenceRelationshipFilter(context.relationshipFilter);
     setSequenceTimelineSort(context.timelineSort);
@@ -1085,8 +1121,13 @@ export default function CaseDetail({
     if (!record || !openSequenceManagerRecordEdit) return;
     const key = `${record.recordType}:${record.id}`;
     const scrollContainer = document.getElementById("sequence-group-manager-scroll");
+    const originatingSelection = resolveSequenceGroupReturnTarget(selectedCase, {
+      issueId: selectedSequenceGroupId,
+      groupName: selectedSequenceGroupName,
+    });
     const managerContext = {
-      selectedGroupName: selectedSequenceGroupName,
+      selectedIssueId: originatingSelection.issue?.id || selectedSequenceGroupId,
+      selectedGroupName: originatingSelection.groupName,
       search: sequenceGroupSearch,
       relationshipFilter: sequenceRelationshipFilter,
       timelineSort: sequenceTimelineSort,
@@ -1096,23 +1137,51 @@ export default function CaseDetail({
     setHighlightedSequenceRecordKey(key);
     setSequenceGroupManagerOpen(false);
     openSequenceManagerRecordEdit(record.recordType, record, {
-      activeGroupName: selectedSequenceGroupName,
-      onSaved: ({ recordId, recordType, previousSequenceGroup, nextSequenceGroup }) => {
+      activeGroupId: managerContext.selectedIssueId,
+      activeGroupName: managerContext.selectedGroupName,
+      onSaved: ({ recordId, recordType, previousSequenceGroup, previousSequenceGroupId, nextSequenceGroup, nextSequenceGroupId }) => {
         const savedKey = `${recordType}:${recordId}`;
         const previousGroup = safeText(previousSequenceGroup).trim();
         const nextGroup = safeText(nextSequenceGroup).trim();
+        const currentCase = selectedCaseRef.current;
+        const destinationSelection = resolveSequenceGroupReturnTarget(currentCase, {
+          issueId: nextSequenceGroupId,
+          groupName: nextGroup,
+        });
+        const sourceSelection = resolveSequenceGroupReturnTarget(currentCase, {
+          issueId: previousSequenceGroupId || managerContext.selectedIssueId,
+          groupName: previousGroup || managerContext.selectedGroupName,
+        });
+        const didMove = didSequenceGroupSelectionChange(sourceSelection, destinationSelection);
         let feedback = "Record saved. Returned to Issue.";
-        if (previousGroup && nextGroup && previousGroup !== nextGroup) {
-          feedback = "Record moved to another Issue.";
-        } else if (previousGroup && !nextGroup) {
+        let selection = sourceSelection;
+        if (safeText(nextSequenceGroupId).trim() && destinationSelection.invalidCanonicalSelection) {
+          feedback = "Record saved, but its assigned Issue is no longer available. Choose another Issue to continue.";
+          selection = destinationSelection;
+        } else if (nextGroup || nextSequenceGroupId) {
+          selection = destinationSelection;
+          if (didMove) {
+            feedback = "Record moved to another Issue.";
+          }
+        } else if (previousGroup || previousSequenceGroupId) {
           feedback = "Record removed from this Issue.";
         }
-        restoreSequenceGroupManagerAfterEdit(managerContext, { feedback, highlightedKey: savedKey });
+        restoreSequenceGroupManagerAfterEdit(managerContext, {
+          feedback,
+          highlightedKey: selection.issue || selection.groupName ? savedKey : "",
+          selection,
+        });
       },
       onCancel: () => {
+        const currentCase = selectedCaseRef.current;
+        const selection = resolveSequenceGroupReturnTarget(currentCase, {
+          issueId: managerContext.selectedIssueId,
+          groupName: managerContext.selectedGroupName,
+        });
         restoreSequenceGroupManagerAfterEdit(managerContext, {
-          feedback: "Returned to Issue.",
-          highlightedKey: key,
+          feedback: selection.invalidCanonicalSelection ? "The original Issue is no longer available. Choose another Issue to continue." : "Returned to Issue.",
+          highlightedKey: selection.issue || selection.groupName ? key : "",
+          selection,
         });
       },
     });
@@ -1288,7 +1357,7 @@ export default function CaseDetail({
     if (!result.success) return setSequenceGroupFeedback(result.errors.join(" "));
     if (!(await onUpdateCase(result.caseData))) return;
     saveSequenceGroupMeta(selectedCase.id, result.issue.name, { description: result.issue.description });
-    setSelectedSequenceGroupName(result.issue.name);
+    setSequenceGroupSelection({ issue: result.issue });
     setSequenceGroupFeedback(`Created Issue ${result.issue.reference} — ${result.issue.name}.`);
   }
 
@@ -1302,7 +1371,7 @@ export default function CaseDetail({
     const renamed = result.issue.name !== currentName;
     const renamedMeta = renamed ? getRenamedSequenceGroupMeta(currentName, result.issue.name) : null;
     if (!(await onUpdateCase(result.caseData, renamed ? { sequenceGroupMeta: renamedMeta } : undefined))) return false;
-    if (renamed) setSelectedSequenceGroupName(result.issue.name);
+    if (renamed) setSequenceGroupSelection({ issue: result.issue });
     if (renamed && !persistRenamedSequenceGroupMeta(currentName, result.issue.name)) return true;
     try {
       saveSequenceGroupMeta(selectedCase.id, result.issue.name, { description: result.issue.description });
@@ -1310,7 +1379,7 @@ export default function CaseDetail({
       setSequenceGroupFeedback(`The Issue was saved, but its legacy compatibility metadata could not be updated. ${error?.message || ""}`.trim());
       return true;
     }
-    setSelectedSequenceGroupName(result.issue.name);
+    setSequenceGroupSelection({ issue: result.issue });
     setSequenceGroupFeedback(`Updated ${result.issue.reference} — ${result.issue.name}.`);
     return true;
   }
@@ -1323,17 +1392,13 @@ export default function CaseDetail({
     if (!confirmed) return false;
 
     const sequenceGroupMeta = getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore());
-    const remainingNames = [...new Set([
-      ...sequenceGroups.map((item) => item.name),
-      ...Object.keys(sequenceGroupMeta),
-    ])].filter((name) => name !== group.name).sort((a, b) => a.localeCompare(b));
     const canonical = normalizeCaseIssues(selectedCase, { sequenceGroupMeta }).caseData;
     const issue = resolveCaseIssue(canonical, { issueName: group.name });
     if (!issue) return false;
     const result = deleteCaseIssue(canonical, issue.id);
     if (!result.success || !(await onUpdateCase(result.caseData))) return false;
     deleteSequenceGroupMeta(selectedCase.id, group.name);
-    setSelectedSequenceGroupName(remainingNames[0] || "");
+    setSequenceGroupSelection();
     setSequenceGroupFeedback(`Deleted ${issue.reference} — ${issue.name}. Its records were kept and are now ungrouped; the reference is retired.`);
     return true;
   }
@@ -1410,7 +1475,7 @@ export default function CaseDetail({
       if (operation.type === "split-records") {
         saveSequenceGroupMeta(selectedCase.id, destinationGroup, { description: operation.destinationDescription });
         saveSequenceGroupMeta(selectedCase.id, sourceGroup, { description: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore())[sourceGroup]?.description || "" });
-        setSelectedSequenceGroupName(destinationGroup);
+        setSequenceGroupSelection({ issue: resolveCaseIssue(result.caseData, { issueName: destinationGroup }), groupName: destinationGroup });
       } else if (operation.type === "remove-records") {
         saveSequenceGroupMeta(selectedCase.id, sourceGroup, { description: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore())[sourceGroup]?.description || "" });
       } else if (operation.type === "merge-groups") {
@@ -1418,9 +1483,9 @@ export default function CaseDetail({
         const description = resolveSequenceGroupMergeDescription(meta[destinationGroup]?.description, meta[sourceGroup]?.description, operation.descriptionMode, operation.combinedDescription);
         saveSequenceGroupMeta(selectedCase.id, destinationGroup, { description });
         deleteSequenceGroupMeta(selectedCase.id, sourceGroup);
-        setSelectedSequenceGroupName(destinationGroup);
+        setSequenceGroupSelection({ issue: resolveCaseIssue(result.caseData, { issueName: destinationGroup }), groupName: destinationGroup });
       } else if (operation.type === "rename-entire-group") {
-        setSelectedSequenceGroupName(destinationGroup);
+        setSequenceGroupSelection({ issue: resolveCaseIssue(result.caseData, { issueName: destinationGroup }), groupName: destinationGroup });
         if (!persistRenamedSequenceGroupMeta(sourceGroup, destinationGroup)) return true;
         saveSequenceGroupMeta(selectedCase.id, destinationGroup, { description: operation.destinationDescription });
       }
@@ -7518,6 +7583,7 @@ ${ungroupedSequenceText}
           onValidateDelta={handleValidateSequenceGroupDelta}
           search={sequenceGroupSearch}
           selectedCase={selectedCase}
+          selectedIssueId={selectedSequenceGroupId}
           selectedGroupName={selectedSequenceGroupName}
           sequenceGroupDetails={sequenceGroupDetails}
           sequenceGroupFeedback={sequenceGroupFeedback}
@@ -7529,7 +7595,7 @@ ${ungroupedSequenceText}
           sequenceRenameInputs={sequenceRenameInputs}
           sequenceTimelineSort={sequenceTimelineSort}
           setSearch={setSequenceGroupSearch}
-          setSelectedGroupName={setSelectedSequenceGroupName}
+          setSelectedGroupName={(groupName) => setSequenceGroupSelection({ groupName })}
           setSequenceGroupDeltaDraft={setSequenceGroupDeltaDraft}
           setSequenceGroupDeltaResult={setSequenceGroupDeltaResult}
           setSequenceGroupFeedback={setSequenceGroupFeedback}

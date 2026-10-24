@@ -1992,7 +1992,9 @@ export default function ProveItApp() {
           recordType: "documents",
           recordId: editingDocumentId || documentInput.id,
           previousSequenceGroup: sequenceManagerContext.activeGroupName || "",
+          previousSequenceGroupId: sequenceManagerContext.activeGroupId || "",
           nextSequenceGroup: savedDocument?.sequenceGroup || "",
+          nextSequenceGroupId: savedDocument?.sequenceGroupId || "",
         });
         return;
       }
@@ -3423,7 +3425,9 @@ const handleRecordFiles = async (event) => {
           recordType,
           recordId: payloadForUpsert.id,
           previousSequenceGroup: sequenceManagerContext.activeGroupName || "",
+          previousSequenceGroupId: sequenceManagerContext.activeGroupId || "",
           nextSequenceGroup: savedRecord?.sequenceGroup || "",
+          nextSequenceGroupId: savedRecord?.sequenceGroupId || "",
         });
         return;
       }
