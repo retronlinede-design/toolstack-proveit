@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import { projectGoalForAnalysis } from "./goalProjection.js";
 
 export const SPLIT_REASONING_PACKAGE_VERSION = "1.0";
 export const DEFAULT_JSON_TARGET_BYTES = 2 * 1024 * 1024;
@@ -13,7 +14,7 @@ const CASE_METADATA_KEYS = [
 const COLLECTIONS = [
   ["party", "parties"], ["incident", "incidents"], ["evidence", "evidence"],
   ["document", "documents"], ["strategy", "strategy"], ["watch", "watchItems"],
-  ["ledger", "ledger"], ["task", "tasks"],
+  ["ledger", "ledger"], ["task", "tasks"], ["goal", "goals"],
 ];
 
 const isBinaryValue = (value) =>
@@ -65,18 +66,21 @@ const deterministicRecords = (items) => items.map((item) => sanitizeSplitReasoni
 
 function buildRecordIndex(caseItem) {
   const index = new Map();
+  for (const issue of records(caseItem, "issues")) if (issue?.id) index.set(String(issue.id), "issue");
   for (const [type, key] of COLLECTIONS) for (const record of records(caseItem, key)) if (record?.id) index.set(String(record.id), type);
   return index;
 }
 
 function relationshipType(field) {
-  return ({ linkedEvidenceIds: "linked_evidence", linkedIncidentIds: "linked_incident", linkedPartyIds: "linked_party", basedOnEvidenceIds: "based_on_evidence", ownerPartyId: "strategy_owner" })[field] || "linked_record";
+  return ({ linkedEvidenceIds: "linked_evidence", linkedIncidentIds: "linked_incident", linkedPartyIds: "linked_party", basedOnEvidenceIds: "based_on_evidence", ownerPartyId: "strategy_owner", goalIds: "strategy_goal", issueIds: "goal_issue" })[field] || "linked_record";
 }
 
 function inferTargetType(field, id, index) {
   if (field === "linkedEvidenceIds" || field === "basedOnEvidenceIds") return "evidence";
   if (field === "linkedIncidentIds") return "incident";
   if (field === "linkedPartyIds" || field === "ownerPartyId") return "party";
+  if (field === "goalIds") return "goal";
+  if (field === "issueIds") return "issue";
   return index.get(String(id)) || "unknown";
 }
 
@@ -84,7 +88,7 @@ function buildRelationships(caseItem) {
   const index = buildRecordIndex(caseItem);
   const relationships = [];
   const warnings = [];
-  const linkFields = ["linkedRecordIds", "linkedEvidenceIds", "linkedIncidentIds", "linkedPartyIds", "basedOnEvidenceIds", "ownerPartyId"];
+  const linkFields = ["linkedRecordIds", "linkedEvidenceIds", "linkedIncidentIds", "linkedPartyIds", "basedOnEvidenceIds", "ownerPartyId", "goalIds", "issueIds"];
   for (const [sourceType, key] of COLLECTIONS) for (const record of records(caseItem, key)) {
     for (const field of linkFields) {
       const values = field === "ownerPartyId" ? (record?.[field] ? [record[field]] : []) : (Array.isArray(record?.[field]) ? record[field] : []);
@@ -137,6 +141,7 @@ export function projectSplitReasoningSections(caseItem, { exportedAt = new Date(
     chronology: { chronology: buildChronology(caseItem) },
     relationships: buildRelationships(caseItem),
     ledger: { ledger: deterministicRecords(records(caseItem, "ledger")) },
+    goals: { goals: deterministicRecords(records(caseItem, "goals").map(projectGoalForAnalysis)) },
     sequenceGroups: { sequenceGroups: sequenceNames.map((id) => ({ id })), ...(sequenceGroupMeta ? { metadata: sanitizeSplitReasoningValue(sequenceGroupMeta) } : {}) },
   };
 }
@@ -145,7 +150,7 @@ const SECTION_FILES = [
   ["summary", "01-case-summary", null], ["parties", "02-parties", "parties"], ["incidents", "03-incidents", "incidents"],
   ["evidence", "04-evidence", "evidence"], ["documents", "05-documents", "documents"], ["strategy", "06-strategy", "strategy"],
   ["watch", "07-to-watch", "watchItems"], ["chronology", "08-chronology", "chronology"], ["relationships", "09-relationships", "relationships"],
-  ["ledger", "10-ledger", "ledger"], ["sequenceGroups", "11-sequence-groups", "sequenceGroups"],
+  ["ledger", "10-ledger", "ledger"], ["sequenceGroups", "11-sequence-groups", "sequenceGroups"], ["goals", "12-goals", "goals"],
 ];
 
 export function splitSectionPayload(baseName, payload, recordKey, targetBytes = DEFAULT_JSON_TARGET_BYTES) {

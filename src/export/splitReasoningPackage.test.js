@@ -17,13 +17,15 @@ function fixture() {
     id: "case-1", name: "Representative Case", description: "Complete case description", status: "open",
     actionSummary: { currentFocus: "Preserve this focus", nextActions: [{ id: "a-1", text: "Act", completed: false }], importantReminders: ["Remember"], strategyFocus: ["Strategy focus"], criticalDeadlines: ["2026-08-01"] },
     parties: [{ id: "party-1", name: "Owner" }],
+    issues: [{ id: "issue-1", name: "Safety" }],
+    goals: [{ id: "goal-1", title: "Obtain repairs", description: "Secure a written repair plan", successCriteria: ["Repairs complete"], status: "active", priority: "high", issueIds: ["issue-1"], reviewDate: "2024-02-01", createdAt: "2024-01-01", updatedAt: "2024-01-02", privateNote: "must not export" }],
     incidents: [
       { id: "inc-archived", title: "Archived incident", eventDate: "2024-01-01", description: "Full archived description", notes: "Full notes", status: "archived", linkedEvidenceIds: ["ev-1"], linkedPartyIds: ["party-1"], sequenceGroup: "Thread A", attachments: [{ id: "att-1", name: "photo.jpg", mimeType: "image/jpeg", size: 42, storage: { imageId: "img-1" }, dataUrl: "data:image/jpeg;base64,secret" }] },
       { id: "inc-resolved", title: "Resolved incident", eventDate: "2024-01-02", status: "resolved" },
     ],
     evidence: [{ id: "ev-1", title: "Evidence", date: "2024-01-01", description: "Full evidence description", sourceType: "email", functionSummary: "Proves notice", verificationStatus: "verified", linkedIncidentIds: ["inc-archived"], backupDataUrl: "secret" }],
     documents: [{ id: "doc-1", title: "Document", date: "2024-01-03", textContent: "The complete extracted document text must survive." }],
-    strategy: [{ id: "str-1", title: "Archived plan", status: "archived", objective: "Objective", rationale: "Rationale", ownerPartyId: "party-1", linkedRecordIds: ["inc-archived"], sequenceGroup: "Thread A" }],
+    strategy: [{ id: "str-1", title: "Archived plan", status: "archived", objective: "Objective", rationale: "Rationale", ownerPartyId: "party-1", linkedRecordIds: ["inc-archived"], sequenceGroup: "Thread A", goalIds: ["goal-1"] }],
     watchItems: [{ id: "watch-1", title: "Closed watch", status: "resolved", watchFor: "Monitor only", linkedRecordIds: ["inc-archived", "missing-id"], observations: [{ id: "obs-1", date: "2024-01-01", text: "First" }, { id: "obs-2", date: "2024-02-01", text: "Second" }, { id: "obs-3", date: "2024-03-01", text: "Third" }, { id: "obs-4", date: "2024-04-01", text: "Fourth" }] }],
     ledger: [{ id: "led-1", title: "Payment", paymentDate: "2024-01-04", amount: 100 }],
   };
@@ -45,6 +47,7 @@ test("projects the complete substantive case without filtering or truncating", (
   assert.equal(sections.watch.watchItems[0].observations.length, 4);
   assert.equal(sections.watch.factualStatus, "monitoring_or_unconfirmed_context_not_established_fact");
   assert.ok(sections.ledger.ledger.some((item) => item.id === "led-1"));
+  assert.deepEqual(sections.goals.goals, [{ id: "goal-1", title: "Obtain repairs", description: "Secure a written repair plan", successCriteria: ["Repairs complete"], status: "active", priority: "high", issueIds: ["issue-1"], reviewDate: "2024-02-01", createdAt: "2024-01-01", updatedAt: "2024-01-02" }]);
 });
 
 test("chronology and relationships remain compact reference indexes", () => {
@@ -55,6 +58,8 @@ test("chronology and relationships remain compact reference indexes", () => {
   assert.equal(Object.hasOwn(link, "record"), false);
   assert.ok(sections.relationships.relationships.some((item) => item.relationshipType === "sequence_group_membership"));
   assert.ok(sections.relationships.relationships.some((item) => item.sourceType === "watch"));
+  assert.ok(sections.relationships.relationships.some((item) => item.sourceType === "goal" && item.targetType === "issue" && item.targetId === "issue-1"));
+  assert.ok(sections.relationships.relationships.some((item) => item.sourceType === "strategy" && item.targetType === "goal" && item.targetId === "goal-1"));
   assert.ok(sections.relationships.missingTargetWarnings.some((item) => item.targetId === "missing-id"));
 });
 
@@ -112,6 +117,7 @@ test("README inventory exactly matches generated files and ZIP generation succee
   assert.deepEqual(readme.orderedFiles, files.map((file) => file.filename));
   assert.ok(readme.orderedFiles.includes("10-ledger.json"));
   assert.ok(readme.orderedFiles.includes("11-sequence-groups.json"));
+  assert.ok(readme.orderedFiles.includes("12-goals.json"));
   assert.equal(readme.recordCounts.incidents, 2);
   const incidentFiles = readme.files.filter((file) => file.filename.includes("incidents"));
   assert.ok(incidentFiles.every((file) => incidentFiles.length === 1 || file.partCount === incidentFiles.length));

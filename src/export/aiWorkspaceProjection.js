@@ -2,10 +2,11 @@ import { projectNextActionTexts } from "../domain/nextActions.js";
 import { buildIssueIndex, normalizeCaseIssues } from "../domain/issueDomain.js";
 import { getStrictCalendarDate } from "../domain/caseDomain.js";
 import { resolveRecordById } from "../domain/linkingResolvers.js";
+import { projectGoalForAnalysis } from "./goalProjection.js";
 
 export const AI_WORKSPACE_CASE_PROJECTION_VERSION = "ai-workspace-case-1.0";
 
-const COLLECTIONS = ["issues", "parties", "incidents", "evidence", "documents", "ledger", "tasks", "strategy", "watchItems"];
+const COLLECTIONS = ["issues", "parties", "incidents", "evidence", "documents", "ledger", "tasks", "strategy", "watchItems", "goals"];
 const list = (value) => Array.isArray(value) ? value : [];
 const text = (value) => typeof value === "string" ? value : "";
 const strings = (value) => list(value).filter((item) => typeof item === "string" && item);
@@ -54,7 +55,7 @@ function mapLedger(record) {
 }
 
 function mapStrategy(record) {
-  return { ...baseRecord(record), strategySchemaVersion: record.strategySchemaVersion ?? null, strategyType: text(record.strategyType), objective: text(record.objective), rationale: text(record.rationale), desiredOutcome: text(record.desiredOutcome), priority: text(record.priority), reviewDate: text(record.reviewDate), decisionStatus: text(record.decisionStatus), ownerPartyId: text(record.ownerPartyId), assumptions: strings(record.assumptions), risks: strings(record.risks), nextSteps: strings(record.nextSteps) };
+  return { ...baseRecord(record), strategySchemaVersion: record.strategySchemaVersion ?? null, strategyType: text(record.strategyType), objective: text(record.objective), rationale: text(record.rationale), desiredOutcome: text(record.desiredOutcome), priority: text(record.priority), reviewDate: text(record.reviewDate), decisionStatus: text(record.decisionStatus), ownerPartyId: text(record.ownerPartyId), goalIds: strings(record.goalIds), assumptions: strings(record.assumptions), risks: strings(record.risks), nextSteps: strings(record.nextSteps) };
 }
 
 function mapWatch(record) {
@@ -98,17 +99,20 @@ function buildRelationships(caseItem, canonical) {
     if (!targetId) return;
     const raw = { sourceType, sourceId, field, targetId, targetType }; rawReferences.push(raw);
     const target = targetType === "issue" ? canonical.issues.find((item) => item.id === targetId)
+      : targetType === "goal" ? canonical.goals.find((item) => item.id === targetId)
       : targetType === "party" ? canonical.parties.find((item) => item.id === targetId)
         : targetType === "incident" ? canonical.incidents.find((item) => item.id === targetId)
           : targetType === "evidence" ? canonical.evidence.find((item) => item.id === targetId) : resolveRecordById(caseItem, targetId);
     if (!target) { unresolvedReferences.push(raw); return; }
     resolvedReferences.push({ ...raw, resolved: { id: target.id, recordType: target.recordType || targetType, title: text(target.title || target.displayName || target.name || target.label) } });
   };
-  const mapped = [["incidents", "incident"], ["evidence", "evidence"], ["documents", "document"], ["ledger", "ledger"], ["tasks", "task"], ["strategy", "strategy"], ["watchItems", "watch"]];
+  const mapped = [["incidents", "incident"], ["evidence", "evidence"], ["documents", "document"], ["ledger", "ledger"], ["tasks", "task"], ["strategy", "strategy"], ["watchItems", "watch"], ["goals", "goal"]];
   mapped.forEach(([collection, sourceType]) => canonical[collection].forEach((record) => {
     strings(record.linkedRecordIds).forEach((id) => add(sourceType, record.id, "linkedRecordIds", id)); strings(record.linkedPartyIds).forEach((id) => add(sourceType, record.id, "linkedPartyIds", id, "party"));
     if (record.sequenceGroupId) add(sourceType, record.id, "sequenceGroupId", record.sequenceGroupId, "issue");
     strings(record.linkedEvidenceIds).forEach((id) => add(sourceType, record.id, "linkedEvidenceIds", id, "evidence")); strings(record.linkedIncidentIds).forEach((id) => add(sourceType, record.id, "linkedIncidentIds", id, "incident")); strings(record.basedOnEvidenceIds).forEach((id) => add(sourceType, record.id, "basedOnEvidenceIds", id, "evidence"));
+    strings(record.goalIds).forEach((id) => add(sourceType, record.id, "goalIds", id, "goal"));
+    strings(record.issueIds).forEach((id) => add(sourceType, record.id, "issueIds", id, "issue"));
     if (record.ownerPartyId) add(sourceType, record.id, "ownerPartyId", record.ownerPartyId, "party"); list(record.linkedIncidentRefs).forEach((ref) => add(sourceType, record.id, `linkedIncidentRefs.${text(ref.type)}`, text(ref.incidentId), "incident"));
   }));
   canonical.issues.forEach((issue) => { if (issue.ownerPartyId) add("issue", issue.id, "ownerPartyId", issue.ownerPartyId, "party"); });
@@ -132,7 +136,7 @@ export function buildAiWorkspaceCaseProjection(caseItem, options = {}) {
   const canonical = {
     issues: buildIssueIndex(source).map((index) => mapIssue(source.issues.find((item) => item.id === index.id))),
     parties: list(source.parties).map(mapParty),
-    incidents: list(source.incidents).map(mapIncident), evidence: list(source.evidence).map(mapEvidence), documents: list(source.documents).map(mapDocument), ledger: list(source.ledger).map(mapLedger), tasks: list(source.tasks).map(baseRecord), strategy: list(source.strategy).map(mapStrategy), watchItems: list(source.watchItems).map(mapWatch), actionSummary: mapActionSummary(source.actionSummary),
+    incidents: list(source.incidents).map(mapIncident), evidence: list(source.evidence).map(mapEvidence), documents: list(source.documents).map(mapDocument), ledger: list(source.ledger).map(mapLedger), tasks: list(source.tasks).map(baseRecord), strategy: list(source.strategy).map(mapStrategy), watchItems: list(source.watchItems).map(mapWatch), goals: list(source.goals).map(projectGoalForAnalysis), actionSummary: mapActionSummary(source.actionSummary),
   };
   Object.values(canonical).forEach((records) => { if (Array.isArray(records)) records.forEach((record) => { record.authority = "canonical_stored_case_data"; }); });
   const sourceCounts = Object.fromEntries(COLLECTIONS.map((collection) => [collection, list(source[collection]).length]));

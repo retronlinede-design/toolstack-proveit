@@ -8,13 +8,14 @@ const attachment = { id: "attachment-1", name: "email.pdf", mimeType: "applicati
 const fixture = () => ({
   id: "case-1", revision: 12, name: "Finkenweg Housing", category: "housing", status: "open", description: "Housing dispute", notes: "Case notes", privacyLock: { pin: "1234" }, auditLog: [{ message: "internal" }], generatedReportText: "generated", tags: ["urgent"], createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-09-12T00:00:00.000Z",
   issues: [{ id: "issue-1", reference: "ISS-001", name: "Habitability", description: "Repairs", status: "open", priority: "high", ownerPartyId: "party-1", reviewDate: "2026-10-01" }],
+  goals: [{ id: "goal-1", title: "Restore safe housing", description: "Obtain a documented repair plan", successCriteria: ["Heating and repairs completed"], status: "active", priority: "high", issueIds: ["issue-1"], reviewDate: "2026-10-15", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-09-12T00:00:00.000Z", privateNote: "do not export", attachments: [{ dataUrl: "goal-binary" }] }],
   parties: [{ id: "party-1", name: "Tenant", roles: ["tenant"], contact: { email: "tenant@example.test" } }],
   incidents: [{ id: "inc-1", type: "incidents", title: "Leak", eventDate: "2026-02-01", sequenceGroupId: "issue-1", sequenceGroup: "Habitability", linkedEvidenceIds: ["ev-1"], linkedRecordIds: ["missing-record"], linkedIncidentRefs: [{ incidentId: "inc-2", type: "RELATED_TO" }], attachments: [attachment] }, { id: "inc-2", type: "incidents", title: "Notice", date: "2026-02-02" }],
   evidence: [{ id: "ev-1", type: "evidence", title: "Photo", capturedAt: "2026-02-03", sequenceGroupId: "issue-1", linkedIncidentIds: ["inc-1"], attachments: [attachment], locations: [{ type: "external_digital", label: "Private bank folder", reference: "C:\\Users\\Example\\Bank Statements", coverage: "2026", notes: "Local reference" }], availability: { digital: { hasDigital: true, files: [attachment] } } }],
   documents: [{ id: "doc-1", title: "Letter", documentDate: "2026-02-04", textContent: "Full letter text", basedOnEvidenceIds: ["ev-1"], linkedRecordIds: ["inc-1"], attachments: [attachment] }],
   ledger: [{ id: "led-1", label: "Rent", expectedAmount: 1000, paidAmount: 750, differenceAmount: 250, currency: "EUR", paymentDate: "2026-02-05", linkedRecordIds: ["doc-1"] }, { id: "led-2", label: "USD", expectedAmount: 10, paidAmount: 8, differenceAmount: 2, currency: "USD" }],
   tasks: [{ id: "task-open", type: "tasks", title: "Request repair", status: "open", dueDate: "2026-02-06", description: "Ask landlord", linkedRecordIds: ["inc-1"] }, { id: "task-done", type: "tasks", title: "Legacy complete", status: "done", description: "Keep this record" }],
-  strategy: [{ id: "str-1", type: "strategy", title: "Escalate", ownerPartyId: "party-1", linkedRecordIds: ["inc-1"], sequenceGroupId: "issue-1" }],
+  strategy: [{ id: "str-1", type: "strategy", title: "Escalate", ownerPartyId: "party-1", linkedRecordIds: ["inc-1"], sequenceGroupId: "issue-1", goalIds: ["goal-1"] }],
   watchItems: [{ id: "watch-1", type: "watch", title: "Response", linkedPartyIds: ["party-1"], observations: [{ id: "obs-1", date: "2026-02-07", text: "No response" }] }],
   actionSummary: { currentFocus: "Get repair", nextActions: [{ text: "Write" }], criticalDeadlines: ["2026-03-01"] },
 });
@@ -35,6 +36,40 @@ test("AI Workspace preserves stable IDs, Issue membership, raw links, and resolu
   const projection = buildAiWorkspaceCurrentCase(fixture()).projection; const incident = projection.canonical.incidents.find((item) => item.id === "inc-1");
   assert.equal(incident.sequenceGroupId, "issue-1"); assert.equal(projection.canonical.issues[0].reference, "ISS-001"); assert.deepEqual(incident.linkedEvidenceIds, ["ev-1"]);
   assert.ok(projection.derived.relationships.resolvedReferences.some((item) => item.targetId === "ev-1")); assert.ok(projection.derived.relationships.unresolvedReferences.some((item) => item.targetId === "missing-record"));
+  assert.ok(projection.derived.relationships.resolvedReferences.some((item) => item.sourceId === "goal-1" && item.targetId === "issue-1" && item.field === "issueIds"));
+  assert.ok(projection.derived.relationships.resolvedReferences.some((item) => item.sourceId === "str-1" && item.targetId === "goal-1" && item.field === "goalIds"));
+});
+
+test("AI Workspace allowlists canonical Goals with stable ordering and count parity", () => {
+  const caseItem = fixture();
+  caseItem.goals.push({ id: "goal-2", title: "Recover costs", description: "", successCriteria: [], status: "achieved", priority: "medium", issueIds: [], reviewDate: "", createdAt: "2026-02-01", updatedAt: "2026-03-01", internalStorageId: "not-for-ai" });
+  const before = structuredClone(caseItem);
+  const projection = buildAiWorkspaceCurrentCase(caseItem).projection;
+
+  assert.deepEqual(projection.canonical.goals.map((goal) => goal.id), ["goal-1", "goal-2"]);
+  assert.deepEqual(projection.canonical.goals[0], {
+    id: "goal-1", title: "Restore safe housing", description: "Obtain a documented repair plan", successCriteria: ["Heating and repairs completed"], status: "active", priority: "high", issueIds: ["issue-1"], reviewDate: "2026-10-15", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-09-12T00:00:00.000Z", authority: "canonical_stored_case_data",
+  });
+  assert.equal(projection.derived.sourceCounts.goals, 2);
+  assert.equal(projection.derived.exportedCounts.goals, 2);
+  assert.equal(projection.derived.countParity, true);
+  assert.equal(JSON.stringify(projection).includes("do not export"), false);
+  assert.equal(JSON.stringify(projection).includes("goal-binary"), false);
+  assert.equal(JSON.stringify(projection).includes("not-for-ai"), false);
+  assert.deepEqual(caseItem, before);
+});
+
+test("AI Workspace safely projects empty, missing, and legacy Goal collections", () => {
+  for (const goals of [undefined, [], "not-a-collection"]) {
+    const caseItem = fixture();
+    if (goals === undefined) delete caseItem.goals;
+    else caseItem.goals = goals;
+    const projection = buildAiWorkspaceCurrentCase(caseItem).projection;
+    assert.deepEqual(projection.canonical.goals, []);
+    assert.equal(projection.derived.sourceCounts.goals, 0);
+    assert.equal(projection.derived.exportedCounts.goals, 0);
+    assert.equal(projection.derived.countParity, true);
+  }
 });
 
 test("AI Workspace projects a successfully saved canonical Issue description, including an explicit clear", () => {
