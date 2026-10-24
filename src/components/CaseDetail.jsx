@@ -126,6 +126,7 @@ import {
 } from "./caseDetail/timelineIssueFilter.js";
 import { resolveTimelineIssueNavigationTarget } from "./caseDetail/timelineIssueNavigation.js";
 import ActiveLedgerRecordModal from "./caseDetail/ActiveLedgerRecordModal";
+import AiWorkspaceTab from "./caseDetail/AiWorkspaceTab";
 import DocumentsTab from "./caseDetail/DocumentsTab";
 import FloatingWorkspaceMenu from "./caseDetail/FloatingWorkspaceMenu";
 import LedgerTab from "./caseDetail/LedgerTab";
@@ -293,14 +294,20 @@ export default function CaseDetail({
   const [overviewWatchItem, setOverviewWatchItem] = useState(undefined);
   const [ideas, setIdeas] = useState([]);
   const [workspaceActionMenuOpen, setWorkspaceActionMenuOpen] = useState(false);
-  const [aiToolsOpen, setAiToolsOpen] = useState(false);
   const [activeAiTask, setActiveAiTask] = useState("review-entire-investigation");
   const [activeAiTool, setActiveAiTool] = useState("missing-function-summaries");
   const [aiToolsSequenceGroup, setAiToolsSequenceGroup] = useState("");
   const [aiToolsFeedback, setAiToolsFeedback] = useState("");
   const [caseSliceRecordIdsText, setCaseSliceRecordIdsText] = useState("");
-  const aiToolsModalRef = useRef(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+
+  useEffect(() => {
+    setActiveAiTask("review-entire-investigation");
+    setActiveAiTool("missing-function-summaries");
+    setAiToolsSequenceGroup("");
+    setAiToolsFeedback("");
+    setCaseSliceRecordIdsText("");
+  }, [selectedCase?.id]);
   const [timelineView, setTimelineView] = useState("all");
   const [timelineMilestonesOnly, setTimelineMilestonesOnly] = useState(false);
   const [timelineSequenceGroupFilter, setTimelineSequenceGroupFilter] = useState(TIMELINE_ALL_ISSUES_FILTER);
@@ -424,6 +431,13 @@ export default function CaseDetail({
     if (selectedSequenceGroupName !== issue.name) setSelectedSequenceGroupName(issue.name);
   }, [selectedCase, selectedSequenceGroupId, selectedSequenceGroupName, sequenceGroupManagerOpen]);
   const timelineIssueOptions = useMemo(() => getCaseIssueSelectionOptions(selectedCase), [selectedCase]);
+
+  useEffect(() => {
+    if (!aiToolsSequenceGroup || aiToolsSequenceGroup === MANAGEMENT_REPORT_BUILDER_WHOLE_CASE) return;
+    if (timelineIssueOptions.some((issue) => issue.id === aiToolsSequenceGroup)) return;
+    setAiToolsSequenceGroup("");
+    setAiToolsFeedback("The selected Issue is no longer available. Choose an Issue before creating an Issue-scoped handoff.");
+  }, [aiToolsSequenceGroup, timelineIssueOptions]);
   const threadIssueReportSequenceOptions = useMemo(() => sequenceGroups.map((group) => group.name), [sequenceGroups]);
   const selectedSequenceGroupAuditGroup = useMemo(() => {
     const options = sequenceGroups.map((group) => group.name);
@@ -584,64 +598,6 @@ export default function CaseDetail({
       setReportCentreScopeType(normalisedReportCentreScopeType);
     }
   }, [normalisedReportCentreScopeType, reportCentreScopeType]);
-
-  useEffect(() => {
-    if (!aiToolsOpen) return undefined;
-
-    const previouslyFocusedElement = document.activeElement;
-    const focusableSelector = [
-      "button:not([disabled])",
-      "select:not([disabled])",
-      "textarea:not([disabled])",
-      "input:not([disabled])",
-      "a[href]",
-      "[tabindex]:not([tabindex='-1'])",
-    ].join(",");
-
-    function getFocusableElements() {
-      return Array.from(aiToolsModalRef.current?.querySelectorAll(focusableSelector) || [])
-        .filter((element) => element.offsetParent !== null || element === document.activeElement);
-    }
-
-    function handleAiToolsKeyDown(event) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setAiToolsOpen(false);
-        return;
-      }
-
-      if (event.key !== "Tab") return;
-      const focusableElements = getFocusableElements();
-      if (focusableElements.length === 0) {
-        event.preventDefault();
-        aiToolsModalRef.current?.focus();
-        return;
-      }
-
-      const firstElement = focusableElements[0];
-      const lastElement = focusableElements[focusableElements.length - 1];
-      if (event.shiftKey && document.activeElement === firstElement) {
-        event.preventDefault();
-        lastElement.focus();
-      } else if (!event.shiftKey && document.activeElement === lastElement) {
-        event.preventDefault();
-        firstElement.focus();
-      }
-    }
-
-    const focusTimer = window.setTimeout(() => {
-      const focusableElements = getFocusableElements();
-      (focusableElements[0] || aiToolsModalRef.current)?.focus();
-    }, 0);
-
-    document.addEventListener("keydown", handleAiToolsKeyDown);
-
-    return () => {
-      window.clearTimeout(focusTimer);
-      document.removeEventListener("keydown", handleAiToolsKeyDown);
-      if (previouslyFocusedElement?.focus) previouslyFocusedElement.focus();
-    };
-  }, [aiToolsOpen]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -1248,17 +1204,28 @@ export default function CaseDetail({
     }
   }
 
-  function openAiTool(toolId) {
+  function openAiWorkspace(toolId, requestedIssueId = "") {
     const nextIssueId = selectedSequenceGroupId || timelineIssueOptions[0]?.id || "";
     const matchingTask = AI_WORKSPACE_SECTIONS
       .flatMap((section) => section.tasks || [])
       .find((task) => task.toolId === toolId || task.actionKind === toolId);
     if (matchingTask) setActiveAiTask(matchingTask.id);
     setActiveAiTool(toolId);
-    setAiToolsSequenceGroup(toolId === "management-report-builder-pack" ? MANAGEMENT_REPORT_BUILDER_WHOLE_CASE : nextIssueId);
+    setAiToolsSequenceGroup(toolId === "management-report-builder-pack" ? MANAGEMENT_REPORT_BUILDER_WHOLE_CASE : requestedIssueId || nextIssueId);
     setAiToolsFeedback("");
-    setAiToolsOpen(true);
+    setActiveTab("ai-workspace");
     closeWorkspaceActionMenu();
+  }
+
+  function selectAiWorkspaceTask(task) {
+    setActiveAiTask(task.id);
+    if (task.toolId) setActiveAiTool(task.toolId);
+    if (task.toolId === "management-report-builder-pack") {
+      setAiToolsSequenceGroup(MANAGEMENT_REPORT_BUILDER_WHOLE_CASE);
+    } else if ((task.toolId === "chain-completion-pack" || task.toolId === "full-chain-gpt-pack") && !aiToolsSequenceGroup) {
+      setAiToolsSequenceGroup(selectedSequenceGroupId || timelineIssueOptions[0]?.id || "");
+    }
+    setAiToolsFeedback("");
   }
 
   function getAiToolIssueScope(selection = aiToolsSequenceGroup) {
@@ -3719,7 +3686,6 @@ ${ungroupedSequenceText}
     actionSummaryEditOpen,
     sequenceGroupManagerOpen,
     sequenceGroupAuditExportOpen,
-    aiToolsOpen,
     incidentDateRepairOpen,
     activeLedgerRecord,
   });
@@ -3748,7 +3714,6 @@ ${ungroupedSequenceText}
   const activeAiExampleQuestions = activeAiTaskGuidance.exampleQuestions || [];
   const activeAiToolNeedsSequenceGroup = activeAiTaskToolId === "chain-completion-pack" || activeAiTaskToolId === "full-chain-gpt-pack";
   const activeAiToolUsesReportBuilderScope = activeAiTaskToolId === "management-report-builder-pack";
-  const aiWorkspaceIconMap = { Briefcase, Download, FileText, Network, Search };
   const formatCaseHeaderDate = (value) => {
     if (!value) return "";
     const date = new Date(value);
@@ -3786,6 +3751,7 @@ ${ungroupedSequenceText}
           watch: Waypoints,
           documents: FileText,
           records: BookOpen,
+          "ai-workspace": Briefcase,
           timeline: Waypoints,
           "generate-report": Download,
           strategy: Target,
@@ -3920,7 +3886,7 @@ ${ungroupedSequenceText}
                   </div>
                   <button
                     type="button"
-                    onClick={() => { openAiTool(activeAiTool || "missing-function-summaries"); setShowExportMenu(false); }}
+                    onClick={() => { openAiWorkspace(activeAiTool || "missing-function-summaries"); setShowExportMenu(false); }}
                     className="block min-h-11 w-full rounded-lg border border-lime-200 bg-lime-50/70 px-3 py-2 text-left transition-colors hover:bg-lime-50"
                   >
                     <span className="block text-sm font-semibold leading-snug text-neutral-900">Open AI Workspace</span>
@@ -4003,7 +3969,7 @@ ${ungroupedSequenceText}
               </button>
               <button
                 type="button"
-                onClick={() => openAiTool(activeAiTool || "missing-function-summaries")}
+                onClick={() => openAiWorkspace(activeAiTool || "missing-function-summaries")}
                 className="flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 transition-colors hover:border-lime-300 hover:bg-lime-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 focus-visible:ring-offset-1"
               >
                 <Briefcase className="h-3.5 w-3.5" />
@@ -6415,6 +6381,53 @@ ${ungroupedSequenceText}
               </div>
             )}
 
+            {activeTab === "ai-workspace" && (
+              <AiWorkspaceTab
+                workspaceSections={aiWorkspaceSections}
+                activeTaskId={activeAiTask}
+                activeTask={activeAiTaskOption}
+                activeToolNeedsIssue={activeAiToolNeedsSequenceGroup}
+                activeToolUsesWholeCaseScope={activeAiToolUsesReportBuilderScope}
+                activeTaskActionKind={activeAiTaskActionKind}
+                activeTaskToolId={activeAiTaskToolId}
+                activeTaskPurpose={activeAiTaskPurpose}
+                activeTaskBestGpt={activeAiTaskBestGpt}
+                activeTaskContains={activeAiTaskContains}
+                activeTaskDoesNotInclude={activeAiTaskDoesNotInclude}
+                activeTaskSafety={activeAiTaskSafety}
+                activeTaskWorkflow={activeAiTaskWorkflow}
+                activeRecommendedGpt={activeAiRecommendedGpt}
+                activeAlsoSuitableGpts={activeAiAlsoSuitableGpts}
+                activeExampleQuestions={activeAiExampleQuestions}
+                recommendedContent={<>
+                  {reportCentreType === "incidentSchedule" && <IncidentScheduleReportArticle reportDocument={reportCentreIncidentDocument} className="mx-auto max-w-6xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm dark:border-neutral-700 dark:bg-neutral-900 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none" />}
+                  {reportCentreType === "chronologyReport" && <ChronologyReportArticle reportDocument={reportCentreChronologyDocument} className="mx-auto max-w-5xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm dark:border-neutral-700 dark:bg-neutral-900 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none" />}
+                  {reportCentreType === "caseAudit" && <CaseAuditReportArticle reportDocument={reportCentreCaseAuditDocument} className="mx-auto max-w-6xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm dark:border-neutral-700 dark:bg-neutral-900 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none" />}
+                </>}
+                issueOptions={timelineIssueOptions}
+                issueSelection={aiToolsSequenceGroup}
+                wholeCaseScopeValue={MANAGEMENT_REPORT_BUILDER_WHOLE_CASE}
+                caseSliceRecordIdsText={caseSliceRecordIdsText}
+                feedback={aiToolsFeedback}
+                selectedCaseId={selectedCase.id}
+                onSelectTask={selectAiWorkspaceTask}
+                onIssueSelectionChange={(value) => { setAiToolsSequenceGroup(value); setAiToolsFeedback(""); }}
+                onCaseSliceRecordIdsChange={(value) => { setCaseSliceRecordIdsText(value); setAiToolsFeedback(""); }}
+                onCopyRecommendedGptJson={handleCopyRecommendedGptJson}
+                onDownloadSplitReasoningPackage={handleDownloadSplitReasoningPackage}
+                onDownloadCurrentCase={handleDownloadAiWorkspaceSnapshot}
+                onCopyToolJson={handleCopyAiToolJson}
+                onCopyToolMarkdown={handleCopyAiToolMarkdown}
+                onCopySpecialistPrompt={handleCopyAiToolSpecialistPrompt}
+                onCopyNarrativePolishPrompt={handleCopyExecutiveSummaryPolishPrompt}
+                onCopyLinkMap={onCopyLinkMapExport}
+                onDownloadProtocolJson={handleDownloadGptProtocolPackJson}
+                onDownloadProtocolMarkdown={handleDownloadGptProtocolPackMarkdown}
+                onOpenGptUpdate={onOpenGptDeltaModal}
+                onOpenIssueAudit={openSequenceGroupAuditExport}
+              />
+            )}
+
             {activeTab === "timeline" && (
               <div className="case-file-timeline space-y-4">
                 <section className="case-file-timeline-header rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm" aria-labelledby="case-timeline-heading">
@@ -6915,380 +6928,12 @@ ${ungroupedSequenceText}
         </button>
       )}
 
-      {aiToolsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/30 p-2 print:hidden sm:p-4">
-          <div
-            ref={aiToolsModalRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="ai-tools-modal-title"
-            tabIndex={-1}
-            className="ai-workspace-modal flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl outline-none"
-          >
-            <div data-ai-workspace-header className="flex shrink-0 items-start justify-between gap-4 border-b border-neutral-100 bg-white p-4 sm:p-5">
-              <div>
-                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-700">AI command center</div>
-                <h3 id="ai-tools-modal-title" className="mt-1 text-lg font-semibold text-neutral-900">AI Workspace</h3>
-                <p className="mt-1 text-xs text-neutral-500">
-                  Choose focused, non-importable GPT work packs, specialist workflows, and sequence-chain AI handoffs.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setAiToolsOpen(false)}
-                className="sticky top-0 shrink-0 rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs font-medium text-neutral-600 hover:bg-neutral-50"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="grid min-h-0 flex-1 overflow-hidden md:grid-cols-[21rem_1fr]">
-              <aside data-ai-workspace-navigation className="max-h-56 overflow-y-auto overscroll-contain border-b border-neutral-100 bg-neutral-50/60 p-3 md:max-h-none md:border-b-0 md:border-r">
-                <div className="space-y-3">
-                  {aiWorkspaceSections.map((section) => {
-                    const SectionIcon = aiWorkspaceIconMap[section.icon] || FileText;
-                    return (
-                      <section key={section.id} data-ai-workspace-section className="rounded-xl border border-neutral-200 bg-white p-3">
-                        <div className="flex items-start gap-2">
-                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700">
-                            <SectionIcon className="h-4 w-4" aria-hidden="true" />
-                          </span>
-                          <div className="min-w-0">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-900">{section.title}</h4>
-                            <p className="mt-0.5 text-[11px] leading-4 text-neutral-500">{section.description}</p>
-                          </div>
-                        </div>
-                        <div className="mt-2 grid gap-1.5">
-                          {(section.tasks || []).map((task) => {
-                            return (
-                              <button
-                                key={`${section.id}-${task.id}`}
-                                type="button"
-                                data-ai-workspace-task
-                                aria-current={activeAiTask === task.id ? "page" : undefined}
-                                onClick={() => {
-                                  setActiveAiTask(task.id);
-                                  if (task.toolId) setActiveAiTool(task.toolId);
-                                  if (task.toolId === "management-report-builder-pack") {
-                                    setAiToolsSequenceGroup(MANAGEMENT_REPORT_BUILDER_WHOLE_CASE);
-                                  } else if ((task.toolId === "chain-completion-pack" || task.toolId === "full-chain-gpt-pack") && !aiToolsSequenceGroup) {
-                                    setAiToolsSequenceGroup(selectedSequenceGroupId || timelineIssueOptions[0]?.id || "");
-                                  }
-                                  setAiToolsFeedback("");
-                                }}
-                                className={`rounded-lg border px-2.5 py-2 text-left transition-colors ${
-                                  activeAiTask === task.id
-                                    ? "border-sky-400 bg-sky-50 text-neutral-950"
-                                    : "border-neutral-200 bg-white text-neutral-700 hover:border-sky-200 hover:bg-sky-50/60"
-                                }`}
-                              >
-                                <div className="text-xs font-bold">{task.title}</div>
-                                <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-neutral-500">Uses: {task.technicalTool}</p>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </section>
-                    );
-                  })}
-                </div>
-              </aside>
-
-              <section data-ai-workspace-details className="min-h-0 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-5">
-                {aiToolsFeedback && (
-                  <div data-ai-workspace-feedback role="status" aria-live="polite" className="rounded-md border border-lime-200 bg-lime-50 p-3 text-sm font-medium text-lime-800">
-                    {aiToolsFeedback}
-                  </div>
-                )}
-
-                <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-700">Selected Task</div>
-                  <h4 className="mt-1 text-2xl font-semibold text-neutral-950">{activeAiTaskOption.title}</h4>
-                  <div data-ai-workspace-metadata className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-xs leading-5 text-neutral-600">
-                    <div>
-                      <div className="font-bold uppercase tracking-wider text-neutral-400">Technical Tool</div>
-                      <p className="mt-1 text-sm font-semibold text-neutral-900">{activeAiTaskOption.technicalTool}</p>
-                    </div>
-                    <div className="mt-3">
-                      <div className="font-bold uppercase tracking-wider text-neutral-400">Purpose</div>
-                      <p className="mt-1 text-neutral-700">{activeAiTaskPurpose}</p>
-                    </div>
-                    <div className="mt-3">
-                      <div className="font-bold uppercase tracking-wider text-neutral-400">Use This When</div>
-                      <p className="mt-1 text-neutral-700">{activeAiTaskOption.useThisWhen}</p>
-                    </div>
-                    <div className="mt-3">
-                      <div className="font-bold uppercase tracking-wider text-neutral-400">Best GPT</div>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {activeAiTaskBestGpt.map((item) => (
-                          <span key={item} className="rounded-md border border-sky-200 bg-white px-2 py-0.5 font-semibold text-sky-800">
-                            {item}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="mt-3">
-                      <div className="font-bold uppercase tracking-wider text-neutral-400">Contains</div>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {activeAiTaskContains.map((item) => (
-                          <span key={item} className="rounded-md border border-neutral-200 bg-white px-2 py-0.5 font-semibold text-neutral-700">
-                            {item}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="mt-3">
-                      <div className="font-bold uppercase tracking-wider text-neutral-400">Does Not Include</div>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {activeAiTaskDoesNotInclude.map((item) => (
-                          <span key={item} className="rounded-md border border-amber-200 bg-white px-2 py-0.5 font-semibold text-amber-800">
-                            {item}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="mt-3">
-                      <div className="font-bold uppercase tracking-wider text-neutral-400">Safety</div>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {activeAiTaskSafety.map((item) => (
-                          <span key={item} className="rounded-md border border-lime-200 bg-lime-50 px-2 py-0.5 font-semibold text-lime-800">
-                            {item}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                {(activeAiToolNeedsSequenceGroup || activeAiToolUsesReportBuilderScope) && (
-                  <label className="mt-4 block">
-                    <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">
-                      {activeAiToolUsesReportBuilderScope ? "Scope" : "Issue"}
-                    </span>
-                    <select
-                      value={aiToolsSequenceGroup}
-                      onChange={(event) => {
-                        setAiToolsSequenceGroup(event.target.value);
-                        setAiToolsFeedback("");
-                      }}
-                      className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-800 outline-none focus:border-lime-500"
-                    >
-                      {activeAiToolUsesReportBuilderScope && (
-                        <option value={MANAGEMENT_REPORT_BUILDER_WHOLE_CASE}>Whole Case</option>
-                      )}
-                      {timelineIssueOptions.length === 0 && !activeAiToolUsesReportBuilderScope ? (
-                        <option value="">No Issues available</option>
-                      ) : timelineIssueOptions.map((issue) => (
-                        <option key={issue.id} value={issue.id}>
-                          {issue.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-
-                {activeAiTaskToolId === "case-slice-pack" && (
-                  <label className="mt-4 block">
-                    <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">Selected record IDs</span>
-                    <textarea
-                      value={caseSliceRecordIdsText}
-                      onChange={(event) => {
-                        setCaseSliceRecordIdsText(event.target.value);
-                        setAiToolsFeedback("");
-                      }}
-                      rows={8}
-                      placeholder={'{"incidents":["inc-1"],"evidence":["ev-1"],"documents":["doc-1"],"strategy":[],"ledger":[]}\n\nor\nincidents: inc-1, inc-2\nevidence: ev-1'}
-                      className="mt-1 w-full resize-y rounded-lg border border-neutral-300 bg-white px-3 py-2 font-mono text-xs leading-5 text-neutral-800 outline-none focus:border-lime-500"
-                    />
-                    <p className="mt-2 text-xs leading-5 text-neutral-500">
-                      Use JSON arrays or one line per type: incidents, evidence, documents, strategy, ledger.
-                    </p>
-                  </label>
-                )}
-
-                  <div data-ai-workspace-guidance className="mt-4 grid gap-3 lg:grid-cols-2">
-                    <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-                      <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Workflow</div>
-                      <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm leading-6 text-neutral-700">
-                        {activeAiTaskWorkflow.map((step) => (
-                          <li key={step}>{step}</li>
-                        ))}
-                      </ol>
-                    </div>
-
-                    <div className="rounded-xl border border-sky-200 bg-sky-50/60 p-4">
-                      <div className="text-xs font-bold uppercase tracking-wider text-sky-700">Recommended GPT</div>
-                      <p className="mt-2 text-sm font-semibold text-neutral-950">{activeAiRecommendedGpt}</p>
-                      {activeAiAlsoSuitableGpts.length > 0 && (
-                        <div className="mt-3">
-                          <div className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">Also suitable for</div>
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            {activeAiAlsoSuitableGpts.map((item) => (
-                              <span key={item} className="rounded-md border border-sky-200 bg-white px-2 py-0.5 text-xs font-semibold text-sky-800">
-                                {item}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {reportCentreType === "incidentSchedule" && (
-                        <IncidentScheduleReportArticle
-                          reportDocument={reportCentreIncidentDocument}
-                          className="mx-auto max-w-6xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm dark:border-neutral-700 dark:bg-neutral-900 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
-                        />
-                      )}
-                      {reportCentreType === "chronologyReport" && (
-                        <ChronologyReportArticle
-                          reportDocument={reportCentreChronologyDocument}
-                          className="mx-auto max-w-5xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm dark:border-neutral-700 dark:bg-neutral-900 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
-                        />
-                      )}
-                      {reportCentreType === "caseAudit" && (
-                        <CaseAuditReportArticle
-                          reportDocument={reportCentreCaseAuditDocument}
-                          className="mx-auto max-w-6xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm dark:border-neutral-700 dark:bg-neutral-900 print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
-                        />
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-4 rounded-xl border border-neutral-200 bg-white p-4">
-                    <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Example Questions</div>
-                    <ul className="mt-2 grid gap-2 text-sm leading-6 text-neutral-700 sm:grid-cols-2">
-                      {activeAiExampleQuestions.map((question) => (
-                        <li key={question} className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
-                          {question}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div className="mt-4 text-xs leading-5 text-neutral-500">This task uses {activeAiTaskOption.technicalTool}.</div>
-                  <div data-ai-workspace-actions className="ai-workspace-actions sticky bottom-0 z-10 mt-3 flex flex-wrap gap-2">
-                    {activeAiTaskActionKind === "reasoning-snapshot" && (
-                      <button
-                        type="button"
-                        onClick={handleCopyRecommendedGptJson}
-                        className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
-                      >
-                        Copy Recommended GPT JSON
-                      </button>
-                    )}
-                    {activeAiTaskActionKind === "split-reasoning-package" && (
-                      <button
-                        type="button"
-                        onClick={handleDownloadSplitReasoningPackage}
-                        className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
-                      >
-                        Download ZIP
-                      </button>
-                    )}
-                    {activeAiTaskActionKind === "ai-workspace-snapshot" && (
-                      <button
-                        type="button"
-                        onClick={handleDownloadAiWorkspaceSnapshot}
-                        className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
-                      >
-                        Download CURRENT_CASE.json
-                      </button>
-                    )}
-                    {activeAiTaskActionKind === "ai-tool" && (
-                      <>
-                        <button
-                          type="button"
-                          disabled={activeAiToolNeedsSequenceGroup && !aiToolsSequenceGroup}
-                          onClick={() => handleCopyAiToolJson(activeAiTaskToolId)}
-                          className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:hover:bg-white"
-                        >
-                          Copy JSON
-                        </button>
-                        <button
-                          type="button"
-                          disabled={activeAiToolNeedsSequenceGroup && !aiToolsSequenceGroup}
-                          onClick={() => handleCopyAiToolMarkdown(activeAiTaskToolId)}
-                          className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:text-neutral-400"
-                        >
-                          Copy Markdown Prompt
-                        </button>
-                      </>
-                    )}
-                    {activeAiTaskActionKind === "specialist-prompt" && (
-                      <button
-                        type="button"
-                        onClick={() => handleCopyAiToolSpecialistPrompt(activeAiTaskToolId)}
-                        className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
-                      >
-                        Copy Specialist Prompt
-                      </button>
-                    )}
-                    {activeAiTaskActionKind === "narrative-polish" && (
-                      <button
-                        type="button"
-                        onClick={handleCopyExecutiveSummaryPolishPrompt}
-                        className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
-                      >
-                        Copy Narrative Polish Prompt
-                      </button>
-                    )}
-                    {activeAiTaskActionKind === "link-map" && (
-                      <button
-                        type="button"
-                        onClick={() => onCopyLinkMapExport?.(selectedCase.id)}
-                        className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
-                      >
-                        Copy Link Map JSON
-                      </button>
-                    )}
-                    {activeAiTaskActionKind === "protocol-pack" && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={handleDownloadGptProtocolPackJson}
-                          className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
-                        >
-                          Download JSON
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleDownloadGptProtocolPackMarkdown}
-                          className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50"
-                        >
-                          Download Markdown
-                        </button>
-                      </>
-                    )}
-                    {activeAiTaskActionKind === "gpt-update" && onOpenGptDeltaModal && (
-                      <button
-                        type="button"
-                        onClick={onOpenGptDeltaModal}
-                        className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
-                      >
-                        Open GPT Update
-                      </button>
-                    )}
-                    {activeAiTaskActionKind === "sequence-audit" && (
-                      <button
-                        type="button"
-                        onClick={openSequenceGroupAuditExport}
-                        className="rounded-md border border-lime-500 bg-white px-3 py-2 text-sm font-bold text-neutral-900 hover:bg-lime-400/30"
-                      >
-                        Open Issue Audit
-                      </button>
-                    )}
-                  </div>
-                </section>
-
-              </section>
-            </div>
-          </div>
-        </div>
-      )}
-
       <FloatingWorkspaceMenu
         visible={showFloatingWorkspaceMenu}
         open={workspaceActionMenuOpen}
         toolActions={floatingToolActions}
         onClose={closeWorkspaceActionMenu}
-        onOpenAiWorkspace={() => openAiTool(activeAiTool || "management-report-builder-pack")}
+        onOpenAiWorkspace={() => openAiWorkspace(activeAiTool || "management-report-builder-pack")}
         onBackToTop={handleWorkspaceBackToTop}
         onToggleOpen={() => setWorkspaceActionMenuOpen((open) => !open)}
       />

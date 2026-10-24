@@ -2137,6 +2137,7 @@ export default function ProveItApp() {
     { id: "documents", label: "Documents" },
     { id: "ledger", label: "Ledger" },
     { id: "timeline", label: "Timeline" },
+    { id: "ai-workspace", label: "AI Workspace" },
     { id: "generate-report", label: "Generate Report" },
     { id: "strategy", label: "Strategy" },
   ];
