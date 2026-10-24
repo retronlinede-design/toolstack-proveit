@@ -68,6 +68,9 @@ test("Reports Centre prioritises main reports and keeps specialist and internal 
   for (const label of ["Executive Report", "Case Position Brief", "Issue Investigation Report", "Client Update Draft", "Incident Schedule", "Evidence Schedule", "Case Quality Audit", "Operational Brief"]) assert.match(html, new RegExp(label));
   for (const heading of ["1 · Choose purpose", "2 · Choose scope", "Main Reports", "Specialist Schedules", "Internal Tools &amp; Documentation"]) assert.match(html, new RegExp(heading));
   assert.match(html, /Issue Audit/);
+  assert.match(html, /External Drafting Handoff/);
+  assert.match(html, /external AI drafting service/);
+  for (const label of ["Copy JSON Pack", "Copy Markdown Prompt", "Copy Specialist Review Prompt"]) assert.match(html, new RegExp(label));
   assert.doesNotMatch(html, /Unavailable Reports/);
   assert.match(html, /not independently verified or approved/);
   assert.match(html, /Audience/);
@@ -148,8 +151,27 @@ test("optional control values do not prevent the Report Centre from rendering", 
   assert.doesNotThrow(() => renderControls({ issues: undefined, selectedIssueId: undefined }));
 });
 
+test("External Drafting Handoff uses the existing canonical Issue selector and fails closed when unavailable", () => {
+  const scoped = renderControls({ externalDraftingScopeType: "sequenceGroup", externalDraftingIssueAvailable: true });
+  assert.match(scoped, /External Drafting Handoff scope/);
+  assert.match(scoped, /id="external-drafting-issue"/);
+  assert.match(scoped, /<option value="issue-alpha" selected="">ISS-001 — Alpha<\/option>/);
+
+  const unavailable = renderControls({
+    externalDraftingScopeType: "sequenceGroup",
+    selectedIssueId: "removed-issue",
+    externalDraftingIssueAvailable: false,
+  });
+  assert.match(unavailable, /The selected Issue is no longer available/);
+  assert.match(unavailable, /disabled=""/);
+});
+
 test("the active CaseDetail Report Centre uses the rendered control boundary", () => {
   assert.match(caseDetailSource, /<ReportCentreControls/);
+  assert.match(caseDetailSource, /externalDraftingScopeType=\{externalDraftingScopeType\}/);
+  assert.match(caseDetailSource, /buildManagementReportBuilderPack\(selectedCase, "", getExternalDraftingScope\(\)\)/);
+  assert.match(caseDetailSource, /buildManagementReportBuilderMarkdownPrompt\(selectedCase, "", getExternalDraftingScope\(\)\)/);
+  assert.match(caseDetailSource, /buildManagementReportBuilderSpecialistPrompt\(selectedCase, "", getExternalDraftingScope\(\)\)/);
   assert.match(caseDetailSource, /issueId: reportCentreScope\.issueId/);
   assert.doesNotMatch(caseDetailSource, /find\(\(issue\) => String\(issue\?\.name/);
   assert.match(caseDetailSource, /<ReportContextHeader/);

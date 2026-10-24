@@ -61,12 +61,12 @@ test("AI Workspace shows canonical case context and does not embed Reports Centr
   assert.match(caseDetail, /caseRevision=\{selectedCase\.revision\}/);
 });
 
-test("AI Tools modal exposes specialist prompt only for management report builder pack", () => {
+test("External Drafting Handoff retains the management pack builders outside AI Workspace", () => {
   assert.match(caseDetail, /buildManagementReportBuilderSpecialistPrompt/);
-  assert.match(caseDetail, /function buildAiToolSpecialistPrompt/);
-  assert.match(caseDetail, /function handleCopyAiToolSpecialistPrompt/);
-  assert.match(workspace, /activeToolUsesWholeCaseScope/);
-  assert.match(workspace, /Copy Specialist Prompt/);
+  assert.match(caseDetail, /handleCopyExternalDraftingSpecialistPrompt/);
+  assert.match(caseDetail, /issueId: selectedReportCentreIssue\.id/);
+  assert.doesNotMatch(workspace, /Copy Specialist Prompt/);
+  assert.doesNotMatch(workspace, /Copy Narrative Polish Prompt/);
   assert.match(workspace, /Copy Markdown Prompt/);
 });
 

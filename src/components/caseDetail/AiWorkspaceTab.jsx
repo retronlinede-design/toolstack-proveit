@@ -4,19 +4,18 @@ const ICONS = { Briefcase, Download, FileText, Network, Search };
 
 /** Presentation-only tab: CaseDetail retains all state, exports, and persistence. */
 export default function AiWorkspaceTab({
-  workspaceSections, activeTaskId, activeTask, activeToolNeedsIssue, activeToolUsesWholeCaseScope,
+  workspaceSections, activeTaskId, activeTask, activeToolNeedsIssue,
   activeTaskActionKind, activeTaskToolId, activeTaskPurpose, activeTaskBestGpt, activeTaskContains,
   activeTaskDoesNotInclude, activeTaskSafety, activeTaskWorkflow, activeRecommendedGpt,
-  activeAlsoSuitableGpts, activeExampleQuestions, issueOptions, issueSelection, wholeCaseScopeValue,
+  activeAlsoSuitableGpts, activeExampleQuestions, issueOptions, issueSelection,
   caseName, caseId, caseRevision, caseSliceRecordIdsText, feedback, onSelectTask, onIssueSelectionChange,
   onCaseSliceRecordIdsChange, onCopyRecommendedGptJson, onDownloadSplitReasoningPackage,
-  onDownloadCurrentCase, onCopyToolJson, onCopyToolMarkdown, onCopySpecialistPrompt,
-  onCopyNarrativePolishPrompt, onCopyLinkMap, onDownloadProtocolJson, onDownloadProtocolMarkdown,
+  onDownloadCurrentCase, onCopyToolJson, onCopyToolMarkdown, onCopyLinkMap, onDownloadProtocolJson, onDownloadProtocolMarkdown,
   onOpenGptUpdate, onOpenIssueAudit,
 }) {
   const selectedIssue = issueOptions.find((issue) => issue.id === issueSelection);
-  const hasScopeControl = activeToolNeedsIssue || activeToolUsesWholeCaseScope;
-  const activeScopeLabel = issueSelection === wholeCaseScopeValue || !selectedIssue ? "Entire Case" : selectedIssue.label;
+  const hasScopeControl = activeToolNeedsIssue;
+  const activeScopeLabel = !selectedIssue ? "Entire Case" : selectedIssue.label;
   const disabledForMissingIssue = activeToolNeedsIssue && !issueSelection;
 
   return (
@@ -55,8 +54,6 @@ export default function AiWorkspaceTab({
               {activeTaskActionKind === "split-reasoning-package" && <Action kind="download" onClick={onDownloadSplitReasoningPackage}>Download ZIP</Action>}
               {activeTaskActionKind === "ai-workspace-snapshot" && <Action kind="download" onClick={onDownloadCurrentCase}>Download CURRENT_CASE.json</Action>}
               {activeTaskActionKind === "ai-tool" && <><Action kind="copy" disabled={disabledForMissingIssue} onClick={() => onCopyToolJson(activeTaskToolId)}>Copy JSON</Action><Action kind="copy" disabled={disabledForMissingIssue} onClick={() => onCopyToolMarkdown(activeTaskToolId)}>Copy Markdown Prompt</Action></>}
-              {activeTaskActionKind === "specialist-prompt" && <Action kind="copy" onClick={() => onCopySpecialistPrompt(activeTaskToolId)}>Copy Specialist Prompt</Action>}
-              {activeTaskActionKind === "narrative-polish" && <Action kind="copy" onClick={onCopyNarrativePolishPrompt}>Copy Narrative Polish Prompt</Action>}
               {activeTaskActionKind === "link-map" && <Action kind="copy" onClick={() => onCopyLinkMap?.(caseId)}>Copy Link Map JSON</Action>}
               {activeTaskActionKind === "protocol-pack" && <><Action kind="download" onClick={onDownloadProtocolJson}>Download JSON</Action><Action kind="download" onClick={onDownloadProtocolMarkdown}>Download Markdown</Action></>}
               {activeTaskActionKind === "gpt-update" && onOpenGptUpdate && <Action kind="reviewed-update" onClick={onOpenGptUpdate}>Open GPT Update</Action>}
@@ -84,10 +81,9 @@ export default function AiWorkspaceTab({
             <div className="case-file-ai-workspace-label">Case context</div>
             <dl><div><dt>Case identifier</dt><dd>{caseId || "Unavailable"}</dd></div><div><dt>Active scope</dt><dd>{activeScopeLabel}</dd></div></dl>
             {hasScopeControl && (
-              <label className="case-file-ai-workspace-field"><span>{activeToolUsesWholeCaseScope ? "Handoff scope" : "Issue scope"}</span>
+              <label className="case-file-ai-workspace-field"><span>Issue scope</span>
                 <select value={issueSelection} onChange={(event) => onIssueSelectionChange(event.target.value)}>
-                  {activeToolUsesWholeCaseScope && <option value={wholeCaseScopeValue}>Entire Case</option>}
-                  {issueOptions.length === 0 && !activeToolUsesWholeCaseScope ? <option value="">No Issues available</option> : issueOptions.map((issue) => <option key={issue.id} value={issue.id}>{issue.label}</option>)}
+                  {issueOptions.length === 0 ? <option value="">No Issues available</option> : issueOptions.map((issue) => <option key={issue.id} value={issue.id}>{issue.label}</option>)}
                 </select>
               </label>
             )}

@@ -232,7 +232,6 @@ function safeText(value) {
   return typeof value === "string" ? value : "";
 }
 
-const MANAGEMENT_REPORT_BUILDER_WHOLE_CASE = "__whole_case__";
 
 function normalizeReportLanguage(value) {
   return REPORT_DISPLAY_LANGUAGES.includes(value) ? value : DEFAULT_REPORT_DISPLAY_LANGUAGE;
@@ -341,6 +340,7 @@ export default function CaseDetail({
   const [reportPromptFeedback, setReportPromptFeedback] = useState("");
   const [reportCentreScopeType, setReportCentreScopeType] = useState("sequenceGroup");
   const [reportCentreIssueId, setReportCentreIssueId] = useState("");
+  const [externalDraftingScopeType, setExternalDraftingScopeType] = useState("case");
   const [reportCentreType, setReportCentreType] = useState("executive");
   const [reportCentreOutputFeedback, setReportCentreOutputFeedback] = useState("");
   const [caseStructureReportOpen, setCaseStructureReportOpen] = useState(false);
@@ -435,7 +435,7 @@ export default function CaseDetail({
   const timelineIssueOptions = useMemo(() => getCaseIssueSelectionOptions(selectedCase), [selectedCase]);
 
   useEffect(() => {
-    if (!aiToolsSequenceGroup || aiToolsSequenceGroup === MANAGEMENT_REPORT_BUILDER_WHOLE_CASE) return;
+    if (!aiToolsSequenceGroup) return;
     if (timelineIssueOptions.some((issue) => issue.id === aiToolsSequenceGroup)) return;
     setAiToolsSequenceGroup("");
     setAiToolsFeedback("The selected Issue is no longer available. Choose an Issue before creating an Issue-scoped handoff.");
@@ -486,6 +486,18 @@ export default function CaseDetail({
   const reportCentreIssues = useMemo(() => getReportCentreIssueOptions(selectedCase), [selectedCase]);
   const reportCentreIssueSelection = useMemo(() => resolveReportCentreIssueSelection(reportCentreIssues, reportCentreIssueId), [reportCentreIssues, reportCentreIssueId]);
   const selectedReportCentreIssue = reportCentreIssueSelection.selectedIssue;
+  const externalDraftingScope = useMemo(() => {
+    if (externalDraftingScopeType !== "sequenceGroup") return { scope: {}, error: "" };
+    if (!selectedReportCentreIssue) {
+      return {
+        scope: null,
+        error: reportCentreIssueSelection.requestedIssueId
+          ? "The selected Issue is no longer available. Select an existing Issue before preparing a scoped handoff."
+          : "Select an existing Issue before preparing a scoped handoff.",
+      };
+    }
+    return { scope: { issueId: selectedReportCentreIssue.id }, error: "" };
+  }, [externalDraftingScopeType, reportCentreIssueSelection.requestedIssueId, selectedReportCentreIssue]);
   const selectedThreadIssueReportSequenceGroup = useMemo(() => {
     if (threadIssueReportSequenceOptions.includes(threadIssueReportSequenceGroup)) {
       return threadIssueReportSequenceGroup;
@@ -1243,9 +1255,9 @@ export default function CaseDetail({
     const matchingTask = AI_WORKSPACE_SECTIONS
       .flatMap((section) => section.groups?.flatMap((group) => group.tasks || []) || section.tasks || [])
       .find((task) => task.toolId === toolId || task.actionKind === toolId);
-    if (matchingTask) setActiveAiTask(matchingTask.id);
-    setActiveAiTool(toolId);
-    setAiToolsSequenceGroup(toolId === "management-report-builder-pack" ? MANAGEMENT_REPORT_BUILDER_WHOLE_CASE : requestedIssueId || nextIssueId);
+    setActiveAiTask(matchingTask?.id || "download-ai-workspace-snapshot");
+    setActiveAiTool(matchingTask?.toolId || "");
+    setAiToolsSequenceGroup(requestedIssueId || nextIssueId);
     setAiToolsFeedback("");
     setActiveTab("ai-workspace");
     closeWorkspaceActionMenu();
@@ -1254,9 +1266,7 @@ export default function CaseDetail({
   function selectAiWorkspaceTask(task) {
     setActiveAiTask(task.id);
     if (task.toolId) setActiveAiTool(task.toolId);
-    if (task.toolId === "management-report-builder-pack") {
-      setAiToolsSequenceGroup(MANAGEMENT_REPORT_BUILDER_WHOLE_CASE);
-    } else if ((task.toolId === "chain-completion-pack" || task.toolId === "full-chain-gpt-pack") && !aiToolsSequenceGroup) {
+    if ((task.toolId === "chain-completion-pack" || task.toolId === "full-chain-gpt-pack") && !aiToolsSequenceGroup) {
       setAiToolsSequenceGroup(selectedSequenceGroupId || timelineIssueOptions[0]?.id || "");
     }
     setAiToolsFeedback("");
@@ -1279,10 +1289,6 @@ export default function CaseDetail({
       sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
       ...scope,
     });
-    if (toolId === "management-report-builder-pack") {
-      const selectedScope = issueSelection === MANAGEMENT_REPORT_BUILDER_WHOLE_CASE ? {} : scope;
-      return buildManagementReportBuilderPack(selectedCase, "", selectedScope);
-    }
     if (toolId === "weak-links-audit") return buildWeakLinksAuditPack(selectedCase);
     return null;
   }
@@ -1299,20 +1305,7 @@ export default function CaseDetail({
       sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
       ...scope,
     });
-    if (toolId === "management-report-builder-pack") {
-      const selectedScope = issueSelection === MANAGEMENT_REPORT_BUILDER_WHOLE_CASE ? {} : scope;
-      return buildManagementReportBuilderMarkdownPrompt(selectedCase, "", selectedScope);
-    }
     if (toolId === "weak-links-audit") return buildWeakLinksAuditMarkdownPrompt(selectedCase);
-    return "";
-  }
-
-  function buildAiToolSpecialistPrompt(toolId, issueSelection = aiToolsSequenceGroup) {
-    if (!selectedCase) return "";
-    if (toolId === "management-report-builder-pack") {
-      const selectedScope = issueSelection === MANAGEMENT_REPORT_BUILDER_WHOLE_CASE ? {} : getAiToolIssueScope(issueSelection);
-      return buildManagementReportBuilderSpecialistPrompt(selectedCase, "", selectedScope);
-    }
     return "";
   }
 
@@ -1343,21 +1336,6 @@ export default function CaseDetail({
       console.error("Failed to copy AI markdown prompt", error);
       setAiToolsFeedback(error.message || "Could not copy AI markdown prompt.");
       setSequenceGroupFeedback("Could not copy AI markdown prompt.");
-    }
-  }
-
-  async function handleCopyAiToolSpecialistPrompt(toolId = activeAiTool, issueSelection = aiToolsSequenceGroup) {
-    if (!selectedCase) return;
-    try {
-      const prompt = buildAiToolSpecialistPrompt(toolId, issueSelection);
-      if (!prompt) return;
-      await copySequenceGroupText(prompt);
-      setAiToolsFeedback("AI specialist prompt copied.");
-      setSequenceGroupFeedback("AI specialist prompt copied.");
-    } catch (error) {
-      console.error("Failed to copy AI specialist prompt", error);
-      setAiToolsFeedback(error.message || "Could not copy AI specialist prompt.");
-      setSequenceGroupFeedback("Could not copy AI specialist prompt.");
     }
   }
 
@@ -3698,6 +3676,42 @@ ${ungroupedSequenceText}
     setReportCentreOutputFeedback("");
     setReportCentreIssueId(issueId);
   };
+  const handleExternalDraftingScopeChange = (scope) => {
+    setReportCentreOutputFeedback("");
+    setExternalDraftingScopeType(scope === "sequenceGroup" ? "sequenceGroup" : "case");
+  };
+  const getExternalDraftingScope = () => {
+    if (externalDraftingScope.error) throw new Error(externalDraftingScope.error);
+    return externalDraftingScope.scope;
+  };
+  const handleCopyExternalDraftingJson = async () => {
+    if (!selectedCase) return;
+    try {
+      const payload = buildManagementReportBuilderPack(selectedCase, "", getExternalDraftingScope());
+      await copySequenceGroupText(JSON.stringify(payload, null, 2));
+      setReportCentreOutputFeedback("External Drafting Handoff JSON pack copied.");
+    } catch (error) {
+      setReportCentreOutputFeedback(error?.message || "Could not prepare the External Drafting Handoff JSON pack.");
+    }
+  };
+  const handleCopyExternalDraftingMarkdown = async () => {
+    if (!selectedCase) return;
+    try {
+      await copySequenceGroupText(buildManagementReportBuilderMarkdownPrompt(selectedCase, "", getExternalDraftingScope()));
+      setReportCentreOutputFeedback("External Drafting Handoff Markdown prompt copied.");
+    } catch (error) {
+      setReportCentreOutputFeedback(error?.message || "Could not prepare the External Drafting Handoff Markdown prompt.");
+    }
+  };
+  const handleCopyExternalDraftingSpecialistPrompt = async () => {
+    if (!selectedCase) return;
+    try {
+      await copySequenceGroupText(buildManagementReportBuilderSpecialistPrompt(selectedCase, "", getExternalDraftingScope()));
+      setReportCentreOutputFeedback("External Drafting Handoff specialist review prompt copied.");
+    } catch (error) {
+      setReportCentreOutputFeedback(error?.message || "Could not prepare the External Drafting Handoff specialist review prompt.");
+    }
+  };
   const handleReportCentrePrint = () => {
     setReportCentreOutputFeedback(`${getReportDefinition(reportCentreType).label} print dialog opened.`);
     window.print();
@@ -3747,7 +3761,6 @@ ${ungroupedSequenceText}
   const activeAiAlsoSuitableGpts = activeAiTaskGuidance.alsoSuitableFor || activeAiTaskBestGpt.slice(1);
   const activeAiExampleQuestions = activeAiTaskGuidance.exampleQuestions || [];
   const activeAiToolNeedsSequenceGroup = activeAiTaskToolId === "chain-completion-pack" || activeAiTaskToolId === "full-chain-gpt-pack";
-  const activeAiToolUsesReportBuilderScope = activeAiTaskToolId === "management-report-builder-pack";
   const formatCaseHeaderDate = (value) => {
     if (!value) return "";
     const date = new Date(value);
@@ -5114,13 +5127,19 @@ ${ungroupedSequenceText}
                   reportType={reportCentreType}
                   scopeType={normalisedReportCentreScopeType}
                   issues={reportCentreIssues}
-                  selectedIssueId={selectedReportCentreIssue?.id || ""}
+                  selectedIssueId={reportCentreIssueSelection.requestedIssueId}
+                  externalDraftingScopeType={externalDraftingScopeType}
+                  externalDraftingIssueAvailable={Boolean(externalDraftingScope.scope)}
                   markdownAvailable={Boolean(reportCentreMarkdown)}
                   documentOutputAvailable={Boolean(reportCentreActiveDocument)}
                   outputFeedback={reportCentreOutputFeedback}
                   onReportTypeChange={handleReportCentreTypeChange}
                   onScopeTypeChange={handleReportCentreScopeChange}
                   onIssueChange={handleReportCentreIssueChange}
+                  onExternalDraftingScopeChange={handleExternalDraftingScopeChange}
+                  onCopyExternalDraftingJson={handleCopyExternalDraftingJson}
+                  onCopyExternalDraftingMarkdown={handleCopyExternalDraftingMarkdown}
+                  onCopyExternalDraftingSpecialistPrompt={handleCopyExternalDraftingSpecialistPrompt}
                   onPrint={handleReportCentrePrint}
                   onCopyMarkdown={handleCopyReportCentreMarkdown}
                   onDownloadMarkdown={() => handleDownloadReportCentreOutput("markdown")}
@@ -6424,7 +6443,6 @@ ${ungroupedSequenceText}
                 activeTaskId={activeAiTask}
                 activeTask={activeAiTaskOption}
                 activeToolNeedsIssue={activeAiToolNeedsSequenceGroup}
-                activeToolUsesWholeCaseScope={activeAiToolUsesReportBuilderScope}
                 activeTaskActionKind={activeAiTaskActionKind}
                 activeTaskToolId={activeAiTaskToolId}
                 activeTaskPurpose={activeAiTaskPurpose}
@@ -6438,7 +6456,6 @@ ${ungroupedSequenceText}
                 activeExampleQuestions={activeAiExampleQuestions}
                 issueOptions={timelineIssueOptions}
                 issueSelection={aiToolsSequenceGroup}
-                wholeCaseScopeValue={MANAGEMENT_REPORT_BUILDER_WHOLE_CASE}
                 caseName={selectedCase.name}
                 caseId={selectedCase.id}
                 caseRevision={selectedCase.revision}
@@ -6452,8 +6469,6 @@ ${ungroupedSequenceText}
                 onDownloadCurrentCase={handleDownloadAiWorkspaceSnapshot}
                 onCopyToolJson={handleCopyAiToolJson}
                 onCopyToolMarkdown={handleCopyAiToolMarkdown}
-                onCopySpecialistPrompt={handleCopyAiToolSpecialistPrompt}
-                onCopyNarrativePolishPrompt={handleCopyExecutiveSummaryPolishPrompt}
                 onCopyLinkMap={onCopyLinkMapExport}
                 onDownloadProtocolJson={handleDownloadGptProtocolPackJson}
                 onDownloadProtocolMarkdown={handleDownloadGptProtocolPackMarkdown}
@@ -6967,7 +6982,7 @@ ${ungroupedSequenceText}
         open={workspaceActionMenuOpen}
         toolActions={floatingToolActions}
         onClose={closeWorkspaceActionMenu}
-        onOpenAiWorkspace={() => openAiWorkspace(activeAiTool || "management-report-builder-pack")}
+        onOpenAiWorkspace={() => openAiWorkspace(activeAiTool || "ai-workspace-snapshot")}
         onBackToTop={handleWorkspaceBackToTop}
         onToggleOpen={() => setWorkspaceActionMenuOpen((open) => !open)}
       />
