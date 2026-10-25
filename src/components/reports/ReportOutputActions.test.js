@@ -27,3 +27,11 @@ test("Management and Action shared outputs use native semantics", () => {
   const action = renderToStaticMarkup(React.createElement(ReportOutputActions, { reportType: "action", markdownAvailable: true, documentOutputAvailable: true }));
   assert.match(action, /Copy Markdown/); assert.match(action, /Download Markdown/); assert.match(action, /Download JSON/); assert.match(action, /Print \/ Save PDF/);
 });
+
+test("Executive Draft action is integrated with shared outputs without duplicating export controls", () => {
+  const html = renderToStaticMarkup(React.createElement(ReportOutputActions, { reportType: "executive", markdownAvailable: true, documentOutputAvailable: true, primaryAction: { label: "Save Draft" } }));
+  assert.match(html, /Save Draft/);
+  assert.match(html, /is-primary/);
+  assert.match(html, /is-print/);
+  assert.equal((html.match(/Save Draft/g) || []).length, 1);
+});

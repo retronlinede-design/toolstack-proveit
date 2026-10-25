@@ -5358,6 +5358,8 @@ ${ungroupedSequenceText}
                     scopeType={normalisedReportCentreScopeType}
                     scopeLabel={renderedReportCentreScopeLabel}
                   />
+                  <div className="case-file-reports-document-layout">
+                  <section className="case-file-reports-document-preview" aria-label="Selected report preview">
 
                   {savedExecutiveDraft ? <div className="rounded-lg border border-teal-700/40 bg-teal-950/20 px-3 py-2 text-sm print:hidden" role="status">Viewing an immutable saved Draft snapshot · source freshness: {savedExecutiveDrafts.find((draft) => draft.revision.id === savedExecutiveDraft.revision.id)?.freshness || "unknown"}. This content is not regenerated. <button type="button" onClick={() => { setSavedExecutiveRevisionId(""); setReportCentreDestination("saved"); }} className="ml-2 font-bold underline">Return to Saved Reports</button></div> : null}
 
@@ -5388,26 +5390,26 @@ ${ungroupedSequenceText}
                       {reportCentreType === "evidence" && (
                         <EvidencePackReportArticle
                           report={reportCentreEvidencePackReport}
-                          className="mx-auto max-w-6xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
+                          className="case-file-report-article px-6 py-7 print:px-0 print:py-0"
                         />
                       )}
                       {reportCentreType === "document" && (
                         <DocumentPackReportArticle
                           report={reportCentreDocumentPackReport}
-                          className="mx-auto max-w-6xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
+                          className="case-file-report-article px-6 py-7 print:px-0 print:py-0"
                         />
                       )}
                       {reportCentreType === "ledger" && (
                         <LedgerPackReportArticle
                           report={reportCentreLedgerPackReport}
-                          className="mx-auto max-w-6xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none"
+                          className="case-file-report-article px-6 py-7 print:px-0 print:py-0"
                         />
                       )}
                       {reportCentreType === "incidentSchedule" && <IncidentScheduleReportArticle reportDocument={reportCentreIncidentDocument} />}
                       {reportCentreType === "chronologyReport" && <ChronologyReportArticle reportDocument={reportCentreChronologyDocument} />}
                       {reportCentreType === "caseAudit" && <CaseAuditReportArticle reportDocument={reportCentreCaseAuditDocument} />}
                       {reportCentreType === "client" && (
-                        <div className="mx-auto max-w-5xl space-y-5">
+                        <div className="case-file-report-client space-y-5">
                           <ol aria-label="Client Report authoring stages" className="grid gap-2 text-xs font-semibold print:hidden sm:grid-cols-3 lg:grid-cols-6">
                             {["1. Prepare source", "2. Generate draft", "3. Paste and validate", "4. Review", "5. Preview", "6. Export"].map((stage) => <li key={stage} className="rounded-lg border border-neutral-300 bg-neutral-50 px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900">{stage}</li>)}
                           </ol>
@@ -5529,11 +5531,12 @@ ${ungroupedSequenceText}
                       {reportCentreType === "action" && <ActionPlanReportArticle reportDocument={reportCentreActionDocument} />}
                     </>
                   )}
-                  <section className="case-file-reports-export rounded-xl border border-neutral-200 bg-white p-4 print:hidden dark:border-neutral-700 dark:bg-neutral-900" aria-labelledby="report-export-heading">
-                    <p className="case-file-reports-eyebrow">Export</p>
-                    <h5 id="report-export-heading" className="mt-1 text-base font-bold">{savedExecutiveDraft ? "Export the saved snapshot" : "Export the reviewed preview"}</h5>
-                    <p className="mt-1 text-sm leading-6 text-neutral-600 dark:text-neutral-300">{savedExecutiveDraft ? "This is an immutable saved Draft snapshot. It remains unapproved and does not verify or publish the report. Original attachments are not embedded." : "This is a derived output from the current case revision. Printing, downloading, or copying it does not approve, verify, or permanently save a report. Original attachments are not embedded."}</p>
-                    {reportCentreType === "executive" && !savedExecutiveDraft ? <div className="mt-4"><button type="button" onClick={handleSaveExecutiveDraft} disabled={savingExecutiveDraft || (normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue)} className="case-file-reports-utility-action">{savingExecutiveDraft ? "Saving Draft…" : executiveRevisionTargetReportId ? "Save new Draft revision" : "Save Draft"}</button><p className="mt-2 text-xs text-neutral-600 dark:text-neutral-300">Saves an unapproved immutable Draft. It does not approve, publish or verify this report.</p></div> : null}
+                  </section>
+                  <aside className="case-file-reports-actions-panel print:hidden" aria-labelledby="report-export-heading">
+                    <p className="case-file-reports-eyebrow">Document actions</p>
+                    <h5 id="report-export-heading" className="mt-1 text-base font-bold">{savedExecutiveDraft ? "Saved snapshot" : "Live preview"}</h5>
+                    <p className="mt-1 text-sm leading-6">{savedExecutiveDraft ? "This is an immutable, unapproved Draft snapshot. It is not regenerated. Original attachments are not embedded." : "Copying, downloading, or printing does not approve, verify, or save this derived preview. Original attachments are not embedded."}</p>
+                    {reportCentreType === "executive" && !savedExecutiveDraft ? <p className="mt-3 text-xs leading-5">Saving creates an unapproved immutable Draft. It does not approve, publish or verify this report.</p> : null}
                     <div className="mt-4">
                       <ReportOutputActions
                         reportType={reportCentreType}
@@ -5541,13 +5544,15 @@ ${ungroupedSequenceText}
                         documentOutputAvailable={Boolean(reportCentreActiveDocument)}
                         disabled={!savedExecutiveDraft && normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue}
                         feedback={reportCentreOutputFeedback}
+                        primaryAction={reportCentreType === "executive" && !savedExecutiveDraft ? { label: savingExecutiveDraft ? "Saving Draft…" : executiveRevisionTargetReportId ? "Save new Draft revision" : "Save Draft", onClick: handleSaveExecutiveDraft, disabled: savingExecutiveDraft || (normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue) } : null}
                         onCopyMarkdown={handleCopyReportCentreMarkdown}
                         onDownloadMarkdown={() => handleDownloadReportCentreOutput("markdown")}
                         onDownloadJson={() => handleDownloadReportCentreOutput("json")}
                         onPrint={handleReportCentrePrint}
                       />
                     </div>
-                  </section>
+                  </aside>
+                  </div>
                 </section>
                 )}
 

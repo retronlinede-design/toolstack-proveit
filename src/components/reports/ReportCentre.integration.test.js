@@ -200,7 +200,11 @@ test("the active CaseDetail Report Centre uses the rendered control boundary", (
   assert.doesNotMatch(caseDetailSource, /reportCentreType === "investigation"[\s\S]{0,200}<CaseBundleReportArticle/);
   assert.match(caseDetailSource, /className="case-file-reports space-y-5"/);
   assert.match(caseDetailSource, /Review the selected report/);
-  assert.match(caseDetailSource, /Export the reviewed preview/);
+  assert.match(caseDetailSource, /case-file-reports-document-layout/);
+  assert.match(caseDetailSource, /case-file-reports-document-preview/);
+  assert.match(caseDetailSource, /case-file-reports-actions-panel/);
+  assert.match(caseDetailSource, /primaryAction=\{reportCentreType === "executive"/);
+  assert.match(caseDetailSource, /Live preview/);
   assert.match(caseDetailSource, /Original attachments are not embedded/);
   assert.match(caseDetailSource, /<ReportOutputActions/);
   assert.match(caseDetailSource, /id="case-documentation"/);
