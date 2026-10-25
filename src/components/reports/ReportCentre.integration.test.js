@@ -9,6 +9,7 @@ import { transformWithOxc } from "vite";
 
 const componentUrl = new URL("./ReportCentreControls.jsx", import.meta.url);
 const caseDetailSource = await readFile(new URL("../CaseDetail.jsx", import.meta.url), "utf8");
+const appSource = await readFile(new URL("../../App.jsx", import.meta.url), "utf8");
 const scopeUrl = new URL("../../report/reportScopes.js", import.meta.url).href;
 const definitionsUrl = new URL("../../report/reportDefinitions.js", import.meta.url).href;
 const configUrl = new URL("./reportCentreConfig.js", import.meta.url);
@@ -178,7 +179,11 @@ test("the active CaseDetail Report Centre uses the rendered control boundary", (
   assert.match(caseDetailSource, /<ReportCentrePreviewSummary/);
   assert.match(caseDetailSource, /reportDocument={reportCentreActiveDocument}/);
   assert.match(caseDetailSource, /<InvestigationReportArticle reportDocument={reportCentreInvestigationDocument}/);
-  assert.match(caseDetailSource, /<ExecutiveReportArticle reportDocument={reportCentreExecutiveDocument}/);
+  assert.match(caseDetailSource, /<ExecutiveReportArticle reportDocument={reportCentreActiveDocument}/);
+  assert.match(caseDetailSource, /buildExecutiveDraftCandidate/);
+  assert.match(caseDetailSource, /Saved Drafts/);
+  assert.match(caseDetailSource, /Viewing saved historical snapshot/);
+  assert.match(caseDetailSource, /Save new Draft revision/);
   assert.match(caseDetailSource, /useState\("executive"\)/);
   assert.match(caseDetailSource, /useState\("sequenceGroup"\)/);
   assert.doesNotMatch(caseDetailSource, /reportCentreType === "investigation"[\s\S]{0,200}<CaseBundleReportArticle/);
@@ -196,6 +201,13 @@ test("the active CaseDetail Report Centre uses the rendered control boundary", (
   assert.doesNotMatch(caseDetailSource, /onOpenPrintPack/);
   assert.doesNotMatch(caseDetailSource, /\{ id: "client", label: "Client Report"/);
   assert.doesNotMatch(caseDetailSource, /variant="pack"/);
+});
+
+test("Executive Draft saving waits for the existing persistence acknowledgement", () => {
+  assert.match(caseDetailSource, /const saved = await onUpdateCase\(\{ \.\.\.selectedCase, reportLibrary: candidate\.reportLibrary \}\)/);
+  assert.match(caseDetailSource, /if \(!saved\) \{\s*if \(selectedCaseRef\.current\?\.id === savingCaseId\) setExecutiveDraftFeedback\("Draft was not saved/);
+  assert.match(appSource, /await saveCase\(canonicalCase\);\s*setCases/);
+  assert.match(appSource, /return true;/);
 });
 
 test("the active Evidence Pack follows model document and unchanged renderer path", () => {

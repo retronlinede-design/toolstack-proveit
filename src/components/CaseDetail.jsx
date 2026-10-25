@@ -73,6 +73,7 @@ import { buildDocumentScheduleDocument, projectDocumentDocumentToLegacyViewModel
 import { buildLedgerScheduleDocument, projectLedgerDocumentToLegacyViewModel } from "../report/ledgerScheduleDocument.js";
 import { buildActiveReportDocument } from "../report/buildActiveReportDocument.js";
 import { buildReportOutput } from "../report/reportOutputs.js";
+import { buildExecutiveDraftCandidate, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts } from "../report/reportDrafts.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import {
   moveCaseNavigationItem,
@@ -311,6 +312,9 @@ export default function CaseDetail({
     setCaseQualityReviewMode(CASE_QUALITY_REVIEW_MODES[0].id);
     setIssueReviewMode(ISSUE_REVIEW_MODES[0].id);
     setCaseSliceRecordIdsText("");
+    setSavedExecutiveRevisionId("");
+    setExecutiveRevisionTargetReportId("");
+    setExecutiveDraftFeedback("");
   }, [selectedCase?.id]);
   useEffect(() => {
     const legacyMode = CASE_QUALITY_REVIEW_MODES.find((mode) => mode.legacyTaskId === activeAiTask);
@@ -363,6 +367,11 @@ export default function CaseDetail({
   const [externalDraftingScopeType, setExternalDraftingScopeType] = useState("case");
   const [reportCentreType, setReportCentreType] = useState("executive");
   const [reportCentreOutputFeedback, setReportCentreOutputFeedback] = useState("");
+  const [savedExecutiveRevisionId, setSavedExecutiveRevisionId] = useState("");
+  const [executiveRevisionTargetReportId, setExecutiveRevisionTargetReportId] = useState("");
+  const [savingExecutiveDraft, setSavingExecutiveDraft] = useState(false);
+  const [executiveDraftFeedback, setExecutiveDraftFeedback] = useState("");
+  const savingExecutiveDraftRef = useRef(false);
   const [caseStructureReportOpen, setCaseStructureReportOpen] = useState(false);
   const [clientReportGeneratorOpen, setClientReportGeneratorOpen] = useState(false);
   const [threadIssueReportOpen, setThreadIssueReportOpen] = useState(false);
@@ -607,6 +616,30 @@ export default function CaseDetail({
       sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
     });
   }, [selectedCase, reportCentreScope]);
+  const savedExecutiveDrafts = useMemo(() => getExecutiveSavedDrafts(selectedCase).map((item) => {
+    const historicalScope = item.revision.content.reportDocument?.source?.scope || {};
+    if (!selectedCase) return { ...item, freshness: "unknown" };
+    const historicalModel = buildCaseReportModel(selectedCase, {
+      scope: historicalScope.type === "sequenceGroup" ? "sequenceGroup" : "case",
+      issueId: historicalScope.issueId || "",
+      sequenceGroupName: historicalScope.sequenceGroupName || "",
+      includeArchived: true,
+      includeDiagnostics: true,
+      sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
+    });
+    return {
+      ...item,
+      freshness: getExecutiveDraftFreshness(
+        item.revision,
+        historicalModel.sourceRevision?.fingerprint,
+        historicalScope.type !== "sequenceGroup" || historicalModel.scope?.isValid
+      ),
+    };
+  }), [selectedCase]);
+  const savedExecutiveDraft = useMemo(
+    () => getExecutiveSavedDraft(selectedCase, savedExecutiveRevisionId),
+    [selectedCase, savedExecutiveRevisionId]
+  );
   const reportCentreEvidenceDocument = useMemo(() => reportCentreModel ? buildEvidenceScheduleDocument(reportCentreModel, getReportDefinition("evidence")) : null, [reportCentreModel]);
   const reportCentreDocumentDocument = useMemo(() => reportCentreModel ? buildDocumentScheduleDocument(reportCentreModel, getReportDefinition("document")) : null, [reportCentreModel]);
   const reportCentreLedgerDocument = useMemo(() => reportCentreModel ? buildLedgerScheduleDocument(reportCentreModel, getReportDefinition("ledger")) : null, [reportCentreModel]);
@@ -622,7 +655,7 @@ export default function CaseDetail({
   const reportCentreEvidencePackReport = useMemo(() => reportCentreEvidenceDocument ? projectEvidenceDocumentToLegacyViewModel(reportCentreEvidenceDocument) : null, [reportCentreEvidenceDocument]);
   const reportCentreDocumentPackReport = useMemo(() => reportCentreDocumentDocument ? projectDocumentDocumentToLegacyViewModel(reportCentreDocumentDocument) : null, [reportCentreDocumentDocument]);
   const reportCentreLedgerPackReport = useMemo(() => reportCentreLedgerDocument ? projectLedgerDocumentToLegacyViewModel(reportCentreLedgerDocument) : null, [reportCentreLedgerDocument]);
-  const reportCentreActiveDocument = reportCentreType === "executive" ? reportCentreExecutiveDocument
+  const reportCentreLiveActiveDocument = reportCentreType === "executive" ? reportCentreExecutiveDocument
     : reportCentreType === "management" ? reportCentreManagementDocument
     : reportCentreType === "action" ? reportCentreActionDocument
     : reportCentreType === "client" ? reportCentreClientDocument
@@ -633,6 +666,9 @@ export default function CaseDetail({
         : reportCentreType === "incidentSchedule" ? reportCentreIncidentDocument
           : reportCentreType === "chronologyReport" ? reportCentreChronologyDocument
             : reportCentreType === "caseAudit" ? reportCentreCaseAuditDocument : null;
+  const reportCentreActiveDocument = reportCentreType === "executive" && savedExecutiveDraft
+    ? savedExecutiveDraft.revision.content.reportDocument
+    : reportCentreLiveActiveDocument;
   const reportCentreCountLabel = useMemo(() => {
     if (reportCentreType === "executive") return `${reportCentreExecutiveDocument?.summary?.directRecordCount || 0} scoped records`;
     if (reportCentreType === "management") return `${reportCentreManagementDocument?.summary?.openIssueCount || 0} active Issues`;
@@ -3365,6 +3401,7 @@ ${milestoneBlock}`;
     reportCentreModel?.sourceRevision?.fingerprint,
   ]);
   const reportCentreMarkdown = useMemo(() => {
+    if (reportCentreType === "executive" && savedExecutiveDraft?.revision?.content?.markdown) return savedExecutiveDraft.revision.content.markdown;
     const document = reportCentreActiveDocument;
     if (document) return buildReportOutput(document, "markdown").content;
     if (reportCentreType !== "action" || !reportCentreActionPlan) return "";
@@ -3392,7 +3429,7 @@ ${listLines(reportCentreActionPlan.risks, (item) => `${item.label}: ${item.text}
 
 ## Recommended Fixes
 ${listLines(reportCentreActionPlan.recommendedFixes)}`;
-  }, [reportCentreActionPlan, reportCentreActiveDocument, reportCentreType]);
+  }, [reportCentreActionPlan, reportCentreActiveDocument, reportCentreType, savedExecutiveDraft]);
 
   if (!selectedCase) return renderCaseList();
 
@@ -3690,9 +3727,17 @@ ${ungroupedSequenceText}
   const reportCentreScopeLabel = reportCentreScope.scopeType === "sequenceGroup"
     ? `Issue: ${reportCentreIssueSelection.displayLabel || (reportCentreIssueSelection.requestedIssueId ? "Unavailable Issue" : "Not selected")}`
     : "Whole case";
+  const renderedReportCentreScopeLabel = savedExecutiveDraft
+    ? savedExecutiveDraft.revision.content.reportDocument?.source?.scope?.type === "sequenceGroup"
+      ? `Historical Issue: ${savedExecutiveDraft.revision.content.reportDocument.source.scope.issueReference || "Issue"} — ${savedExecutiveDraft.revision.content.reportDocument.source.scope.issueName || savedExecutiveDraft.revision.content.reportDocument.source.scope.sequenceGroupName || "Not recorded"}`
+      : "Historical whole case"
+    : reportCentreScopeLabel;
   const handleReportCentreTypeChange = (nextReportType) => {
     setReportCentreType(nextReportType);
     setReportCentreScopeType((currentScope) => normaliseReportScope(nextReportType, currentScope));
+    setSavedExecutiveRevisionId("");
+    setExecutiveRevisionTargetReportId("");
+    setExecutiveDraftFeedback("");
     setReportCentreOutputFeedback("");
   };
   const handleCopyReportCentreMarkdown = async () => {
@@ -3709,7 +3754,10 @@ ${ungroupedSequenceText}
       const document = reportCentreActiveDocument;
       if (!document) throw new Error("No report document is available.");
       const output = buildReportOutput(document, format);
-      downloadTextFile(output.content, output.filename, output.mimeType);
+      const savedContent = reportCentreType === "executive" && savedExecutiveDraft
+        ? savedExecutiveDraft.revision.content[format === "json" ? "json" : "markdown"]
+        : "";
+      downloadTextFile(savedContent || output.content, output.filename, output.mimeType);
       setReportCentreOutputFeedback(`${getReportDefinition(reportCentreType).label} ${format === "json" ? "JSON" : "Markdown"} downloaded.`);
     } catch (error) {
       console.error("Failed to prepare report output", error);
@@ -3717,12 +3765,67 @@ ${ungroupedSequenceText}
     }
   };
   const handleReportCentreScopeChange = (scope) => {
+    setSavedExecutiveRevisionId("");
+    setExecutiveRevisionTargetReportId("");
+    setExecutiveDraftFeedback("");
     setReportCentreOutputFeedback("");
     setReportCentreScopeType(scope);
   };
   const handleReportCentreIssueChange = (issueId) => {
+    setSavedExecutiveRevisionId("");
+    setExecutiveRevisionTargetReportId("");
+    setExecutiveDraftFeedback("");
     setReportCentreOutputFeedback("");
     setReportCentreIssueId(issueId);
+  };
+  const handleSaveExecutiveDraft = async () => {
+    if (!selectedCase || savingExecutiveDraftRef.current || !reportCentreExecutiveDocument) return;
+    const savingCaseId = selectedCase.id;
+    if (normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue) {
+      setExecutiveDraftFeedback("Choose an available Issue before saving an Issue-scoped Draft.");
+      return;
+    }
+    savingExecutiveDraftRef.current = true;
+    setSavingExecutiveDraft(true);
+    setExecutiveDraftFeedback("");
+    try {
+      const markdown = buildReportOutput(reportCentreExecutiveDocument, "markdown").content;
+      const json = buildReportOutput(reportCentreExecutiveDocument, "json").content;
+      const candidate = await buildExecutiveDraftCandidate({
+        caseItem: selectedCase,
+        reportDocument: reportCentreExecutiveDocument,
+        markdown,
+        json,
+        reportId: executiveRevisionTargetReportId,
+      });
+      const saved = await onUpdateCase({ ...selectedCase, reportLibrary: candidate.reportLibrary });
+      if (!saved) {
+        if (selectedCaseRef.current?.id === savingCaseId) setExecutiveDraftFeedback("Draft was not saved. The live preview remains available.");
+        return;
+      }
+      if (selectedCaseRef.current?.id !== savingCaseId) return;
+      setSavedExecutiveRevisionId(candidate.revision.id);
+      setExecutiveRevisionTargetReportId("");
+      setExecutiveDraftFeedback(`Draft revision ${candidate.revision.versionNumber} saved. It remains unapproved.`);
+    } catch (error) {
+      console.error("Failed to save Executive Report Draft", error);
+      if (selectedCaseRef.current?.id === savingCaseId) setExecutiveDraftFeedback(error?.message || "Draft was not saved. The live preview remains available.");
+    } finally {
+      savingExecutiveDraftRef.current = false;
+      setSavingExecutiveDraft(false);
+    }
+  };
+  const handleCreateExecutiveRevision = (draft) => {
+    const scope = draft?.revision?.content?.reportDocument?.source?.scope || {};
+    setSavedExecutiveRevisionId("");
+    setExecutiveRevisionTargetReportId(draft?.manifest?.id || "");
+    if (scope.type === "sequenceGroup") {
+      setReportCentreScopeType("sequenceGroup");
+      setReportCentreIssueId(scope.issueId || "");
+    } else {
+      setReportCentreScopeType("case");
+    }
+    setExecutiveDraftFeedback("Live preview selected. Save Draft will create a new immutable revision of this Draft report.");
   };
   const handleExternalDraftingScopeChange = (scope) => {
     setReportCentreOutputFeedback("");
@@ -5206,15 +5309,39 @@ ${ungroupedSequenceText}
                   <ReportContextHeader
                     definition={getReportDefinition(reportCentreType)}
                     presentationLabel={REPORT_CENTRE_PRESENTATION[reportCentreType]?.label}
-                    scopeLabel={normalisedReportCentreScopeType === "sequenceGroup" ? `Issue: ${reportCentreIssueSelection.displayLabel || (reportCentreIssueSelection.requestedIssueId ? "Unavailable Issue" : "Not selected")}` : getReportDefinition(reportCentreType).supportedScopes.length === 1 ? "Whole case only" : "Whole case"}
+                    scopeLabel={renderedReportCentreScopeLabel}
                     countLabel={reportCentreCountLabel}
                     reportDocument={reportCentreActiveDocument}
                   />
                   <ReportCentrePreviewSummary
                     reportType={reportCentreType}
                     scopeType={normalisedReportCentreScopeType}
-                    scopeLabel={reportCentreScopeLabel}
+                    scopeLabel={renderedReportCentreScopeLabel}
                   />
+
+                  {reportCentreType === "executive" ? (
+                    <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 print:hidden dark:border-neutral-700 dark:bg-neutral-900" aria-labelledby="saved-executive-drafts-heading">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="case-file-reports-eyebrow">Saved Drafts</p>
+                          <h5 id="saved-executive-drafts-heading" className="mt-1 text-base font-bold">Executive Report snapshots</h5>
+                          <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">Saved Drafts are immutable, unapproved historical snapshots. They do not verify or publish the report.</p>
+                        </div>
+                        {savedExecutiveDraft ? <button type="button" onClick={() => { setSavedExecutiveRevisionId(""); setExecutiveRevisionTargetReportId(""); setExecutiveDraftFeedback(""); }} className="case-file-reports-utility-action">Return to live preview</button> : null}
+                      </div>
+                      {savedExecutiveDrafts.length ? <ul className="mt-4 space-y-2" aria-label="Saved Executive Report Drafts">
+                        {savedExecutiveDrafts.map((draft) => {
+                          const document = draft.revision.content.reportDocument;
+                          const scope = document.source?.scope?.type === "sequenceGroup"
+                            ? `${document.source?.scope?.issueReference || "Issue"} — ${document.source?.scope?.issueName || document.source?.scope?.sequenceGroupName || "Historical Issue"}`
+                            : "Whole case";
+                          return <li key={draft.revision.id} className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-white p-3 text-sm dark:border-neutral-700 dark:bg-neutral-950 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">{draft.manifest.title}</p><p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">{scope} · Revision {draft.revision.versionNumber} · Draft · {draft.freshness} source · {new Date(draft.revision.createdAt).toLocaleString()}</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => { setSavedExecutiveRevisionId(draft.revision.id); setExecutiveRevisionTargetReportId(""); setExecutiveDraftFeedback(""); }} className="case-file-reports-utility-action">Open snapshot</button><button type="button" onClick={() => handleCreateExecutiveRevision(draft)} className="case-file-reports-utility-action">New revision</button></div></li>;
+                        })}
+                      </ul> : <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-300">No Executive Report Drafts have been saved for this case.</p>}
+                      {savedExecutiveDraft ? <p className="mt-4 rounded-lg border border-teal-700/40 bg-teal-950/20 px-3 py-2 text-sm" role="status">Viewing saved historical snapshot · source freshness: {savedExecutiveDrafts.find((draft) => draft.revision.id === savedExecutiveDraft.revision.id)?.freshness || "unknown"}. This content is not regenerated.</p> : null}
+                      {executiveDraftFeedback ? <p className="mt-3 text-sm font-medium" role="status">{executiveDraftFeedback}</p> : null}
+                    </section>
+                  ) : null}
 
                   {normalisedReportCentreScopeType === "sequenceGroup" && reportCentreActiveDocument && !["caseAudit", "investigation", "executive"].includes(reportCentreType) && reportCentreCountLabel.startsWith("0 ") ? (
                     <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm leading-6 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
@@ -5230,14 +5357,14 @@ ${ungroupedSequenceText}
                     </div>
                   ) : null}
 
-                  {normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue ? (
+                  {normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue && !savedExecutiveDraft ? (
                     <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
                       <p className="font-semibold text-neutral-900 dark:text-neutral-100">{reportCentreIssueSelection.requestedIssueId ? "The selected Issue is no longer available." : `No Issue is selected for ${getReportDefinition(reportCentreType).label}.`}</p>
                       <p className="mt-1">Select an existing Issue to build the scoped preview. ProveIt has not substituted a different Issue.</p>
                     </div>
                   ) : (
                     <>
-                      {reportCentreType === "executive" && <ExecutiveReportArticle reportDocument={reportCentreExecutiveDocument} />}
+                      {reportCentreType === "executive" && <ExecutiveReportArticle reportDocument={reportCentreActiveDocument} />}
                       {reportCentreType === "management" && <ManagementReportArticle reportDocument={reportCentreManagementDocument} />}
                       {reportCentreType === "investigation" && <InvestigationReportArticle reportDocument={reportCentreInvestigationDocument} />}
                       {reportCentreType === "evidence" && (
@@ -5386,14 +5513,15 @@ ${ungroupedSequenceText}
                   )}
                   <section className="case-file-reports-export rounded-xl border border-neutral-200 bg-white p-4 print:hidden dark:border-neutral-700 dark:bg-neutral-900" aria-labelledby="report-export-heading">
                     <p className="case-file-reports-eyebrow">Export</p>
-                    <h5 id="report-export-heading" className="mt-1 text-base font-bold">Export the reviewed preview</h5>
-                    <p className="mt-1 text-sm leading-6 text-neutral-600 dark:text-neutral-300">This is a derived output from the current case revision. Printing, downloading, or copying it does not approve, verify, or permanently save a report. Original attachments are not embedded.</p>
+                    <h5 id="report-export-heading" className="mt-1 text-base font-bold">{savedExecutiveDraft ? "Export the saved snapshot" : "Export the reviewed preview"}</h5>
+                    <p className="mt-1 text-sm leading-6 text-neutral-600 dark:text-neutral-300">{savedExecutiveDraft ? "This is an immutable saved Draft snapshot. It remains unapproved and does not verify or publish the report. Original attachments are not embedded." : "This is a derived output from the current case revision. Printing, downloading, or copying it does not approve, verify, or permanently save a report. Original attachments are not embedded."}</p>
+                    {reportCentreType === "executive" && !savedExecutiveDraft ? <div className="mt-4"><button type="button" onClick={handleSaveExecutiveDraft} disabled={savingExecutiveDraft || (normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue)} className="case-file-reports-utility-action">{savingExecutiveDraft ? "Saving Draft…" : executiveRevisionTargetReportId ? "Save new Draft revision" : "Save Draft"}</button><p className="mt-2 text-xs text-neutral-600 dark:text-neutral-300">Saves an unapproved immutable Draft. It does not approve, publish or verify this report.</p></div> : null}
                     <div className="mt-4">
                       <ReportOutputActions
                         reportType={reportCentreType}
                         markdownAvailable={Boolean(reportCentreMarkdown)}
                         documentOutputAvailable={Boolean(reportCentreActiveDocument)}
-                        disabled={normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue}
+                        disabled={!savedExecutiveDraft && normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue}
                         feedback={reportCentreOutputFeedback}
                         onCopyMarkdown={handleCopyReportCentreMarkdown}
                         onDownloadMarkdown={() => handleDownloadReportCentreOutput("markdown")}
