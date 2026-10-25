@@ -137,7 +137,9 @@ function resolveReferences(records, parties) {
   return { records: resolvedRecords, unresolvedReferences: [...unresolved.values()] };
 }
 
-function createIssueMembershipResolver(caseData = {}) {
+// Shared canonical-first resolver for report builders. Consumers that only have
+// projected report records can supply those records in the normal collections.
+export function createReportIssueMembershipResolver(caseData = {}) {
   const activeIssues = Array.isArray(caseData.issues) ? caseData.issues.filter((issue) => text(issue?.id)) : [];
   const issuesById = new Map();
   const issuesByName = new Map();
@@ -186,7 +188,7 @@ function createIssueMembershipResolver(caseData = {}) {
 }
 
 function buildGroups(originalCaseData, records, sequenceGroupMeta, includeDiagnostics) {
-  const membership = createIssueMembershipResolver(originalCaseData);
+  const membership = createReportIssueMembershipResolver(originalCaseData);
   const definitions = membership.activeIssues.map((issue) => ({
     key: `issue:${issue.id}`,
     name: issue.name,
