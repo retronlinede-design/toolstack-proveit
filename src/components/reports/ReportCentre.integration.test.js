@@ -241,6 +241,17 @@ test("Client Update Save and Render persists its immutable revision and language
   assert.match(caseDetailSource, /setSavedClientUpdateSnapshot\(\{ caseId: selectedCase\.id, revision: candidate\.revision \}\)/);
 });
 
+test("Client Update historical revisions are integrity-gated and render their saved snapshots", () => {
+  assert.match(caseDetailSource, /getClientUpdateSavedDrafts\(selectedCase\)/);
+  assert.match(caseDetailSource, /verifyClientUpdateSavedDraft\(selectedCase, draft\.revision\.id\)/);
+  assert.match(caseDetailSource, /activeSavedClientUpdateRevision\.content\.reportDocument/);
+  assert.match(caseDetailSource, /activeSavedClientUpdateRevision\.content\[format === "json" \? "json" : "markdown"\]/);
+  assert.match(caseDetailSource, /Saved Client Update revisions/);
+  assert.match(caseDetailSource, /Viewing immutable Client Update revision/);
+  assert.match(caseDetailSource, /Open live Client Update/);
+  assert.match(caseDetailSource, /setSavedClientUpdateRevisionId\(""\)/);
+});
+
 test("the active Evidence Pack follows model document and unchanged renderer path", () => {
   assert.match(caseDetailSource, /buildCaseReportModel\(selectedCase/);
   assert.match(caseDetailSource, /buildEvidenceScheduleDocument\(reportCentreModel, getReportDefinition\("evidence"\)\)/);

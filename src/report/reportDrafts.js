@@ -3,6 +3,7 @@ import {
   REPORT_LIFECYCLE_SCHEMA_VERSION,
   calculateReportRevisionChecksum,
   getReportSourceFreshness,
+  verifyReportRevisionChecksum,
 } from "./reportLifecycle.js";
 import {
   REPORT_LIBRARY_SCHEMA_VERSION,
@@ -291,5 +292,44 @@ export function getExecutiveSavedDraft(caseItem, revisionId) {
 
 export function getExecutiveDraftFreshness(revision, currentFingerprint, scopeAvailable = true) {
   if (!scopeAvailable) return "unknown";
+  return getReportSourceFreshness(revision, currentFingerprint);
+}
+
+function isClientUpdateRevision(revision) {
+  return revision?.content?.reportDocument?.report?.id === "client"
+    && text(revision?.content?.markdown)
+    && text(revision?.content?.json)
+    && ["en", "de"].includes(revision?.content?.clientUpdate?.language)
+    && text(revision?.content?.clientUpdate?.acceptedNarrative)
+    && text(revision?.content?.clientUpdate?.promptRevision);
+}
+
+export function getClientUpdateSavedDrafts(caseItem) {
+  const result = classifyReportLibrary(caseItem?.reportLibrary, { caseId: caseItem?.id || "" });
+  if (result.kind !== "supported") return [];
+  return Object.values(caseItem.reportLibrary.reports)
+    .filter((manifest) => manifest.reportType === "client")
+    .flatMap((manifest) => manifest.revisionIds.map((revisionId) => ({ manifest, revision: caseItem.reportLibrary.revisions[revisionId] })))
+    .filter((item) => isClientUpdateRevision(item.revision))
+    .sort((left, right) => String(right.revision.createdAt).localeCompare(String(left.revision.createdAt)));
+}
+
+export function getClientUpdateSavedDraft(caseItem, revisionId) {
+  return getClientUpdateSavedDrafts(caseItem).find((item) => item.revision.id === revisionId) || null;
+}
+
+export async function verifyClientUpdateSavedDraft(caseItem, revisionId) {
+  const draft = getClientUpdateSavedDraft(caseItem, revisionId);
+  if (!draft) return { valid: false, errors: ["The selected Client Update revision is unavailable or malformed."] };
+  const documentValidation = validateReportDocument(draft.revision.content.reportDocument);
+  if (!documentValidation.valid) return { valid: false, errors: documentValidation.errors };
+  if (draft.revision.content.reportDocument.source?.caseId !== caseItem?.id) {
+    return { valid: false, errors: ["The selected Client Update revision belongs to a different case."] };
+  }
+  const checksum = await verifyReportRevisionChecksum(draft.revision);
+  return checksum.valid ? { valid: true, errors: [], draft } : checksum;
+}
+
+export function getClientUpdateDraftFreshness(revision, currentFingerprint) {
   return getReportSourceFreshness(revision, currentFingerprint);
 }

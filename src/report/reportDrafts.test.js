@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, buildClientUpdateDraftCandidate, buildExecutiveDraftCandidate } from "./reportDrafts.js";
+import { getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, buildClientUpdateDraftCandidate, buildExecutiveDraftCandidate, verifyClientUpdateSavedDraft } from "./reportDrafts.js";
 import { verifyReportRevisionChecksum } from "./reportLifecycle.js";
 
 const TIME = "2026-10-25T12:00:00.000Z";
@@ -124,6 +124,49 @@ test("Client Update candidate chains revisions and coexists with an Executive re
   assert.equal(second.revision.parentRevisionId, "client-revision-1");
   assert.equal(second.reportLibrary.revisions["client-revision-1"].content.clientUpdate.language, "en");
   assert.equal(second.reportLibrary.reports["executive-report"].reportType, "executive");
+});
+
+test("Client Update saved revisions reopen immutable English and German snapshots with verified freshness", async () => {
+  const first = await buildClientUpdateDraftCandidate(clientInput({
+    acceptedNarrative: "# REPORT_TITLE\nEnglish historical narrative",
+    markdown: "# English historical Markdown",
+    json: '{"language":"en","snapshot":1}',
+    createId: ids("client-report", "client-revision-en"),
+  }));
+  const second = await buildClientUpdateDraftCandidate(clientInput({
+    caseItem: caseItem(first.reportLibrary),
+    reportId: "client-report",
+    language: "de",
+    reportDocument: clientDocument("de"),
+    acceptedNarrative: "# REPORT_TITLE\nDeutsche historische Erzählung",
+    markdown: "# Deutsche historische Markdown-Ausgabe",
+    json: '{"language":"de","snapshot":2}',
+    now: "2026-10-26T12:00:00.000Z",
+    createId: ids("client-revision-de"),
+  }));
+  const savedCase = caseItem(second.reportLibrary);
+  const before = structuredClone(savedCase.reportLibrary);
+  const revisions = getClientUpdateSavedDrafts(savedCase);
+  const english = getClientUpdateSavedDraft(savedCase, "client-revision-en");
+  const german = getClientUpdateSavedDraft(savedCase, "client-revision-de");
+
+  assert.equal(revisions.length, 2);
+  assert.equal(english.revision.content.clientUpdate.language, "en");
+  assert.equal(german.revision.content.clientUpdate.language, "de");
+  assert.equal(english.revision.content.clientUpdate.acceptedNarrative, "# REPORT_TITLE\nEnglish historical narrative");
+  assert.equal(english.revision.content.reportDocument.sections[0].items[0], "en snapshot");
+  assert.equal(english.revision.content.markdown, "# English historical Markdown");
+  assert.equal(english.revision.content.json, '{"language":"en","snapshot":1}');
+  assert.equal(getClientUpdateDraftFreshness(english.revision, "source-a"), "current");
+  assert.equal(getClientUpdateDraftFreshness(english.revision, "changed-source"), "stale");
+  assert.equal(getClientUpdateDraftFreshness(english.revision, ""), "unknown");
+  assert.equal((await verifyClientUpdateSavedDraft(savedCase, "client-revision-en")).valid, true);
+  assert.deepEqual(savedCase.reportLibrary, before);
+
+  const corruptedCase = caseItem(structuredClone(second.reportLibrary));
+  corruptedCase.reportLibrary.revisions["client-revision-en"].content.markdown = "tampered historical output";
+  const corrupted = await verifyClientUpdateSavedDraft(corruptedCase, "client-revision-en");
+  assert.equal(corrupted.valid, false);
 });
 
 test("Client Update candidate fails closed for invalid inputs, malformed libraries, duplicate IDs, and binary snapshots", async () => {

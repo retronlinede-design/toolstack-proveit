@@ -73,7 +73,7 @@ import { buildDocumentScheduleDocument, projectDocumentDocumentToLegacyViewModel
 import { buildLedgerScheduleDocument, projectLedgerDocumentToLegacyViewModel } from "../report/ledgerScheduleDocument.js";
 import { buildActiveReportDocument } from "../report/buildActiveReportDocument.js";
 import { buildReportOutput } from "../report/reportOutputs.js";
-import { buildClientUpdateDraftCandidate, buildExecutiveDraftCandidate, extractReportDocumentProvenance, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts } from "../report/reportDrafts.js";
+import { buildClientUpdateDraftCandidate, buildExecutiveDraftCandidate, extractReportDocumentProvenance, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, verifyClientUpdateSavedDraft } from "../report/reportDrafts.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import {
   moveCaseNavigationItem,
@@ -361,6 +361,8 @@ export default function CaseDetail({
   const [renderedReportText, setRenderedReportText] = useState("");
   const [clientNarrativeMeta, setClientNarrativeMeta] = useState({});
   const [savedClientUpdateSnapshot, setSavedClientUpdateSnapshot] = useState(null);
+  const [savedClientUpdateRevisionId, setSavedClientUpdateRevisionId] = useState("");
+  const [clientUpdateHistoryFeedback, setClientUpdateHistoryFeedback] = useState("");
   const clientNarrativeCaseIdRef = useRef("");
   const [reportPromptFeedback, setReportPromptFeedback] = useState("");
   const [reportCentreScopeType, setReportCentreScopeType] = useState("sequenceGroup");
@@ -642,6 +644,16 @@ export default function CaseDetail({
     () => getExecutiveSavedDraft(selectedCase, savedExecutiveRevisionId),
     [selectedCase, savedExecutiveRevisionId]
   );
+  const savedClientUpdateDrafts = useMemo(() => getClientUpdateSavedDrafts(selectedCase).map((item) => ({
+    ...item,
+    freshness: getClientUpdateDraftFreshness(item.revision, reportCentreModel?.sourceRevision?.fingerprint),
+  })), [selectedCase, reportCentreModel?.sourceRevision?.fingerprint]);
+  const savedClientUpdateDraft = useMemo(
+    () => getClientUpdateSavedDraft(selectedCase, savedClientUpdateRevisionId),
+    [selectedCase, savedClientUpdateRevisionId]
+  );
+  const activeSavedClientUpdateRevision = savedClientUpdateDraft?.revision
+    || (savedClientUpdateSnapshot?.caseId === selectedCase?.id ? savedClientUpdateSnapshot.revision : null);
   const reportCentreEvidenceDocument = useMemo(() => reportCentreModel ? buildEvidenceScheduleDocument(reportCentreModel, getReportDefinition("evidence")) : null, [reportCentreModel]);
   const reportCentreDocumentDocument = useMemo(() => reportCentreModel ? buildDocumentScheduleDocument(reportCentreModel, getReportDefinition("document")) : null, [reportCentreModel]);
   const reportCentreLedgerDocument = useMemo(() => reportCentreModel ? buildLedgerScheduleDocument(reportCentreModel, getReportDefinition("ledger")) : null, [reportCentreModel]);
@@ -652,11 +664,11 @@ export default function CaseDetail({
   const reportCentreExecutiveDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "executive", reportModel: reportCentreModel, definition: getReportDefinition("executive") }).reportDocument : null, [reportCentreModel]);
   const reportCentreManagementDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "management", reportModel: reportCentreModel, definition: getReportDefinition("management") }).reportDocument : null, [reportCentreModel]);
   const reportCentreClientValidation = useMemo(() => validateClientReportNarrative(renderedReportText, { sourceRevision: clientNarrativeMeta.sourceRevision, currentSourceRevision: reportCentreModel?.sourceRevision?.fingerprint }), [clientNarrativeMeta.sourceRevision, renderedReportText, reportCentreModel?.sourceRevision?.fingerprint]);
-  const reportCentreClientDocument = useMemo(() => savedClientUpdateSnapshot?.caseId === selectedCase?.id
-    ? savedClientUpdateSnapshot.revision.content.reportDocument
+  const reportCentreClientDocument = useMemo(() => activeSavedClientUpdateRevision
+    ? activeSavedClientUpdateRevision.content.reportDocument
     : reportCentreModel && renderedReportText.trim() && reportCentreClientValidation.valid
       ? buildActiveReportDocument({ reportId: "client", reportModel: reportCentreModel, definition: getReportDefinition("client"), options: { generatedNarrative: parseProveItReportV1(renderedReportText), generatedNarrativeMeta: clientNarrativeMeta } }).reportDocument
-      : null, [clientNarrativeMeta, renderedReportText, reportCentreClientValidation.valid, reportCentreModel, savedClientUpdateSnapshot, selectedCase?.id]);
+      : null, [activeSavedClientUpdateRevision, clientNarrativeMeta, renderedReportText, reportCentreClientValidation.valid, reportCentreModel]);
   const reportCentreActionDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "action", reportModel: reportCentreModel, definition: getReportDefinition("action"), options: { caseBriefing: selectedCase?.actionSummary || {}, legacyTasks: selectedCase?.tasks || [] } }).reportDocument : null, [reportCentreModel, selectedCase?.actionSummary, selectedCase?.tasks]);
   const reportCentreEvidencePackReport = useMemo(() => reportCentreEvidenceDocument ? projectEvidenceDocumentToLegacyViewModel(reportCentreEvidenceDocument) : null, [reportCentreEvidenceDocument]);
   const reportCentreDocumentPackReport = useMemo(() => reportCentreDocumentDocument ? projectDocumentDocumentToLegacyViewModel(reportCentreDocumentDocument) : null, [reportCentreDocumentDocument]);
@@ -710,6 +722,8 @@ export default function CaseDetail({
         clientNarrativeCaseIdRef.current = selectedCase?.id || "";
         setClientNarrativeMeta({});
         setSavedClientUpdateSnapshot(null);
+        setSavedClientUpdateRevisionId("");
+        setClientUpdateHistoryFeedback("");
       }
       setReportPromptFeedback("");
     }, 0);
@@ -3410,6 +3424,7 @@ ${milestoneBlock}`;
   ]);
   const reportCentreMarkdown = useMemo(() => {
     if (reportCentreType === "executive" && savedExecutiveDraft?.revision?.content?.markdown) return savedExecutiveDraft.revision.content.markdown;
+    if (reportCentreType === "client" && activeSavedClientUpdateRevision?.content?.markdown) return activeSavedClientUpdateRevision.content.markdown;
     const document = reportCentreActiveDocument;
     if (document) return buildReportOutput(document, "markdown").content;
     if (reportCentreType !== "action" || !reportCentreActionPlan) return "";
@@ -3437,7 +3452,7 @@ ${listLines(reportCentreActionPlan.risks, (item) => `${item.label}: ${item.text}
 
 ## Recommended Fixes
 ${listLines(reportCentreActionPlan.recommendedFixes)}`;
-  }, [reportCentreActionPlan, reportCentreActiveDocument, reportCentreType, savedExecutiveDraft]);
+  }, [activeSavedClientUpdateRevision, reportCentreActionPlan, reportCentreActiveDocument, reportCentreType, savedExecutiveDraft]);
 
   if (!selectedCase) return renderCaseList();
 
@@ -3779,6 +3794,8 @@ ${ungroupedSequenceText}
     ? savedExecutiveDraft.revision.content.reportDocument?.source?.scope?.type === "sequenceGroup"
       ? `Historical Issue: ${savedExecutiveDraft.revision.content.reportDocument.source.scope.issueReference || "Issue"} — ${savedExecutiveDraft.revision.content.reportDocument.source.scope.issueName || savedExecutiveDraft.revision.content.reportDocument.source.scope.sequenceGroupName || "Not recorded"}`
       : "Historical whole case"
+    : activeSavedClientUpdateRevision
+      ? "Historical whole case"
     : reportCentreScopeLabel;
   const handleReportCentreTypeChange = (nextReportType) => {
     setReportCentreDestination("reports");
@@ -3787,6 +3804,11 @@ ${ungroupedSequenceText}
     setSavedExecutiveRevisionId("");
     setExecutiveRevisionTargetReportId("");
     setExecutiveDraftFeedback("");
+    if (nextReportType !== "client") {
+      setSavedClientUpdateRevisionId("");
+      setSavedClientUpdateSnapshot(null);
+      setClientUpdateHistoryFeedback("");
+    }
     setReportCentreOutputFeedback("");
   };
   const handleReportCentreFamilyChange = (familyId) => {
@@ -3803,6 +3825,23 @@ ${ungroupedSequenceText}
     setExecutiveRevisionTargetReportId("");
     setExecutiveDraftFeedback("");
     setReportCentreOutputFeedback("");
+  };
+  const handleOpenSavedClientUpdate = async (draft) => {
+    if (!selectedCase || !draft?.revision?.id) return;
+    setClientUpdateHistoryFeedback("");
+    try {
+      const verified = await verifyClientUpdateSavedDraft(selectedCase, draft.revision.id);
+      if (!verified.valid) {
+        setClientUpdateHistoryFeedback(`This Client Update revision cannot be opened: ${verified.errors.join(" ")}`);
+        return;
+      }
+      setSavedClientUpdateRevisionId(draft.revision.id);
+      setSavedClientUpdateSnapshot(null);
+      setReportCentreType("client");
+      setReportCentreDestination("reports");
+    } catch (error) {
+      setClientUpdateHistoryFeedback(error?.message || "This Client Update revision could not be verified.");
+    }
   };
   const handleOpenReportCentreAdvancedTool = (toolId) => {
     setReportCentreAdvancedTool(toolId);
@@ -3831,7 +3870,9 @@ ${ungroupedSequenceText}
       const output = buildReportOutput(document, format);
       const savedContent = reportCentreType === "executive" && savedExecutiveDraft
         ? savedExecutiveDraft.revision.content[format === "json" ? "json" : "markdown"]
-        : "";
+        : reportCentreType === "client" && activeSavedClientUpdateRevision
+          ? activeSavedClientUpdateRevision.content[format === "json" ? "json" : "markdown"]
+          : "";
       downloadTextFile(savedContent || output.content, output.filename, output.mimeType);
       setReportCentreOutputFeedback(`${getReportDefinition(reportCentreType).label} ${format === "json" ? "JSON" : "Markdown"} downloaded.`);
     } catch (error) {
@@ -3843,6 +3884,8 @@ ${ungroupedSequenceText}
     setSavedExecutiveRevisionId("");
     setExecutiveRevisionTargetReportId("");
     setExecutiveDraftFeedback("");
+    setSavedClientUpdateRevisionId("");
+    setSavedClientUpdateSnapshot(null);
     setReportCentreOutputFeedback("");
     setReportCentreScopeType(scope);
   };
@@ -5381,7 +5424,7 @@ ${ungroupedSequenceText}
                   <section className="case-file-reports-review space-y-4" aria-labelledby="saved-reports-heading">
                     <div className="case-file-reports-section-heading">
                       <p className="case-file-reports-eyebrow">Saved Reports</p>
-                      <h4 id="saved-reports-heading">Executive Report Drafts</h4>
+                      <h4 id="saved-reports-heading">Immutable report revisions</h4>
                     </div>
                     <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 print:hidden dark:border-neutral-700 dark:bg-neutral-900">
                       <p className="text-sm text-neutral-600 dark:text-neutral-300">Saved Drafts are immutable, unapproved historical snapshots. Only Executive Report Drafts can currently be saved.</p>
@@ -5397,6 +5440,15 @@ ${ungroupedSequenceText}
                       <div className="mt-4"><button type="button" onClick={() => { setSavedExecutiveRevisionId(""); setExecutiveRevisionTargetReportId(""); setExecutiveDraftFeedback(""); setReportCentreType("executive"); setReportCentreDestination("reports"); }} className="case-file-reports-utility-action">Open live Executive Report</button></div>
                       {executiveDraftFeedback ? <p className="mt-3 text-sm font-medium" role="status">{executiveDraftFeedback}</p> : null}
                     </section>
+                    <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 print:hidden dark:border-neutral-700 dark:bg-neutral-900">
+                      <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Client Update revisions</p>
+                      <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">Saved Client Updates are immutable historical snapshots. Opening one never regenerates it from current case data.</p>
+                      {savedClientUpdateDrafts.length ? <ul className="mt-4 space-y-2" aria-label="Saved Client Update revisions">
+                        {savedClientUpdateDrafts.map((draft) => <li key={draft.revision.id} className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-white p-3 text-sm dark:border-neutral-700 dark:bg-neutral-950 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">{draft.manifest.title}</p><p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">Revision {draft.revision.versionNumber} · {draft.revision.content.clientUpdate.language.toUpperCase()} · {draft.revision.lifecycle.status} · {draft.freshness} source · {new Date(draft.revision.createdAt).toLocaleString()}</p></div><button type="button" onClick={() => handleOpenSavedClientUpdate(draft)} className="case-file-reports-utility-action">Open snapshot</button></li>)}
+                      </ul> : <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-300">No Client Update revisions have been saved for this case.</p>}
+                      <div className="mt-4"><button type="button" onClick={() => { setSavedClientUpdateRevisionId(""); setSavedClientUpdateSnapshot(null); setClientUpdateHistoryFeedback(""); setReportCentreType("client"); setReportCentreDestination("reports"); }} className="case-file-reports-utility-action">Open live Client Update</button></div>
+                      {clientUpdateHistoryFeedback ? <p className="mt-3 text-sm font-medium" role="status">{clientUpdateHistoryFeedback}</p> : null}
+                    </section>
                   </section>
                 ) : (
                 <section className="case-file-reports-review space-y-4" aria-labelledby="report-review-heading">
@@ -5410,7 +5462,7 @@ ${ungroupedSequenceText}
                     scopeLabel={renderedReportCentreScopeLabel}
                     countLabel={reportCentreCountLabel}
                     reportDocument={reportCentreActiveDocument}
-                    snapshotFreshness={savedExecutiveDraft ? savedExecutiveDrafts.find((draft) => draft.revision.id === savedExecutiveDraft.revision.id)?.freshness || "unknown" : ""}
+                    snapshotFreshness={savedExecutiveDraft ? savedExecutiveDrafts.find((draft) => draft.revision.id === savedExecutiveDraft.revision.id)?.freshness || "unknown" : activeSavedClientUpdateRevision ? savedClientUpdateDrafts.find((draft) => draft.revision.id === activeSavedClientUpdateRevision.id)?.freshness || "unknown" : ""}
                   />
                   <ReportCentrePreviewSummary
                     reportType={reportCentreType}
@@ -5421,13 +5473,13 @@ ${ungroupedSequenceText}
                   <section className="case-file-reports-actions-toolbar print:hidden" aria-labelledby="report-export-heading">
                     <div className="min-w-0">
                       <p className="case-file-reports-eyebrow">Document actions</p>
-                      <h5 id="report-export-heading" className="mt-1 text-base font-bold">{savedExecutiveDraft ? "Saved snapshot" : "Live preview"}</h5>
+                      <h5 id="report-export-heading" className="mt-1 text-base font-bold">{savedExecutiveDraft || activeSavedClientUpdateRevision ? "Saved snapshot" : "Live preview"}</h5>
                     </div>
                     <ReportOutputActions
                       reportType={reportCentreType}
                       markdownAvailable={Boolean(reportCentreMarkdown)}
                       documentOutputAvailable={Boolean(reportCentreActiveDocument)}
-                      disabled={!savedExecutiveDraft && normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue}
+                      disabled={!savedExecutiveDraft && !activeSavedClientUpdateRevision && normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue}
                       feedback={reportCentreOutputFeedback}
                       primaryAction={reportCentreType === "executive" && !savedExecutiveDraft ? { label: savingExecutiveDraft ? "Saving Draft…" : executiveRevisionTargetReportId ? "Save new Draft revision" : "Save Draft", onClick: handleSaveExecutiveDraft, disabled: savingExecutiveDraft || (normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue) } : null}
                       onCopyMarkdown={handleCopyReportCentreMarkdown}
@@ -5439,6 +5491,7 @@ ${ungroupedSequenceText}
                   <section className="case-file-reports-document-preview" aria-label="Selected report preview">
 
                   {savedExecutiveDraft ? <div className="rounded-lg border border-teal-700/40 bg-teal-950/20 px-3 py-2 text-sm print:hidden" role="status">Viewing an immutable saved Draft snapshot · source freshness: {savedExecutiveDrafts.find((draft) => draft.revision.id === savedExecutiveDraft.revision.id)?.freshness || "unknown"}. This content is not regenerated. <button type="button" onClick={() => { setSavedExecutiveRevisionId(""); setReportCentreDestination("saved"); }} className="ml-2 font-bold underline">Return to Saved Reports</button></div> : null}
+                  {activeSavedClientUpdateRevision ? <div className="rounded-lg border border-teal-700/40 bg-teal-950/20 px-3 py-2 text-sm print:hidden" role="status">Viewing immutable Client Update revision {activeSavedClientUpdateRevision.versionNumber} · {activeSavedClientUpdateRevision.content.clientUpdate.language.toUpperCase()} · source freshness: {savedClientUpdateDrafts.find((draft) => draft.revision.id === activeSavedClientUpdateRevision.id)?.freshness || "unknown"}. This content is not regenerated. <button type="button" onClick={() => { setSavedClientUpdateRevisionId(""); setSavedClientUpdateSnapshot(null); setReportCentreDestination("saved"); }} className="ml-2 font-bold underline">Return to Saved Reports</button></div> : null}
 
                   {normalisedReportCentreScopeType === "sequenceGroup" && reportCentreActiveDocument && !["caseAudit", "investigation", "executive"].includes(reportCentreType) && reportCentreCountLabel.startsWith("0 ") ? (
                     <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm leading-6 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
