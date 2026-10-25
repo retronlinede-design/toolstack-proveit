@@ -23,3 +23,14 @@ test("Case Documentation blocks printing an unavailable selected Issue instead o
   assert.match(source, /disabled=\{!selectedThreadIssueReportIssue\}/);
   assert.match(source, /Issue no longer available\. Choose another Issue\./);
 });
+
+test("Reports Centre exposes retained legacy reports only through one Advanced tools launcher", async () => {
+  const source = await readFile(sourceUrl, "utf8");
+
+  assert.match(source, /const \[reportCentreAdvancedTool, setReportCentreAdvancedTool\] = useState\(""\)/);
+  assert.match(source, /onOpenAdvancedTool=\{handleOpenReportCentreAdvancedTool\}/);
+  assert.match(source, /hidden aria-hidden="true"/);
+  assert.match(source, /reportCentreAdvancedTool === "internal-summary"/);
+  assert.doesNotMatch(source, /Legacy Specialist Format/);
+  assert.doesNotMatch(source, /Lawyer Pack coming later/);
+});

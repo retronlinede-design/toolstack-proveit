@@ -76,7 +76,8 @@ test("Reports Centre groups every existing report under compact purpose-led navi
   assert.doesNotMatch(html, /Unavailable Reports/);
   assert.match(html, /not independently verified or approved/);
   assert.match(html, /<details class="case-file-reports-specialist">/);
-  assert.match(html, /Case Documentation/);
+  for (const label of ["Documentation Builder", "Legacy Executive Summary", "Internal Case Summary", "Thread / Issue Report", "Legacy Evidence Pack", "Legacy Document Pack", "Legacy Ledger Pack", "Case Structure Export"]) assert.match(html, new RegExp(label));
+  assert.doesNotMatch(html, /Case Documentation/);
   assert.doesNotMatch(html, /Print Pack/);
 });
 
@@ -210,7 +211,11 @@ test("the active CaseDetail Report Centre uses the rendered control boundary", (
   assert.match(caseDetailSource, /id="case-documentation"/);
   assert.match(caseDetailSource, /id="internal-case-summary"/);
   assert.match(caseDetailSource, /Internal Case Summary/);
-  assert.match(caseDetailSource, /Legacy Specialist Format/);
+  assert.match(caseDetailSource, /reportCentreAdvancedTool/);
+  assert.match(caseDetailSource, /onOpenAdvancedTool=\{handleOpenReportCentreAdvancedTool\}/);
+  assert.match(caseDetailSource, /hidden aria-hidden="true"/);
+  assert.doesNotMatch(caseDetailSource, /Legacy Specialist Format/);
+  assert.doesNotMatch(caseDetailSource, /Lawyer Pack coming later/);
   assert.match(caseDetailSource, /<CaseBundleReportArticle/);
   assert.doesNotMatch(caseDetailSource, /activeTab === "pack"/);
   assert.doesNotMatch(caseDetailSource, /onOpenPrintPack/);

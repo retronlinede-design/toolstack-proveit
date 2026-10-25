@@ -355,7 +355,7 @@ export default function CaseDetail({
   const [actionSummaryForm, setActionSummaryForm] = useState(emptyActionSummaryForm);
   const incidentSearchInputRef = useRef(null);
   const evidenceSearchInputRef = useRef(null);
-  const [reportMode, setReportMode] = useState("internal");
+  const [reportCentreAdvancedTool, setReportCentreAdvancedTool] = useState("");
   const [reportDisplayLanguage, setReportDisplayLanguage] = useState(DEFAULT_REPORT_DISPLAY_LANGUAGE);
   const [generatedReportDraft, setGeneratedReportDraft] = useState("");
   const [renderedReportText, setRenderedReportText] = useState("");
@@ -735,6 +735,7 @@ export default function CaseDetail({
       setCaseBundleReportOpen(false);
       setExecutiveSummaryReportOpen(true);
       setExecutiveSummaryPolishFeedback("");
+      setReportCentreAdvancedTool("");
     }, 0);
 
     return () => window.clearTimeout(timeout);
@@ -3757,6 +3758,17 @@ ${ungroupedSequenceText}
     setExecutiveDraftFeedback("");
     setReportCentreOutputFeedback("");
   };
+  const handleOpenReportCentreAdvancedTool = (toolId) => {
+    setReportCentreAdvancedTool(toolId);
+    if (toolId === "documentation-builder") setCaseBundleReportOpen(true);
+    if (toolId === "executive-summary") setExecutiveSummaryReportOpen(true);
+    if (toolId === "thread-issue") setThreadIssueReportOpen(true);
+    if (toolId === "evidence-pack") setEvidencePackReportOpen(true);
+    if (toolId === "document-pack") setDocumentPackReportOpen(true);
+    if (toolId === "ledger-pack") setLedgerPackReportOpen(true);
+    if (toolId === "case-structure") setCaseStructureReportOpen(true);
+    window.setTimeout(() => document.getElementById(toolId === "internal-summary" ? "internal-case-summary" : "case-documentation")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  };
   const handleCopyReportCentreMarkdown = async () => {
     if (!reportCentreMarkdown) return;
     try {
@@ -5316,7 +5328,7 @@ ${ungroupedSequenceText}
                   onDownloadMarkdown={() => handleDownloadReportCentreOutput("markdown")}
                   onDownloadJson={() => handleDownloadReportCentreOutput("json")}
                   onOpenSequenceGroupAudit={openSequenceGroupAuditExport}
-                  onOpenAdvancedReports={() => document.getElementById("case-documentation")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                  onOpenAdvancedTool={handleOpenReportCentreAdvancedTool}
                 />
 
                 {reportCentreDestination === "saved" ? (
@@ -5555,16 +5567,18 @@ ${ungroupedSequenceText}
                 </section>
                 )}
 
-                <details id="case-documentation" className="case-file-reports-documentation scroll-mt-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden dark:border-neutral-700 dark:bg-neutral-900">
-                  <summary className="cursor-pointer text-sm font-bold uppercase tracking-wider text-neutral-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 dark:text-neutral-400">
-                    Case Documentation &amp; Specialist Formats
-                  </summary>
+                {reportCentreAdvancedTool && reportCentreAdvancedTool !== "internal-summary" && (
+                <section id="case-documentation" className="case-file-reports-documentation scroll-mt-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden dark:border-neutral-700 dark:bg-neutral-900" aria-labelledby="advanced-report-tool-heading">
                   <div className="mt-5 space-y-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div><p className="case-file-reports-eyebrow">Advanced tools</p><h4 id="advanced-report-tool-heading" className="mt-1 text-lg font-bold">Retained reporting utility</h4></div>
+                      <button type="button" onClick={() => setReportCentreAdvancedTool("")} className="case-file-reports-utility-action">Close advanced tool</button>
+                    </div>
                     <p className="text-sm leading-6 text-neutral-600 dark:text-neutral-300">
                       Prepare deterministic case documentation here. Previews contain record summaries and references; they do not embed original attachments. Printing or downloading does not approve or permanently save a report.
                     </p>
 
-                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+                <section hidden={reportCentreAdvancedTool !== "executive-summary"} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
                   <button
                     type="button"
                     onClick={() => setExecutiveSummaryReportOpen((open) => !open)}
@@ -5648,7 +5662,7 @@ ${ungroupedSequenceText}
                   )}
                 </section>
 
-                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+                <section hidden={reportCentreAdvancedTool !== "documentation-builder"} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
                   <button
                     type="button"
                     onClick={() => setCaseBundleReportOpen((open) => !open)}
@@ -5748,7 +5762,7 @@ ${ungroupedSequenceText}
                   )}
                 </section>
 
-                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+                <section hidden={reportCentreAdvancedTool !== "thread-issue"} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
                   <button
                     type="button"
                     onClick={() => setThreadIssueReportOpen((open) => !open)}
@@ -5833,7 +5847,7 @@ ${ungroupedSequenceText}
                   )}
                 </section>
 
-                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+                <section hidden={reportCentreAdvancedTool !== "ledger-pack"} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
                   <button
                     type="button"
                     onClick={() => setLedgerPackReportOpen((open) => !open)}
@@ -5913,7 +5927,7 @@ ${ungroupedSequenceText}
                   )}
                 </section>
 
-                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+                <section hidden={reportCentreAdvancedTool !== "document-pack"} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
                   <button
                     type="button"
                     onClick={() => setDocumentPackReportOpen((open) => !open)}
@@ -5993,7 +6007,7 @@ ${ungroupedSequenceText}
                   )}
                 </section>
 
-                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+                <section hidden={reportCentreAdvancedTool !== "evidence-pack"} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
                   <button
                     type="button"
                     onClick={() => setEvidencePackReportOpen((open) => !open)}
@@ -6073,7 +6087,7 @@ ${ungroupedSequenceText}
                   )}
                 </section>
 
-                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+                <section hidden aria-hidden="true" className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
                   <button
                     type="button"
                     onClick={() => setClientReportGeneratorOpen((open) => !open)}
@@ -6210,7 +6224,7 @@ ${ungroupedSequenceText}
                   )}
                 </section>
 
-                <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden">
+                <section hidden={reportCentreAdvancedTool !== "case-structure"} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden">
                   <button
                     type="button"
                     onClick={() => setCaseStructureReportOpen((open) => !open)}
@@ -6262,7 +6276,8 @@ ${ungroupedSequenceText}
                 </section>
 
                   </div>
-                </details>
+                </section>
+                )}
               </div>
             )}
 
@@ -6895,35 +6910,13 @@ ${ungroupedSequenceText}
               </div>
             )}
 
-            {activeTab === "generate-report" && (
+            {activeTab === "generate-report" && reportCentreAdvancedTool === "internal-summary" && (
               <section id="internal-case-summary" className="case-file-reports-documentation print-pack-shell space-y-4 text-neutral-800 print:bg-white print:text-black" aria-labelledby="internal-case-summary-heading">
                 <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 print:hidden">
                   <div>
                     <p className="case-file-reports-eyebrow">Case documentation</p>
                     <h4 id="internal-case-summary-heading" className="mt-1 text-lg font-bold text-neutral-900">Internal Case Summary</h4>
                     <p className="mt-1 max-w-2xl text-sm leading-6 text-neutral-600">A derived internal summary of narrative chains, supporting record summaries, gaps, actions, and deadlines. Original attachments are not embedded.</p>
-                  </div>
-                  <div className="inline-flex rounded-lg border border-neutral-200 bg-white p-1 shadow-sm">
-                    {[
-                      { id: "internal", label: "Internal Case Summary", available: true },
-                      { id: "lawyer", label: "Legacy Specialist Format", available: true },
-                    ].map((mode) => (
-                      <button
-                        key={mode.id}
-                        type="button"
-                        disabled={!mode.available}
-                        aria-disabled={!mode.available}
-                        aria-pressed={reportMode === mode.id}
-                        onClick={() => mode.available && setReportMode(mode.id)}
-                        className={`rounded-md px-3 py-1.5 text-sm font-semibold transition-colors ${
-                          reportMode === mode.id
-                            ? "bg-lime-500 text-white shadow-sm"
-                            : "text-neutral-600 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:text-neutral-400 disabled:hover:bg-transparent"
-                        }`}
-                      >
-                        {mode.label}
-                      </button>
-                    ))}
                   </div>
                   <button
                     onClick={() => window.print()}
@@ -6932,7 +6925,6 @@ ${ungroupedSequenceText}
                     Print / Save PDF
                   </button>
                 </div>
-                {reportMode === "internal" && (
                 <article className="print-pack-article mx-auto max-w-4xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
                 <header className="print-pack-header break-inside-avoid pb-7 print:pb-6">
                   <div className="flex flex-col gap-5 border-b border-neutral-200 pb-6 sm:flex-row sm:items-center print:pb-5">
@@ -7159,22 +7151,6 @@ ${ungroupedSequenceText}
                   </section>
                 )}
                 </article>
-                )}
-                {reportMode === "lawyer" && (
-                  <article className="print-pack-article mx-auto max-w-4xl rounded-2xl border border-neutral-200 bg-white px-6 py-7 shadow-sm print:max-w-none print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
-                    <header className="print-pack-header break-inside-avoid border-b border-neutral-200 pb-6 print:pb-5">
-                      <div className="text-xs font-bold uppercase tracking-[0.18em] text-lime-700">Lawyer Pack</div>
-                      <h1 className="mt-2 text-3xl font-bold leading-tight text-neutral-950 print:text-2xl">
-                        {selectedCase.name || "Untitled Case"}
-                      </h1>
-                    </header>
-                    <section className="print-pack-major break-inside-avoid py-6 print:py-5">
-                      <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-5 text-sm text-neutral-600">
-                        Lawyer Pack coming later
-                      </div>
-                    </section>
-                  </article>
-                )}
               </section>
             )}
           </div>
