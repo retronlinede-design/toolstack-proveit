@@ -1,0 +1,230 @@
+.proveit-executive-report {
+  background: #fff;
+  color: #172554;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.proveit-executive-report .executive-report-header {
+  border-top: .3rem solid #0f766e;
+}
+
+.proveit-executive-report .executive-report-header > div > div:first-child > p:first-child {
+  color: #0f766e !important;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.proveit-executive-report .executive-report-section {
+  border-bottom: 1px solid #dbe4ee;
+  padding-block: 2rem;
+}
+
+.proveit-executive-report .executive-report-section > h2 {
+  color: #172554 !important;
+  font-weight: 700;
+  letter-spacing: -.015em;
+}
+
+.proveit-executive-report .executive-report-summary {
+  padding-top: 1.25rem;
+}
+
+.executive-report-issue-facts,
+.executive-report-control dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .9rem 1.5rem;
+  margin-top: 1.5rem;
+  border-top: 1px solid #dbe4ee;
+  padding-top: 1rem;
+  font-size: .9rem;
+}
+
+.executive-report-issue-facts dt,
+.executive-report-control dt {
+  color: #64748b;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.executive-report-issue-facts dd,
+.executive-report-control dd {
+  margin-top: .22rem;
+  overflow-wrap: anywhere;
+  color: #1e293b;
+  line-height: 1.45;
+}
+
+.executive-report-current-position {
+  margin-top: 1.5rem;
+  border-left: .2rem solid #0f766e;
+  background: #f0fdfa;
+  padding: 1rem 1.1rem;
+}
+
+.executive-report-current-position h3,
+.executive-report-unresolved-group h3 {
+  color: #172554;
+  font-size: .95rem;
+  font-weight: 700;
+}
+
+.executive-report-list {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.executive-report-entry {
+  break-inside: avoid;
+  border-left: .18rem solid #94a3b8;
+  padding: .1rem 0 .15rem 1rem;
+}
+
+.executive-report-entry-title {
+  color: #172554;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.executive-report-entry-summary {
+  margin-top: .28rem;
+  color: #334155;
+  font-size: .93rem;
+  line-height: 1.6;
+}
+
+.executive-report-classification,
+.executive-report-reference,
+.executive-report-empty,
+.executive-report-limitation,
+.executive-report-notice {
+  color: #64748b;
+  font-size: .78rem;
+  line-height: 1.55;
+}
+
+.executive-report-reference {
+  margin-top: .35rem;
+  overflow-wrap: anywhere;
+}
+
+.executive-report-reference strong,
+.executive-report-notice strong {
+  color: #334155;
+}
+
+.executive-report-limitation {
+  margin-bottom: 1rem;
+  border-left: .18rem solid #94a3b8;
+  padding-left: .8rem;
+}
+
+.executive-report-unresolved-group + .executive-report-unresolved-group {
+  margin-top: 1.35rem;
+}
+
+.executive-report-unresolved-group .executive-report-list,
+.executive-report-unresolved-group .executive-report-empty {
+  margin-top: .65rem;
+}
+
+.executive-report-control {
+  background: #f8fafc;
+  margin-inline: -1.25rem;
+  padding-inline: 1.25rem;
+}
+
+.executive-report-control .executive-report-notice {
+  margin-top: .75rem;
+}
+
+.proveit-executive-report .executive-report-footer {
+  background: #f8fafc;
+}
+
+@media (min-width: 640px) {
+  .executive-report-control {
+    margin-inline: -2rem;
+    padding-inline: 2rem;
+  }
+}
+
+@media print {
+  @page executive-report {
+    size: A4 portrait;
+    margin: 16mm 15mm 18mm;
+  }
+
+  .proveit-executive-report {
+    page: executive-report;
+    color: #111827;
+    font-size: 10.5pt;
+    line-height: 1.52;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .proveit-executive-report .executive-report-header {
+    border-top-width: 2pt;
+    padding-bottom: 5mm;
+  }
+
+  .proveit-executive-report .executive-report-section {
+    border-color: #aeb9c7;
+    padding-block: 5mm;
+  }
+
+  .proveit-executive-report .executive-report-section > h2,
+  .proveit-executive-report .executive-report-unresolved-group h3,
+  .proveit-executive-report .executive-report-current-position h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .proveit-executive-report .executive-report-entry,
+  .proveit-executive-report .executive-report-current-position,
+  .proveit-executive-report .executive-report-unresolved-group,
+  .proveit-executive-report .executive-report-issue-facts > div,
+  .proveit-executive-report .executive-report-control dl > div {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .proveit-executive-report .executive-report-current-position,
+  .proveit-executive-report .executive-report-control,
+  .proveit-executive-report .executive-report-footer {
+    background: #fff;
+  }
+
+  .proveit-executive-report .executive-report-entry,
+  .proveit-executive-report .executive-report-limitation,
+  .proveit-executive-report .executive-report-current-position {
+    border-color: #475569;
+  }
+
+  .proveit-executive-report :is(.executive-report-entry-title, .executive-report-current-position h3, .executive-report-unresolved-group h3, .executive-report-reference strong, .executive-report-notice strong) {
+    color: #111827;
+  }
+
+  .proveit-executive-report :is(.executive-report-entry-summary, .executive-report-classification, .executive-report-reference, .executive-report-empty, .executive-report-limitation, .executive-report-notice, .executive-report-issue-facts dt, .executive-report-control dt) {
+    color: #374151;
+  }
+
+  .proveit-executive-report .executive-report-control {
+    margin-inline: 0;
+    padding-inline: 0;
+  }
+}
+
+@media (max-width: 639px) {
+  .executive-report-issue-facts,
+  .executive-report-control dl {
+    grid-template-columns: 1fr;
+  }
+}
