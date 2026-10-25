@@ -366,6 +366,7 @@ export default function CaseDetail({
   const [reportCentreIssueId, setReportCentreIssueId] = useState("");
   const [externalDraftingScopeType, setExternalDraftingScopeType] = useState("case");
   const [reportCentreType, setReportCentreType] = useState("executive");
+  const [reportCentreDestination, setReportCentreDestination] = useState("reports");
   const [reportCentreOutputFeedback, setReportCentreOutputFeedback] = useState("");
   const [savedExecutiveRevisionId, setSavedExecutiveRevisionId] = useState("");
   const [executiveRevisionTargetReportId, setExecutiveRevisionTargetReportId] = useState("");
@@ -3733,8 +3734,24 @@ ${ungroupedSequenceText}
       : "Historical whole case"
     : reportCentreScopeLabel;
   const handleReportCentreTypeChange = (nextReportType) => {
+    setReportCentreDestination("reports");
     setReportCentreType(nextReportType);
     setReportCentreScopeType((currentScope) => normaliseReportScope(nextReportType, currentScope));
+    setSavedExecutiveRevisionId("");
+    setExecutiveRevisionTargetReportId("");
+    setExecutiveDraftFeedback("");
+    setReportCentreOutputFeedback("");
+  };
+  const handleReportCentreFamilyChange = (familyId) => {
+    const initialReportByFamily = {
+      professional: "executive",
+      client: "client",
+      technical: "incidentSchedule",
+    };
+    handleReportCentreTypeChange(initialReportByFamily[familyId] || "executive");
+  };
+  const handleOpenSavedReports = () => {
+    setReportCentreDestination("saved");
     setSavedExecutiveRevisionId("");
     setExecutiveRevisionTargetReportId("");
     setExecutiveDraftFeedback("");
@@ -3826,6 +3843,7 @@ ${ungroupedSequenceText}
       setReportCentreScopeType("case");
     }
     setExecutiveDraftFeedback("Live preview selected. Save Draft will create a new immutable revision of this Draft report.");
+    setReportCentreDestination("reports");
   };
   const handleExternalDraftingScopeChange = (scope) => {
     setReportCentreOutputFeedback("");
@@ -5283,9 +5301,9 @@ ${ungroupedSequenceText}
                   selectedIssueId={reportCentreIssueSelection.requestedIssueId}
                   externalDraftingScopeType={externalDraftingScopeType}
                   externalDraftingIssueAvailable={Boolean(externalDraftingScope.scope)}
-                  markdownAvailable={Boolean(reportCentreMarkdown)}
-                  documentOutputAvailable={Boolean(reportCentreActiveDocument)}
-                  outputFeedback={reportCentreOutputFeedback}
+                  activeDestination={reportCentreDestination}
+                  onFamilyChange={handleReportCentreFamilyChange}
+                  onOpenSavedReports={handleOpenSavedReports}
                   onReportTypeChange={handleReportCentreTypeChange}
                   onScopeTypeChange={handleReportCentreScopeChange}
                   onIssueChange={handleReportCentreIssueChange}
@@ -5301,6 +5319,28 @@ ${ungroupedSequenceText}
                   onOpenAdvancedReports={() => document.getElementById("case-documentation")?.scrollIntoView({ behavior: "smooth", block: "start" })}
                 />
 
+                {reportCentreDestination === "saved" ? (
+                  <section className="case-file-reports-review space-y-4" aria-labelledby="saved-reports-heading">
+                    <div className="case-file-reports-section-heading">
+                      <p className="case-file-reports-eyebrow">Saved Reports</p>
+                      <h4 id="saved-reports-heading">Executive Report Drafts</h4>
+                    </div>
+                    <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 print:hidden dark:border-neutral-700 dark:bg-neutral-900">
+                      <p className="text-sm text-neutral-600 dark:text-neutral-300">Saved Drafts are immutable, unapproved historical snapshots. Only Executive Report Drafts can currently be saved.</p>
+                      {savedExecutiveDrafts.length ? <ul className="mt-4 space-y-2" aria-label="Saved Executive Report Drafts">
+                        {savedExecutiveDrafts.map((draft) => {
+                          const document = draft.revision.content.reportDocument;
+                          const scope = document.source?.scope?.type === "sequenceGroup"
+                            ? `${document.source?.scope?.issueReference || "Issue"} — ${document.source?.scope?.issueName || document.source?.scope?.sequenceGroupName || "Historical Issue"}`
+                            : "Whole case";
+                          return <li key={draft.revision.id} className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-white p-3 text-sm dark:border-neutral-700 dark:bg-neutral-950 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">{draft.manifest.title}</p><p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">{scope} · Revision {draft.revision.versionNumber} · Draft · {draft.freshness} source · {new Date(draft.revision.createdAt).toLocaleString()}</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => { setSavedExecutiveRevisionId(draft.revision.id); setExecutiveRevisionTargetReportId(""); setExecutiveDraftFeedback(""); setReportCentreType("executive"); setReportCentreDestination("reports"); }} className="case-file-reports-utility-action">Open snapshot</button><button type="button" onClick={() => handleCreateExecutiveRevision(draft)} className="case-file-reports-utility-action">New revision</button></div></li>;
+                        })}
+                      </ul> : <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-300">No Executive Report Drafts have been saved for this case.</p>}
+                      <div className="mt-4"><button type="button" onClick={() => { setSavedExecutiveRevisionId(""); setExecutiveRevisionTargetReportId(""); setExecutiveDraftFeedback(""); setReportCentreType("executive"); setReportCentreDestination("reports"); }} className="case-file-reports-utility-action">Open live Executive Report</button></div>
+                      {executiveDraftFeedback ? <p className="mt-3 text-sm font-medium" role="status">{executiveDraftFeedback}</p> : null}
+                    </section>
+                  </section>
+                ) : (
                 <section className="case-file-reports-review space-y-4" aria-labelledby="report-review-heading">
                   <div className="case-file-reports-section-heading">
                     <p className="case-file-reports-eyebrow">Review</p>
@@ -5319,29 +5359,7 @@ ${ungroupedSequenceText}
                     scopeLabel={renderedReportCentreScopeLabel}
                   />
 
-                  {reportCentreType === "executive" ? (
-                    <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 print:hidden dark:border-neutral-700 dark:bg-neutral-900" aria-labelledby="saved-executive-drafts-heading">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <p className="case-file-reports-eyebrow">Saved Drafts</p>
-                          <h5 id="saved-executive-drafts-heading" className="mt-1 text-base font-bold">Executive Report snapshots</h5>
-                          <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">Saved Drafts are immutable, unapproved historical snapshots. They do not verify or publish the report.</p>
-                        </div>
-                        {savedExecutiveDraft ? <button type="button" onClick={() => { setSavedExecutiveRevisionId(""); setExecutiveRevisionTargetReportId(""); setExecutiveDraftFeedback(""); }} className="case-file-reports-utility-action">Return to live preview</button> : null}
-                      </div>
-                      {savedExecutiveDrafts.length ? <ul className="mt-4 space-y-2" aria-label="Saved Executive Report Drafts">
-                        {savedExecutiveDrafts.map((draft) => {
-                          const document = draft.revision.content.reportDocument;
-                          const scope = document.source?.scope?.type === "sequenceGroup"
-                            ? `${document.source?.scope?.issueReference || "Issue"} — ${document.source?.scope?.issueName || document.source?.scope?.sequenceGroupName || "Historical Issue"}`
-                            : "Whole case";
-                          return <li key={draft.revision.id} className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-white p-3 text-sm dark:border-neutral-700 dark:bg-neutral-950 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">{draft.manifest.title}</p><p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">{scope} · Revision {draft.revision.versionNumber} · Draft · {draft.freshness} source · {new Date(draft.revision.createdAt).toLocaleString()}</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => { setSavedExecutiveRevisionId(draft.revision.id); setExecutiveRevisionTargetReportId(""); setExecutiveDraftFeedback(""); }} className="case-file-reports-utility-action">Open snapshot</button><button type="button" onClick={() => handleCreateExecutiveRevision(draft)} className="case-file-reports-utility-action">New revision</button></div></li>;
-                        })}
-                      </ul> : <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-300">No Executive Report Drafts have been saved for this case.</p>}
-                      {savedExecutiveDraft ? <p className="mt-4 rounded-lg border border-teal-700/40 bg-teal-950/20 px-3 py-2 text-sm" role="status">Viewing saved historical snapshot · source freshness: {savedExecutiveDrafts.find((draft) => draft.revision.id === savedExecutiveDraft.revision.id)?.freshness || "unknown"}. This content is not regenerated.</p> : null}
-                      {executiveDraftFeedback ? <p className="mt-3 text-sm font-medium" role="status">{executiveDraftFeedback}</p> : null}
-                    </section>
-                  ) : null}
+                  {savedExecutiveDraft ? <div className="rounded-lg border border-teal-700/40 bg-teal-950/20 px-3 py-2 text-sm print:hidden" role="status">Viewing an immutable saved Draft snapshot · source freshness: {savedExecutiveDrafts.find((draft) => draft.revision.id === savedExecutiveDraft.revision.id)?.freshness || "unknown"}. This content is not regenerated. <button type="button" onClick={() => { setSavedExecutiveRevisionId(""); setReportCentreDestination("saved"); }} className="ml-2 font-bold underline">Return to Saved Reports</button></div> : null}
 
                   {normalisedReportCentreScopeType === "sequenceGroup" && reportCentreActiveDocument && !["caseAudit", "investigation", "executive"].includes(reportCentreType) && reportCentreCountLabel.startsWith("0 ") ? (
                     <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm leading-6 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
@@ -5531,6 +5549,7 @@ ${ungroupedSequenceText}
                     </div>
                   </section>
                 </section>
+                )}
 
                 <details id="case-documentation" className="case-file-reports-documentation scroll-mt-6 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden dark:border-neutral-700 dark:bg-neutral-900">
                   <summary className="cursor-pointer text-sm font-bold uppercase tracking-wider text-neutral-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-500 dark:text-neutral-400">

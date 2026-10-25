@@ -19,8 +19,8 @@ export const REPORT_CENTRE_TYPES = Object.freeze([
 // User-facing wording only: report IDs, builders, and persisted data remain unchanged.
 export const REPORT_CENTRE_PRESENTATION = Object.freeze({
   executive: { label: "Executive Report", kind: "Report", preparation: "Default concise briefing for the selected Issue; uses recorded material only." },
-  management: { label: "Case Position Brief", kind: "Report", preparation: "Ready to preview from recorded case information." },
-  investigation: { label: "Issue Investigation Report", kind: "Report", preparation: "Use an Issue scope when you need a focused investigation view." },
+  management: { label: "Management Report", kind: "Report", preparation: "A whole-case position briefing for management review." },
+  investigation: { label: "Investigation Report", kind: "Report", preparation: "Use an Issue scope when you need a focused investigation view." },
   client: { label: "Client Update Draft", kind: "Draft", preparation: "Requires the existing assisted drafting and human-review workflow." },
   incidentSchedule: { label: "Incident Schedule", kind: "Schedule", preparation: "Structured incident inventory." },
   chronologyReport: { label: "Chronology", kind: "Schedule", preparation: "Date-ordered record schedule." },
@@ -31,11 +31,15 @@ export const REPORT_CENTRE_PRESENTATION = Object.freeze({
   action: { label: "Operational Brief", kind: "Internal tool", preparation: "Summarises recorded actions, reviews, and data-quality remediation." },
 });
 
-export const REPORT_CENTRE_CATALOGUE = Object.freeze([
-  { id: "main", title: "Main Reports", description: "Start with a concise Issue briefing, then use detailed investigation or specialist reports when needed.", reports: ["executive", "investigation", "management", "client"] },
-  { id: "schedules", title: "Specialist Schedules", description: "Detailed, structured schedules for investigation, review, and export.", reports: ["incidentSchedule", "chronologyReport", "evidence", "document", "ledger"] },
-  { id: "internal", title: "Internal Tools & Documentation", description: "Operational review, data-quality checks, and configurable case documentation.", reports: ["caseAudit", "action"] },
+export const REPORT_CENTRE_FAMILIES = Object.freeze([
+  { id: "professional", label: "Professional Reports", description: "Source-grounded reports for management and investigation.", reports: ["executive", "management", "investigation"] },
+  { id: "client", label: "Client Updates", description: "Prepare and validate a client-facing external drafting workflow.", reports: ["client"] },
+  { id: "technical", label: "Technical Records", description: "Schedules, chronology and internal record-quality outputs.", reports: ["incidentSchedule", "chronologyReport", "evidence", "document", "ledger", "caseAudit", "action"] },
 ]);
+
+export function getReportCentreFamily(reportType) {
+  return REPORT_CENTRE_FAMILIES.find((family) => family.reports.includes(reportType)) || REPORT_CENTRE_FAMILIES[0];
+}
 
 export function getReportCentrePreviewDescription(reportType, scopeType) {
   const scope = normaliseReportScope(reportType, scopeType);

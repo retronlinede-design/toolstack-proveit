@@ -35,7 +35,7 @@ const {
   default: ReportCentreControls,
   ReportCentrePreviewSummary,
 } = module;
-const { REPORT_CENTRE_TYPES } = configModule;
+const { REPORT_CENTRE_FAMILIES, REPORT_CENTRE_TYPES } = configModule;
 
 const noOp = () => {};
 
@@ -64,21 +64,30 @@ function renderPreview(reportType, scopeType, scopeLabel) {
   }));
 }
 
-test("Reports Centre prioritises main reports and keeps specialist and internal formats accessible", () => {
+test("Reports Centre groups every existing report under compact purpose-led navigation", () => {
   const html = renderControls();
-  for (const label of ["Executive Report", "Case Position Brief", "Issue Investigation Report", "Client Update Draft", "Incident Schedule", "Evidence Schedule", "Case Quality Audit", "Operational Brief"]) assert.match(html, new RegExp(label));
-  for (const heading of ["1 · Choose purpose", "2 · Choose scope", "Main Reports", "Specialist Schedules", "Internal Tools &amp; Documentation"]) assert.match(html, new RegExp(heading));
+  for (const label of ["Professional Reports", "Client Updates", "Technical Records", "Saved Reports"]) assert.match(html, new RegExp(label));
+  for (const label of ["Executive Report", "Management Report", "Investigation Report"]) assert.match(html, new RegExp(label));
+  for (const heading of ["Choose a report purpose", "Selected report", "Legacy documentation and utilities"]) assert.match(html, new RegExp(heading));
   assert.match(html, /Issue Audit/);
   assert.match(html, /External Drafting Handoff/);
   assert.match(html, /external AI drafting service/);
   for (const label of ["Copy JSON Pack", "Copy Markdown Prompt", "Copy Specialist Review Prompt"]) assert.match(html, new RegExp(label));
   assert.doesNotMatch(html, /Unavailable Reports/);
   assert.match(html, /not independently verified or approved/);
-  assert.match(html, /Audience/);
-  assert.match(html, /Completeness/);
   assert.match(html, /<details class="case-file-reports-specialist">/);
   assert.match(html, /Case Documentation/);
   assert.doesNotMatch(html, /Print Pack/);
+});
+
+test("every existing report type remains reachable from exactly one report family", () => {
+  const familyTypes = REPORT_CENTRE_FAMILIES.flatMap((family) => family.reports).sort();
+  assert.deepEqual(familyTypes, REPORT_CENTRE_TYPES.map((item) => item.value).sort());
+  for (const type of REPORT_CENTRE_TYPES) {
+    const html = renderControls({ reportType: type.value });
+    assert.match(html, new RegExp(REPORT_CENTRE_FAMILIES.find((family) => family.reports.includes(type.value)).label));
+    assert.match(html, new RegExp(`report-choice-${type.value}-purpose`));
+  }
 });
 
 test("changing report type changes the rendered preview description", () => {
@@ -133,9 +142,9 @@ test("Incident Schedule and Chronology Report expose complete scoped previews", 
   assert.match(caseDetailSource, /<IncidentScheduleReportArticle/); assert.match(caseDetailSource, /<ChronologyReportArticle/); assert.match(caseDetailSource, /reportCentreIncidentDocument/); assert.match(caseDetailSource, /reportCentreChronologyDocument/);
 });
 
-test("Case Audit Report remains available as an advanced internal tool", () => {
+test("Case Audit Report remains available under Technical Records", () => {
   const controls = renderControls({ reportType: "caseAudit", scopeType: "sequenceGroup" });
-  assert.match(controls, /Internal Tools &amp; Documentation/); assert.match(controls, /Whole Case/); assert.match(controls, />Issue</);
+  assert.match(controls, /Technical Records/); assert.match(controls, /Whole Case/); assert.match(controls, />Issue</);
   assert.match(renderPreview("caseAudit", "sequenceGroup", "Sequence Group: Alpha"), /internal deterministic audit/i);
   assert.match(caseDetailSource, /<CaseAuditReportArticle/); assert.match(caseDetailSource, /reportCentreCaseAuditDocument/); assert.match(caseDetailSource, /This Issue contains no directly assigned records to audit/);
 });
@@ -181,8 +190,10 @@ test("the active CaseDetail Report Centre uses the rendered control boundary", (
   assert.match(caseDetailSource, /<InvestigationReportArticle reportDocument={reportCentreInvestigationDocument}/);
   assert.match(caseDetailSource, /<ExecutiveReportArticle reportDocument={reportCentreActiveDocument}/);
   assert.match(caseDetailSource, /buildExecutiveDraftCandidate/);
-  assert.match(caseDetailSource, /Saved Drafts/);
-  assert.match(caseDetailSource, /Viewing saved historical snapshot/);
+  assert.match(caseDetailSource, /Saved Reports/);
+  assert.match(caseDetailSource, /Viewing an immutable saved Draft snapshot/);
+  assert.match(caseDetailSource, /reportCentreDestination/);
+  assert.match(caseDetailSource, /handleOpenSavedReports/);
   assert.match(caseDetailSource, /Save new Draft revision/);
   assert.match(caseDetailSource, /useState\("executive"\)/);
   assert.match(caseDetailSource, /useState\("sequenceGroup"\)/);
