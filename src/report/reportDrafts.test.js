@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, buildClientUpdateDraftCandidate, buildExecutiveDraftCandidate, verifyClientUpdateSavedDraft } from "./reportDrafts.js";
+import { buildClientUpdateDraftCandidate, buildClientUpdateLifecycleCandidate, buildExecutiveDraftCandidate, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, verifyClientUpdateSavedDraft } from "./reportDrafts.js";
 import { verifyReportRevisionChecksum } from "./reportLifecycle.js";
 
 const TIME = "2026-10-25T12:00:00.000Z";
@@ -167,6 +167,56 @@ test("Client Update saved revisions reopen immutable English and German snapshot
   corruptedCase.reportLibrary.revisions["client-revision-en"].content.markdown = "tampered historical output";
   const corrupted = await verifyClientUpdateSavedDraft(corruptedCase, "client-revision-en");
   assert.equal(corrupted.valid, false);
+});
+
+test("Client Update lifecycle review and approval preserve immutable snapshots and require a current named human approval", async () => {
+  const first = await buildClientUpdateDraftCandidate(clientInput({ createId: ids("client-report", "client-revision-en") }));
+  const second = await buildClientUpdateDraftCandidate(clientInput({
+    caseItem: caseItem(first.reportLibrary),
+    reportId: "client-report",
+    language: "de",
+    reportDocument: clientDocument("de"),
+    acceptedNarrative: "# REPORT_TITLE\nDeutsche Fassung",
+    now: "2026-10-26T12:00:00.000Z",
+    createId: ids("client-revision-de"),
+  }));
+  const original = structuredClone(second.reportLibrary.revisions["client-revision-de"]);
+  const review = await buildClientUpdateLifecycleCandidate({
+    caseItem: caseItem(second.reportLibrary),
+    revisionId: "client-revision-de",
+    toStatus: "in_review",
+    currentFingerprint: "source-a",
+    now: "2026-10-27T12:00:00.000Z",
+  });
+  assert.equal(review.revision.lifecycle.status, "in_review");
+  assert.equal(review.revision.lifecycle.review.submittedAt, "2026-10-27T12:00:00.000Z");
+  assert.equal(review.manifest.status, "in_review");
+  assert.deepEqual(review.revision.content, original.content);
+  assert.equal(review.revision.contentChecksum, original.contentChecksum);
+  assert.equal((await verifyReportRevisionChecksum(review.revision)).valid, true);
+
+  const approved = await buildClientUpdateLifecycleCandidate({
+    caseItem: caseItem(review.reportLibrary),
+    revisionId: "client-revision-de",
+    toStatus: "approved",
+    reviewerName: "A. Reviewer",
+    currentFingerprint: "source-a",
+    now: "2026-10-28T12:00:00.000Z",
+  });
+  assert.equal(approved.revision.lifecycle.status, "approved");
+  assert.equal(approved.revision.lifecycle.review.reviewedBy, "A. Reviewer");
+  assert.equal(approved.revision.lifecycle.review.reviewedAt, "2026-10-28T12:00:00.000Z");
+  assert.equal(approved.manifest.approvedRevisionId, "client-revision-de");
+  assert.deepEqual(approved.revision.content, original.content);
+  assert.equal(approved.revision.contentChecksum, original.contentChecksum);
+
+  await assert.rejects(buildClientUpdateLifecycleCandidate({ caseItem: caseItem(second.reportLibrary), revisionId: "client-revision-de", toStatus: "approved", reviewerName: "A. Reviewer", currentFingerprint: "source-a" }), /Invalid report lifecycle transition/);
+  await assert.rejects(buildClientUpdateLifecycleCandidate({ caseItem: caseItem(review.reportLibrary), revisionId: "client-revision-de", toStatus: "approved", reviewerName: "", currentFingerprint: "source-a" }), /named local human reviewer/);
+  await assert.rejects(buildClientUpdateLifecycleCandidate({ caseItem: caseItem(review.reportLibrary), revisionId: "client-revision-de", toStatus: "approved", reviewerName: "A. Reviewer", currentFingerprint: "stale-source" }), /current source fingerprint/);
+  await assert.rejects(buildClientUpdateLifecycleCandidate({ caseItem: caseItem(review.reportLibrary), revisionId: "client-revision-de", toStatus: "approved", reviewerName: "A. Reviewer", currentFingerprint: "" }), /current source fingerprint/);
+  const corrupt = caseItem(structuredClone(review.reportLibrary));
+  corrupt.reportLibrary.revisions["client-revision-de"].content.json = "tampered";
+  await assert.rejects(buildClientUpdateLifecycleCandidate({ caseItem: corrupt, revisionId: "client-revision-de", toStatus: "approved", reviewerName: "A. Reviewer", currentFingerprint: "source-a" }), /history is invalid/);
 });
 
 test("Client Update candidate fails closed for invalid inputs, malformed libraries, duplicate IDs, and binary snapshots", async () => {

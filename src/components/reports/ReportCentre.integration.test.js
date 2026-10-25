@@ -252,6 +252,19 @@ test("Client Update historical revisions are integrity-gated and render their sa
   assert.match(caseDetailSource, /setSavedClientUpdateRevisionId\(""\)/);
 });
 
+test("Client Update review controls use the immutable lifecycle candidate and only acknowledge a persisted transition", () => {
+  assert.match(caseDetailSource, /buildClientUpdateLifecycleCandidate\(\{/);
+  assert.match(caseDetailSource, /revisionId: savedClientUpdateDraft\.revision\.id/);
+  assert.match(caseDetailSource, /reviewerName: clientUpdateReviewer/);
+  assert.match(caseDetailSource, /currentFingerprint: reportCentreModel\?\.sourceRevision\?\.fingerprint/);
+  assert.match(caseDetailSource, /const saved = await onUpdateCase\(\{ \.\.\.selectedCase, reportLibrary: candidate\.reportLibrary \}\)/);
+  assert.match(caseDetailSource, /Client Update review status was not saved\. The prior lifecycle status remains in effect/);
+  assert.match(caseDetailSource, /Mark for review/);
+  assert.match(caseDetailSource, /Human reviewer/);
+  assert.match(caseDetailSource, /Approve revision/);
+  assert.match(caseDetailSource, /Approval requires a named human reviewer and a current source fingerprint/);
+});
+
 test("the active Evidence Pack follows model document and unchanged renderer path", () => {
   assert.match(caseDetailSource, /buildCaseReportModel\(selectedCase/);
   assert.match(caseDetailSource, /buildEvidenceScheduleDocument\(reportCentreModel, getReportDefinition\("evidence"\)\)/);

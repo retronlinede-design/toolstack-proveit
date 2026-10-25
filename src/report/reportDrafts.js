@@ -3,6 +3,7 @@ import {
   REPORT_LIFECYCLE_SCHEMA_VERSION,
   calculateReportRevisionChecksum,
   getReportSourceFreshness,
+  transitionReportLifecycle,
   verifyReportRevisionChecksum,
 } from "./reportLifecycle.js";
 import {
@@ -332,4 +333,56 @@ export async function verifyClientUpdateSavedDraft(caseItem, revisionId) {
 
 export function getClientUpdateDraftFreshness(revision, currentFingerprint) {
   return getReportSourceFreshness(revision, currentFingerprint);
+}
+
+/** Returns a validated, unpersisted library with only permitted lifecycle metadata changed. */
+export async function buildClientUpdateLifecycleCandidate({
+  caseItem,
+  revisionId,
+  toStatus,
+  reviewerName = "",
+  currentFingerprint,
+  now = new Date().toISOString(),
+} = {}) {
+  const caseId = requireText(caseItem?.id, "Case ID");
+  const selectedRevisionId = requireText(revisionId, "Client Update revision ID");
+  const library = requireSupportedLibrary(caseItem?.reportLibrary, caseId);
+  const integrity = await validateReportLibraryIntegrity(library, { caseId });
+  if (!integrity.valid) throw new TypeError(`Client Update history is invalid: ${integrity.errors.join(" ")}`);
+  const revision = library.revisions[selectedRevisionId];
+  const manifest = revision ? library.reports[revision.reportId] : null;
+  if (!manifest || manifest.reportType !== "client" || !isClientUpdateRevision(revision)) {
+    throw new TypeError("The selected Client Update revision is unavailable or malformed.");
+  }
+  const transition = transitionReportLifecycle(
+    { ...revision.lifecycle, revision },
+    toStatus,
+    {
+      actor: { kind: "human", name: reviewerName },
+      currentFingerprint,
+      at: now,
+    }
+  );
+  if (!transition.ok) throw new TypeError(transition.errors.join(" "));
+  if (toStatus === "approved" && manifest.currentRevisionId !== revision.id) {
+    throw new TypeError("Only the current Client Update revision can be approved. Open the current revision or create a new reviewable revision.");
+  }
+  const nextLifecycle = { ...transition.lifecycle };
+  delete nextLifecycle.revision;
+  const nextRevision = { ...revision, lifecycle: nextLifecycle };
+  const nextManifest = manifest.currentRevisionId === revision.id
+    ? {
+      ...manifest,
+      status: nextLifecycle.status,
+      approvedRevisionId: nextLifecycle.status === "approved" ? revision.id : manifest.approvedRevisionId,
+    }
+    : manifest;
+  const candidate = {
+    schemaVersion: REPORT_LIBRARY_SCHEMA_VERSION,
+    reports: { ...library.reports, [manifest.id]: nextManifest },
+    revisions: { ...library.revisions, [revision.id]: nextRevision },
+  };
+  const validation = await validateReportLibraryIntegrity(candidate, { caseId });
+  if (!validation.valid) throw new TypeError(`Client Update lifecycle update is invalid: ${validation.errors.join(" ")}`);
+  return { reportLibrary: candidate, manifest: nextManifest, revision: nextRevision };
 }

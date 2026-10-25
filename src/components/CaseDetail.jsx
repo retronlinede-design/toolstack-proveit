@@ -73,7 +73,7 @@ import { buildDocumentScheduleDocument, projectDocumentDocumentToLegacyViewModel
 import { buildLedgerScheduleDocument, projectLedgerDocumentToLegacyViewModel } from "../report/ledgerScheduleDocument.js";
 import { buildActiveReportDocument } from "../report/buildActiveReportDocument.js";
 import { buildReportOutput } from "../report/reportOutputs.js";
-import { buildClientUpdateDraftCandidate, buildExecutiveDraftCandidate, extractReportDocumentProvenance, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, verifyClientUpdateSavedDraft } from "../report/reportDrafts.js";
+import { buildClientUpdateDraftCandidate, buildClientUpdateLifecycleCandidate, buildExecutiveDraftCandidate, extractReportDocumentProvenance, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, verifyClientUpdateSavedDraft } from "../report/reportDrafts.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import {
   moveCaseNavigationItem,
@@ -363,6 +363,8 @@ export default function CaseDetail({
   const [savedClientUpdateSnapshot, setSavedClientUpdateSnapshot] = useState(null);
   const [savedClientUpdateRevisionId, setSavedClientUpdateRevisionId] = useState("");
   const [clientUpdateHistoryFeedback, setClientUpdateHistoryFeedback] = useState("");
+  const [clientUpdateReviewer, setClientUpdateReviewer] = useState("");
+  const [updatingClientUpdateLifecycle, setUpdatingClientUpdateLifecycle] = useState(false);
   const clientNarrativeCaseIdRef = useRef("");
   const [reportPromptFeedback, setReportPromptFeedback] = useState("");
   const [reportCentreScopeType, setReportCentreScopeType] = useState("sequenceGroup");
@@ -654,6 +656,10 @@ export default function CaseDetail({
   );
   const activeSavedClientUpdateRevision = savedClientUpdateDraft?.revision
     || (savedClientUpdateSnapshot?.caseId === selectedCase?.id ? savedClientUpdateSnapshot.revision : null);
+  const activeSavedClientUpdateFreshness = activeSavedClientUpdateRevision
+    ? savedClientUpdateDrafts.find((draft) => draft.revision.id === activeSavedClientUpdateRevision.id)?.freshness
+      || getClientUpdateDraftFreshness(activeSavedClientUpdateRevision, reportCentreModel?.sourceRevision?.fingerprint)
+    : "";
   const reportCentreEvidenceDocument = useMemo(() => reportCentreModel ? buildEvidenceScheduleDocument(reportCentreModel, getReportDefinition("evidence")) : null, [reportCentreModel]);
   const reportCentreDocumentDocument = useMemo(() => reportCentreModel ? buildDocumentScheduleDocument(reportCentreModel, getReportDefinition("document")) : null, [reportCentreModel]);
   const reportCentreLedgerDocument = useMemo(() => reportCentreModel ? buildLedgerScheduleDocument(reportCentreModel, getReportDefinition("ledger")) : null, [reportCentreModel]);
@@ -724,6 +730,7 @@ export default function CaseDetail({
         setSavedClientUpdateSnapshot(null);
         setSavedClientUpdateRevisionId("");
         setClientUpdateHistoryFeedback("");
+        setClientUpdateReviewer("");
       }
       setReportPromptFeedback("");
     }, 0);
@@ -3837,10 +3844,39 @@ ${ungroupedSequenceText}
       }
       setSavedClientUpdateRevisionId(draft.revision.id);
       setSavedClientUpdateSnapshot(null);
+      setClientUpdateReviewer("");
       setReportCentreType("client");
       setReportCentreDestination("reports");
     } catch (error) {
       setClientUpdateHistoryFeedback(error?.message || "This Client Update revision could not be verified.");
+    }
+  };
+  const handleClientUpdateLifecycleTransition = async (toStatus) => {
+    if (!selectedCase || !savedClientUpdateDraft || updatingClientUpdateLifecycle) return;
+    setClientUpdateHistoryFeedback("");
+    setUpdatingClientUpdateLifecycle(true);
+    try {
+      const candidate = await buildClientUpdateLifecycleCandidate({
+        caseItem: selectedCase,
+        revisionId: savedClientUpdateDraft.revision.id,
+        toStatus,
+        reviewerName: clientUpdateReviewer,
+        currentFingerprint: reportCentreModel?.sourceRevision?.fingerprint,
+      });
+      const saved = await onUpdateCase({ ...selectedCase, reportLibrary: candidate.reportLibrary });
+      if (!saved) {
+        setClientUpdateHistoryFeedback("Client Update review status was not saved. The prior lifecycle status remains in effect.");
+        return;
+      }
+      setSavedClientUpdateRevisionId(candidate.revision.id);
+      setSavedClientUpdateSnapshot(null);
+      setClientUpdateHistoryFeedback(toStatus === "approved"
+        ? `Client Update revision ${candidate.revision.versionNumber} approved by ${candidate.revision.lifecycle.review.reviewedBy}.`
+        : `Client Update revision ${candidate.revision.versionNumber} marked for human review.`);
+    } catch (error) {
+      setClientUpdateHistoryFeedback(error?.message || "Client Update lifecycle status could not be saved.");
+    } finally {
+      setUpdatingClientUpdateLifecycle(false);
     }
   };
   const handleOpenReportCentreAdvancedTool = (toolId) => {
@@ -5462,7 +5498,7 @@ ${ungroupedSequenceText}
                     scopeLabel={renderedReportCentreScopeLabel}
                     countLabel={reportCentreCountLabel}
                     reportDocument={reportCentreActiveDocument}
-                    snapshotFreshness={savedExecutiveDraft ? savedExecutiveDrafts.find((draft) => draft.revision.id === savedExecutiveDraft.revision.id)?.freshness || "unknown" : activeSavedClientUpdateRevision ? savedClientUpdateDrafts.find((draft) => draft.revision.id === activeSavedClientUpdateRevision.id)?.freshness || "unknown" : ""}
+                    snapshotFreshness={savedExecutiveDraft ? savedExecutiveDrafts.find((draft) => draft.revision.id === savedExecutiveDraft.revision.id)?.freshness || "unknown" : activeSavedClientUpdateRevision ? activeSavedClientUpdateFreshness || "unknown" : ""}
                   />
                   <ReportCentrePreviewSummary
                     reportType={reportCentreType}
@@ -5491,7 +5527,14 @@ ${ungroupedSequenceText}
                   <section className="case-file-reports-document-preview" aria-label="Selected report preview">
 
                   {savedExecutiveDraft ? <div className="rounded-lg border border-teal-700/40 bg-teal-950/20 px-3 py-2 text-sm print:hidden" role="status">Viewing an immutable saved Draft snapshot · source freshness: {savedExecutiveDrafts.find((draft) => draft.revision.id === savedExecutiveDraft.revision.id)?.freshness || "unknown"}. This content is not regenerated. <button type="button" onClick={() => { setSavedExecutiveRevisionId(""); setReportCentreDestination("saved"); }} className="ml-2 font-bold underline">Return to Saved Reports</button></div> : null}
-                  {activeSavedClientUpdateRevision ? <div className="rounded-lg border border-teal-700/40 bg-teal-950/20 px-3 py-2 text-sm print:hidden" role="status">Viewing immutable Client Update revision {activeSavedClientUpdateRevision.versionNumber} · {activeSavedClientUpdateRevision.content.clientUpdate.language.toUpperCase()} · source freshness: {savedClientUpdateDrafts.find((draft) => draft.revision.id === activeSavedClientUpdateRevision.id)?.freshness || "unknown"}. This content is not regenerated. <button type="button" onClick={() => { setSavedClientUpdateRevisionId(""); setSavedClientUpdateSnapshot(null); setReportCentreDestination("saved"); }} className="ml-2 font-bold underline">Return to Saved Reports</button></div> : null}
+                  {activeSavedClientUpdateRevision ? <div className="rounded-lg border border-teal-700/40 bg-teal-950/20 px-3 py-2 text-sm print:hidden" role="status">Viewing immutable Client Update revision {activeSavedClientUpdateRevision.versionNumber} · {activeSavedClientUpdateRevision.content.clientUpdate.language.toUpperCase()} · source freshness: {activeSavedClientUpdateFreshness || "unknown"}. This content is not regenerated. <button type="button" onClick={() => { setSavedClientUpdateRevisionId(""); setSavedClientUpdateSnapshot(null); setReportCentreDestination("saved"); }} className="ml-2 font-bold underline">Return to Saved Reports</button></div> : null}
+                  {savedClientUpdateDraft ? <section className="mt-3 rounded-lg border border-teal-700/40 bg-teal-950/10 p-3 text-sm print:hidden" aria-labelledby="client-update-review-heading">
+                    <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="case-file-reports-eyebrow">Human review</p><h5 id="client-update-review-heading" className="mt-1 font-bold">Client Update revision {savedClientUpdateDraft.revision.versionNumber}</h5><p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">{savedClientUpdateDraft.revision.content.clientUpdate.language.toUpperCase()} · {savedClientUpdateDraft.revision.lifecycle.status.replace("_", " ")} · {activeSavedClientUpdateFreshness || "unknown"} source</p>{savedClientUpdateDraft.revision.lifecycle.review?.reviewedBy ? <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">Reviewed by {savedClientUpdateDraft.revision.lifecycle.review.reviewedBy} on {new Date(savedClientUpdateDraft.revision.lifecycle.review.reviewedAt).toLocaleString()}.</p> : null}</div></div>
+                    {savedClientUpdateDraft.revision.lifecycle.status === "draft" ? <div className="mt-3"><button type="button" onClick={() => handleClientUpdateLifecycleTransition("in_review")} disabled={updatingClientUpdateLifecycle} className="case-file-reports-utility-action">{updatingClientUpdateLifecycle ? "Saving…" : "Mark for review"}</button></div> : null}
+                    {savedClientUpdateDraft.revision.lifecycle.status === "in_review" ? <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end"><label className="min-w-52 text-xs font-semibold">Human reviewer<input type="text" value={clientUpdateReviewer} onChange={(event) => setClientUpdateReviewer(event.target.value)} className="mt-1 block w-full rounded border border-slate-400 bg-white px-2 py-1.5 text-sm text-slate-950 dark:bg-slate-950 dark:text-slate-100" aria-describedby="client-update-approval-note" /></label><button type="button" onClick={() => handleClientUpdateLifecycleTransition("approved")} disabled={updatingClientUpdateLifecycle || activeSavedClientUpdateFreshness !== "current"} className="case-file-reports-utility-action">{updatingClientUpdateLifecycle ? "Saving…" : "Approve revision"}</button></div> : null}
+                    {savedClientUpdateDraft.revision.lifecycle.status === "in_review" ? <p id="client-update-approval-note" className="mt-2 text-xs text-neutral-600 dark:text-neutral-300">Approval requires a named human reviewer and a current source fingerprint. {activeSavedClientUpdateFreshness !== "current" ? "This saved revision cannot be approved until a new current revision is created." : ""}</p> : null}
+                    {clientUpdateHistoryFeedback ? <p className="mt-2 text-sm font-medium" role="status">{clientUpdateHistoryFeedback}</p> : null}
+                  </section> : null}
 
                   {normalisedReportCentreScopeType === "sequenceGroup" && reportCentreActiveDocument && !["caseAudit", "investigation", "executive"].includes(reportCentreType) && reportCentreCountLabel.startsWith("0 ") ? (
                     <div className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm leading-6 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
