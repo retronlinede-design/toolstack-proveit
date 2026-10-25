@@ -72,7 +72,7 @@ function collectSourceReferences(value, callback, seen = new WeakSet(), sectionI
   for (const child of Object.values(value)) collectSourceReferences(child, callback, seen, sectionId);
 }
 
-export function extractExecutiveDraftProvenance(reportDocument) {
+export function extractReportDocumentProvenance(reportDocument) {
   const citations = [];
   const seen = new Set();
   for (const section of reportDocument?.sections || []) {
@@ -100,6 +100,8 @@ export function extractExecutiveDraftProvenance(reportDocument) {
   }
   return { citations, claims: [] };
 }
+
+export const extractExecutiveDraftProvenance = extractReportDocumentProvenance;
 
 function emptyLibrary() {
   return { schemaVersion: REPORT_LIBRARY_SCHEMA_VERSION, reports: {}, revisions: {} };

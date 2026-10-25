@@ -230,6 +230,17 @@ test("Executive Draft saving waits for the existing persistence acknowledgement"
   assert.match(appSource, /return true;/);
 });
 
+test("Client Update Save and Render persists its immutable revision and language slot through one acknowledged case update", () => {
+  assert.match(caseDetailSource, /buildClientUpdateDraftCandidate\(\{/);
+  assert.match(caseDetailSource, /acceptedNarrative: nextText/);
+  assert.match(caseDetailSource, /sourceFingerprint: clientNarrativeMeta\.sourceRevision/);
+  assert.match(caseDetailSource, /provenance: extractReportDocumentProvenance\(document\)/);
+  assert.match(caseDetailSource, /const saved = await onUpdateCase\(\{[\s\S]*generatedReportVersions: \{ \.\.\.existingVersions, \[lang\]: nextText \},[\s\S]*reportLibrary: candidate\.reportLibrary/);
+  assert.match(caseDetailSource, /if \(!saved\) \{\s*setReportPromptFeedback\("Client Update was not saved/);
+  assert.match(caseDetailSource, /validation\.revisionState !== "current"/);
+  assert.match(caseDetailSource, /setSavedClientUpdateSnapshot\(\{ caseId: selectedCase\.id, revision: candidate\.revision \}\)/);
+});
+
 test("the active Evidence Pack follows model document and unchanged renderer path", () => {
   assert.match(caseDetailSource, /buildCaseReportModel\(selectedCase/);
   assert.match(caseDetailSource, /buildEvidenceScheduleDocument\(reportCentreModel, getReportDefinition\("evidence"\)\)/);

@@ -73,7 +73,7 @@ import { buildDocumentScheduleDocument, projectDocumentDocumentToLegacyViewModel
 import { buildLedgerScheduleDocument, projectLedgerDocumentToLegacyViewModel } from "../report/ledgerScheduleDocument.js";
 import { buildActiveReportDocument } from "../report/buildActiveReportDocument.js";
 import { buildReportOutput } from "../report/reportOutputs.js";
-import { buildExecutiveDraftCandidate, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts } from "../report/reportDrafts.js";
+import { buildClientUpdateDraftCandidate, buildExecutiveDraftCandidate, extractReportDocumentProvenance, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts } from "../report/reportDrafts.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import {
   moveCaseNavigationItem,
@@ -360,6 +360,7 @@ export default function CaseDetail({
   const [generatedReportDraft, setGeneratedReportDraft] = useState("");
   const [renderedReportText, setRenderedReportText] = useState("");
   const [clientNarrativeMeta, setClientNarrativeMeta] = useState({});
+  const [savedClientUpdateSnapshot, setSavedClientUpdateSnapshot] = useState(null);
   const clientNarrativeCaseIdRef = useRef("");
   const [reportPromptFeedback, setReportPromptFeedback] = useState("");
   const [reportCentreScopeType, setReportCentreScopeType] = useState("sequenceGroup");
@@ -651,7 +652,11 @@ export default function CaseDetail({
   const reportCentreExecutiveDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "executive", reportModel: reportCentreModel, definition: getReportDefinition("executive") }).reportDocument : null, [reportCentreModel]);
   const reportCentreManagementDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "management", reportModel: reportCentreModel, definition: getReportDefinition("management") }).reportDocument : null, [reportCentreModel]);
   const reportCentreClientValidation = useMemo(() => validateClientReportNarrative(renderedReportText, { sourceRevision: clientNarrativeMeta.sourceRevision, currentSourceRevision: reportCentreModel?.sourceRevision?.fingerprint }), [clientNarrativeMeta.sourceRevision, renderedReportText, reportCentreModel?.sourceRevision?.fingerprint]);
-  const reportCentreClientDocument = useMemo(() => reportCentreModel && renderedReportText.trim() && reportCentreClientValidation.valid ? buildActiveReportDocument({ reportId: "client", reportModel: reportCentreModel, definition: getReportDefinition("client"), options: { generatedNarrative: parseProveItReportV1(renderedReportText), generatedNarrativeMeta: clientNarrativeMeta } }).reportDocument : null, [clientNarrativeMeta, renderedReportText, reportCentreClientValidation.valid, reportCentreModel]);
+  const reportCentreClientDocument = useMemo(() => savedClientUpdateSnapshot?.caseId === selectedCase?.id
+    ? savedClientUpdateSnapshot.revision.content.reportDocument
+    : reportCentreModel && renderedReportText.trim() && reportCentreClientValidation.valid
+      ? buildActiveReportDocument({ reportId: "client", reportModel: reportCentreModel, definition: getReportDefinition("client"), options: { generatedNarrative: parseProveItReportV1(renderedReportText), generatedNarrativeMeta: clientNarrativeMeta } }).reportDocument
+      : null, [clientNarrativeMeta, renderedReportText, reportCentreClientValidation.valid, reportCentreModel, savedClientUpdateSnapshot, selectedCase?.id]);
   const reportCentreActionDocument = useMemo(() => reportCentreModel ? buildActiveReportDocument({ reportId: "action", reportModel: reportCentreModel, definition: getReportDefinition("action"), options: { caseBriefing: selectedCase?.actionSummary || {}, legacyTasks: selectedCase?.tasks || [] } }).reportDocument : null, [reportCentreModel, selectedCase?.actionSummary, selectedCase?.tasks]);
   const reportCentreEvidencePackReport = useMemo(() => reportCentreEvidenceDocument ? projectEvidenceDocumentToLegacyViewModel(reportCentreEvidenceDocument) : null, [reportCentreEvidenceDocument]);
   const reportCentreDocumentPackReport = useMemo(() => reportCentreDocumentDocument ? projectDocumentDocumentToLegacyViewModel(reportCentreDocumentDocument) : null, [reportCentreDocumentDocument]);
@@ -704,6 +709,7 @@ export default function CaseDetail({
       if (clientNarrativeCaseIdRef.current !== selectedCase?.id) {
         clientNarrativeCaseIdRef.current = selectedCase?.id || "";
         setClientNarrativeMeta({});
+        setSavedClientUpdateSnapshot(null);
       }
       setReportPromptFeedback("");
     }, 0);
@@ -3681,8 +3687,16 @@ ${ungroupedSequenceText}
       setReportPromptFeedback(validation.errors[0]?.message || "The Client Report draft could not be validated.");
       return;
     }
-    setRenderedReportText(nextText);
-    setClientNarrativeMeta((current) => ({ ...current, generatedAt: new Date().toISOString(), promptRevision: current.promptRevision || CLIENT_REPORT_PROMPT_REVISION, reviewed: false, approved: false }));
+    if (validation.revisionState !== "current") {
+      setReportPromptFeedback(validation.revisionState === "stale"
+        ? "This draft was prepared from an older case revision. Copy a fresh prompt and regenerate it before saving an immutable Client Update."
+        : "This draft has no confirmed source revision. It remains available as legacy text, but cannot be saved as an attributable immutable Client Update.");
+      return;
+    }
+    if (!selectedCase || !reportCentreModel) {
+      setReportPromptFeedback("The current case context is unavailable. Refresh the case before saving this Client Update.");
+      return;
+    }
 
     const existingVersions = {
       en: safeText(selectedCase?.generatedReportVersions?.en),
@@ -3691,18 +3705,50 @@ ${ungroupedSequenceText}
     if (!existingVersions.en && safeText(selectedCase?.generatedReportText)) {
       existingVersions.en = safeText(selectedCase.generatedReportText);
     }
-
-    const currentText = getGeneratedReportTextForLanguage(selectedCase, lang);
-    if (nextText === currentText && existingVersions[lang] === nextText) return;
-
-    await onUpdateCase({
-      ...selectedCase,
-      generatedReportVersions: {
-        ...existingVersions,
-        [lang]: nextText,
-      },
-      activeGeneratedReportLanguage: lang,
-    });
+    const savedMeta = {
+      ...clientNarrativeMeta,
+      generatedAt: new Date().toISOString(),
+      promptRevision: clientNarrativeMeta.promptRevision || CLIENT_REPORT_PROMPT_REVISION,
+      reviewed: false,
+      approved: false,
+    };
+    try {
+      const document = buildActiveReportDocument({
+        reportId: "client",
+        reportModel: reportCentreModel,
+        definition: getReportDefinition("client"),
+        options: { generatedNarrative: parseProveItReportV1(nextText), generatedNarrativeMeta: savedMeta },
+      }).reportDocument;
+      const candidate = await buildClientUpdateDraftCandidate({
+        caseItem: selectedCase,
+        reportDocument: document,
+        language: lang,
+        acceptedNarrative: nextText,
+        markdown: buildReportOutput(document, "markdown").content,
+        json: buildReportOutput(document, "json").content,
+        sourceCaseRevision: selectedCase.revision,
+        sourceFingerprint: clientNarrativeMeta.sourceRevision,
+        promptRevision: savedMeta.promptRevision,
+        provenance: extractReportDocumentProvenance(document),
+      });
+      const saved = await onUpdateCase({
+        ...selectedCase,
+        generatedReportVersions: { ...existingVersions, [lang]: nextText },
+        activeGeneratedReportLanguage: lang,
+        reportLibrary: candidate.reportLibrary,
+      });
+      if (!saved) {
+        setReportPromptFeedback("Client Update was not saved. Your pasted narrative remains available to retry.");
+        return;
+      }
+      setRenderedReportText(nextText);
+      setClientNarrativeMeta(savedMeta);
+      setSavedClientUpdateSnapshot({ caseId: selectedCase.id, revision: candidate.revision });
+      setReportPromptFeedback(`Immutable Client Update draft revision ${candidate.revision.versionNumber} saved and rendered.`);
+    } catch (error) {
+      console.error("Failed to save Client Update revision", error);
+      setReportPromptFeedback(error?.message || "Client Update was not saved. Your pasted narrative remains available to retry.");
+    }
   };
   const handleGeneratedReportLanguageChange = async (language) => {
     const lang = normalizeReportLanguage(language);
