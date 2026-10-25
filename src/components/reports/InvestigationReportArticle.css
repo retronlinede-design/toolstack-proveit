@@ -1,0 +1,57 @@
+.proveit-investigation-report { background: #fff; color: #172554; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.proveit-investigation-report .investigation-report-header { border-top: .3rem solid #0f766e; }
+.proveit-investigation-report .investigation-report-header > div > div:first-child > p:first-child { color: #0f766e !important; letter-spacing: .12em; text-transform: uppercase; }
+.proveit-investigation-report .investigation-report-section { border-bottom: 1px solid #dbe4ee; padding-block: 2rem; }
+.proveit-investigation-report .investigation-report-section > h2, .proveit-investigation-report .investigation-report-appendix h2 { color: #172554 !important; font-weight: 700; letter-spacing: -.015em; }
+.proveit-investigation-report .investigation-report-summary { padding-top: 1.25rem; }
+.investigation-report-summary > div > p:first-child { color: #1e293b; font-size: 1.05rem; line-height: 1.7; }
+.investigation-report-section-intro { color: #475569; font-size: .9rem; line-height: 1.6; }
+.investigation-report-limitation, .investigation-report-empty, .investigation-report-notice { color: #64748b; font-size: .8rem; line-height: 1.6; }
+.investigation-report-limitation { border-left: .18rem solid #94a3b8; padding-left: .8rem; }
+.investigation-report-facts, .investigation-report-control dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem 1.25rem; margin-top: 1rem; border-top: 1px solid #dbe4ee; padding-top: .9rem; font-size: .86rem; }
+.investigation-report-facts dt, .investigation-report-control dt { color: #64748b; font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.investigation-report-facts dd, .investigation-report-control dd { margin-top: .2rem; overflow-wrap: anywhere; color: #1e293b; line-height: 1.5; }
+.investigation-report-current-position { margin-top: 1rem; border-left: .18rem solid #0f766e; background: #f0fdfa; padding: .8rem 1rem; }
+.investigation-report-current-position h3, .investigation-report-groups h3 { color: #172554; font-size: .94rem; font-weight: 700; }
+.investigation-report-current-position p { margin-top: .3rem; color: #334155; line-height: 1.6; }
+.investigation-report-chronology, .investigation-report-list, .investigation-report-references { display: grid; gap: .85rem; margin: 0; padding: 0; list-style: none; }
+.investigation-report-chronology > li, .investigation-report-entry, .investigation-report-references li { break-inside: avoid; border-left: .18rem solid #94a3b8; padding: .08rem 0 .14rem .9rem; }
+.investigation-report-chronology time, .investigation-report-entry-meta, .investigation-report-reference, .investigation-report-references span { color: #64748b; font-size: .78rem; line-height: 1.55; }
+.investigation-report-entry-title { color: #172554; font-size: .96rem; font-weight: 700; line-height: 1.5; }
+.investigation-report-entry-summary { margin-top: .28rem; color: #334155; font-size: .9rem; line-height: 1.58; }
+.investigation-report-entry-meta, .investigation-report-reference { margin-top: .25rem; overflow-wrap: anywhere; }
+.investigation-report-reference strong, .investigation-report-notice strong { color: #334155; font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; }
+.investigation-report-reference span { color: #64748b; }
+.investigation-report-groups section + section { margin-top: 1.3rem; }
+.investigation-report-groups h3 + .investigation-report-list, .investigation-report-groups h3 + .investigation-report-references { margin-top: .65rem; }
+.investigation-report-references li { color: #334155; font-size: .85rem; }
+.investigation-report-references span { display: block; margin-top: .16rem; }
+.investigation-report-details { margin-top: 1.5rem; border-top: 1px solid #dbe4ee; padding-top: 1.25rem; }
+.investigation-report-details-toggle { border: 1px solid #64748b; background: #172554; color: #fff; font-size: .85rem; font-weight: 700; padding: .55rem .8rem; }
+.investigation-report-details-toggle:hover { background: #1e3a5f; }
+.investigation-report-details-toggle:focus-visible { outline: 3px solid #0f766e; outline-offset: 2px; }
+.investigation-report-details > p { margin-top: .6rem; color: #64748b; font-size: .8rem; line-height: 1.5; }
+.investigation-report-detailed-appendices { margin-top: 2rem; border-top: 2px solid #172554; padding-top: 1.5rem; }
+.investigation-report-appendix { margin-top: 2rem; }
+.investigation-report-appendix table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+.investigation-report-appendix th, .investigation-report-appendix td { border-bottom: 1px solid #cbd5e1; padding: .55rem; text-align: left; vertical-align: top; }
+.investigation-report-appendix td span { overflow-wrap: anywhere; color: #64748b; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .72rem; }
+.investigation-report-control { margin-inline: -1.25rem; background: #f8fafc; padding-inline: 1.25rem; }
+.investigation-report-control .investigation-report-notice { margin-top: .75rem; }
+.proveit-investigation-report .investigation-report-footer { background: #f8fafc; }
+@media (min-width: 640px) { .investigation-report-control { margin-inline: -2rem; padding-inline: 2rem; } }
+@media print {
+  @page investigation-report { size: A4 portrait; margin: 16mm 15mm 18mm; }
+  .proveit-investigation-report { page: investigation-report; color: #111827; font-size: 10.5pt; line-height: 1.52; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .proveit-investigation-report .investigation-report-header { border-top-width: 2pt; padding-bottom: 5mm; }
+  .proveit-investigation-report .investigation-report-section { border-color: #aeb9c7; padding-block: 5mm; }
+  .proveit-investigation-report :is(.investigation-report-section > h2, .investigation-report-appendix h2, .investigation-report-current-position h3, .investigation-report-groups h3) { break-after: avoid; page-break-after: avoid; }
+  .proveit-investigation-report :is(.investigation-report-chronology > li, .investigation-report-entry, .investigation-report-references li, .investigation-report-current-position, .investigation-report-groups section, .investigation-report-facts > div, .investigation-report-control dl > div, .investigation-report-appendix tr) { break-inside: avoid; page-break-inside: avoid; }
+  .proveit-investigation-report :is(.investigation-report-current-position, .investigation-report-control, .investigation-report-footer) { background: #fff; }
+  .proveit-investigation-report :is(.investigation-report-chronology > li, .investigation-report-entry, .investigation-report-references li, .investigation-report-limitation) { border-color: #475569; }
+  .proveit-investigation-report :is(.investigation-report-entry-title, .investigation-report-current-position h3, .investigation-report-groups h3, .investigation-report-reference strong, .investigation-report-notice strong) { color: #111827; }
+  .proveit-investigation-report :is(.investigation-report-entry-summary, .investigation-report-entry-meta, .investigation-report-reference, .investigation-report-references span, .investigation-report-empty, .investigation-report-limitation, .investigation-report-notice, .investigation-report-facts dt, .investigation-report-control dt) { color: #374151; }
+  .proveit-investigation-report .investigation-report-control { margin-inline: 0; padding-inline: 0; }
+  .investigation-report-detailed-appendices { break-before: page; page-break-before: always; }
+}
+@media (max-width: 639px) { .investigation-report-facts, .investigation-report-control dl { grid-template-columns: 1fr; } }
