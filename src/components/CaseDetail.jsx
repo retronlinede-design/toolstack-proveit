@@ -5352,6 +5352,7 @@ ${ungroupedSequenceText}
                     scopeLabel={renderedReportCentreScopeLabel}
                     countLabel={reportCentreCountLabel}
                     reportDocument={reportCentreActiveDocument}
+                    snapshotFreshness={savedExecutiveDraft ? savedExecutiveDrafts.find((draft) => draft.revision.id === savedExecutiveDraft.revision.id)?.freshness || "unknown" : ""}
                   />
                   <ReportCentrePreviewSummary
                     reportType={reportCentreType}
@@ -5359,6 +5360,24 @@ ${ungroupedSequenceText}
                     scopeLabel={renderedReportCentreScopeLabel}
                   />
                   <div className="case-file-reports-document-layout">
+                  <section className="case-file-reports-actions-toolbar print:hidden" aria-labelledby="report-export-heading">
+                    <div className="min-w-0">
+                      <p className="case-file-reports-eyebrow">Document actions</p>
+                      <h5 id="report-export-heading" className="mt-1 text-base font-bold">{savedExecutiveDraft ? "Saved snapshot" : "Live preview"}</h5>
+                    </div>
+                    <ReportOutputActions
+                      reportType={reportCentreType}
+                      markdownAvailable={Boolean(reportCentreMarkdown)}
+                      documentOutputAvailable={Boolean(reportCentreActiveDocument)}
+                      disabled={!savedExecutiveDraft && normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue}
+                      feedback={reportCentreOutputFeedback}
+                      primaryAction={reportCentreType === "executive" && !savedExecutiveDraft ? { label: savingExecutiveDraft ? "Saving Draft…" : executiveRevisionTargetReportId ? "Save new Draft revision" : "Save Draft", onClick: handleSaveExecutiveDraft, disabled: savingExecutiveDraft || (normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue) } : null}
+                      onCopyMarkdown={handleCopyReportCentreMarkdown}
+                      onDownloadMarkdown={() => handleDownloadReportCentreOutput("markdown")}
+                      onDownloadJson={() => handleDownloadReportCentreOutput("json")}
+                      onPrint={handleReportCentrePrint}
+                    />
+                  </section>
                   <section className="case-file-reports-document-preview" aria-label="Selected report preview">
 
                   {savedExecutiveDraft ? <div className="rounded-lg border border-teal-700/40 bg-teal-950/20 px-3 py-2 text-sm print:hidden" role="status">Viewing an immutable saved Draft snapshot · source freshness: {savedExecutiveDrafts.find((draft) => draft.revision.id === savedExecutiveDraft.revision.id)?.freshness || "unknown"}. This content is not regenerated. <button type="button" onClick={() => { setSavedExecutiveRevisionId(""); setReportCentreDestination("saved"); }} className="ml-2 font-bold underline">Return to Saved Reports</button></div> : null}
@@ -5532,26 +5551,6 @@ ${ungroupedSequenceText}
                     </>
                   )}
                   </section>
-                  <aside className="case-file-reports-actions-panel print:hidden" aria-labelledby="report-export-heading">
-                    <p className="case-file-reports-eyebrow">Document actions</p>
-                    <h5 id="report-export-heading" className="mt-1 text-base font-bold">{savedExecutiveDraft ? "Saved snapshot" : "Live preview"}</h5>
-                    <p className="mt-1 text-sm leading-6">{savedExecutiveDraft ? "This is an immutable, unapproved Draft snapshot. It is not regenerated. Original attachments are not embedded." : "Copying, downloading, or printing does not approve, verify, or save this derived preview. Original attachments are not embedded."}</p>
-                    {reportCentreType === "executive" && !savedExecutiveDraft ? <p className="mt-3 text-xs leading-5">Saving creates an unapproved immutable Draft. It does not approve, publish or verify this report.</p> : null}
-                    <div className="mt-4">
-                      <ReportOutputActions
-                        reportType={reportCentreType}
-                        markdownAvailable={Boolean(reportCentreMarkdown)}
-                        documentOutputAvailable={Boolean(reportCentreActiveDocument)}
-                        disabled={!savedExecutiveDraft && normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue}
-                        feedback={reportCentreOutputFeedback}
-                        primaryAction={reportCentreType === "executive" && !savedExecutiveDraft ? { label: savingExecutiveDraft ? "Saving Draft…" : executiveRevisionTargetReportId ? "Save new Draft revision" : "Save Draft", onClick: handleSaveExecutiveDraft, disabled: savingExecutiveDraft || (normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue) } : null}
-                        onCopyMarkdown={handleCopyReportCentreMarkdown}
-                        onDownloadMarkdown={() => handleDownloadReportCentreOutput("markdown")}
-                        onDownloadJson={() => handleDownloadReportCentreOutput("json")}
-                        onPrint={handleReportCentrePrint}
-                      />
-                    </div>
-                  </aside>
                   </div>
                 </section>
                 )}

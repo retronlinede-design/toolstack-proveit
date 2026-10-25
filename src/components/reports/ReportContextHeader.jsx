@@ -14,7 +14,7 @@ function formatGenerated(value) {
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("en-GB", { dateStyle: "long", timeStyle: "short" }).format(date);
 }
 
-export default function ReportContextHeader({ definition, presentationLabel = "", scopeLabel, countLabel = "", reportDocument = null }) {
+export default function ReportContextHeader({ definition, presentationLabel = "", scopeLabel, countLabel = "", reportDocument = null, snapshotFreshness = "" }) {
   const completeness = COMPLETENESS[definition?.completeness] || COMPLETENESS.summary;
   const outputs = (definition?.supportedOutputs || []).map((item) => OUTPUT_LABELS[item]).filter(Boolean);
   const includes = (definition?.recordTypes || []).map((item) => RECORD_LABELS[item] || item).join(", ");
@@ -22,26 +22,24 @@ export default function ReportContextHeader({ definition, presentationLabel = ""
   const generatedAt = reportDocument?.report?.generatedAt || "";
   return (
     <section aria-labelledby="selected-report-title" className="case-file-reports-context rounded-xl border border-neutral-200 bg-white px-4 py-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <p className="case-file-reports-eyebrow">Report context · Selected report</p>
-          <h4 id="selected-report-title" className="mt-1 text-xl font-bold text-neutral-950 dark:text-neutral-50">{presentationLabel || definition?.label || "Report"}</h4>
-          <p className="mt-1 text-sm leading-6 text-neutral-600 dark:text-neutral-300">{definition?.description}</p>
-          <p className="mt-1 text-sm font-semibold text-neutral-700 dark:text-neutral-200">{[completeness.label, scopeLabel, countLabel].filter(Boolean).join(" · ")}</p>
-          <p className="mt-1 text-sm leading-6 text-neutral-600 dark:text-neutral-300">{completeness.description}</p>
+      <div className="min-w-0">
+        <p className="case-file-reports-eyebrow">Selected report</p>
+        <h4 id="selected-report-title" className="mt-1 text-xl font-bold text-neutral-950 dark:text-neutral-50">{presentationLabel || definition?.label || "Report"}</h4>
+        <p className="mt-1 text-sm leading-6 text-neutral-600 dark:text-neutral-300">{definition?.description}</p>
+        <p className="mt-2 text-sm font-semibold text-neutral-700 dark:text-neutral-200">{[completeness.label, scopeLabel, countLabel].filter(Boolean).join(" · ")}</p>
+      </div>
+      <details className="case-file-reports-details mt-3 border-t border-neutral-100 pt-3 dark:border-neutral-800">
+        <summary>Report Details</summary>
+        <div className="mt-3 grid gap-2 text-xs text-neutral-600 sm:grid-cols-2 lg:grid-cols-3 dark:text-neutral-300">
+          <div><span className="font-semibold text-neutral-800 dark:text-neutral-100">Report status:</span> {snapshotFreshness ? `Saved Draft · ${snapshotFreshness} source freshness` : "Live preview · not approved"}</div>
+          <div><span className="font-semibold text-neutral-800 dark:text-neutral-100">Source revision:</span> <span title={fingerprint}>{fingerprint ? fingerprint.slice(0, 8) : "Unavailable"}</span></div>
+          <div><span className="font-semibold text-neutral-800 dark:text-neutral-100">Generated:</span> {formatGenerated(generatedAt) || "Unavailable"}</div>
+          <div><span className="font-semibold text-neutral-800 dark:text-neutral-100">Audience:</span> {AUDIENCE_LABELS[definition?.audience] || definition?.audience || "Not specified"}</div>
+          <div><span className="font-semibold text-neutral-800 dark:text-neutral-100">Includes:</span> {includes || "Report-specific case information"}</div>
+          <div><span className="font-semibold text-neutral-800 dark:text-neutral-100">Available outputs:</span> {outputs.join(", ") || "Preview"}</div>
+          <div className="sm:col-span-2 lg:col-span-3"><span className="font-semibold text-neutral-800 dark:text-neutral-100">Limitations:</span> {completeness.description} Original attachments are not embedded.</div>
         </div>
-        {reportDocument ? (
-          <div className="shrink-0 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs leading-5 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-300">
-            <div title={fingerprint}><span className="font-semibold">Source revision:</span> {fingerprint ? fingerprint.slice(0, 8) : "Unavailable"}</div>
-            <div><span className="font-semibold">Generated:</span> {formatGenerated(generatedAt) || "Unavailable"}</div>
-          </div>
-        ) : null}
-      </div>
-      <div className="mt-3 grid gap-2 border-t border-neutral-100 pt-3 text-xs text-neutral-600 sm:grid-cols-2 lg:grid-cols-3 dark:border-neutral-800 dark:text-neutral-300">
-        <div><span className="font-semibold text-neutral-800 dark:text-neutral-100">Audience:</span> {AUDIENCE_LABELS[definition?.audience] || definition?.audience || "Not specified"}</div>
-        <div><span className="font-semibold text-neutral-800 dark:text-neutral-100">Includes:</span> {includes || "Report-specific case information"}</div>
-        <div><span className="font-semibold text-neutral-800 dark:text-neutral-100">Available outputs:</span> {outputs.join(", ") || "Preview"}</div>
-      </div>
+      </details>
     </section>
   );
 }

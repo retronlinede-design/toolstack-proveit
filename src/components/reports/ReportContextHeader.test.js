@@ -11,15 +11,15 @@ const transformed = await transformWithOxc(await readFile(url, "utf8"), url.path
 const code = transformed.code.replaceAll('from "react/jsx-runtime"', `from "${import.meta.resolve("react/jsx-runtime")}"`);
 const { default: ReportContextHeader } = await import(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`);
 
-test("context header renders selected report completeness scope count capabilities and provenance", () => {
+test("context header renders compact context with expandable provenance and limitations", () => {
   const html = renderToStaticMarkup(React.createElement(ReportContextHeader, { definition: { label: "Evidence Pack", completeness: "complete", supportedOutputs: ["preview", "print", "markdown", "json"], recordTypes: ["evidence", "incident"] }, scopeLabel: "Issue: Alpha", countLabel: "6 evidence records", reportDocument: { source: { sourceRevision: { fingerprint: "a12bc34defgh" } }, report: { generatedAt: "2026-07-26T16:42:00Z" } } }));
   for (const value of ["Selected report", "Evidence Pack", "Complete report", "Issue: Alpha", "6 evidence records", "a12bc34d", "Evidence records", "Markdown", "JSON"]) assert.match(html, new RegExp(value));
-  assert.match(html, /title="a12bc34defgh"/);
+  assert.match(html, /Report Details/); assert.match(html, /Live preview · not approved/); assert.match(html, /Original attachments are not embedded/); assert.match(html, /title="a12bc34defgh"/);
 });
 
 test("context header exposes bounded and summary explanations without fabricated provenance", () => {
   const bounded = renderToStaticMarkup(React.createElement(ReportContextHeader, { definition: { label: "Investigation Report", completeness: "bounded", supportedOutputs: ["preview", "print"] }, scopeLabel: "Whole case" }));
-  assert.match(bounded, /Bounded overview/); assert.match(bounded, /preview limits/); assert.doesNotMatch(bounded, /Source revision/);
+  assert.match(bounded, /Bounded overview/); assert.match(bounded, /preview limits/); assert.match(bounded, /Source revision/);
   const summary = renderToStaticMarkup(React.createElement(ReportContextHeader, { definition: { label: "Management Report", completeness: "summary" }, scopeLabel: "Whole case only" }));
   assert.match(summary, /Summary report/);
 });
