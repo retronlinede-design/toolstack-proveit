@@ -9,6 +9,7 @@ import {
   classifyReportLibrary,
   validateReportLibraryIntegrity,
 } from "./reportLibrary.js";
+import { validateReportDocument } from "./reportDocument.js";
 
 function text(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -29,6 +30,29 @@ function executiveScope(document) {
   if (scope.type === "case") return { type: "case" };
   if (scope.type === "sequenceGroup" && text(scope.issueId)) return { type: "issue", issueId: text(scope.issueId) };
   throw new TypeError("An Executive Report draft requires a valid canonical case or Issue scope.");
+}
+
+function clientUpdateScope(document, caseId) {
+  if (document?.report?.id !== "client") throw new TypeError("A Client Update revision requires a Client Update report document.");
+  if (document?.source?.caseId !== caseId) throw new TypeError("Client Update report document case identity does not match the target case.");
+  if (document?.source?.scope?.type !== "case") throw new TypeError("Client Update revisions currently require whole-case scope.");
+  return { type: "case" };
+}
+
+function supportedClientLanguage(value) {
+  const language = text(value).toLocaleLowerCase();
+  if (!new Set(["en", "de"]).has(language)) throw new TypeError("Client Update language must be en or de.");
+  return language;
+}
+
+function requiredClientDocument(document, caseId, sourceFingerprint) {
+  const validation = validateReportDocument(document);
+  if (!validation.valid) throw new TypeError(`Client Update report document is invalid: ${validation.errors.join(" ")}`);
+  clientUpdateScope(document, caseId);
+  if (document.source?.sourceRevision?.fingerprint !== sourceFingerprint) {
+    throw new TypeError("Client Update report document source fingerprint does not match the supplied source fingerprint.");
+  }
+  return cloneJson(document);
 }
 
 function draftCitationRelationship(sectionId, sourceReference) {
@@ -158,6 +182,94 @@ export async function buildExecutiveDraftCandidate({
   };
   const validation = await validateReportLibraryIntegrity(candidate, { caseId });
   if (!validation.valid) throw new TypeError(`Executive Report Draft is invalid: ${validation.errors.join(" ")}`);
+  return { reportLibrary: candidate, manifest, revision };
+}
+
+/** Builds, but does not persist, an immutable Client Update report revision. */
+export async function buildClientUpdateDraftCandidate({
+  caseItem,
+  reportDocument,
+  language,
+  acceptedNarrative,
+  markdown,
+  json,
+  sourceCaseRevision = caseItem?.revision,
+  sourceFingerprint = reportDocument?.source?.sourceRevision?.fingerprint,
+  promptRevision,
+  provenance,
+  reportId = "",
+  now = new Date().toISOString(),
+  createId = generateId,
+} = {}) {
+  const caseId = requireText(caseItem?.id, "Case ID");
+  const clientLanguage = supportedClientLanguage(language);
+  const narrative = requireText(acceptedNarrative, "Accepted Client Update narrative");
+  const outputMarkdown = requireText(markdown, "Client Update Markdown");
+  const outputJson = requireText(json, "Client Update JSON");
+  const fingerprint = requireText(sourceFingerprint, "Source report fingerprint");
+  const formatRevision = requireText(promptRevision, "Client Update prompt or format revision");
+  if (!Number.isSafeInteger(sourceCaseRevision) || sourceCaseRevision < 1) throw new TypeError("Source case revision is unavailable for this Client Update.");
+  if (!provenance || typeof provenance !== "object" || Array.isArray(provenance)) throw new TypeError("Client Update provenance is required.");
+  const documentSnapshot = requiredClientDocument(reportDocument, caseId, fingerprint);
+  const library = requireSupportedLibrary(caseItem?.reportLibrary, caseId);
+  const libraryIntegrity = await validateReportLibraryIntegrity(library, { caseId });
+  if (!libraryIntegrity.valid) throw new TypeError(`Existing report library is invalid: ${libraryIntegrity.errors.join(" ")}`);
+  const existingReportId = text(reportId);
+  const existingManifest = existingReportId ? library.reports[existingReportId] : null;
+  if (existingReportId && (!existingManifest || existingManifest.reportType !== "client" || existingManifest.caseId !== caseId || existingManifest.status !== "draft")) {
+    throw new TypeError("The selected Client Update Draft is unavailable for a new revision.");
+  }
+  if (existingManifest && JSON.stringify(existingManifest.scope) !== JSON.stringify({ type: "case" })) {
+    throw new TypeError("A new Client Update revision must keep the saved whole-case scope.");
+  }
+  const parentRevision = existingManifest ? library.revisions[existingManifest.currentRevisionId] : null;
+  if (existingManifest && !parentRevision) throw new TypeError("The selected Client Update Draft has no current revision.");
+
+  const nextReportId = existingManifest ? existingManifest.id : createId();
+  const revisionId = createId();
+  if (library.revisions[revisionId]) throw new TypeError("Client Update revision ID already exists.");
+  const revision = {
+    schemaVersion: REPORT_LIFECYCLE_SCHEMA_VERSION,
+    id: revisionId,
+    reportId: nextReportId,
+    versionNumber: parentRevision ? parentRevision.versionNumber + 1 : 1,
+    parentRevisionId: parentRevision?.id || null,
+    createdAt: now,
+    source: { caseRevision: sourceCaseRevision, fingerprint },
+    content: {
+      reportDocument: documentSnapshot,
+      markdown: outputMarkdown,
+      json: outputJson,
+      clientUpdate: { language: clientLanguage, acceptedNarrative: narrative, promptRevision: formatRevision },
+    },
+    generationMode: "ai_assisted",
+    provenance: cloneJson(provenance),
+    contentChecksum: "",
+    lifecycle: { status: "draft", updatedAt: now, review: {} },
+  };
+  revision.contentChecksum = await calculateReportRevisionChecksum(revision);
+  const manifest = existingManifest
+    ? { ...existingManifest, currentRevisionId: revisionId, revisionIds: [...existingManifest.revisionIds, revisionId], status: "draft" }
+    : {
+      schemaVersion: REPORT_LIFECYCLE_SCHEMA_VERSION,
+      id: nextReportId,
+      caseId,
+      reportType: "client",
+      title: requireText(documentSnapshot?.report?.title, "Client Update title"),
+      createdAt: now,
+      scope: { type: "case" },
+      status: "draft",
+      currentRevisionId: revisionId,
+      approvedRevisionId: null,
+      revisionIds: [revisionId],
+    };
+  const candidate = {
+    schemaVersion: REPORT_LIBRARY_SCHEMA_VERSION,
+    reports: { ...library.reports, [nextReportId]: manifest },
+    revisions: { ...library.revisions, [revisionId]: revision },
+  };
+  const validation = await validateReportLibraryIntegrity(candidate, { caseId });
+  if (!validation.valid) throw new TypeError(`Client Update Draft is invalid: ${validation.errors.join(" ")}`);
   return { reportLibrary: candidate, manifest, revision };
 }
 

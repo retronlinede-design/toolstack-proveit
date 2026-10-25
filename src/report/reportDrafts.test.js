@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, buildExecutiveDraftCandidate } from "./reportDrafts.js";
+import { getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, buildClientUpdateDraftCandidate, buildExecutiveDraftCandidate } from "./reportDrafts.js";
 import { verifyReportRevisionChecksum } from "./reportLifecycle.js";
 
 const TIME = "2026-10-25T12:00:00.000Z";
@@ -19,6 +19,33 @@ function document(scope = { type: "case" }) {
 
 function caseItem(reportLibrary) {
   return { id: "case-1", revision: 4, ...(reportLibrary ? { reportLibrary } : {}) };
+}
+
+function clientDocument(language = "en") {
+  return {
+    schemaVersion: 1,
+    report: { id: "client", title: "Client Update", generatedAt: TIME },
+    source: { caseId: "case-1", caseName: "Synthetic case", sourceRevision: { fingerprint: "source-a" }, scope: { type: "case", isValid: true } },
+    sections: [{ id: "client-update-overview", heading: "Client Update Overview", items: [`${language} snapshot`] }],
+  };
+}
+
+function clientInput(overrides = {}) {
+  return {
+    caseItem: caseItem(),
+    reportDocument: clientDocument(),
+    language: "en",
+    acceptedNarrative: "# REPORT_TITLE\nClient Update\n\n# YOUR_SITUATION\nRecorded narrative.",
+    markdown: "# Client Update",
+    json: '{"report":"client"}',
+    sourceCaseRevision: 4,
+    sourceFingerprint: "source-a",
+    promptRevision: "client-report-prompt-v2",
+    provenance: { citations: [], claims: [] },
+    now: TIME,
+    createId: ids("client-report-1", "client-revision-1"),
+    ...overrides,
+  };
 }
 
 function ids(...values) {
@@ -64,4 +91,51 @@ test("Executive Draft rejects invalid scope and reports current, stale, and unav
   assert.equal(getExecutiveDraftFreshness(saved.revision, "source-a", true), "current");
   assert.equal(getExecutiveDraftFreshness(saved.revision, "source-b", true), "stale");
   assert.equal(getExecutiveDraftFreshness(saved.revision, "source-a", false), "unknown");
+});
+
+test("Client Update candidate snapshots validated English and German narratives without mutating inputs", async () => {
+  const input = clientInput();
+  input.caseItem.generatedReportText = "Legacy Client Update";
+  input.caseItem.generatedReportVersions = { en: "Legacy English", de: "Legacy German" };
+  const legacySlots = structuredClone(input.caseItem.generatedReportVersions);
+  const beforeNarrative = input.acceptedNarrative;
+  const english = await buildClientUpdateDraftCandidate(input);
+  input.reportDocument.sections[0].items[0] = "Changed after snapshot";
+  input.provenance.citations.push({ id: "later", recordType: "incident", recordId: "incident-1", relationship: "direct" });
+  assert.equal(english.manifest.reportType, "client");
+  assert.equal(english.revision.generationMode, "ai_assisted");
+  assert.equal(english.revision.content.clientUpdate.language, "en");
+  assert.equal(english.revision.content.clientUpdate.acceptedNarrative, beforeNarrative);
+  assert.equal(english.revision.content.reportDocument.sections[0].items[0], "en snapshot");
+  assert.deepEqual(english.revision.provenance, { citations: [], claims: [] });
+  assert.equal(input.caseItem.generatedReportText, "Legacy Client Update");
+  assert.deepEqual(input.caseItem.generatedReportVersions, legacySlots);
+  assert.equal((await verifyReportRevisionChecksum(english.revision)).valid, true);
+
+  const german = await buildClientUpdateDraftCandidate(clientInput({ language: "de", reportDocument: clientDocument("de"), acceptedNarrative: "# REPORT_TITLE\nMandantenaktualisierung", createId: ids("client-report-de", "client-revision-de") }));
+  assert.equal(german.revision.content.clientUpdate.language, "de");
+});
+
+test("Client Update candidate chains revisions and coexists with an Executive revision", async () => {
+  const executive = await buildExecutiveDraftCandidate({ caseItem: caseItem(), reportDocument: document(), markdown: "executive", json: "executive-json", now: TIME, createId: ids("executive-report", "executive-revision") });
+  const first = await buildClientUpdateDraftCandidate(clientInput({ caseItem: caseItem(executive.reportLibrary), createId: ids("client-report", "client-revision-1") }));
+  const second = await buildClientUpdateDraftCandidate(clientInput({ caseItem: caseItem(first.reportLibrary), reportId: "client-report", now: "2026-10-26T12:00:00.000Z", createId: ids("client-revision-2") }));
+  assert.equal(second.revision.versionNumber, 2);
+  assert.equal(second.revision.parentRevisionId, "client-revision-1");
+  assert.equal(second.reportLibrary.revisions["client-revision-1"].content.clientUpdate.language, "en");
+  assert.equal(second.reportLibrary.reports["executive-report"].reportType, "executive");
+});
+
+test("Client Update candidate fails closed for invalid inputs, malformed libraries, duplicate IDs, and binary snapshots", async () => {
+  await assert.rejects(buildClientUpdateDraftCandidate(clientInput({ language: "fr" })), /language/);
+  await assert.rejects(buildClientUpdateDraftCandidate(clientInput({ provenance: null })), /provenance/);
+  await assert.rejects(buildClientUpdateDraftCandidate(clientInput({ provenance: { citations: [], claims: [{ classification: "unsupported" }] } })), /invalid/);
+  await assert.rejects(buildClientUpdateDraftCandidate(clientInput({ reportDocument: { ...clientDocument(), source: { ...clientDocument().source, sourceRevision: { fingerprint: "different" } } } })), /fingerprint/);
+  await assert.rejects(buildClientUpdateDraftCandidate(clientInput({ reportDocument: { ...clientDocument(), sections: [{ id: "x", value: "data:text/plain,forbidden" }] } })), /invalid/);
+
+  const first = await buildClientUpdateDraftCandidate(clientInput());
+  await assert.rejects(buildClientUpdateDraftCandidate(clientInput({ caseItem: caseItem(first.reportLibrary), reportId: "client-report-1", createId: ids("client-revision-1") })), /already exists/);
+  const tampered = structuredClone(first.reportLibrary);
+  tampered.revisions["client-revision-1"].content.markdown = "tampered";
+  await assert.rejects(buildClientUpdateDraftCandidate(clientInput({ caseItem: caseItem(tampered) })), /Existing report library is invalid/);
 });
