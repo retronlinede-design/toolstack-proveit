@@ -35,6 +35,26 @@
 .management-report-group + .management-report-group { margin-top: 1.35rem; }
 .management-report-group .management-report-list, .management-report-group .management-report-empty { margin-top: .65rem; }
 .management-report-statistics > div { border-color: #0f766e !important; }
+.management-report-section-intro { color: #475569; font-size: .9rem; line-height: 1.6; }
+.management-report-positions { display: grid; gap: 1rem; }
+.management-report-position { break-inside: avoid; border-left: .18rem solid #0f766e; padding-left: 1rem; }
+.management-report-position h3 { color: #172554; font-size: 1rem; font-weight: 700; }
+.management-report-position > p { margin-top: .3rem; color: #334155; line-height: 1.6; }
+.management-report-position dl { display: flex; flex-wrap: wrap; gap: .55rem 1.25rem; margin-top: .65rem; color: #475569; font-size: .8rem; }
+.management-report-position dt { color: #64748b; display: inline; font-weight: 700; }
+.management-report-position dd { display: inline; margin-left: .25rem; }
+.management-report-supporting-references { display: grid; gap: .55rem; margin: 0; padding: 0; list-style: none; }
+.management-report-supporting-references li { border-left: .18rem solid #94a3b8; color: #475569; font-size: .85rem; padding-left: .8rem; }
+.management-report-supporting-references span { color: #64748b; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .75rem; }
+.management-report-details { margin-top: 1.5rem; border-top: 1px solid #dbe4ee; padding-top: 1.25rem; }
+.management-report-details-toggle { border: 1px solid #64748b; background: #172554; color: #fff; font-size: .85rem; font-weight: 700; padding: .55rem .8rem; }
+.management-report-details-toggle:hover { background: #1e3a5f; }
+.management-report-details-toggle:focus-visible { outline: 3px solid #0f766e; outline-offset: 2px; }
+.management-report-details > p { margin-top: .6rem; color: #64748b; font-size: .8rem; line-height: 1.5; }
+.management-report-detailed-appendices { margin-top: 2rem; border-top: 2px solid #172554; padding-top: 1.5rem; }
+.management-report-detailed-block { margin-top: 1.75rem; }
+.management-report-detailed-block > h2 { color: #172554; font-size: 1.3rem; font-weight: 700; }
+.management-report-detailed-block > :not(h2) { margin-top: 1rem; }
 .management-report-control { margin-inline: -1.25rem; background: #f8fafc; padding-inline: 1.25rem; }
 .management-report-control .management-report-notice { margin-top: .75rem; }
 .management-report-appendix { margin-top: 2rem; }
@@ -57,12 +77,13 @@
   .proveit-management-report .management-report-header { border-top-width: 2pt; padding-bottom: 5mm; }
   .proveit-management-report .management-report-section { border-color: #aeb9c7; padding-block: 5mm; }
   .proveit-management-report :is(.management-report-section > h2, .management-report-appendix h2, .management-report-issue h3, .management-report-group h3, .management-report-chronology h3) { break-after: avoid; page-break-after: avoid; }
-  .proveit-management-report :is(.management-report-entry, .management-report-issue, .management-report-current-position, .management-report-group, .management-report-issue-facts > div, .management-report-control dl > div, .management-report-reference-index tr) { break-inside: avoid; page-break-inside: avoid; }
+  .proveit-management-report :is(.management-report-entry, .management-report-issue, .management-report-current-position, .management-report-group, .management-report-position, .management-report-issue-facts > div, .management-report-control dl > div, .management-report-reference-index tr) { break-inside: avoid; page-break-inside: avoid; }
   .proveit-management-report :is(.management-report-current-position, .management-report-control, .management-report-footer) { background: #fff; }
   .proveit-management-report :is(.management-report-entry, .management-report-limitation, .management-report-issue, .management-report-chronology li) { border-color: #475569; }
   .proveit-management-report :is(.management-report-entry-title, .management-report-issue h3, .management-report-group h3, .management-report-chronology h3, .management-report-current-position h4, .management-report-reference strong, .management-report-notice strong) { color: #111827; }
   .proveit-management-report :is(.management-report-reference, .management-report-empty, .management-report-notice, .management-report-limitation, .management-report-period, .management-report-issue-facts dt, .management-report-control dt) { color: #374151; }
   .proveit-management-report .management-report-control { margin-inline: 0; padding-inline: 0; }
+  .management-report-detailed-appendices { break-before: page; page-break-before: always; }
 }
 
 @media (max-width: 639px) { .management-report-issue-facts, .management-report-control dl { grid-template-columns: 1fr; } }
