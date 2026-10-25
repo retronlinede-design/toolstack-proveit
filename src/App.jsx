@@ -26,7 +26,7 @@ import {
   restoreFullBackupQuickCapture,
 } from "./backup/fullBackup";
 import { createRestoreSession } from "./backup/restoreSession.js";
-import { preflightBackupPayload, validateStoredCaseForNormalization } from "./backup/importPreflight.js";
+import { preflightBackupPayload, validateBackupReportLibraryIntegrity, validateStoredCaseForNormalization } from "./backup/importPreflight.js";
 import { buildImportPreview, matchesImportPreviewBaseline } from "./backup/importPreview.js";
 import { downloadJson } from "./browser/downloadJson";
 import {
@@ -2758,6 +2758,8 @@ export default function ProveItApp() {
     const currentCases = await getAllCases();
     const preflight = preflightBackupPayload(parsed, { existingCaseIds: currentCases.map((caseItem) => caseItem.id) });
     if (!preflight.ok) throw new Error(preflight.reason);
+    const reportLibraryIntegrity = await validateBackupReportLibraryIntegrity(preflight.data);
+    if (!reportLibraryIntegrity.ok) throw new Error(reportLibraryIntegrity.reason);
     if (expectedPreviewBaseline && !matchesImportPreviewBaseline(expectedPreviewBaseline, {
       cases: currentCases,
       folders: readCaseFolders(),

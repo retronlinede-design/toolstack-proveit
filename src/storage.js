@@ -6,6 +6,7 @@
 
 import { STORE_NAMES } from "./dbConstants.js";
 import { getCaseRevision, INITIAL_CASE_REVISION } from "./domain/caseRevision.js";
+import { classifyReportLibrary, reportLibraryValuesEqual, validateReportLibraryIntegrity } from "./report/reportLibrary.js";
 
 export const CORE_CASE_ARRAY_FIELDS = ["incidents", "evidence", "documents", "ledger", "strategy", "watchItems", "tasks", "goals"];
 export const EMERGENCY_BACKUP_PREFIX = "toolstack.proveit.v1.emergencyBackup.";
@@ -23,23 +24,24 @@ export class CaseRevisionConflictError extends Error {
 }
 
 function prepareCommittedCase(existingCase, caseItem, options = {}) {
+  const candidateCase = preserveExistingReportLibrary(existingCase, caseItem);
   const operation = options.operation || "saveCase";
-  const expectedRevision = getCaseRevision(caseItem);
+  const expectedRevision = getCaseRevision(candidateCase);
   const actualRevision = getCaseRevision(existingCase);
 
   if (actualRevision != null && expectedRevision !== actualRevision) {
-    throw new CaseRevisionConflictError({ caseId: caseItem.id, expectedRevision, actualRevision, operation });
+    throw new CaseRevisionConflictError({ caseId: candidateCase.id, expectedRevision, actualRevision, operation });
   }
 
   const beforeCounts = getCaseCoreCounts(existingCase);
-  const afterCounts = getCaseCoreCounts(caseItem);
-  const suspiciousShrink = hasSuspiciousCoreArrayShrink(existingCase, caseItem);
-  logDestructiveOperation(operation, { caseId: caseItem?.id || "", beforeCounts, afterCounts, suspiciousShrink, override: options.allowSuspiciousOverwrite === true });
+  const afterCounts = getCaseCoreCounts(candidateCase);
+  const suspiciousShrink = hasSuspiciousCoreArrayShrink(existingCase, candidateCase);
+  logDestructiveOperation(operation, { caseId: candidateCase?.id || "", beforeCounts, afterCounts, suspiciousShrink, override: options.allowSuspiciousOverwrite === true });
 
   if (suspiciousShrink) {
     writeEmergencyBackupSnapshot({
       operation: `${operation}:${options.allowSuspiciousOverwrite === true ? "allowed" : "blocked"}-suspicious-overwrite`,
-      cases: existingCase ? [existingCase] : [], caseId: caseItem.id, beforeCounts, afterCounts,
+      cases: existingCase ? [existingCase] : [], caseId: candidateCase.id, beforeCounts, afterCounts,
     });
     if (options.allowSuspiciousOverwrite !== true) {
       const error = new Error("Blocked suspicious ProveIt case overwrite: incoming case would erase non-empty core data arrays.");
@@ -49,11 +51,45 @@ function prepareCommittedCase(existingCase, caseItem, options = {}) {
   }
 
   const previousImageIds = collectEmbeddedCaseImageIds(existingCase);
-  const committedImageIds = collectEmbeddedCaseImageIds(caseItem);
+  const committedImageIds = collectEmbeddedCaseImageIds(candidateCase);
   return {
-    committedCase: { ...caseItem, revision: getCommittedCaseRevision(existingCase, caseItem) },
+    committedCase: { ...candidateCase, revision: getCommittedCaseRevision(existingCase, candidateCase) },
     candidateImageIds: [...previousImageIds].filter((imageId) => !committedImageIds.has(imageId)),
   };
+}
+
+function hasReportLibrary(caseItem) {
+  return Object.hasOwn(caseItem || {}, "reportLibrary");
+}
+
+function preserveExistingReportLibrary(existingCase, caseItem) {
+  if (!hasReportLibrary(existingCase) || hasReportLibrary(caseItem)) {
+    assertReportLibraryCompatibility(existingCase, caseItem);
+    return caseItem;
+  }
+  const preserved = { ...caseItem, reportLibrary: existingCase.reportLibrary };
+  assertReportLibraryCompatibility(existingCase, preserved);
+  return preserved;
+}
+
+function assertReportLibraryCompatibility(existingCase, candidateCase) {
+  const existing = classifyReportLibrary(existingCase?.reportLibrary, { caseId: existingCase?.id || candidateCase?.id || "" });
+  const candidate = classifyReportLibrary(candidateCase?.reportLibrary, { caseId: candidateCase?.id || existingCase?.id || "" });
+  if (existing.kind === "unsupported" || existing.kind === "malformed") {
+    if (!reportLibraryValuesEqual(existingCase?.reportLibrary, candidateCase?.reportLibrary)) {
+      throw new Error("Unsupported or malformed report library cannot be changed until it is migrated.");
+    }
+  }
+  if (candidate.kind === "unsupported" && !reportLibraryValuesEqual(existingCase?.reportLibrary, candidateCase?.reportLibrary)) {
+    throw new Error("Unsupported report library cannot be introduced or changed.");
+  }
+}
+
+async function validateCaseReportLibraryForWrite(caseItem) {
+  if (!hasReportLibrary(caseItem)) return;
+  const result = await validateReportLibraryIntegrity(caseItem.reportLibrary, { caseId: caseItem.id || "" });
+  if (result.kind === "unsupported") return;
+  if (!result.valid) throw new Error(`Case report library is invalid: ${result.errors.join(" ")}`);
 }
 
 async function deleteUnreferencedImageCandidates(caseStore, imageStore, candidateImageIds) {
@@ -180,6 +216,7 @@ export async function getAllCases() {
 }
 
 export async function saveCaseToDb(db, caseItem, options = {}) {
+  await validateCaseReportLibraryForWrite(caseItem);
   const save = async (caseStore, imageStore) => {
     const existingCase = caseItem?.id ? await caseStore.get(caseItem.id) : null;
     const { committedCase, candidateImageIds } = prepareCommittedCase(existingCase, caseItem, options);
@@ -241,6 +278,11 @@ export async function saveCasesAndImagesToDb(db, caseItems = [], imageItems = []
   if (typeof db.transaction !== "function") {
     throw new Error("Atomic restore requires IndexedDB transaction support.");
   }
+
+  // Check cryptographic report integrity before opening IndexedDB work. Web
+  // Crypto promises would otherwise risk allowing an IndexedDB transaction to
+  // become inactive between requests.
+  await Promise.all(cases.map((caseItem) => validateCaseReportLibraryForWrite(caseItem)));
 
   const tx = db.transaction([STORE_NAMES.cases, STORE_NAMES.images], "readwrite");
   try {

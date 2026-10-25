@@ -1,3 +1,5 @@
+import { classifyReportLibrary, validateReportLibraryIntegrity } from "../report/reportLibrary.js";
+
 const CASE_COLLECTIONS = ["incidents", "evidence", "documents", "ledger", "strategy", "watchItems", "tasks", "parties", "issues"];
 const SUPPORTED_EXPORT_TYPES = new Set(["FULL_BACKUP_ALL", "FULL_BACKUP_CASE"]);
 const SUPPORTED_CONTRACT_VERSION = "2.0";
@@ -25,6 +27,11 @@ function validateCaseShape(caseItem, index, existingCaseIds) {
     for (const [recordIndex, record] of caseItem[collection].entries()) {
       if (!isObject(record) || !text(record.id)) return `${label}.${collection}[${recordIndex}].id is required.`;
     }
+  }
+  if (Object.hasOwn(caseItem, "reportLibrary")) {
+    const reportLibrary = classifyReportLibrary(caseItem.reportLibrary, { caseId: text(caseItem.id), allowPartial: true });
+    if (reportLibrary.kind === "unsupported") return `${label}.reportLibrary uses an unsupported future schema version.`;
+    if (!reportLibrary.valid) return `${label}.reportLibrary is invalid: ${reportLibrary.errors.join(" ")}`;
   }
   return "";
 }
@@ -73,5 +80,16 @@ export function validateStoredCaseForNormalization(caseItem) {
   if (!text(caseItem.name) && !text(caseItem.title)) return invalid(`Stored case ${caseItem.id} is missing a name or title.`);
   const shapeError = validateCaseShape(caseItem, 0, new Set([text(caseItem.id)]));
   if (shapeError) return invalid(`Stored case ${caseItem.id} is malformed: ${shapeError}`);
+  return { ok: true };
+}
+
+// Web Crypto checksum verification is asynchronous. Call this after the
+// synchronous envelope/shape preflight and before any restore side effect.
+export async function validateBackupReportLibraryIntegrity(data) {
+  for (const [index, caseItem] of (Array.isArray(data?.cases) ? data.cases : []).entries()) {
+    if (!Object.hasOwn(caseItem || {}, "reportLibrary")) continue;
+    const result = await validateReportLibraryIntegrity(caseItem.reportLibrary, { caseId: text(caseItem.id), allowPartial: true });
+    if (!result.valid) return invalid(`Invalid import file: cases[${index}].reportLibrary failed integrity validation: ${result.errors.join(" ")}`);
+  }
   return { ok: true };
 }

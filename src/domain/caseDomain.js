@@ -3,6 +3,7 @@ import { mergePresentFields, mergeImportedRecords } from "./importPresence.js";
 import { getCaseRevision } from "./caseRevision.js";
 import { normalizeGoalIds, normalizeGoals } from "./goalDomain.js";
 import { generateId } from "./id.js";
+import { mergeReportLibraries, preserveReportLibraryDuringNormalization } from "../report/reportLibrary.js";
 export { generateId } from "./id.js";
 
 const CASE_ISSUE_FIELDS = ["issues", "issueSchemaVersion", "nextIssueReferenceNumber", "retiredIssueReferences", "retiredIssues"];
@@ -1249,6 +1250,7 @@ export function normalizeCase(caseItem) {
 
   return {
     ...preserveCaseIssueData(caseItem),
+    ...preserveReportLibraryDuringNormalization(caseItem),
     ...(Object.hasOwn(caseItem || {}, "goals") ? { goals: normalizeGoals(caseItem.goals) } : {}),
     id: caseItem?.id || generateId(),
     ...(revision == null ? {} : { revision }),
@@ -2102,11 +2104,17 @@ export function mergeWatchItems(existingItems = [], incomingItems = []) {
 
 export function mergeCase(existingCase, incomingCase = {}) {
   const local = normalizeCase(existingCase);
-  const merged = mergePresentFields(local, incomingCase);
+  const incomingWithoutReportLibrary = { ...(incomingCase || {}) };
+  delete incomingWithoutReportLibrary.reportLibrary;
+  const merged = mergePresentFields(local, incomingWithoutReportLibrary);
   for (const collection of ["evidence", "incidents", "tasks", "strategy", "ledger", "documents", "parties", "watchItems", "issues", "goals"]) {
     if (Array.isArray(incomingCase[collection])) {
       merged[collection] = mergeImportedRecords(local[collection] || [], incomingCase[collection]);
     }
+  }
+  if (Object.hasOwn(local, "reportLibrary") || Object.hasOwn(incomingCase || {}, "reportLibrary")) {
+    const reportLibrary = mergeReportLibraries(local.reportLibrary, incomingCase?.reportLibrary, { caseId: merged.id || local.id || incomingCase?.id || "" });
+    if (reportLibrary !== undefined) merged.reportLibrary = reportLibrary;
   }
   return normalizeCase(merged);
 }
