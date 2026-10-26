@@ -2,6 +2,7 @@ import { buildCaseAuditDocument } from "./caseAuditDocument.js";
 import { buildChronologyReportDocument } from "./chronologyReportDocument.js";
 import { createReportDocument, getReportDocumentSection } from "./reportDocument.js";
 import { getReportDefinition } from "./reportDefinitions.js";
+import { createReportIssueMembershipResolver } from "./reportModel.js";
 
 const PRIORITY_RANK = { critical: 0, high: 1, normal: 2, low: 3 };
 const CLOSED_STATUSES = new Set(["resolved", "archived", "closed", "complete", "completed"]);
@@ -12,15 +13,31 @@ function issueFindings(issue, findings) { const refs = new Set(issue.recordIds |
 function ownerName(issue, parties) { return issue.ownerPartyId ? parties.find((party) => party.id === issue.ownerPartyId)?.name || "Unresolved owner" : "Unassigned"; }
 function actionBand(date, now) { const due = parsed(date); if (due === null) return "undated"; const day = 86400000; if (due < now) return "overdue"; if (due <= now + (14 * day)) return "due-soon"; return "future"; }
 
-function buildActions(records, issues, parties, generatedAt) {
+function normaliseIssueName(value) { return String(value || "").trim().toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim(); }
+function buildMembership(records, issues) {
+  const source = { issues: issues.filter((issue) => issue.issueId).map((issue) => ({ id: issue.issueId, name: issue.name })), incidents: records.filter((record) => record.type === "incident"), evidence: records.filter((record) => record.type === "evidence"), documents: records.filter((record) => record.type === "document"), ledger: records.filter((record) => record.type === "ledger"), strategy: records.filter((record) => record.type === "strategy"), watchItems: records.filter((record) => record.type === "watch") };
+  const resolver = createReportIssueMembershipResolver(source);
+  const canonicalGroups = new Map(issues.filter((issue) => issue.issueId).map((issue) => [issue.issueId, issue]));
+  const legacyGroups = new Map(issues.filter((issue) => !issue.issueId).map((issue) => [normaliseIssueName(issue.name), issue]));
+  const resolve = (record) => {
+    const resolution = resolver.resolve(record);
+    if (resolution.kind === "canonical") return { ...resolution, group: canonicalGroups.get(resolution.issue.id) || null };
+    if (resolution.kind === "legacy") return { ...resolution, group: legacyGroups.get(normaliseIssueName(resolution.name)) || null };
+    return { ...resolution, group: null };
+  };
+  return { resolve };
+}
+function issueLabelForRecord(record, membership) { const resolved = membership.resolve(record); if (resolved.group) return resolved.group.displayLabel; if (["invalid-id", "retired", "ambiguous-legacy-name"].includes(resolved.kind)) return "Unresolved Issue association"; return resolved.name || record.sequenceGroup || ""; }
+
+function buildActions(records, issues, parties, membership, generatedAt) {
   const now = parsed(generatedAt) ?? 0; const actions = [];
   issues.filter((issue) => issue.reviewDate && !CLOSED_STATUSES.has(issue.status)).forEach((issue) => actions.push({ id: `${issue.id}:review`, action: `Review ${issue.displayLabel}`, source: "Issue review", issueLabel: issue.displayLabel, owner: ownerName(issue, parties), dueDate: issue.reviewDate, status: issue.status }));
   records.filter((record) => record.type === "strategy" && !record.archived).forEach((record) => {
-    const issue = issues.find((item) => item.name === record.sequenceGroup); const owner = record.details?.ownerPartyId ? parties.find((party) => party.id === record.details.ownerPartyId)?.name || "Unresolved owner" : "Unassigned";
-    (record.details?.nextSteps || []).forEach((action, index) => actions.push({ id: `${record.id}:step:${index}`, action, source: "Strategy", sourceId: record.id, sourceTitle: record.title, issueLabel: issue?.displayLabel || record.sequenceGroup, owner, dueDate: record.details?.reviewDate || "", status: record.status || "" }));
-    if (record.details?.reviewDate) actions.push({ id: `${record.id}:review`, action: `Review strategy: ${record.title}`, source: "Strategy review", sourceId: record.id, sourceTitle: record.title, issueLabel: issue?.displayLabel || record.sequenceGroup, owner, dueDate: record.details.reviewDate, status: record.status || "" });
+    const owner = record.details?.ownerPartyId ? parties.find((party) => party.id === record.details.ownerPartyId)?.name || "Unresolved owner" : "Unassigned"; const issueLabel = issueLabelForRecord(record, membership);
+    (record.details?.nextSteps || []).forEach((action, index) => actions.push({ id: `${record.id}:step:${index}`, action, source: "Strategy", sourceId: record.id, sourceTitle: record.title, issueLabel, owner, dueDate: record.details?.reviewDate || "", status: record.status || "" }));
+    if (record.details?.reviewDate) actions.push({ id: `${record.id}:review`, action: `Review strategy: ${record.title}`, source: "Strategy review", sourceId: record.id, sourceTitle: record.title, issueLabel, owner, dueDate: record.details.reviewDate, status: record.status || "" });
   });
-  records.filter((record) => record.type === "watch" && !record.archived && record.details?.reviewDate).forEach((record) => { const issue = issues.find((item) => item.name === record.sequenceGroup); actions.push({ id: `${record.id}:review`, action: `Review monitored matter: ${record.title}`, source: "To Watch review", sourceId: record.id, sourceTitle: record.title, issueLabel: issue?.displayLabel || record.sequenceGroup, owner: "Unassigned", dueDate: record.details.reviewDate, status: record.status || "" }); });
+  records.filter((record) => record.type === "watch" && !record.archived && record.details?.reviewDate).forEach((record) => actions.push({ id: `${record.id}:review`, action: `Review monitored matter: ${record.title}`, source: "To Watch review", sourceId: record.id, sourceTitle: record.title, issueLabel: issueLabelForRecord(record, membership), owner: "Unassigned", dueDate: record.details.reviewDate, status: record.status || "" }));
   return [...new Map(actions.map((action) => [`${action.action.trim().toLowerCase()}|${action.dueDate}|${action.sourceId || action.issueLabel}`, action])).values()].map((action) => ({ ...action, band: actionBand(action.dueDate, now) })).sort((a, b) => ["overdue", "due-soon", "future", "undated"].indexOf(a.band) - ["overdue", "due-soon", "future", "undated"].indexOf(b.band) || (a.dueDate || "9999").localeCompare(b.dueDate || "9999") || a.action.localeCompare(b.action));
 }
 
@@ -31,7 +48,7 @@ export function buildManagementReportDocument(reportModel, definition = getRepor
   const findings = section(audit, "findings-by-severity").items || []; const chronologyGroups = section(chronology, "chronology").groups || [];
   const now = parsed(generatedAt) ?? 0; const recentThreshold = now - (30 * 86400000); const recentRecords = records.filter((record) => parsed(record.loggedDate) >= recentThreshold).sort((a, b) => (parsed(b.loggedDate) ?? 0) - (parsed(a.loggedDate) ?? 0) || a.title.localeCompare(b.title));
   const issueRows = issues.map((issue) => { const relatedFindings = issueFindings(issue, findings); const activity = (issue.recordIds || []).map((reference) => records.find((record) => `${record.type}:${record.id}` === reference)).filter(Boolean).map((record) => record.updatedAt || record.createdAt || record.canonicalDate).filter(Boolean).sort().at(-1) || issue.updatedAt || ""; return { id: issue.id, reference: issue.issueReference || "", displayLabel: issue.displayLabel, name: issue.name, priority: issue.priority || "normal", status: issue.status || "open", owner: ownerName(issue, parties), purpose: issue.purpose, currentPosition: issue.currentPosition, reviewDate: issue.reviewDate, latestActivity: activity, directRecordCount: issue.totals?.uniqueRecordCount || 0, outstandingFindingCount: relatedFindings.filter((finding) => finding.severity !== "information").length }; }).sort((a, b) => (PRIORITY_RANK[a.priority] ?? 2) - (PRIORITY_RANK[b.priority] ?? 2) || (parsed(a.reviewDate) ?? Infinity) - (parsed(b.reviewDate) ?? Infinity) || a.displayLabel.localeCompare(b.displayLabel));
-  const actions = buildActions(records, issues, parties, generatedAt); const outstandingReviews = actions.filter((action) => action.band === "overdue" || action.band === "due-soon");
+  const membership = buildMembership(records, issues); const actions = buildActions(records, issues, parties, membership, generatedAt); const outstandingReviews = actions.filter((action) => action.band === "overdue" || action.band === "due-soon");
   const highPriorityIssues = issueRows.filter((issue) => ["critical", "high"].includes(issue.priority) && !CLOSED_STATUSES.has(issue.status)); const openIssues = issueRows.filter((issue) => !CLOSED_STATUSES.has(issue.status));
   const summaryText = records.length || issues.length ? `${model.sourceCase?.name || "This case"} contains ${openIssues.length} active Issue(s), including ${highPriorityIssues.length} recorded as high or critical priority. ${findings.filter((item) => item.severity !== "information").length} deterministic finding(s) require review, and ${outstandingReviews.length} structured review action(s) are overdue or due within 14 days.` : "No management briefing records or Issues are available in this case.";
   const category = (id, label, predicate) => ({ id, label, items: findings.filter(predicate) });
@@ -46,13 +63,13 @@ export function buildManagementReportDocument(reportModel, definition = getRepor
   const decisions = [
     ...issues.filter((issue) => !issue.ownerPartyId && !CLOSED_STATUSES.has(issue.status)).map((issue) => ({ id: `${issue.id}:owner`, decision: `Assign an owner for ${issue.displayLabel}.`, source: "Issue owner", issueLabel: issue.displayLabel })),
     ...issues.filter((issue) => issue.reviewDate && (parsed(issue.reviewDate) ?? Infinity) <= now && !CLOSED_STATUSES.has(issue.status)).map((issue) => ({ id: `${issue.id}:review`, decision: `Complete the overdue review for ${issue.displayLabel}.`, source: "Issue review", issueLabel: issue.displayLabel, dueDate: issue.reviewDate })),
-    ...records.filter((record) => record.type === "strategy" && !record.archived && ["pending", "proposed", "awaiting_approval", "waiting_approval"].includes(String(record.details?.decisionStatus || record.status || "").toLowerCase())).map((record) => ({ id: `${record.id}:approval`, decision: `Review strategy approval: ${record.title}.`, source: "Strategy decision", sourceId: record.id, issueLabel: issues.find((issue) => issue.name === record.sequenceGroup)?.displayLabel || record.sequenceGroup })),
+    ...records.filter((record) => record.type === "strategy" && !record.archived && ["pending", "proposed", "awaiting_approval", "waiting_approval"].includes(String(record.details?.decisionStatus || record.status || "").toLowerCase())).map((record) => ({ id: `${record.id}:approval`, decision: `Review strategy approval: ${record.title}.`, source: "Strategy decision", sourceId: record.id, issueLabel: issueLabelForRecord(record, membership) })),
   ];
   const appendices = [
     ...(issueRows.length ? [{ id: "appendix-issues", label: "Appendix A", title: "Issue Summary", type: "issue-summary", items: issueRows }] : []),
     ...(chronologyGroups.length ? [{ id: "appendix-chronology", label: "Appendix B", title: "Current Chronology", type: "chronology", groups: chronologyGroups }] : []),
     ...(findings.length ? [{ id: "appendix-findings", label: "Appendix C", title: "Outstanding Findings", type: "audit-findings", items: findings }] : []),
-    ...(records.some((record) => record.type === "strategy" && !record.archived) ? [{ id: "appendix-strategy", label: "Appendix D", title: "Open Strategy", type: "strategy", items: records.filter((record) => record.type === "strategy" && !record.archived).map((record) => ({ id: record.id, title: record.title, status: record.status, issueLabel: issues.find((issue) => issue.name === record.sequenceGroup)?.displayLabel || record.sequenceGroup, objective: record.details?.objective, nextSteps: record.details?.nextSteps || [], reviewDate: record.details?.reviewDate })) }] : []),
+    ...(records.some((record) => record.type === "strategy" && !record.archived) ? [{ id: "appendix-strategy", label: "Appendix D", title: "Open Strategy", type: "strategy", items: records.filter((record) => record.type === "strategy" && !record.archived).map((record) => ({ id: record.id, title: record.title, status: record.status, issueLabel: issueLabelForRecord(record, membership), objective: record.details?.objective, nextSteps: record.details?.nextSteps || [], reviewDate: record.details?.reviewDate })) }] : []),
     { id: "appendix-references", label: "Appendix E", title: "Technical References", type: "reference-index", items: records.map((record) => ({ recordType: record.type, recordId: record.id, title: record.title })) },
   ];
   const report = createReportDocument({ definition, model, generatedAt, title: "Management Report", notices: [{ code: "MANAGEMENT_SCOPE", severity: "info", message: "This executive briefing summarises structured case-management information. It is not a complete investigation file or a legal conclusion." }], summary: { summaryText, caseStatus: model.sourceCase?.status || "", issueCount: issues.length, openIssueCount: openIssues.length, highPriorityIssueCount: highPriorityIssues.length, outstandingFindingCount: findings.filter((item) => item.severity !== "information").length, outstandingReviewCount: outstandingReviews.length, archivedRecordCount: model.totals?.archivedRecordCount || 0 }, sections: [
