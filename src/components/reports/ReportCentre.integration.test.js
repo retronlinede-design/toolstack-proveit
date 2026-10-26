@@ -68,17 +68,34 @@ test("Reports Centre groups every existing report under compact purpose-led navi
   const html = renderControls();
   for (const label of ["Professional Reports", "Client Updates", "Technical Records", "Saved Reports"]) assert.match(html, new RegExp(label));
   for (const label of ["Executive Report", "Management Report", "Investigation Report"]) assert.match(html, new RegExp(label));
-  for (const heading of ["Choose a report purpose", "Selected report", "Legacy documentation and utilities"]) assert.match(html, new RegExp(heading));
+  for (const heading of ["Choose a report purpose", "Selected report", "Documentation, audit and external drafting utilities"]) assert.match(html, new RegExp(heading));
   assert.match(html, /Issue Audit/);
   assert.match(html, /External Drafting Handoff/);
   assert.match(html, /external AI drafting service/);
   for (const label of ["Copy JSON Pack", "Copy Markdown Prompt", "Copy Specialist Review Prompt"]) assert.match(html, new RegExp(label));
   assert.doesNotMatch(html, /Unavailable Reports/);
-  assert.match(html, /not independently verified or approved/);
+  assert.match(html, /Neither independently verifies or approves the case record/);
   assert.match(html, /<details class="case-file-reports-specialist">/);
   for (const label of ["Documentation Builder", "Legacy Executive Summary", "Internal Case Summary", "Thread / Issue Report", "Legacy Evidence Pack", "Legacy Document Pack", "Legacy Ledger Pack", "Case Structure Export"]) assert.match(html, new RegExp(label));
   assert.doesNotMatch(html, /Case Documentation/);
   assert.doesNotMatch(html, /Print Pack/);
+});
+
+test("Technical Records explains its traceable source-material role and keeps every technical report reachable", () => {
+  const html = renderControls({ reportType: "incidentSchedule" });
+  assert.match(html, /Traceable schedules, chronology, diagnostics, and operational source material/);
+  assert.match(html, /evidence review and later report drafting/);
+  for (const label of ["Incident Schedule", "Evidence Schedule", "Document Schedule", "Ledger Schedule", "Chronology", "Case Quality Audit", "Operational Brief"]) assert.match(html, new RegExp(label));
+});
+
+test("Advanced tools are grouped by purpose without removing utilities or their scope safeguards", () => {
+  const html = renderControls({ externalDraftingScopeType: "sequenceGroup", externalDraftingIssueAvailable: true });
+  for (const heading of ["Bounded external handoff", "Issue and case audit", "Documentation and supporting packs"]) assert.match(html, new RegExp(heading));
+  assert.match(html, /This uses the Reports Centre Issue selector/);
+  assert.match(html, /other advanced utilities retain their own scope/);
+  assert.match(html, /Issue \/ All Issues \(own audit mode\)/);
+  assert.match(html, /Selected canonical Issue \(own selection\)/);
+  for (const label of ["Documentation Builder", "Legacy Executive Summary", "Internal Case Summary", "Thread / Issue Report", "Legacy Evidence Pack", "Legacy Document Pack", "Legacy Ledger Pack", "Case Structure Export", "Issue Audit", "External Drafting Handoff"]) assert.match(html, new RegExp(label));
 });
 
 test("every existing report type remains reachable from exactly one report family", () => {

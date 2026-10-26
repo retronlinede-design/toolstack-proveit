@@ -32,9 +32,9 @@ export const REPORT_CENTRE_PRESENTATION = Object.freeze({
 });
 
 export const REPORT_CENTRE_FAMILIES = Object.freeze([
-  { id: "professional", label: "Professional Reports", description: "Source-grounded reports for management and investigation.", reports: ["executive", "management", "investigation"] },
-  { id: "client", label: "Client Updates", description: "Prepare and validate a client-facing external drafting workflow.", reports: ["client"] },
-  { id: "technical", label: "Technical Records", description: "Schedules, chronology and internal record-quality outputs.", reports: ["incidentSchedule", "chronologyReport", "evidence", "document", "ledger", "caseAudit", "action"] },
+  { id: "professional", label: "Professional Reports", description: "Presentation-oriented documents for management and investigation, grounded in recorded case material.", reports: ["executive", "management", "investigation"] },
+  { id: "client", label: "Client Updates", description: "Client-facing drafting and review, including the existing external-GPT workflow and saved history.", reports: ["client"] },
+  { id: "technical", label: "Technical Records", description: "Traceable schedules, chronology, diagnostics, and operational source material for evidence review and later report drafting.", reports: ["incidentSchedule", "chronologyReport", "evidence", "document", "ledger", "caseAudit", "action"] },
 ]);
 
 export function getReportCentreFamily(reportType) {
