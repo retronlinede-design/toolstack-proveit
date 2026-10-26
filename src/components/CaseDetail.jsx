@@ -73,7 +73,7 @@ import { buildDocumentScheduleDocument, projectDocumentDocumentToLegacyViewModel
 import { buildLedgerScheduleDocument, projectLedgerDocumentToLegacyViewModel } from "../report/ledgerScheduleDocument.js";
 import { buildActiveReportDocument } from "../report/buildActiveReportDocument.js";
 import { buildReportOutput } from "../report/reportOutputs.js";
-import { buildClientUpdateDraftCandidate, buildClientUpdateLifecycleCandidate, buildExecutiveDraftCandidate, extractReportDocumentProvenance, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, verifyClientUpdateSavedDraft } from "../report/reportDrafts.js";
+import { buildClientUpdateDraftCandidate, buildClientUpdateLifecycleCandidate, buildExecutiveDraftCandidate, buildLegacyClientUpdateDraftCandidate, extractReportDocumentProvenance, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, getLegacyClientUpdateNarratives, isLegacyImportedClientUpdateRevision, verifyClientUpdateSavedDraft } from "../report/reportDrafts.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import {
   moveCaseNavigationItem,
@@ -244,6 +244,36 @@ function getGeneratedReportTextForLanguage(caseItem, language) {
   return versionText || safeText(caseItem?.generatedReportText);
 }
 
+function createLegacyClientUpdateSnapshot(reportDocument, importedAt) {
+  const document = JSON.parse(JSON.stringify(reportDocument));
+  return {
+    ...document,
+    notices: [...(document.notices || []), {
+      code: "LEGACY_DRAFT_IMPORTED",
+      severity: "warning",
+      message: `The original legacy narrative is preserved, but its historical source provenance is unknown. This is a present-day case snapshot created during import on ${importedAt}. Its current source revision does not establish the origin of the legacy narrative.`,
+    }],
+    presentation: {
+      ...(document.presentation || {}),
+      documentStatus: "Draft",
+      aiAssistance: "Legacy narrative retained; historical provenance unknown",
+    },
+    narrativeMetadata: {
+      ...(document.narrativeMetadata || {}),
+      sourceRevision: "",
+      currentSourceRevision: document.source?.sourceRevision?.fingerprint || "",
+      revisionState: "unknown",
+      reviewed: false,
+      reviewedBy: null,
+      reviewedAt: null,
+      approved: false,
+      approvedBy: null,
+      approvedAt: null,
+      promptRevision: "legacy-format-unknown",
+    },
+  };
+}
+
 export default function CaseDetail({
   selectedCase,
   caseFolderName = "Inbox",
@@ -365,6 +395,9 @@ export default function CaseDetail({
   const [clientUpdateHistoryFeedback, setClientUpdateHistoryFeedback] = useState("");
   const [clientUpdateReviewer, setClientUpdateReviewer] = useState("");
   const [updatingClientUpdateLifecycle, setUpdatingClientUpdateLifecycle] = useState(false);
+  const [pendingLegacyClientImportLanguage, setPendingLegacyClientImportLanguage] = useState("");
+  const [importingLegacyClientUpdate, setImportingLegacyClientUpdate] = useState(false);
+  const [legacyClientImportFeedback, setLegacyClientImportFeedback] = useState("");
   const clientNarrativeCaseIdRef = useRef("");
   const [reportPromptFeedback, setReportPromptFeedback] = useState("");
   const [reportCentreScopeType, setReportCentreScopeType] = useState("sequenceGroup");
@@ -650,6 +683,10 @@ export default function CaseDetail({
     ...item,
     freshness: getClientUpdateDraftFreshness(item.revision, reportCentreModel?.sourceRevision?.fingerprint),
   })), [selectedCase, reportCentreModel?.sourceRevision?.fingerprint]);
+  const legacyClientNarratives = useMemo(
+    () => getLegacyClientUpdateNarratives(selectedCase),
+    [selectedCase]
+  );
   const savedClientUpdateDraft = useMemo(
     () => getClientUpdateSavedDraft(selectedCase, savedClientUpdateRevisionId),
     [selectedCase, savedClientUpdateRevisionId]
@@ -660,6 +697,7 @@ export default function CaseDetail({
     ? savedClientUpdateDrafts.find((draft) => draft.revision.id === activeSavedClientUpdateRevision.id)?.freshness
       || getClientUpdateDraftFreshness(activeSavedClientUpdateRevision, reportCentreModel?.sourceRevision?.fingerprint)
     : "";
+  const activeSavedClientUpdateIsLegacy = isLegacyImportedClientUpdateRevision(activeSavedClientUpdateRevision);
   const reportCentreEvidenceDocument = useMemo(() => reportCentreModel ? buildEvidenceScheduleDocument(reportCentreModel, getReportDefinition("evidence")) : null, [reportCentreModel]);
   const reportCentreDocumentDocument = useMemo(() => reportCentreModel ? buildDocumentScheduleDocument(reportCentreModel, getReportDefinition("document")) : null, [reportCentreModel]);
   const reportCentreLedgerDocument = useMemo(() => reportCentreModel ? buildLedgerScheduleDocument(reportCentreModel, getReportDefinition("ledger")) : null, [reportCentreModel]);
@@ -731,6 +769,8 @@ export default function CaseDetail({
         setSavedClientUpdateRevisionId("");
         setClientUpdateHistoryFeedback("");
         setClientUpdateReviewer("");
+        setPendingLegacyClientImportLanguage("");
+        setLegacyClientImportFeedback("");
       }
       setReportPromptFeedback("");
     }, 0);
@@ -3772,6 +3812,67 @@ ${ungroupedSequenceText}
       setReportPromptFeedback(error?.message || "Client Update was not saved. Your pasted narrative remains available to retry.");
     }
   };
+  const handleConfirmLegacyClientImport = async () => {
+    if (!selectedCase || !reportCentreModel || importingLegacyClientUpdate) return;
+    const legacy = legacyClientNarratives.find((entry) => entry.language === pendingLegacyClientImportLanguage);
+    if (!legacy) {
+      setLegacyClientImportFeedback("This legacy draft is no longer available or already has an immutable revision.");
+      setPendingLegacyClientImportLanguage("");
+      return;
+    }
+    const validation = validateClientReportNarrative(legacy.narrative, { sourceRevision: "", currentSourceRevision: reportCentreModel.sourceRevision?.fingerprint });
+    if (!validation.valid) {
+      setLegacyClientImportFeedback(`This legacy draft cannot be imported until its report format is valid: ${validation.errors[0]?.message || "Unknown validation error."}`);
+      return;
+    }
+    setImportingLegacyClientUpdate(true);
+    setLegacyClientImportFeedback("");
+    try {
+      const importedAt = new Date().toISOString();
+      const liveDocument = buildActiveReportDocument({
+        reportId: "client",
+        reportModel: reportCentreModel,
+        definition: getReportDefinition("client"),
+        options: {
+          generatedAt: importedAt,
+          generatedNarrative: parseProveItReportV1(legacy.narrative),
+          generatedNarrativeMeta: {
+            generatedAt: "",
+            promptRevision: "legacy-format-unknown",
+            sourceRevision: "",
+            reviewed: false,
+            approved: false,
+          },
+        },
+      }).reportDocument;
+      const document = createLegacyClientUpdateSnapshot(liveDocument, importedAt);
+      const candidate = await buildLegacyClientUpdateDraftCandidate({
+        caseItem: selectedCase,
+        language: legacy.language,
+        legacyNarrative: legacy.narrative,
+        reportDocument: document,
+        markdown: buildReportOutput(document, "markdown").content,
+        json: buildReportOutput(document, "json").content,
+        sourceCaseRevision: selectedCase.revision,
+        sourceFingerprint: reportCentreModel.sourceRevision?.fingerprint,
+        provenance: extractReportDocumentProvenance(document),
+        now: importedAt,
+      });
+      const saved = await onUpdateCase({ ...selectedCase, reportLibrary: candidate.reportLibrary });
+      if (!saved) {
+        setLegacyClientImportFeedback("The immutable legacy draft was not saved. The original legacy text remains unchanged.");
+        return;
+      }
+      setSavedClientUpdateRevisionId(candidate.revision.id);
+      setSavedClientUpdateSnapshot({ caseId: selectedCase.id, revision: candidate.revision });
+      setPendingLegacyClientImportLanguage("");
+      setLegacyClientImportFeedback(`Immutable ${legacy.language.toUpperCase()} draft revision ${candidate.revision.versionNumber} created. Historical source provenance remains unknown.`);
+    } catch (error) {
+      setLegacyClientImportFeedback(error?.message || "The legacy Client Update draft could not be imported. The original text remains unchanged.");
+    } finally {
+      setImportingLegacyClientUpdate(false);
+    }
+  };
   const handleGeneratedReportLanguageChange = async (language) => {
     const lang = normalizeReportLanguage(language);
     setReportDisplayLanguage(lang);
@@ -5480,7 +5581,7 @@ ${ungroupedSequenceText}
                       <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Client Update revisions</p>
                       <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">Saved Client Updates are immutable historical snapshots. Opening one never regenerates it from current case data.</p>
                       {savedClientUpdateDrafts.length ? <ul className="mt-4 space-y-2" aria-label="Saved Client Update revisions">
-                        {savedClientUpdateDrafts.map((draft) => <li key={draft.revision.id} className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-white p-3 text-sm dark:border-neutral-700 dark:bg-neutral-950 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">{draft.manifest.title}</p><p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">Revision {draft.revision.versionNumber} · {draft.revision.content.clientUpdate.language.toUpperCase()} · {draft.revision.lifecycle.status} · {draft.freshness} source · {new Date(draft.revision.createdAt).toLocaleString()}</p></div><button type="button" onClick={() => handleOpenSavedClientUpdate(draft)} className="case-file-reports-utility-action">Open snapshot</button></li>)}
+                        {savedClientUpdateDrafts.map((draft) => <li key={draft.revision.id} className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-white p-3 text-sm dark:border-neutral-700 dark:bg-neutral-950 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">{draft.manifest.title}</p><p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">Revision {draft.revision.versionNumber} · {draft.revision.content.clientUpdate.language.toUpperCase()} · {draft.revision.lifecycle.status} · {draft.freshness} snapshot source · {isLegacyImportedClientUpdateRevision(draft.revision) ? "legacy origin unknown · " : ""}{new Date(draft.revision.createdAt).toLocaleString()}</p></div><button type="button" onClick={() => handleOpenSavedClientUpdate(draft)} className="case-file-reports-utility-action">Open snapshot</button></li>)}
                       </ul> : <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-300">No Client Update revisions have been saved for this case.</p>}
                       <div className="mt-4"><button type="button" onClick={() => { setSavedClientUpdateRevisionId(""); setSavedClientUpdateSnapshot(null); setClientUpdateHistoryFeedback(""); setReportCentreType("client"); setReportCentreDestination("reports"); }} className="case-file-reports-utility-action">Open live Client Update</button></div>
                       {clientUpdateHistoryFeedback ? <p className="mt-3 text-sm font-medium" role="status">{clientUpdateHistoryFeedback}</p> : null}
@@ -5527,12 +5628,12 @@ ${ungroupedSequenceText}
                   <section className="case-file-reports-document-preview" aria-label="Selected report preview">
 
                   {savedExecutiveDraft ? <div className="rounded-lg border border-teal-700/40 bg-teal-950/20 px-3 py-2 text-sm print:hidden" role="status">Viewing an immutable saved Draft snapshot · source freshness: {savedExecutiveDrafts.find((draft) => draft.revision.id === savedExecutiveDraft.revision.id)?.freshness || "unknown"}. This content is not regenerated. <button type="button" onClick={() => { setSavedExecutiveRevisionId(""); setReportCentreDestination("saved"); }} className="ml-2 font-bold underline">Return to Saved Reports</button></div> : null}
-                  {activeSavedClientUpdateRevision ? <div className="rounded-lg border border-teal-700/40 bg-teal-950/20 px-3 py-2 text-sm print:hidden" role="status">Viewing immutable Client Update revision {activeSavedClientUpdateRevision.versionNumber} · {activeSavedClientUpdateRevision.content.clientUpdate.language.toUpperCase()} · source freshness: {activeSavedClientUpdateFreshness || "unknown"}. This content is not regenerated. <button type="button" onClick={() => { setSavedClientUpdateRevisionId(""); setSavedClientUpdateSnapshot(null); setReportCentreDestination("saved"); }} className="ml-2 font-bold underline">Return to Saved Reports</button></div> : null}
+                  {activeSavedClientUpdateRevision ? <div className="rounded-lg border border-teal-700/40 bg-teal-950/20 px-3 py-2 text-sm print:hidden" role="status">Viewing immutable Client Update revision {activeSavedClientUpdateRevision.versionNumber} · {activeSavedClientUpdateRevision.content.clientUpdate.language.toUpperCase()} · {activeSavedClientUpdateIsLegacy ? "legacy narrative provenance: unknown · " : ""}snapshot source freshness: {activeSavedClientUpdateFreshness || "unknown"}. This content is not regenerated. <button type="button" onClick={() => { setSavedClientUpdateRevisionId(""); setSavedClientUpdateSnapshot(null); setReportCentreDestination("saved"); }} className="ml-2 font-bold underline">Return to Saved Reports</button></div> : null}
                   {savedClientUpdateDraft ? <section className="mt-3 rounded-lg border border-teal-700/40 bg-teal-950/10 p-3 text-sm print:hidden" aria-labelledby="client-update-review-heading">
                     <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="case-file-reports-eyebrow">Human review</p><h5 id="client-update-review-heading" className="mt-1 font-bold">Client Update revision {savedClientUpdateDraft.revision.versionNumber}</h5><p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">{savedClientUpdateDraft.revision.content.clientUpdate.language.toUpperCase()} · {savedClientUpdateDraft.revision.lifecycle.status.replace("_", " ")} · {activeSavedClientUpdateFreshness || "unknown"} source</p>{savedClientUpdateDraft.revision.lifecycle.review?.reviewedBy ? <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">Reviewed by {savedClientUpdateDraft.revision.lifecycle.review.reviewedBy} on {new Date(savedClientUpdateDraft.revision.lifecycle.review.reviewedAt).toLocaleString()}.</p> : null}</div></div>
                     {savedClientUpdateDraft.revision.lifecycle.status === "draft" ? <div className="mt-3"><button type="button" onClick={() => handleClientUpdateLifecycleTransition("in_review")} disabled={updatingClientUpdateLifecycle} className="case-file-reports-utility-action">{updatingClientUpdateLifecycle ? "Saving…" : "Mark for review"}</button></div> : null}
-                    {savedClientUpdateDraft.revision.lifecycle.status === "in_review" ? <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end"><label className="min-w-52 text-xs font-semibold">Human reviewer<input type="text" value={clientUpdateReviewer} onChange={(event) => setClientUpdateReviewer(event.target.value)} className="mt-1 block w-full rounded border border-slate-400 bg-white px-2 py-1.5 text-sm text-slate-950 dark:bg-slate-950 dark:text-slate-100" aria-describedby="client-update-approval-note" /></label><button type="button" onClick={() => handleClientUpdateLifecycleTransition("approved")} disabled={updatingClientUpdateLifecycle || activeSavedClientUpdateFreshness !== "current"} className="case-file-reports-utility-action">{updatingClientUpdateLifecycle ? "Saving…" : "Approve revision"}</button></div> : null}
-                    {savedClientUpdateDraft.revision.lifecycle.status === "in_review" ? <p id="client-update-approval-note" className="mt-2 text-xs text-neutral-600 dark:text-neutral-300">Approval requires a named human reviewer and a current source fingerprint. {activeSavedClientUpdateFreshness !== "current" ? "This saved revision cannot be approved until a new current revision is created." : ""}</p> : null}
+                    {savedClientUpdateDraft.revision.lifecycle.status === "in_review" ? <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end"><label className="min-w-52 text-xs font-semibold">Human reviewer<input type="text" value={clientUpdateReviewer} onChange={(event) => setClientUpdateReviewer(event.target.value)} className="mt-1 block w-full rounded border border-slate-400 bg-white px-2 py-1.5 text-sm text-slate-950 dark:bg-slate-950 dark:text-slate-100" aria-describedby="client-update-approval-note" /></label><button type="button" onClick={() => handleClientUpdateLifecycleTransition("approved")} disabled={updatingClientUpdateLifecycle || activeSavedClientUpdateFreshness !== "current" || isLegacyImportedClientUpdateRevision(savedClientUpdateDraft.revision)} className="case-file-reports-utility-action">{updatingClientUpdateLifecycle ? "Saving…" : "Approve revision"}</button></div> : null}
+                    {savedClientUpdateDraft.revision.lifecycle.status === "in_review" ? <p id="client-update-approval-note" className="mt-2 text-xs text-neutral-600 dark:text-neutral-300">Approval requires a named human reviewer and a current source fingerprint. {isLegacyImportedClientUpdateRevision(savedClientUpdateDraft.revision) ? "This revision retains a legacy narrative with unknown historical provenance and cannot be approved as current." : activeSavedClientUpdateFreshness !== "current" ? "This saved revision cannot be approved until a new current revision is created." : ""}</p> : null}
                     {clientUpdateHistoryFeedback ? <p className="mt-2 text-sm font-medium" role="status">{clientUpdateHistoryFeedback}</p> : null}
                   </section> : null}
 
@@ -5607,6 +5708,16 @@ ${ungroupedSequenceText}
                               <p className="text-xs font-medium text-neutral-500">{reportPromptFeedback}</p>
                             ) : null}
                           </div>
+                          {legacyClientNarratives.length ? <section className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-sm text-amber-950 print:hidden dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100" aria-labelledby="legacy-client-drafts-heading">
+                            <h4 id="legacy-client-drafts-heading" className="font-bold">Legacy draft — historical source provenance unknown</h4>
+                            <p className="mt-1 leading-6">These saved narratives predate immutable report revisions. Their original text is retained, but ProveIt has no recorded historical source revision, generation date, review, or approval state.</p>
+                            <ul className="mt-3 space-y-2" aria-label="Legacy Client Update drafts">
+                              {legacyClientNarratives.map((legacy) => <li key={legacy.language} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300/70 bg-white/70 p-3 dark:border-amber-700/70 dark:bg-slate-950/40"><span><strong>{legacy.language.toUpperCase()}</strong> legacy narrative from {legacy.sourceSlot}</span><button type="button" onClick={() => { setPendingLegacyClientImportLanguage(legacy.language); setLegacyClientImportFeedback(""); }} className="case-file-reports-utility-action">Create immutable draft from legacy text</button></li>)}
+                            </ul>
+                            {pendingLegacyClientImportLanguage ? <div className="mt-4 rounded-lg border border-amber-400 bg-white/80 p-3 dark:bg-slate-950/60" role="alert"><p className="font-semibold">Confirm legacy {pendingLegacyClientImportLanguage.toUpperCase()} import</p><p className="mt-1 leading-6">This preserves the original legacy narrative exactly and creates a new present-day case snapshot. Historical source provenance will remain Unknown, and the new revision will be an unreviewed, unapproved Draft.</p><div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={handleConfirmLegacyClientImport} disabled={importingLegacyClientUpdate} className="case-file-reports-utility-action">{importingLegacyClientUpdate ? "Creating…" : "Confirm create immutable draft"}</button><button type="button" onClick={() => setPendingLegacyClientImportLanguage("")} disabled={importingLegacyClientUpdate} className="case-file-reports-utility-action">Cancel</button></div></div> : null}
+                            {legacyClientImportFeedback ? <p className="mt-3 font-medium" role="status">{legacyClientImportFeedback}</p> : null}
+                          </section> : null}
+                          {!legacyClientNarratives.length && legacyClientImportFeedback ? <p className="rounded-lg border border-teal-700/40 bg-teal-950/20 px-3 py-2 text-sm font-medium print:hidden" role="status">{legacyClientImportFeedback}</p> : null}
                           <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden">
                             <div className="flex flex-col gap-3 border-b border-neutral-100 pb-3 sm:flex-row sm:items-start sm:justify-between">
                               <div>

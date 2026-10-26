@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildClientUpdateDraftCandidate, buildClientUpdateLifecycleCandidate, buildExecutiveDraftCandidate, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, verifyClientUpdateSavedDraft } from "./reportDrafts.js";
+import { buildClientUpdateDraftCandidate, buildClientUpdateLifecycleCandidate, buildExecutiveDraftCandidate, buildLegacyClientUpdateDraftCandidate, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, getLegacyClientUpdateNarratives, verifyClientUpdateSavedDraft } from "./reportDrafts.js";
 import { verifyReportRevisionChecksum } from "./reportLifecycle.js";
 
 const TIME = "2026-10-25T12:00:00.000Z";
@@ -217,6 +217,66 @@ test("Client Update lifecycle review and approval preserve immutable snapshots a
   const corrupt = caseItem(structuredClone(review.reportLibrary));
   corrupt.reportLibrary.revisions["client-revision-de"].content.json = "tampered";
   await assert.rejects(buildClientUpdateLifecycleCandidate({ caseItem: corrupt, revisionId: "client-revision-de", toStatus: "approved", reviewerName: "A. Reviewer", currentFingerprint: "source-a" }), /history is invalid/);
+});
+
+test("legacy Client Update text is identified by language and imported only through an explicit unknown-provenance draft", async () => {
+  const legacyCase = {
+    ...caseItem(),
+    generatedReportText: "Fallback English text must not replace a versioned English slot.",
+    generatedReportVersions: {
+      en: "# REPORT_TITLE\nLegacy English\n\n# YOUR_SITUATION\nRecorded legacy English narrative.\n\n# CURRENT_POSITION\nAwaiting review.",
+      de: "# REPORT_TITLE\nLegacy German\n\n# YOUR_SITUATION\nGespeicherte deutsche Erzählung.\n\n# CURRENT_POSITION\nPrüfung ausstehend.",
+    },
+  };
+  const before = structuredClone(legacyCase);
+  assert.deepEqual(getLegacyClientUpdateNarratives(legacyCase).map((entry) => [entry.language, entry.sourceSlot]), [["en", "generatedReportVersions.en"], ["de", "generatedReportVersions.de"]]);
+
+  const english = await buildLegacyClientUpdateDraftCandidate({
+    caseItem: legacyCase,
+    language: "en",
+    legacyNarrative: legacyCase.generatedReportVersions.en,
+    reportDocument: clientDocument("en"),
+    markdown: "legacy English markdown",
+    json: "legacy English json",
+    sourceCaseRevision: 4,
+    sourceFingerprint: "source-a",
+    provenance: { citations: [], claims: [] },
+    now: TIME,
+    createId: ids("legacy-en-report", "legacy-en-revision"),
+  });
+  assert.equal(english.revision.content.clientUpdate.acceptedNarrative, legacyCase.generatedReportVersions.en);
+  assert.deepEqual(english.revision.content.clientUpdate.legacyImport, {
+    origin: "legacy_client_update_text",
+    sourceSlot: "generatedReportVersions.en",
+    language: "en",
+    historicalProvenance: "unknown",
+    importedAt: TIME,
+    snapshotKind: "present_day_case_snapshot",
+  });
+  assert.equal(english.revision.lifecycle.status, "draft");
+  assert.deepEqual(english.revision.lifecycle.review, {});
+  assert.deepEqual(legacyCase, before);
+
+  const afterEnglish = { ...legacyCase, reportLibrary: english.reportLibrary };
+  assert.deepEqual(getLegacyClientUpdateNarratives(afterEnglish).map((entry) => entry.language), ["de"]);
+  await assert.rejects(buildLegacyClientUpdateDraftCandidate({ caseItem: afterEnglish, language: "en", legacyNarrative: legacyCase.generatedReportVersions.en, reportDocument: clientDocument("en"), markdown: "duplicate", json: "duplicate", sourceCaseRevision: 4, sourceFingerprint: "source-a", provenance: { citations: [], claims: [] } }), /unavailable or already has an immutable revision/);
+  const german = await buildLegacyClientUpdateDraftCandidate({
+    caseItem: afterEnglish,
+    language: "de",
+    legacyNarrative: legacyCase.generatedReportVersions.de,
+    reportDocument: clientDocument("de"),
+    markdown: "legacy German markdown",
+    json: "legacy German json",
+    sourceCaseRevision: 4,
+    sourceFingerprint: "source-a",
+    provenance: { citations: [], claims: [] },
+    now: "2026-10-26T12:00:00.000Z",
+    createId: ids("legacy-de-report", "legacy-de-revision"),
+  });
+  assert.equal(getLegacyClientUpdateNarratives({ ...legacyCase, reportLibrary: german.reportLibrary }).length, 0);
+  const review = await buildClientUpdateLifecycleCandidate({ caseItem: caseItem(english.reportLibrary), revisionId: "legacy-en-revision", toStatus: "in_review", currentFingerprint: "source-a" });
+  await assert.rejects(buildClientUpdateLifecycleCandidate({ caseItem: caseItem(review.reportLibrary), revisionId: "legacy-en-revision", toStatus: "approved", reviewerName: "A. Reviewer", currentFingerprint: "source-a" }), /unknown historical provenance/);
+  assert.deepEqual(getLegacyClientUpdateNarratives(caseItem()).map((entry) => entry.language), []);
 });
 
 test("Client Update candidate fails closed for invalid inputs, malformed libraries, duplicate IDs, and binary snapshots", async () => {

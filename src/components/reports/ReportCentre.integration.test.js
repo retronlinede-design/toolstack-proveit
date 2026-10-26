@@ -265,6 +265,19 @@ test("Client Update review controls use the immutable lifecycle candidate and on
   assert.match(caseDetailSource, /Approval requires a named human reviewer and a current source fingerprint/);
 });
 
+test("legacy Client Update drafts require explicit confirmation and preserve unknown historical provenance", () => {
+  assert.match(caseDetailSource, /getLegacyClientUpdateNarratives\(selectedCase\)/);
+  assert.match(caseDetailSource, /Legacy draft — historical source provenance unknown/);
+  assert.match(caseDetailSource, /Create immutable draft from legacy text/);
+  assert.match(caseDetailSource, /Confirm create immutable draft/);
+  assert.match(caseDetailSource, /buildLegacyClientUpdateDraftCandidate\(\{/);
+  assert.match(caseDetailSource, /createLegacyClientUpdateSnapshot\(liveDocument, importedAt\)/);
+  assert.match(caseDetailSource, /const saved = await onUpdateCase\(\{ \.\.\.selectedCase, reportLibrary: candidate\.reportLibrary \}\)/);
+  assert.match(caseDetailSource, /The original legacy text remains unchanged/);
+  assert.match(caseDetailSource, /legacy narrative provenance: unknown/);
+  assert.match(caseDetailSource, /cannot be approved as current/);
+});
+
 test("the active Evidence Pack follows model document and unchanged renderer path", () => {
   assert.match(caseDetailSource, /buildCaseReportModel\(selectedCase/);
   assert.match(caseDetailSource, /buildEvidenceScheduleDocument\(reportCentreModel, getReportDefinition\("evidence"\)\)/);

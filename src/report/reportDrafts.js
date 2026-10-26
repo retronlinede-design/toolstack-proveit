@@ -202,6 +202,7 @@ export async function buildClientUpdateDraftCandidate({
   promptRevision,
   provenance,
   reportId = "",
+  legacyImport = null,
   now = new Date().toISOString(),
   createId = generateId,
 } = {}) {
@@ -215,6 +216,20 @@ export async function buildClientUpdateDraftCandidate({
   if (!Number.isSafeInteger(sourceCaseRevision) || sourceCaseRevision < 1) throw new TypeError("Source case revision is unavailable for this Client Update.");
   if (!provenance || typeof provenance !== "object" || Array.isArray(provenance)) throw new TypeError("Client Update provenance is required.");
   const documentSnapshot = requiredClientDocument(reportDocument, caseId, fingerprint);
+  let legacyImportMetadata = null;
+  if (legacyImport != null) {
+    if (legacyImport?.origin !== "legacy_client_update_text" || legacyImport?.language !== clientLanguage || legacyImport?.historicalProvenance !== "unknown") {
+      throw new TypeError("Legacy Client Update import metadata is invalid.");
+    }
+    legacyImportMetadata = {
+      origin: "legacy_client_update_text",
+      sourceSlot: requireText(legacyImport.sourceSlot, "Legacy Client Update source slot"),
+      language: clientLanguage,
+      historicalProvenance: "unknown",
+      importedAt: now,
+      snapshotKind: "present_day_case_snapshot",
+    };
+  }
   const library = requireSupportedLibrary(caseItem?.reportLibrary, caseId);
   const libraryIntegrity = await validateReportLibraryIntegrity(library, { caseId });
   if (!libraryIntegrity.valid) throw new TypeError(`Existing report library is invalid: ${libraryIntegrity.errors.join(" ")}`);
@@ -244,7 +259,12 @@ export async function buildClientUpdateDraftCandidate({
       reportDocument: documentSnapshot,
       markdown: outputMarkdown,
       json: outputJson,
-      clientUpdate: { language: clientLanguage, acceptedNarrative: narrative, promptRevision: formatRevision },
+      clientUpdate: {
+        language: clientLanguage,
+        acceptedNarrative: narrative,
+        promptRevision: formatRevision,
+        ...(legacyImportMetadata ? { legacyImport: legacyImportMetadata } : {}),
+      },
     },
     generationMode: "ai_assisted",
     provenance: cloneJson(provenance),
@@ -305,6 +325,13 @@ function isClientUpdateRevision(revision) {
     && text(revision?.content?.clientUpdate?.promptRevision);
 }
 
+export function isLegacyImportedClientUpdateRevision(revision) {
+  const legacyImport = revision?.content?.clientUpdate?.legacyImport;
+  return legacyImport?.origin === "legacy_client_update_text"
+    && legacyImport?.historicalProvenance === "unknown"
+    && legacyImport?.snapshotKind === "present_day_case_snapshot";
+}
+
 export function getClientUpdateSavedDrafts(caseItem) {
   const result = classifyReportLibrary(caseItem?.reportLibrary, { caseId: caseItem?.id || "" });
   if (result.kind !== "supported") return [];
@@ -335,6 +362,52 @@ export function getClientUpdateDraftFreshness(revision, currentFingerprint) {
   return getReportSourceFreshness(revision, currentFingerprint);
 }
 
+/** Lists unsnapshotted legacy text without mutating or inferring its provenance. */
+export function getLegacyClientUpdateNarratives(caseItem) {
+  const saved = getClientUpdateSavedDrafts(caseItem);
+  const versioned = caseItem?.generatedReportVersions || {};
+  const entries = [
+    { language: "en", narrative: text(versioned.en) || text(caseItem?.generatedReportText), sourceSlot: text(versioned.en) ? "generatedReportVersions.en" : "generatedReportText" },
+    { language: "de", narrative: text(versioned.de), sourceSlot: "generatedReportVersions.de" },
+  ].filter((entry) => entry.narrative);
+  return entries.filter((entry) => !saved.some((draft) => draft.revision.content.clientUpdate.language === entry.language
+    && draft.revision.content.clientUpdate.acceptedNarrative === entry.narrative));
+}
+
+/** Creates an immutable, explicitly-labelled present-day snapshot from selected legacy text. */
+export async function buildLegacyClientUpdateDraftCandidate({
+  caseItem,
+  language,
+  legacyNarrative,
+  reportDocument,
+  markdown,
+  json,
+  sourceCaseRevision = caseItem?.revision,
+  sourceFingerprint = reportDocument?.source?.sourceRevision?.fingerprint,
+  provenance,
+  now = new Date().toISOString(),
+  createId = generateId,
+} = {}) {
+  const legacy = getLegacyClientUpdateNarratives(caseItem).find((entry) => entry.language === supportedClientLanguage(language)
+    && entry.narrative === legacyNarrative);
+  if (!legacy) throw new TypeError("The selected legacy Client Update text is unavailable or already has an immutable revision.");
+  return buildClientUpdateDraftCandidate({
+    caseItem,
+    reportDocument,
+    language: legacy.language,
+    acceptedNarrative: legacy.narrative,
+    markdown,
+    json,
+    sourceCaseRevision,
+    sourceFingerprint,
+    promptRevision: "legacy-format-unknown",
+    provenance,
+    legacyImport: { origin: "legacy_client_update_text", sourceSlot: legacy.sourceSlot, language: legacy.language, historicalProvenance: "unknown" },
+    now,
+    createId,
+  });
+}
+
 /** Returns a validated, unpersisted library with only permitted lifecycle metadata changed. */
 export async function buildClientUpdateLifecycleCandidate({
   caseItem,
@@ -353,6 +426,9 @@ export async function buildClientUpdateLifecycleCandidate({
   const manifest = revision ? library.reports[revision.reportId] : null;
   if (!manifest || manifest.reportType !== "client" || !isClientUpdateRevision(revision)) {
     throw new TypeError("The selected Client Update revision is unavailable or malformed.");
+  }
+  if (toStatus === "approved" && isLegacyImportedClientUpdateRevision(revision)) {
+    throw new TypeError("A Client Update imported from legacy text has unknown historical provenance and cannot be approved as current.");
   }
   const transition = transitionReportLifecycle(
     { ...revision.lifecycle, revision },
