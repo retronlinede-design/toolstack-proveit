@@ -1,0 +1,39 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { AI_BRIEF_SCHEMA_ID, AI_BRIEF_SCHEMA_VERSION, buildAiBrief, getAiBriefFreshness, validateAiBrief } from "./aiBrief.js";
+
+const options = { reportFamily: "investigation", generatedAt: "2026-10-26T12:00:00.000Z" };
+function fixture() { return { id: "case-ai-brief", name: "Synthetic case", status: "open", updatedAt: "2026-10-25T10:00:00.000Z", issues: [{ id: "issue-a", reference: "ISS-001", name: "Shared", status: "open" }, { id: "issue-b", reference: "ISS-002", name: "Shared", status: "open" }, { id: "issue-c", reference: "ISS-003", name: "Unique", status: "open" }], incidents: [{ id: "incident-a", title: "First incident", eventDate: "2026-01-01", sequenceGroupId: "issue-a", sequenceGroup: "Shared", linkedEvidenceIds: ["evidence-a", "missing"] }, { id: "incident-b", title: "Second incident", eventDate: "2026-01-02", sequenceGroupId: "issue-b", sequenceGroup: "Shared" }, { id: "legacy", title: "Legacy incident", eventDate: "2026-01-03", sequenceGroup: "Unique" }, { id: "ambiguous", title: "Ambiguous incident", eventDate: "2026-01-04", sequenceGroup: "Shared" }, { id: "invalid", title: "Invalid incident", eventDate: "2026-01-05", sequenceGroupId: "gone", sequenceGroup: "Shared" }], evidence: [{ id: "evidence-a", title: "Verified evidence", date: "2026-01-01", sequenceGroupId: "issue-a", sequenceGroup: "Shared", verificationStatus: "verified", attachments: [{ id: "attachment", dataUrl: "data:image/png;base64,secret" }] }], documents: [{ id: "document-a", title: "Supporting document", documentDate: "2026-01-01", sequenceGroupId: "issue-a", sequenceGroup: "Shared" }], ledger: [{ id: "ledger-a", label: "Recorded amount", date: "2026-01-01", sequenceGroupId: "issue-a", sequenceGroup: "Shared" }], strategy: [{ id: "strategy-a", title: "Recorded action", sequenceGroupId: "issue-a", sequenceGroup: "Shared", nextSteps: ["Review"] }], watchItems: [{ id: "watch-a", title: "Monitoring", sequenceGroupId: "issue-a", sequenceGroup: "Shared", reviewDate: "2026-02-01" }] }; }
+
+test("builds a deterministic whole-case, serialisable and binary-free brief", () => { const source = fixture(); const before = structuredClone(source); const first = buildAiBrief(source, options); const second = buildAiBrief(source, options); assert.deepEqual(first, second); assert.deepEqual(source, before); assert.equal(first.schema.id, AI_BRIEF_SCHEMA_ID); assert.equal(first.schema.version, AI_BRIEF_SCHEMA_VERSION); assert.equal(validateAiBrief(first).valid, true); assert.doesNotMatch(JSON.stringify(first), /data:image/); assert.deepEqual(first.technicalSources.filter((item) => item.included).map((item) => item.id), ["incidentSchedule", "evidence", "document", "ledger", "chronologyReport", "caseAudit", "action"]); });
+
+test("uses canonical Issue scope, preserves renames, and separates duplicate Issue names", () => { const source = fixture(); const brief = buildAiBrief(source, { ...options, scope: "sequenceGroup", issueId: "issue-b" }); assert.equal(brief.scope.issueId, "issue-b"); assert.deepEqual(brief.recordReferences.filter((item) => item.scopeRelation === "direct").map((item) => item.recordId), ["incident-b"]); source.issues[1].name = "Renamed"; const renamed = buildAiBrief(source, { ...options, scope: "sequenceGroup", issueId: "issue-b" }); assert.equal(renamed.scope.label, "ISS-002 — Renamed"); assert.deepEqual(renamed.recordReferences.filter((item) => item.scopeRelation === "direct").map((item) => item.recordId), ["incident-b"]); });
+
+test("preserves unique legacy membership and fails closed for ambiguous, invalid, retired, and invalid scopes", () => { const source = fixture(); const whole = buildAiBrief(source, options); assert.equal(whole.recordReferences.find((item) => item.recordId === "legacy").issue.resolution, "legacy-name"); assert.equal(whole.recordReferences.find((item) => item.recordId === "ambiguous").issue.resolution, "ambiguous-legacy-name"); assert.equal(whole.recordReferences.find((item) => item.recordId === "invalid").issue.resolution, "invalid-id"); assert.throws(() => buildAiBrief(source, { ...options, scope: "sequenceGroup", issueId: "gone" }), /unavailable or invalid/); source.retiredIssues = [{ id: "retired", name: "Retired" }]; source.incidents.push({ id: "retired-record", title: "Retired", sequenceGroupId: "retired", sequenceGroup: "Retired" }); assert.equal(buildAiBrief(source, options).recordReferences.find((item) => item.recordId === "retired-record").issue.resolution, "retired"); });
+
+test("records direct and linked context separately with status, verification, sources, and diagnostics", () => { const source = fixture(); source.evidence[0].sequenceGroupId = "issue-b"; const brief = buildAiBrief(source, { ...options, scope: "sequenceGroup", issueId: "issue-a" }); const direct = brief.recordReferences.find((item) => item.recordId === "incident-a"); const linked = brief.recordReferences.find((item) => item.recordId === "evidence-a"); assert.equal(direct.scopeRelation, "direct"); assert.equal(linked.scopeRelation, "linked_context"); assert.equal(linked.verificationStatus, "verified"); assert.deepEqual(direct.sourceTechnicalReportIds, ["caseAudit", "chronologyReport", "incidentSchedule"]); assert.equal(direct.unresolvedReferences.some((item) => item.targetId === "missing"), true); });
+
+test("selects a report-family-appropriate technical inventory and rejects malformed inputs", () => { const executive = buildAiBrief(fixture(), { reportFamily: "executive", generatedAt: options.generatedAt }); assert.equal(executive.technicalSources.find((item) => item.id === "document").included, false); assert.equal(executive.technicalSources.find((item) => item.id === "ledger").included, false); for (const family of ["management", "investigation", "client"]) { const brief = buildAiBrief(fixture(), { reportFamily: family, generatedAt: options.generatedAt }); assert.equal(brief.technicalSources.find((item) => item.id === "document").included, true); assert.equal(brief.technicalSources.find((item) => item.id === "ledger").included, true); } assert.throws(() => buildAiBrief({}, options), /case ID/); assert.throws(() => buildAiBrief(fixture(), { ...options, reportFamily: "unknown" }), /professional report family/); assert.throws(() => buildAiBrief(fixture(), { ...options, schemaVersion: 99 }), /schema version/); assert.equal(validateAiBrief({}).valid, false); });
+
+test("uses the shared fingerprint convention and rejects unsafe serialised payloads", () => {
+  const equivalent = fixture();
+  const first = buildAiBrief(fixture(), options);
+  const second = buildAiBrief(equivalent, options);
+  assert.equal(first.source.sourceFingerprint, second.source.sourceFingerprint);
+  equivalent.incidents[0].title = "Changed recorded title";
+  assert.notEqual(buildAiBrief(equivalent, options).source.sourceFingerprint, first.source.sourceFingerprint);
+  assert.equal(validateAiBrief({ ...first, unsafe: "data:image/png;base64,synthetic" }).valid, false);
+});
+
+test("reports current, stale, and unknown AI Brief freshness without rebuilding the package", () => {
+  const source = fixture();
+  const brief = buildAiBrief(source, options);
+  assert.equal(getAiBriefFreshness(brief, source), "current");
+  const changed = structuredClone(source);
+  changed.updatedAt = "2026-10-27T10:00:00.000Z";
+  assert.equal(getAiBriefFreshness(brief, changed), "stale");
+  assert.equal(getAiBriefFreshness(brief, { ...source, updatedAt: "" }), "unknown");
+  assert.equal(getAiBriefFreshness(brief, { ...source, id: "another-case" }), "unknown");
+  const scoped = buildAiBrief(source, { ...options, scope: "sequenceGroup", issueId: "issue-a" });
+  assert.equal(getAiBriefFreshness(scoped, { ...source, issues: source.issues.filter((issue) => issue.id !== "issue-a") }), "unknown");
+});

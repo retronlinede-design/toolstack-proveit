@@ -240,6 +240,20 @@ test("the active CaseDetail Report Centre uses the rendered control boundary", (
   assert.doesNotMatch(caseDetailSource, /variant="pack"/);
 });
 
+test("professional report previews can prepare a local, freshness-checked AI Brief without changing report output flows", () => {
+  assert.match(caseDetailSource, /import \{ buildAiBrief, getAiBriefFreshness, validateAiBrief \} from "\.\.\/report\/aiBrief\.js"/);
+  assert.match(caseDetailSource, /const \[preparedAiBrief, setPreparedAiBrief\] = useState\(null\)/);
+  assert.match(caseDetailSource, /const aiBriefEligible = \["executive", "management", "investigation", "client"\]\.includes\(reportCentreType\)/);
+  assert.match(caseDetailSource, /const preparedAiBriefFreshness = useMemo/);
+  assert.match(caseDetailSource, /const brief = buildAiBrief\(selectedCase, \{/);
+  assert.match(caseDetailSource, /reportFamily: reportCentreType/);
+  assert.match(caseDetailSource, /issueId: normalisedReportCentreScopeType === "sequenceGroup" \? selectedReportCentreIssue\.id : ""/);
+  assert.match(caseDetailSource, /Prepared AI Brief JSON copied/);
+  assert.match(caseDetailSource, /Prepared AI Brief JSON downloaded/);
+  assert.match(caseDetailSource, /<AiBriefPanel brief=\{preparedAiBrief\} freshness=\{preparedAiBriefFreshness\}/);
+  assert.match(caseDetailSource, /secondaryAction=\{aiBriefEligible \? \{ label: "Prepare AI Brief"/);
+});
+
 test("Executive Draft saving waits for the existing persistence acknowledgement", () => {
   assert.match(caseDetailSource, /const saved = await onUpdateCase\(\{ \.\.\.selectedCase, reportLibrary: candidate\.reportLibrary \}\)/);
   assert.match(caseDetailSource, /if \(!saved\) \{\s*if \(selectedCaseRef\.current\?\.id === savingCaseId\) setExecutiveDraftFeedback\("Draft was not saved/);

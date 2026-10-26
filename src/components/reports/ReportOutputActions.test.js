@@ -35,3 +35,10 @@ test("Executive Draft action is integrated with shared outputs without duplicati
   assert.match(html, /is-print/);
   assert.equal((html.match(/Save Draft/g) || []).length, 1);
 });
+
+test("an optional prepared-source action is available without changing report output semantics", () => {
+  const html = renderToStaticMarkup(React.createElement(ReportOutputActions, { reportType: "investigation", markdownAvailable: true, documentOutputAvailable: true, secondaryAction: { label: "Prepare AI Brief" } }));
+  assert.match(html, /Prepare AI Brief/);
+  assert.match(html, /Copy Markdown/);
+  assert.match(html, /Download JSON/);
+});

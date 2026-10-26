@@ -72,6 +72,7 @@ import { buildEvidenceScheduleDocument, projectEvidenceDocumentToLegacyViewModel
 import { buildDocumentScheduleDocument, projectDocumentDocumentToLegacyViewModel } from "../report/documentScheduleDocument.js";
 import { buildLedgerScheduleDocument, projectLedgerDocumentToLegacyViewModel } from "../report/ledgerScheduleDocument.js";
 import { buildActiveReportDocument } from "../report/buildActiveReportDocument.js";
+import { buildAiBrief, getAiBriefFreshness, validateAiBrief } from "../report/aiBrief.js";
 import { buildReportOutput } from "../report/reportOutputs.js";
 import { buildClientUpdateDraftCandidate, buildClientUpdateLifecycleCandidate, buildExecutiveDraftCandidate, buildLegacyClientUpdateDraftCandidate, extractReportDocumentProvenance, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, getLegacyClientUpdateNarratives, isLegacyImportedClientUpdateRevision, verifyClientUpdateSavedDraft } from "../report/reportDrafts.js";
 import { getLinkChipClasses } from "./linkChipStyles";
@@ -102,6 +103,7 @@ import ThreadIssueReportArticle from "./reports/ThreadIssueReportArticle";
 import ReportCentreControls, { ReportCentrePreviewSummary } from "./reports/ReportCentreControls";
 import { getReportCentreIssueOptions, resolveReportCentreIssueSelection } from "./reports/reportCentreIssueSelection.js";
 import ReportOutputActions from "./reports/ReportOutputActions.jsx";
+import AiBriefPanel from "./reports/AiBriefPanel.jsx";
 import { REPORT_CENTRE_PRESENTATION } from "./reports/reportCentreConfig.js";
 import ReportContextHeader from "./reports/ReportContextHeader.jsx";
 import SequenceGroupManager from "./sequenceGroups/SequenceGroupManager";
@@ -342,6 +344,8 @@ export default function CaseDetail({
     setCaseQualityReviewMode(CASE_QUALITY_REVIEW_MODES[0].id);
     setIssueReviewMode(ISSUE_REVIEW_MODES[0].id);
     setCaseSliceRecordIdsText("");
+    setPreparedAiBrief(null);
+    setAiBriefFeedback("");
     setSavedExecutiveRevisionId("");
     setExecutiveRevisionTargetReportId("");
     setExecutiveDraftFeedback("");
@@ -406,6 +410,8 @@ export default function CaseDetail({
   const [reportCentreType, setReportCentreType] = useState("executive");
   const [reportCentreDestination, setReportCentreDestination] = useState("reports");
   const [reportCentreOutputFeedback, setReportCentreOutputFeedback] = useState("");
+  const [preparedAiBrief, setPreparedAiBrief] = useState(null);
+  const [aiBriefFeedback, setAiBriefFeedback] = useState("");
   const [savedExecutiveRevisionId, setSavedExecutiveRevisionId] = useState("");
   const [executiveRevisionTargetReportId, setExecutiveRevisionTargetReportId] = useState("");
   const [savingExecutiveDraft, setSavingExecutiveDraft] = useState(false);
@@ -655,6 +661,11 @@ export default function CaseDetail({
       sequenceGroupMeta: getSequenceGroupMetaForCase(selectedCase.id, readSequenceGroupMetaStore()),
     });
   }, [selectedCase, reportCentreScope]);
+  const aiBriefEligible = ["executive", "management", "investigation", "client"].includes(reportCentreType);
+  const preparedAiBriefFreshness = useMemo(
+    () => preparedAiBrief ? getAiBriefFreshness(preparedAiBrief, selectedCase) : "unknown",
+    [preparedAiBrief, selectedCase]
+  );
   const savedExecutiveDrafts = useMemo(() => getExecutiveSavedDrafts(selectedCase).map((item) => {
     const historicalScope = item.revision.content.reportDocument?.source?.scope || {};
     if (!selectedCase) return { ...item, freshness: "unknown" };
@@ -4033,6 +4044,52 @@ ${ungroupedSequenceText}
     setReportCentreOutputFeedback("");
     setReportCentreIssueId(issueId);
   };
+  const handlePrepareAiBrief = () => {
+    if (!selectedCase || !aiBriefEligible) return;
+    if (normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue) {
+      setAiBriefFeedback(reportCentreIssueSelection.requestedIssueId
+        ? "The selected Issue is no longer available. Choose an existing Issue before preparing an AI Brief."
+        : "Choose an existing Issue before preparing an Issue-scoped AI Brief.");
+      return;
+    }
+    try {
+      const brief = buildAiBrief(selectedCase, {
+        reportFamily: reportCentreType,
+        scope: normalisedReportCentreScopeType,
+        issueId: normalisedReportCentreScopeType === "sequenceGroup" ? selectedReportCentreIssue.id : "",
+      });
+      const validation = validateAiBrief(brief);
+      if (!validation.valid) throw new Error(validation.errors.join(" "));
+      setPreparedAiBrief(brief);
+      setAiBriefFeedback("AI Brief prepared. It remains local until you explicitly copy or download it.");
+    } catch (error) {
+      setAiBriefFeedback(error?.message || "The AI Brief could not be prepared.");
+    }
+  };
+  const handleCopyAiBrief = async () => {
+    if (!preparedAiBrief) return;
+    const validation = validateAiBrief(preparedAiBrief);
+    if (!validation.valid) {
+      setAiBriefFeedback(`The prepared AI Brief is invalid and cannot be copied. ${validation.errors.join(" ")}`);
+      return;
+    }
+    try {
+      await copySequenceGroupText(JSON.stringify(preparedAiBrief, null, 2));
+      setAiBriefFeedback("Prepared AI Brief JSON copied.");
+    } catch {
+      setAiBriefFeedback("Could not copy the prepared AI Brief JSON.");
+    }
+  };
+  const handleDownloadAiBrief = () => {
+    if (!preparedAiBrief) return;
+    const validation = validateAiBrief(preparedAiBrief);
+    if (!validation.valid) {
+      setAiBriefFeedback(`The prepared AI Brief is invalid and cannot be downloaded. ${validation.errors.join(" ")}`);
+      return;
+    }
+    downloadJson(preparedAiBrief, `proveit-ai-brief-${preparedAiBrief.case.id}-${preparedAiBrief.requestedReportFamily}.json`, { space: 2 });
+    setAiBriefFeedback("Prepared AI Brief JSON downloaded.");
+  };
   const handleSaveExecutiveDraft = async () => {
     if (!selectedCase || savingExecutiveDraftRef.current || !reportCentreExecutiveDocument) return;
     const savingCaseId = selectedCase.id;
@@ -5619,12 +5676,14 @@ ${ungroupedSequenceText}
                       disabled={!savedExecutiveDraft && !activeSavedClientUpdateRevision && normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue}
                       feedback={reportCentreOutputFeedback}
                       primaryAction={reportCentreType === "executive" && !savedExecutiveDraft ? { label: savingExecutiveDraft ? "Saving Draft…" : executiveRevisionTargetReportId ? "Save new Draft revision" : "Save Draft", onClick: handleSaveExecutiveDraft, disabled: savingExecutiveDraft || (normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue) } : null}
+                      secondaryAction={aiBriefEligible ? { label: "Prepare AI Brief", onClick: handlePrepareAiBrief, disabled: normalisedReportCentreScopeType === "sequenceGroup" && !selectedReportCentreIssue } : null}
                       onCopyMarkdown={handleCopyReportCentreMarkdown}
                       onDownloadMarkdown={() => handleDownloadReportCentreOutput("markdown")}
                       onDownloadJson={() => handleDownloadReportCentreOutput("json")}
                       onPrint={handleReportCentrePrint}
                     />
                   </section>
+                  {aiBriefEligible ? <AiBriefPanel brief={preparedAiBrief} freshness={preparedAiBriefFreshness} feedback={aiBriefFeedback} onCopy={handleCopyAiBrief} onDownload={handleDownloadAiBrief} /> : null}
                   <section className="case-file-reports-document-preview" aria-label="Selected report preview">
 
                   {savedExecutiveDraft ? <div className="rounded-lg border border-teal-700/40 bg-teal-950/20 px-3 py-2 text-sm print:hidden" role="status">Viewing an immutable saved Draft snapshot · source freshness: {savedExecutiveDrafts.find((draft) => draft.revision.id === savedExecutiveDraft.revision.id)?.freshness || "unknown"}. This content is not regenerated. <button type="button" onClick={() => { setSavedExecutiveRevisionId(""); setReportCentreDestination("saved"); }} className="ml-2 font-bold underline">Return to Saved Reports</button></div> : null}
