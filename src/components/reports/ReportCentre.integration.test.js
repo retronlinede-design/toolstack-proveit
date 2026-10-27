@@ -254,6 +254,20 @@ test("professional report previews can prepare a local, freshness-checked AI Bri
   assert.match(caseDetailSource, /secondaryAction=\{aiBriefEligible \? \{ label: "Prepare AI Brief"/);
 });
 
+test("AI Draft preparation and validation remain local, use the original Brief, and do not enter report persistence flows", () => {
+  assert.match(caseDetailSource, /import \{ parseAndValidateAiDraft \} from "\.\.\/report\/aiDraft\.js"/);
+  assert.match(caseDetailSource, /import \{ buildAiDraftingRequest \} from "\.\.\/report\/aiDraftRequest\.js"/);
+  assert.match(caseDetailSource, /const \[aiDraftText, setAiDraftText\] = useState\(""\)/);
+  assert.match(caseDetailSource, /const \[aiDraftValidation, setAiDraftValidation\] = useState\(null\)/);
+  assert.match(caseDetailSource, /buildAiDraftingRequest\(preparedAiBrief\)/);
+  assert.match(caseDetailSource, /parseAndValidateAiDraft\(aiDraftText, preparedAiBrief\)/);
+  assert.match(caseDetailSource, /preparedAiBriefFreshness !== "current"/);
+  assert.match(caseDetailSource, /The pasted AI Draft text was preserved/);
+  assert.match(caseDetailSource, /onCopyDraftingRequest=\{handleCopyAiDraftingRequest\}/);
+  assert.match(caseDetailSource, /onValidateDraft=\{handleValidateAiDraft\}/);
+  assert.doesNotMatch(caseDetailSource, /onUpdateCase\(\{ \.\.\.selectedCase, aiDraft/);
+});
+
 test("Executive Draft saving waits for the existing persistence acknowledgement", () => {
   assert.match(caseDetailSource, /const saved = await onUpdateCase\(\{ \.\.\.selectedCase, reportLibrary: candidate\.reportLibrary \}\)/);
   assert.match(caseDetailSource, /if \(!saved\) \{\s*if \(selectedCaseRef\.current\?\.id === savingCaseId\) setExecutiveDraftFeedback\("Draft was not saved/);

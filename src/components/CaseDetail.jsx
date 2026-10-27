@@ -73,6 +73,8 @@ import { buildDocumentScheduleDocument, projectDocumentDocumentToLegacyViewModel
 import { buildLedgerScheduleDocument, projectLedgerDocumentToLegacyViewModel } from "../report/ledgerScheduleDocument.js";
 import { buildActiveReportDocument } from "../report/buildActiveReportDocument.js";
 import { buildAiBrief, getAiBriefFreshness, validateAiBrief } from "../report/aiBrief.js";
+import { parseAndValidateAiDraft } from "../report/aiDraft.js";
+import { buildAiDraftingRequest } from "../report/aiDraftRequest.js";
 import { buildReportOutput } from "../report/reportOutputs.js";
 import { buildClientUpdateDraftCandidate, buildClientUpdateLifecycleCandidate, buildExecutiveDraftCandidate, buildLegacyClientUpdateDraftCandidate, extractReportDocumentProvenance, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, getLegacyClientUpdateNarratives, isLegacyImportedClientUpdateRevision, verifyClientUpdateSavedDraft } from "../report/reportDrafts.js";
 import { getLinkChipClasses } from "./linkChipStyles";
@@ -346,6 +348,9 @@ export default function CaseDetail({
     setCaseSliceRecordIdsText("");
     setPreparedAiBrief(null);
     setAiBriefFeedback("");
+    setAiDraftText("");
+    setAiDraftValidation(null);
+    setAiDraftFeedback("");
     setSavedExecutiveRevisionId("");
     setExecutiveRevisionTargetReportId("");
     setExecutiveDraftFeedback("");
@@ -412,6 +417,9 @@ export default function CaseDetail({
   const [reportCentreOutputFeedback, setReportCentreOutputFeedback] = useState("");
   const [preparedAiBrief, setPreparedAiBrief] = useState(null);
   const [aiBriefFeedback, setAiBriefFeedback] = useState("");
+  const [aiDraftText, setAiDraftText] = useState("");
+  const [aiDraftValidation, setAiDraftValidation] = useState(null);
+  const [aiDraftFeedback, setAiDraftFeedback] = useState("");
   const [savedExecutiveRevisionId, setSavedExecutiveRevisionId] = useState("");
   const [executiveRevisionTargetReportId, setExecutiveRevisionTargetReportId] = useState("");
   const [savingExecutiveDraft, setSavingExecutiveDraft] = useState(false);
@@ -4062,6 +4070,8 @@ ${ungroupedSequenceText}
       if (!validation.valid) throw new Error(validation.errors.join(" "));
       setPreparedAiBrief(brief);
       setAiBriefFeedback("AI Brief prepared. It remains local until you explicitly copy or download it.");
+      setAiDraftValidation(null);
+      setAiDraftFeedback(aiDraftText ? "The pasted AI Draft text was preserved. Revalidate it against this newly prepared Brief." : "");
     } catch (error) {
       setAiBriefFeedback(error?.message || "The AI Brief could not be prepared.");
     }
@@ -4089,6 +4099,34 @@ ${ungroupedSequenceText}
     }
     downloadJson(preparedAiBrief, `proveit-ai-brief-${preparedAiBrief.case.id}-${preparedAiBrief.requestedReportFamily}.json`, { space: 2 });
     setAiBriefFeedback("Prepared AI Brief JSON downloaded.");
+  };
+  const handleCopyAiDraftingRequest = async () => {
+    if (!preparedAiBrief) return;
+    if (preparedAiBriefFreshness !== "current") {
+      setAiBriefFeedback("Regenerate the AI Brief before copying a new drafting request for current case context.");
+      return;
+    }
+    try {
+      await copySequenceGroupText(buildAiDraftingRequest(preparedAiBrief));
+      setAiBriefFeedback("Drafting request copied. Nothing was sent automatically.");
+    } catch (error) {
+      setAiBriefFeedback(error?.message || "Could not copy the drafting request.");
+    }
+  };
+  const handleAiDraftTextChange = (nextText) => {
+    setAiDraftText(nextText);
+    setAiDraftValidation(null);
+    setAiDraftFeedback("");
+  };
+  const handleValidateAiDraft = () => {
+    if (!preparedAiBrief) return;
+    const result = parseAndValidateAiDraft(aiDraftText, preparedAiBrief);
+    setAiDraftValidation(result);
+    setAiDraftFeedback(result.valid
+      ? preparedAiBriefFreshness === "current"
+        ? "AI Draft is structurally valid against the current-source AI Brief. Human review remains required."
+        : `AI Draft is structurally valid against the historical AI Brief. Current source freshness is ${preparedAiBriefFreshness}.`
+      : "AI Draft was not accepted. Correct the pasted text and validate again; the text has been preserved.");
   };
   const handleSaveExecutiveDraft = async () => {
     if (!selectedCase || savingExecutiveDraftRef.current || !reportCentreExecutiveDocument) return;
@@ -5683,7 +5721,7 @@ ${ungroupedSequenceText}
                       onPrint={handleReportCentrePrint}
                     />
                   </section>
-                  {aiBriefEligible ? <AiBriefPanel brief={preparedAiBrief} freshness={preparedAiBriefFreshness} feedback={aiBriefFeedback} onCopy={handleCopyAiBrief} onDownload={handleDownloadAiBrief} /> : null}
+                  {aiBriefEligible ? <AiBriefPanel brief={preparedAiBrief} freshness={preparedAiBriefFreshness} feedback={aiBriefFeedback} onCopy={handleCopyAiBrief} onDownload={handleDownloadAiBrief} onCopyDraftingRequest={handleCopyAiDraftingRequest} draftText={aiDraftText} onDraftTextChange={handleAiDraftTextChange} onValidateDraft={handleValidateAiDraft} draftValidation={aiDraftValidation} draftFeedback={aiDraftFeedback} /> : null}
                   <section className="case-file-reports-document-preview" aria-label="Selected report preview">
 
                   {savedExecutiveDraft ? <div className="rounded-lg border border-teal-700/40 bg-teal-950/20 px-3 py-2 text-sm print:hidden" role="status">Viewing an immutable saved Draft snapshot · source freshness: {savedExecutiveDrafts.find((draft) => draft.revision.id === savedExecutiveDraft.revision.id)?.freshness || "unknown"}. This content is not regenerated. <button type="button" onClick={() => { setSavedExecutiveRevisionId(""); setReportCentreDestination("saved"); }} className="ml-2 font-bold underline">Return to Saved Reports</button></div> : null}

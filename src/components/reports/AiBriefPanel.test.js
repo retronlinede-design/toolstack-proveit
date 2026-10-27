@@ -20,9 +20,9 @@ const brief = {
   diagnostics: { unresolvedReferences: [{ targetId: "missing" }] },
 };
 
-test("renders the exact prepared package summary, inspection, and export actions", () => {
-  const html = renderToStaticMarkup(React.createElement(AiBriefPanel, { brief, freshness: "current", feedback: "Prepared locally.", onCopy() {}, onDownload() {} }));
-  for (const text of ["AI Brief prepared", "ISS-001 — Synthetic Issue", "Source: Current", "Source revision", "Source fingerprint", "Incident Schedule", "Copy AI Brief JSON", "Download AI Brief JSON", "Inspect AI Brief JSON", "Attachment binaries and data URLs are excluded", "Prepared locally."]) assert.match(html, new RegExp(text));
+test("renders the exact prepared package summary, request, draft-paste, and export controls", () => {
+  const html = renderToStaticMarkup(React.createElement(AiBriefPanel, { brief, freshness: "current", feedback: "Prepared locally.", draftText: "{\"schema\":{}}", draftFeedback: "Draft text preserved.", onCopy() {}, onDownload() {}, onCopyDraftingRequest() {}, onDraftTextChange() {}, onValidateDraft() {} }));
+  for (const text of ["AI Brief prepared", "ISS-001 — Synthetic Issue", "Source: Current", "Source revision", "Source fingerprint", "Incident Schedule", "Copy AI Brief JSON", "Download AI Brief JSON", "Copy Drafting Request", "Inspect AI Brief JSON", "Paste and validate AI Draft JSON", "Validate AI Draft", "Attachment binaries and data URLs are excluded", "Prepared locally.", "Draft text preserved."]) assert.match(html, new RegExp(text));
   assert.match(html, /role="status"/);
 });
 
@@ -33,5 +33,13 @@ test("marks stale and unknown packages as requiring explicit regeneration withou
     assert.match(html, /Regenerate it before treating it as current case context/);
     assert.match(html, /Copy AI Brief JSON/);
     assert.match(html, /Download AI Brief JSON/);
+    assert.match(html, /Copy Drafting Request/);
+    assert.match(html, /disabled=""/);
   }
+});
+
+test("shows structural status, reference errors, and human-review limits without treating a valid draft as approval", () => {
+  const validation = { valid: true, errors: [], warnings: [{ code: "UNVERIFIED_SOURCE_REFERENCE", message: "Review the record." }], reviewReasons: ["AI-generated narrative must receive human review."], normalisedDraft: { claims: [{ classification: "allegation", sourceReferences: [{ recordId: "inc-1" }] }], unresolvedQuestions: [{ id: "question" }], evidenceGaps: [{ id: "gap" }] } };
+  const html = renderToStaticMarkup(React.createElement(AiBriefPanel, { brief, freshness: "stale", draftText: "{}", draftValidation: validation, onCopy() {}, onDownload() {}, onCopyDraftingRequest() {}, onDraftTextChange() {}, onValidateDraft() {} }));
+  for (const text of ["Structurally valid against the historical AI Brief", "not ready for approval", "Human-review warnings", "UNVERIFIED_SOURCE_REFERENCE", "Claim classifications", "allegation", "Unresolved questions:</strong> 1", "Evidence gaps:</strong> 1", "does not establish that narrative claims are true"]) assert.match(html, new RegExp(text));
 });
