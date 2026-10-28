@@ -1,6 +1,7 @@
 import { generateId } from "../domain/id.js";
 import {
   REPORT_LIFECYCLE_SCHEMA_VERSION,
+  canonicalSerialiseReportRevisionContent,
   calculateReportRevisionChecksum,
   getReportSourceFreshness,
   transitionReportLifecycle,
@@ -12,6 +13,9 @@ import {
   validateReportLibraryIntegrity,
 } from "./reportLibrary.js";
 import { validateReportDocument } from "./reportDocument.js";
+import { validateAiBrief } from "./aiBrief.js";
+import { validateAiDraft } from "./aiDraft.js";
+import { isManagementAiDraftPreview } from "./managementAiDraftPreview.js";
 
 function text(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -114,6 +118,101 @@ function requireSupportedLibrary(library, caseId) {
   if (result.kind === "absent") return emptyLibrary();
   if (result.kind !== "supported") throw new TypeError(`Saved Drafts are unavailable: ${result.errors.join(" ")}`);
   return cloneJson(library);
+}
+
+function managementAiDraftScope(previewDocument, caseId) {
+  if (!isManagementAiDraftPreview(previewDocument)) throw new TypeError("A valid Management AI Draft preview is required.");
+  if (previewDocument.source?.caseId !== caseId) throw new TypeError("Management AI Draft preview case identity does not match the target case.");
+  const scope = previewDocument.source?.scope || {};
+  if (scope.type === "case") return { type: "case" };
+  if (scope.type === "sequenceGroup" && text(scope.issueId)) return { type: "issue", issueId: text(scope.issueId) };
+  throw new TypeError("Management AI Draft preview scope is unavailable or invalid.");
+}
+
+function managementAiDraftProvenance(draft) {
+  const citations = [];
+  const citationIds = new Map();
+  const claims = [];
+  for (const claim of draft.claims || []) {
+    const ids = [];
+    for (const reference of claim.sourceReferences || []) {
+      const key = `${reference.recordType}:${reference.recordId}:${reference.scopeRelation}:${reference.technicalSourceId}:${reference.issueId || ""}`;
+      let citationId = citationIds.get(key);
+      if (!citationId) {
+        citationId = `citation-${citations.length + 1}`;
+        citationIds.set(key, citationId);
+        citations.push({ id: citationId, recordType: reference.recordType, recordId: reference.recordId, relationship: reference.scopeRelation, ...(reference.issueId ? { issueId: reference.issueId } : {}), recordReference: reference.recordId });
+      }
+      ids.push(citationId);
+    }
+    claims.push({ id: claim.id, classification: claim.classification, citationIds: [...new Set(ids)] });
+  }
+  return { citations, claims };
+}
+
+function sameManagementAiDraftSnapshot(revision, draft, brief) {
+  const saved = revision?.content?.managementAiDraft;
+  if (!saved?.acceptedDraft || !saved?.aiBrief) return false;
+  return canonicalSerialiseReportRevisionContent({ draft: saved.acceptedDraft, brief: saved.aiBrief }) === canonicalSerialiseReportRevisionContent({ draft, brief });
+}
+
+/** Builds, but does not persist, an immutable Management Report revision from a validated external AI Draft. */
+export async function buildManagementAiDraftCandidate({
+  caseItem,
+  aiDraft,
+  aiBrief,
+  validation,
+  previewDocument,
+  currentSourceFingerprint,
+  currentBriefCaseRevision,
+  currentCaseRevision = caseItem?.revision,
+  reportId = "",
+  now = new Date().toISOString(),
+  createId = generateId,
+} = {}) {
+  const caseId = requireText(caseItem?.id, "Case ID");
+  if (!validation?.valid) throw new TypeError("Management AI Draft must be successfully validated before acceptance.");
+  const briefCheck = validateAiBrief(aiBrief);
+  if (!briefCheck.valid) throw new TypeError(`Management AI Brief is invalid: ${briefCheck.errors.join(" ")}`);
+  if (aiBrief.requestedReportFamily !== "management") throw new TypeError("Only a Management AI Brief can be accepted as a Management Draft.");
+  const draftCheck = validateAiDraft(aiDraft, aiBrief);
+  if (!draftCheck.valid || draftCheck.normalisedDraft?.reportFamily !== "management") throw new TypeError(`Management AI Draft is invalid: ${draftCheck.errors.map((error) => error.message).join(" ")}`);
+  const fingerprint = requireText(currentSourceFingerprint, "Current source fingerprint");
+  if (fingerprint !== aiBrief.source?.sourceFingerprint) throw new TypeError("Management AI Draft source fingerprint is no longer current.");
+  const briefCaseRevision = requireText(currentBriefCaseRevision, "Current source revision");
+  if (briefCaseRevision !== aiBrief.source?.caseRevision) throw new TypeError("Management AI Draft source revision is no longer current.");
+  if (!Number.isSafeInteger(currentCaseRevision) || currentCaseRevision < 1) throw new TypeError("Current case revision is unavailable for this Management Draft.");
+  const scope = managementAiDraftScope(previewDocument, caseId);
+  if (previewDocument.aiDraftPreview?.sourceFingerprint !== fingerprint || previewDocument.aiDraftPreview?.sourceRevision !== aiBrief.source?.caseRevision) throw new TypeError("Management AI Draft preview does not match the original AI Brief binding.");
+  const library = requireSupportedLibrary(caseItem?.reportLibrary, caseId);
+  const integrity = await validateReportLibraryIntegrity(library, { caseId });
+  if (!integrity.valid) throw new TypeError(`Existing report library is invalid: ${integrity.errors.join(" ")}`);
+  const existingReportId = text(reportId);
+  const existingManifest = existingReportId ? library.reports[existingReportId] : null;
+  if (existingReportId && (!existingManifest || existingManifest.reportType !== "management" || existingManifest.caseId !== caseId || existingManifest.status !== "draft")) throw new TypeError("The selected Management Draft is unavailable for a new revision.");
+  if (existingManifest && JSON.stringify(existingManifest.scope) !== JSON.stringify(scope)) throw new TypeError("A new Management Draft revision must keep the saved canonical scope.");
+  const parentRevision = existingManifest ? library.revisions[existingManifest.currentRevisionId] : null;
+  if (existingManifest && !parentRevision) throw new TypeError("The selected Management Draft has no current revision.");
+  if (Object.values(library.revisions).some((revision) => revision.reportId && library.reports[revision.reportId]?.reportType === "management" && sameManagementAiDraftSnapshot(revision, aiDraft, aiBrief))) throw new TypeError("This exact Management AI Draft has already been accepted as an immutable revision.");
+  const nextReportId = existingManifest ? existingManifest.id : createId();
+  const revisionId = createId();
+  if (library.revisions[revisionId]) throw new TypeError("Management AI Draft revision ID already exists.");
+  const acceptedDraft = cloneJson(aiDraft);
+  const acceptedBrief = cloneJson(aiBrief);
+  const revision = {
+    schemaVersion: REPORT_LIFECYCLE_SCHEMA_VERSION, id: revisionId, reportId: nextReportId, versionNumber: parentRevision ? parentRevision.versionNumber + 1 : 1, parentRevisionId: parentRevision?.id || null, createdAt: now,
+    source: { caseRevision: currentCaseRevision, fingerprint },
+    content: { reportDocument: cloneJson(previewDocument), managementAiDraft: { acceptedDraft, aiBrief: acceptedBrief, sourceAiBrief: { caseRevision: aiBrief.source.caseRevision, sourceFingerprint: fingerprint }, validation: { warnings: cloneJson(draftCheck.warnings), reviewReasons: [...new Set(draftCheck.reviewReasons)] }, generation: { mode: "ai_assisted", origin: "externally_drafted" } } },
+    generationMode: "ai_assisted", provenance: managementAiDraftProvenance(draftCheck.normalisedDraft), contentChecksum: "", lifecycle: { status: "draft", updatedAt: now, review: {} },
+  };
+  revision.contentChecksum = await calculateReportRevisionChecksum(revision);
+  const manifest = existingManifest
+    ? { ...existingManifest, currentRevisionId: revisionId, revisionIds: [...existingManifest.revisionIds, revisionId], status: "draft" }
+    : { schemaVersion: REPORT_LIFECYCLE_SCHEMA_VERSION, id: nextReportId, caseId, reportType: "management", title: "Management Report", createdAt: now, scope, status: "draft", currentRevisionId: revisionId, approvedRevisionId: null, revisionIds: [revisionId] };
+  const candidate = { schemaVersion: REPORT_LIBRARY_SCHEMA_VERSION, reports: { ...library.reports, [nextReportId]: manifest }, revisions: { ...library.revisions, [revisionId]: revision } };
+  const candidateValidation = await validateReportLibraryIntegrity(candidate, { caseId });
+  if (!candidateValidation.valid) throw new TypeError(`Management AI Draft is invalid: ${candidateValidation.errors.join(" ")}`);
+  return { reportLibrary: candidate, manifest, revision };
 }
 
 /** Builds a complete candidate library without persisting or regenerating content. */

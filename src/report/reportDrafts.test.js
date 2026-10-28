@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildClientUpdateDraftCandidate, buildClientUpdateLifecycleCandidate, buildExecutiveDraftCandidate, buildLegacyClientUpdateDraftCandidate, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, getLegacyClientUpdateNarratives, verifyClientUpdateSavedDraft } from "./reportDrafts.js";
+import { buildClientUpdateDraftCandidate, buildClientUpdateLifecycleCandidate, buildExecutiveDraftCandidate, buildLegacyClientUpdateDraftCandidate, buildManagementAiDraftCandidate, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, getLegacyClientUpdateNarratives, verifyClientUpdateSavedDraft } from "./reportDrafts.js";
 import { verifyReportRevisionChecksum } from "./reportLifecycle.js";
+import { buildAiBrief } from "./aiBrief.js";
+import { validateAiDraft } from "./aiDraft.js";
+import { buildManagementAiDraftPreview } from "./managementAiDraftPreview.js";
 
 const TIME = "2026-10-25T12:00:00.000Z";
 
@@ -52,6 +55,10 @@ function ids(...values) {
   let index = 0;
   return () => values[index++] || `generated-${index}`;
 }
+
+function managementCase(reportLibrary) { return { id: "management-case", name: "Management Case", revision: 7, updatedAt: "2026-10-28T10:00:00.000Z", issues: [{ id: "issue-a", reference: "ISS-001", name: "Matter", status: "open" }], incidents: [{ id: "incident-a", title: "Recorded incident", sequenceGroupId: "issue-a", sequenceGroup: "Matter" }], evidence: [], documents: [], ledger: [], strategy: [], watchItems: [], ...(reportLibrary ? { reportLibrary } : {}) }; }
+function managementDraft(brief, suffix = "") { const reference = brief.recordReferences[0]; return { schema: { id: "proveit.ai-draft", version: 1 }, reportFamily: "management", case: { id: brief.case.id }, scope: { type: "case" }, sourceAiBrief: { sourceFingerprint: brief.source.sourceFingerprint, caseRevision: brief.source.caseRevision }, sections: [{ id: "overview", heading: "Management Overview", narrative: `AI narrative ${suffix}`, claimIds: ["fact", "allegation"] }], claims: [{ id: "fact", classification: "recorded_fact", text: "A recorded incident exists.", sourceReferences: [{ recordType: reference.recordType, recordId: reference.recordId, scopeRelation: reference.scopeRelation, technicalSourceId: reference.sourceTechnicalReportIds[0], issueId: reference.issue.issueId }] }, { id: "allegation", classification: "allegation", text: "An allegation requires review.", sourceReferences: [{ recordType: reference.recordType, recordId: reference.recordId, scopeRelation: reference.scopeRelation, technicalSourceId: reference.sourceTechnicalReportIds[0], issueId: reference.issue.issueId }] }], unresolvedQuestions: [{ id: "question", text: "What response is recorded?", sourceReferences: [] }], evidenceGaps: [{ id: "gap", text: "Further evidence may be required.", sourceReferences: [] }], recommendations: [{ id: "action", text: "Review the recorded material.", sourceReferences: [] }] }; }
+function managementInput(overrides = {}) { const item = managementCase(); const brief = buildAiBrief(item, { reportFamily: "management", generatedAt: "2026-10-28T12:00:00.000Z" }); const draft = managementDraft(brief); const validation = validateAiDraft(draft, brief); const previewDocument = buildManagementAiDraftPreview({ draft, brief, validation, freshness: "current" }); return { caseItem: item, aiDraft: draft, aiBrief: brief, validation, previewDocument, currentSourceFingerprint: brief.source.sourceFingerprint, currentBriefCaseRevision: brief.source.caseRevision, currentCaseRevision: item.revision, now: TIME, createId: ids("management-report", "management-revision-1"), ...overrides }; }
 
 test("Executive Draft snapshots existing outputs and validates immutable provenance", async () => {
   const result = await buildExecutiveDraftCandidate({
@@ -291,4 +298,26 @@ test("Client Update candidate fails closed for invalid inputs, malformed librari
   const tampered = structuredClone(first.reportLibrary);
   tampered.revisions["client-revision-1"].content.markdown = "tampered";
   await assert.rejects(buildClientUpdateDraftCandidate(clientInput({ caseItem: caseItem(tampered) })), /Existing report library is invalid/);
+});
+
+test("Management AI Draft acceptance snapshots exact draft, Brief, preview, provenance, and draft-only lifecycle", async () => {
+  const input = managementInput(); const beforeCase = structuredClone(input.caseItem); const beforeDraft = structuredClone(input.aiDraft);
+  const accepted = await buildManagementAiDraftCandidate(input);
+  assert.equal(accepted.manifest.reportType, "management"); assert.equal(accepted.revision.generationMode, "ai_assisted"); assert.equal(accepted.revision.lifecycle.status, "draft"); assert.deepEqual(accepted.revision.lifecycle.review, {});
+  assert.deepEqual(accepted.revision.content.managementAiDraft.acceptedDraft, beforeDraft); assert.deepEqual(accepted.revision.content.managementAiDraft.aiBrief, input.aiBrief);
+  assert.equal(accepted.revision.content.reportDocument.kind, "management-ai-draft-preview"); assert.equal(accepted.revision.provenance.claims.find((claim) => claim.id === "allegation").classification, "allegation"); assert.equal(accepted.revision.provenance.citations[0].recordId, "incident-a");
+  assert.equal((await verifyReportRevisionChecksum(accepted.revision)).valid, true); assert.deepEqual(input.caseItem, beforeCase);
+  input.aiDraft.claims[0].text = "Changed"; assert.equal(accepted.revision.content.managementAiDraft.acceptedDraft.claims[0].text, "A recorded incident exists.");
+});
+
+test("Management AI Draft acceptance rejects stale, changed, mismatched, duplicate, and malformed candidates while preserving parent chains", async () => {
+  const firstInput = managementInput(); const first = await buildManagementAiDraftCandidate(firstInput);
+  await assert.rejects(buildManagementAiDraftCandidate(managementInput({ caseItem: managementCase(first.reportLibrary), createId: ids("duplicate-report", "duplicate-revision") })), /already been accepted/);
+  const changedDraft = managementDraft(firstInput.aiBrief, "new revision"); const changedValidation = validateAiDraft(changedDraft, firstInput.aiBrief); const changedPreview = buildManagementAiDraftPreview({ draft: changedDraft, brief: firstInput.aiBrief, validation: changedValidation, freshness: "current" });
+  const second = await buildManagementAiDraftCandidate(managementInput({ caseItem: managementCase(first.reportLibrary), aiDraft: changedDraft, validation: changedValidation, previewDocument: changedPreview, reportId: "management-report", now: "2026-10-26T12:00:00.000Z", createId: ids("management-revision-2") }));
+  assert.equal(second.revision.parentRevisionId, "management-revision-1"); assert.equal(second.revision.versionNumber, 2); assert.equal(second.reportLibrary.revisions["management-revision-1"].content.managementAiDraft.acceptedDraft.sections[0].narrative, "AI narrative ");
+  await assert.rejects(buildManagementAiDraftCandidate(managementInput({ currentSourceFingerprint: "changed" })), /no longer current/);
+  await assert.rejects(buildManagementAiDraftCandidate(managementInput({ currentBriefCaseRevision: "changed" })), /source revision is no longer current/);
+  const invalid = managementInput(); invalid.aiDraft.sourceAiBrief.sourceFingerprint = "wrong"; await assert.rejects(buildManagementAiDraftCandidate(invalid), /invalid/);
+  const tampered = managementCase(first.reportLibrary); tampered.reportLibrary.revisions["management-revision-1"].content.managementAiDraft.acceptedDraft.claims[0].text = "tampered"; await assert.rejects(buildManagementAiDraftCandidate(managementInput({ caseItem: tampered })), /Existing report library is invalid/);
 });

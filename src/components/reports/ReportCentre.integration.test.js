@@ -255,7 +255,7 @@ test("professional report previews can prepare a local, freshness-checked AI Bri
 });
 
 test("AI Draft preparation and validation remain local, use the original Brief, and do not enter report persistence flows", () => {
-  assert.match(caseDetailSource, /import \{ parseAndValidateAiDraft \} from "\.\.\/report\/aiDraft\.js"/);
+  assert.match(caseDetailSource, /import \{ parseAiDraft, parseAndValidateAiDraft \} from "\.\.\/report\/aiDraft\.js"/);
   assert.match(caseDetailSource, /import \{ buildAiDraftingRequest \} from "\.\.\/report\/aiDraftRequest\.js"/);
   assert.match(caseDetailSource, /const \[aiDraftText, setAiDraftText\] = useState\(""\)/);
   assert.match(caseDetailSource, /const \[aiDraftValidation, setAiDraftValidation\] = useState\(null\)/);
@@ -280,6 +280,18 @@ test("Management AI Draft previews are exact-validation-gated, local, and cannot
   assert.match(caseDetailSource, /className="print:hidden" aria-labelledby="management-ai-draft-preview-heading"/);
   assert.match(caseDetailSource, /Printing and export actions remain connected only to the ordinary live Management Report below/);
   assert.doesNotMatch(caseDetailSource, /onUpdateCase\(\{[^}]*managementAiDraftPreview/);
+});
+
+test("Management AI Draft acceptance persists only an acknowledged immutable draft revision from a current exact validation", () => {
+  assert.match(caseDetailSource, /buildManagementAiDraftCandidate/);
+  assert.match(caseDetailSource, /preparedAiBriefFreshness !== "current"/);
+  assert.match(caseDetailSource, /parseAiDraft\(aiDraftText\)/);
+  assert.match(caseDetailSource, /currentSourceFingerprint: reportCentreModel\?\.sourceRevision\?\.fingerprint/);
+  assert.match(caseDetailSource, /reportLibrary: candidate\.reportLibrary/);
+  assert.match(caseDetailSource, /if \(!saved\) \{\s*setAiDraftFeedback\("Management AI Draft was not saved/);
+  assert.match(caseDetailSource, /Accept as Management Draft/);
+  assert.match(caseDetailSource, /unapproved Draft revision only/);
+  assert.doesNotMatch(caseDetailSource, /generatedReportVersions:[\s\S]{0,300}buildManagementAiDraftCandidate/);
 });
 
 test("Executive Draft saving waits for the existing persistence acknowledgement", () => {

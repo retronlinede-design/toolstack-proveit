@@ -73,11 +73,11 @@ import { buildDocumentScheduleDocument, projectDocumentDocumentToLegacyViewModel
 import { buildLedgerScheduleDocument, projectLedgerDocumentToLegacyViewModel } from "../report/ledgerScheduleDocument.js";
 import { buildActiveReportDocument } from "../report/buildActiveReportDocument.js";
 import { buildAiBrief, getAiBriefFreshness, validateAiBrief } from "../report/aiBrief.js";
-import { parseAndValidateAiDraft } from "../report/aiDraft.js";
+import { parseAiDraft, parseAndValidateAiDraft } from "../report/aiDraft.js";
 import { buildAiDraftingRequest } from "../report/aiDraftRequest.js";
 import { buildManagementAiDraftPreview } from "../report/managementAiDraftPreview.js";
 import { buildReportOutput } from "../report/reportOutputs.js";
-import { buildClientUpdateDraftCandidate, buildClientUpdateLifecycleCandidate, buildExecutiveDraftCandidate, buildLegacyClientUpdateDraftCandidate, extractReportDocumentProvenance, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, getLegacyClientUpdateNarratives, isLegacyImportedClientUpdateRevision, verifyClientUpdateSavedDraft } from "../report/reportDrafts.js";
+import { buildClientUpdateDraftCandidate, buildClientUpdateLifecycleCandidate, buildExecutiveDraftCandidate, buildLegacyClientUpdateDraftCandidate, buildManagementAiDraftCandidate, extractReportDocumentProvenance, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, getLegacyClientUpdateNarratives, isLegacyImportedClientUpdateRevision, verifyClientUpdateSavedDraft } from "../report/reportDrafts.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import {
   moveCaseNavigationItem,
@@ -354,6 +354,8 @@ export default function CaseDetail({
     setAiDraftFeedback("");
     setManagementAiDraftPreview(null);
     setAiDraftValidatedText("");
+    setAcceptingManagementAiDraft(false);
+    setAcceptedManagementAiDraftText("");
     setSavedExecutiveRevisionId("");
     setExecutiveRevisionTargetReportId("");
     setExecutiveDraftFeedback("");
@@ -425,6 +427,8 @@ export default function CaseDetail({
   const [aiDraftFeedback, setAiDraftFeedback] = useState("");
   const [aiDraftValidatedText, setAiDraftValidatedText] = useState("");
   const [managementAiDraftPreview, setManagementAiDraftPreview] = useState(null);
+  const [acceptingManagementAiDraft, setAcceptingManagementAiDraft] = useState(false);
+  const [acceptedManagementAiDraftText, setAcceptedManagementAiDraftText] = useState("");
   const [savedExecutiveRevisionId, setSavedExecutiveRevisionId] = useState("");
   const [executiveRevisionTargetReportId, setExecutiveRevisionTargetReportId] = useState("");
   const [savingExecutiveDraft, setSavingExecutiveDraft] = useState(false);
@@ -4078,6 +4082,7 @@ ${ungroupedSequenceText}
       setAiDraftValidation(null);
       setAiDraftValidatedText("");
       setManagementAiDraftPreview(null);
+      setAcceptedManagementAiDraftText("");
       setAiDraftFeedback(aiDraftText ? "The pasted AI Draft text was preserved. Revalidate it against this newly prepared Brief." : "");
     } catch (error) {
       setAiBriefFeedback(error?.message || "The AI Brief could not be prepared.");
@@ -4125,6 +4130,7 @@ ${ungroupedSequenceText}
     setAiDraftValidation(null);
     setAiDraftValidatedText("");
     setManagementAiDraftPreview(null);
+    setAcceptedManagementAiDraftText("");
     setAiDraftFeedback("");
   };
   const handleValidateAiDraft = () => {
@@ -4133,6 +4139,7 @@ ${ungroupedSequenceText}
     setAiDraftValidation(result);
     setAiDraftValidatedText(result.valid ? aiDraftText : "");
     setManagementAiDraftPreview(null);
+    setAcceptedManagementAiDraftText("");
     setAiDraftFeedback(result.valid
       ? preparedAiBriefFreshness === "current"
         ? "AI Draft is structurally valid against the current-source AI Brief. Human review remains required."
@@ -4157,6 +4164,46 @@ ${ungroupedSequenceText}
     } catch (error) {
       setManagementAiDraftPreview(null);
       setAiDraftFeedback(error?.message || "The Management AI Draft preview could not be prepared.");
+    }
+  };
+  const handleAcceptManagementAiDraft = async () => {
+    if (acceptingManagementAiDraft || !selectedCase || !preparedAiBrief || preparedAiBriefFreshness !== "current" || !managementAiDraftPreview || !aiDraftValidation?.valid || aiDraftValidatedText !== aiDraftText) {
+      setAiDraftFeedback("This Management AI Draft cannot be accepted until the unchanged pasted draft is valid against a current original AI Brief.");
+      return;
+    }
+    if (acceptedManagementAiDraftText === aiDraftText) {
+      setAiDraftFeedback("This exact Management AI Draft was already accepted as an immutable revision.");
+      return;
+    }
+    const parsed = parseAiDraft(aiDraftText);
+    if (!parsed.valid) {
+      setAiDraftFeedback("The pasted AI Draft changed or is invalid. Validate it again before acceptance.");
+      setManagementAiDraftPreview(null);
+      return;
+    }
+    setAcceptingManagementAiDraft(true);
+    try {
+      const candidate = await buildManagementAiDraftCandidate({
+        caseItem: selectedCase,
+        aiDraft: parsed.draft,
+        aiBrief: preparedAiBrief,
+        validation: aiDraftValidation,
+        previewDocument: managementAiDraftPreview,
+        currentSourceFingerprint: reportCentreModel?.sourceRevision?.fingerprint,
+        currentBriefCaseRevision: reportCentreModel?.sourceRevision?.caseUpdatedAt,
+        currentCaseRevision: selectedCase.revision,
+      });
+      const saved = await onUpdateCase({ ...selectedCase, reportLibrary: candidate.reportLibrary });
+      if (!saved) {
+        setAiDraftFeedback("Management AI Draft was not saved. The validated draft and preview remain available to retry.");
+        return;
+      }
+      setAcceptedManagementAiDraftText(aiDraftText);
+      setAiDraftFeedback(`Immutable Management AI Draft revision ${candidate.revision.versionNumber} saved. It remains unapproved and requires human review.`);
+    } catch (error) {
+      setAiDraftFeedback(error?.message || "Management AI Draft was not saved. The validated draft and preview remain available to retry.");
+    } finally {
+      setAcceptingManagementAiDraft(false);
     }
   };
   const handleSaveExecutiveDraft = async () => {
@@ -5753,7 +5800,7 @@ ${ungroupedSequenceText}
                     />
                   </section>
                   {aiBriefEligible ? <AiBriefPanel brief={preparedAiBrief} freshness={preparedAiBriefFreshness} feedback={aiBriefFeedback} onCopy={handleCopyAiBrief} onDownload={handleDownloadAiBrief} onCopyDraftingRequest={handleCopyAiDraftingRequest} draftText={aiDraftText} onDraftTextChange={handleAiDraftTextChange} onValidateDraft={handleValidateAiDraft} draftValidation={aiDraftValidation} draftFeedback={aiDraftFeedback} onPreviewManagementDraft={handlePreviewManagementAiDraft} managementPreviewAvailable={reportCentreType === "management" && Boolean(aiDraftValidation?.valid) && aiDraftValidatedText === aiDraftText} /> : null}
-                  {managementAiDraftPreview ? <section className="print:hidden" aria-labelledby="management-ai-draft-preview-heading"><div className="rounded-xl border border-amber-700/40 bg-amber-950/10 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="case-file-reports-eyebrow">AI-authored preview</p><h5 id="management-ai-draft-preview-heading" className="mt-1 text-base font-bold">Management AI Draft — preview only</h5><p className="mt-1 text-sm">This local preview retains its validated source references and must not be treated as approved. Printing and export actions remain connected only to the ordinary live Management Report below.</p></div><button type="button" onClick={() => setManagementAiDraftPreview(null)} className="case-file-reports-utility-action">Close preview</button></div><details className="mt-3"><summary className="cursor-pointer text-sm font-semibold">Inspect validated AI Draft and source references</summary><pre className="mt-3 max-h-96 overflow-auto rounded-lg border border-neutral-700 bg-neutral-950 p-3 text-xs text-neutral-100">{JSON.stringify(managementAiDraftPreview.aiDraftPreview.draft, null, 2)}</pre></details><div className="mt-4"><ManagementReportArticle reportDocument={managementAiDraftPreview} /></div></div></section> : null}
+                  {managementAiDraftPreview ? <section className="print:hidden" aria-labelledby="management-ai-draft-preview-heading"><div className="rounded-xl border border-amber-700/40 bg-amber-950/10 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="case-file-reports-eyebrow">AI-authored preview</p><h5 id="management-ai-draft-preview-heading" className="mt-1 text-base font-bold">Management AI Draft — preview only</h5><p className="mt-1 text-sm">This local preview retains its validated source references and must not be treated as approved. Printing and export actions remain connected only to the ordinary live Management Report below.</p></div><button type="button" onClick={() => setManagementAiDraftPreview(null)} disabled={acceptingManagementAiDraft} className="case-file-reports-utility-action">Close preview</button></div><div className="mt-3 flex flex-wrap items-center gap-2"><button type="button" onClick={handleAcceptManagementAiDraft} disabled={acceptingManagementAiDraft || acceptedManagementAiDraftText === aiDraftText || preparedAiBriefFreshness !== "current" || aiDraftValidatedText !== aiDraftText} className="case-file-reports-utility-action">{acceptingManagementAiDraft ? "Saving Management Draft…" : acceptedManagementAiDraftText === aiDraftText ? "Management Draft accepted" : "Accept as Management Draft"}</button><p className="text-xs text-neutral-600 dark:text-neutral-300">Acceptance saves an immutable, unapproved Draft revision only. A current source Brief is required.</p></div>{preparedAiBriefFreshness !== "current" ? <p className="mt-2 text-sm font-semibold" role="status">This historical preview cannot be accepted as a current Draft.</p> : null}<details className="mt-3"><summary className="cursor-pointer text-sm font-semibold">Inspect validated AI Draft and source references</summary><pre className="mt-3 max-h-96 overflow-auto rounded-lg border border-neutral-700 bg-neutral-950 p-3 text-xs text-neutral-100">{JSON.stringify(managementAiDraftPreview.aiDraftPreview.draft, null, 2)}</pre></details><div className="mt-4"><ManagementReportArticle reportDocument={managementAiDraftPreview} /></div></div></section> : null}
                   <section className="case-file-reports-document-preview" aria-label="Selected report preview">
 
                   {savedExecutiveDraft ? <div className="rounded-lg border border-teal-700/40 bg-teal-950/20 px-3 py-2 text-sm print:hidden" role="status">Viewing an immutable saved Draft snapshot · source freshness: {savedExecutiveDrafts.find((draft) => draft.revision.id === savedExecutiveDraft.revision.id)?.freshness || "unknown"}. This content is not regenerated. <button type="button" onClick={() => { setSavedExecutiveRevisionId(""); setReportCentreDestination("saved"); }} className="ml-2 font-bold underline">Return to Saved Reports</button></div> : null}
