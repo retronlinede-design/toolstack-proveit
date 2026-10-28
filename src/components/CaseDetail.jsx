@@ -77,7 +77,7 @@ import { parseAiDraft, parseAndValidateAiDraft } from "../report/aiDraft.js";
 import { buildAiDraftingRequest } from "../report/aiDraftRequest.js";
 import { buildManagementAiDraftPreview } from "../report/managementAiDraftPreview.js";
 import { buildReportOutput } from "../report/reportOutputs.js";
-import { buildClientUpdateDraftCandidate, buildClientUpdateLifecycleCandidate, buildExecutiveDraftCandidate, buildLegacyClientUpdateDraftCandidate, buildManagementAiDraftCandidate, extractReportDocumentProvenance, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, getLegacyClientUpdateNarratives, getManagementAiDraft, getManagementAiDraftFreshness, getManagementAiDrafts, isLegacyImportedClientUpdateRevision, verifyClientUpdateSavedDraft, verifyManagementAiDraft } from "../report/reportDrafts.js";
+import { buildClientUpdateDraftCandidate, buildClientUpdateLifecycleCandidate, buildExecutiveDraftCandidate, buildLegacyClientUpdateDraftCandidate, buildManagementAiDraftCandidate, buildManagementAiDraftLifecycleCandidate, extractReportDocumentProvenance, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, getLegacyClientUpdateNarratives, getManagementAiDraft, getManagementAiDraftFreshness, getManagementAiDrafts, isLegacyImportedClientUpdateRevision, verifyClientUpdateSavedDraft, verifyManagementAiDraft } from "../report/reportDrafts.js";
 import { getLinkChipClasses } from "./linkChipStyles";
 import {
   moveCaseNavigationItem,
@@ -358,6 +358,9 @@ export default function CaseDetail({
     setAcceptedManagementAiDraftText("");
     setSavedManagementAiDraftRevisionId("");
     setManagementAiDraftHistoryFeedback("");
+    setManagementAiDraftReviewer("");
+    setManagementAiDraftApprover("");
+    setUpdatingManagementAiDraftLifecycle(false);
     setSavedExecutiveRevisionId("");
     setExecutiveRevisionTargetReportId("");
     setExecutiveDraftFeedback("");
@@ -433,6 +436,9 @@ export default function CaseDetail({
   const [acceptedManagementAiDraftText, setAcceptedManagementAiDraftText] = useState("");
   const [savedManagementAiDraftRevisionId, setSavedManagementAiDraftRevisionId] = useState("");
   const [managementAiDraftHistoryFeedback, setManagementAiDraftHistoryFeedback] = useState("");
+  const [managementAiDraftReviewer, setManagementAiDraftReviewer] = useState("");
+  const [managementAiDraftApprover, setManagementAiDraftApprover] = useState("");
+  const [updatingManagementAiDraftLifecycle, setUpdatingManagementAiDraftLifecycle] = useState(false);
   const [savedExecutiveRevisionId, setSavedExecutiveRevisionId] = useState("");
   const [executiveRevisionTargetReportId, setExecutiveRevisionTargetReportId] = useState("");
   const [savingExecutiveDraft, setSavingExecutiveDraft] = useState(false);
@@ -768,11 +774,14 @@ export default function CaseDetail({
         : reportCentreType === "incidentSchedule" ? reportCentreIncidentDocument
           : reportCentreType === "chronologyReport" ? reportCentreChronologyDocument
             : reportCentreType === "caseAudit" ? reportCentreCaseAuditDocument : null;
-  const reportCentreActiveDocument = reportCentreType === "executive" && savedExecutiveDraft
+  const reportCentreActiveDocument = useMemo(() => (reportCentreType === "executive" && savedExecutiveDraft
     ? savedExecutiveDraft.revision.content.reportDocument
     : reportCentreType === "management" && savedManagementAiDraft
-      ? savedManagementAiDraft.revision.content.reportDocument
-    : reportCentreLiveActiveDocument;
+      ? {
+        ...savedManagementAiDraft.revision.content.reportDocument,
+        historicalLifecycle: structuredClone(savedManagementAiDraft.revision.lifecycle),
+      }
+      : reportCentreLiveActiveDocument), [reportCentreLiveActiveDocument, reportCentreType, savedExecutiveDraft, savedManagementAiDraft]);
   const reportCentreCountLabel = useMemo(() => {
     if (reportCentreType === "executive") return `${reportCentreExecutiveDocument?.summary?.directRecordCount || 0} scoped records`;
     if (reportCentreType === "management") return `${reportCentreManagementDocument?.summary?.openIssueCount || 0} active Issues`;
@@ -3996,10 +4005,40 @@ ${ungroupedSequenceText}
         return;
       }
       setSavedManagementAiDraftRevisionId(draft.revision.id);
+      setManagementAiDraftReviewer("");
+      setManagementAiDraftApprover("");
       setReportCentreType("management");
       setReportCentreDestination("reports");
     } catch (error) {
       setManagementAiDraftHistoryFeedback(error?.message || "This Management AI Draft revision could not be verified.");
+    }
+  };
+  const handleManagementAiDraftLifecycleTransition = async (toStatus) => {
+    if (!selectedCase || !savedManagementAiDraft || updatingManagementAiDraftLifecycle) return;
+    setManagementAiDraftHistoryFeedback("");
+    setUpdatingManagementAiDraftLifecycle(true);
+    try {
+      const candidate = await buildManagementAiDraftLifecycleCandidate({
+        caseItem: selectedCase,
+        revisionId: savedManagementAiDraft.revision.id,
+        toStatus,
+        reviewerName: toStatus === "approved" ? managementAiDraftApprover : managementAiDraftReviewer,
+        currentFingerprint: reportCentreModel?.sourceRevision?.fingerprint,
+        currentBriefCaseRevision: reportCentreModel?.sourceRevision?.caseUpdatedAt,
+      });
+      const saved = await onUpdateCase({ ...selectedCase, reportLibrary: candidate.reportLibrary });
+      if (!saved) {
+        setManagementAiDraftHistoryFeedback("Management AI Draft lifecycle status was not saved. The prior lifecycle status remains in effect.");
+        return;
+      }
+      setSavedManagementAiDraftRevisionId(candidate.revision.id);
+      setManagementAiDraftHistoryFeedback(toStatus === "approved"
+        ? `Management AI Draft revision ${candidate.revision.versionNumber} approved by ${candidate.revision.lifecycle.review.approvedBy}.`
+        : `Management AI Draft revision ${candidate.revision.versionNumber} reviewed by ${candidate.revision.lifecycle.review.reviewedBy}.`);
+    } catch (error) {
+      setManagementAiDraftHistoryFeedback(error?.message || "Management AI Draft lifecycle status could not be saved.");
+    } finally {
+      setUpdatingManagementAiDraftLifecycle(false);
     }
   };
   const handleOpenSavedClientUpdate = async (draft) => {
@@ -5872,7 +5911,16 @@ ${ungroupedSequenceText}
 
                   {savedExecutiveDraft ? <div className="rounded-lg border border-teal-700/40 bg-teal-950/20 px-3 py-2 text-sm print:hidden" role="status">Viewing an immutable saved Draft snapshot · source freshness: {savedExecutiveDrafts.find((draft) => draft.revision.id === savedExecutiveDraft.revision.id)?.freshness || "unknown"}. This content is not regenerated. <button type="button" onClick={() => { setSavedExecutiveRevisionId(""); setReportCentreDestination("saved"); }} className="ml-2 font-bold underline">Return to Saved Reports</button></div> : null}
                   {activeSavedClientUpdateRevision ? <div className="rounded-lg border border-teal-700/40 bg-teal-950/20 px-3 py-2 text-sm print:hidden" role="status">Viewing immutable Client Update revision {activeSavedClientUpdateRevision.versionNumber} · {activeSavedClientUpdateRevision.content.clientUpdate.language.toUpperCase()} · {activeSavedClientUpdateIsLegacy ? "legacy narrative provenance: unknown · " : ""}snapshot source freshness: {activeSavedClientUpdateFreshness || "unknown"}. This content is not regenerated. <button type="button" onClick={() => { setSavedClientUpdateRevisionId(""); setSavedClientUpdateSnapshot(null); setReportCentreDestination("saved"); }} className="ml-2 font-bold underline">Return to Saved Reports</button></div> : null}
-                  {savedManagementAiDraft ? <div className="rounded-lg border border-amber-700/40 bg-amber-950/10 px-3 py-2 text-sm print:hidden" role="status">Viewing immutable Management AI Draft revision {savedManagementAiDraft.revision.versionNumber} · AI-assisted / externally drafted · lifecycle: {savedManagementAiDraft.revision.lifecycle.status} · source freshness: {savedManagementAiDrafts.find((draft) => draft.revision.id === savedManagementAiDraft.revision.id)?.freshness || "unknown"}. This content is not regenerated and remains unapproved. <button type="button" onClick={() => { setSavedManagementAiDraftRevisionId(""); setReportCentreDestination("saved"); }} className="ml-2 font-bold underline">Return to Saved Reports</button></div> : null}
+                  {savedManagementAiDraft ? <div className="rounded-lg border border-amber-700/40 bg-amber-950/10 px-3 py-2 text-sm print:hidden" role="status">Viewing immutable Management AI Draft revision {savedManagementAiDraft.revision.versionNumber} · AI-assisted / externally drafted · lifecycle: {savedManagementAiDraft.revision.lifecycle.status} · source freshness: {savedManagementAiDrafts.find((draft) => draft.revision.id === savedManagementAiDraft.revision.id)?.freshness || "unknown"}. This content is not regenerated. <button type="button" onClick={() => { setSavedManagementAiDraftRevisionId(""); setReportCentreDestination("saved"); }} className="ml-2 font-bold underline">Return to Saved Reports</button></div> : null}
+                  {savedManagementAiDraft ? <section className="mt-3 rounded-lg border border-amber-700/40 bg-amber-950/10 p-3 text-sm print:hidden" aria-labelledby="management-ai-draft-review-heading">
+                    <div><p className="case-file-reports-eyebrow">Human review and approval</p><h5 id="management-ai-draft-review-heading" className="mt-1 font-bold">Management AI Draft revision {savedManagementAiDraft.revision.versionNumber}</h5><p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">{savedManagementAiDraft.revision.lifecycle.status.replaceAll("_", " ")} · AI-assisted / externally drafted · {savedManagementAiDrafts.find((draft) => draft.revision.id === savedManagementAiDraft.revision.id)?.freshness || "unknown"} source</p></div>
+                    <div className="mt-3 grid gap-3 lg:grid-cols-2"><section><h6 className="font-semibold">Outstanding human-review items</h6><ul className="mt-1 list-disc space-y-1 pl-5 text-xs">{savedManagementAiDraft.revision.content.managementAiDraft.validation.reviewReasons.map((reason) => <li key={reason}>{reason}</li>)}{savedManagementAiDraft.revision.content.managementAiDraft.validation.warnings.map((warning, index) => <li key={`${warning.code}-${index}`}>{warning.code}: {warning.message}</li>)}{savedManagementAiDraft.revision.content.managementAiDraft.acceptedDraft.claims.filter((claim) => ["allegation", "interpretation"].includes(claim.classification)).map((claim) => <li key={claim.id}>{claim.classification.replaceAll("_", " ")}: {claim.text}</li>)}</ul></section><section><h6 className="font-semibold">Decision history</h6>{savedManagementAiDraft.revision.lifecycle.review.history?.length ? <ul className="mt-1 space-y-1 text-xs">{savedManagementAiDraft.revision.lifecycle.review.history.map((entry) => <li key={`${entry.decision}-${entry.at}`}><strong>{entry.decision}</strong> by {entry.actor} · {new Date(entry.at).toLocaleString()} · verified integrity</li>)}</ul> : <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">No human review decision has been recorded.</p>}</section></div>
+                    {savedManagementAiDraft.revision.lifecycle.status === "draft" ? <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end"><label className="min-w-52 text-xs font-semibold">Named reviewer<input type="text" value={managementAiDraftReviewer} onChange={(event) => setManagementAiDraftReviewer(event.target.value)} className="mt-1 block w-full rounded border border-slate-400 bg-white px-2 py-1.5 text-sm text-slate-950 dark:bg-slate-950 dark:text-slate-100" /></label><button type="button" onClick={() => handleManagementAiDraftLifecycleTransition("in_review")} disabled={updatingManagementAiDraftLifecycle || !managementAiDraftReviewer.trim()} className="case-file-reports-utility-action">{updatingManagementAiDraftLifecycle ? "Saving…" : "Record human review"}</button></div> : null}
+                    {savedManagementAiDraft.revision.lifecycle.status === "in_review" ? <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end"><label className="min-w-52 text-xs font-semibold">Named approver<input type="text" value={managementAiDraftApprover} onChange={(event) => setManagementAiDraftApprover(event.target.value)} className="mt-1 block w-full rounded border border-slate-400 bg-white px-2 py-1.5 text-sm text-slate-950 dark:bg-slate-950 dark:text-slate-100" /></label><button type="button" onClick={() => handleManagementAiDraftLifecycleTransition("approved")} disabled={updatingManagementAiDraftLifecycle || !managementAiDraftApprover.trim() || (savedManagementAiDrafts.find((draft) => draft.revision.id === savedManagementAiDraft.revision.id)?.freshness || "unknown") !== "current"} className="case-file-reports-utility-action">{updatingManagementAiDraftLifecycle ? "Saving…" : "Approve Management Draft"}</button></div> : null}
+                    {savedManagementAiDraft.revision.lifecycle.status === "in_review" ? <p className="mt-2 text-xs text-neutral-600 dark:text-neutral-300">Approval requires this exact saved snapshot, completed named review, verified integrity, and a current source fingerprint and revision. Warnings remain part of the historical record.</p> : null}
+                    {savedManagementAiDraft.revision.lifecycle.review.approvedBy ? <p className="mt-2 text-xs text-neutral-600 dark:text-neutral-300">Approved by {savedManagementAiDraft.revision.lifecycle.review.approvedBy} on {new Date(savedManagementAiDraft.revision.lifecycle.review.approvedAt).toLocaleString()}.</p> : null}
+                    {managementAiDraftHistoryFeedback ? <p className="mt-2 text-sm font-medium" role="status">{managementAiDraftHistoryFeedback}</p> : null}
+                  </section> : null}
                   {savedClientUpdateDraft ? <section className="mt-3 rounded-lg border border-teal-700/40 bg-teal-950/10 p-3 text-sm print:hidden" aria-labelledby="client-update-review-heading">
                     <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="case-file-reports-eyebrow">Human review</p><h5 id="client-update-review-heading" className="mt-1 font-bold">Client Update revision {savedClientUpdateDraft.revision.versionNumber}</h5><p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">{savedClientUpdateDraft.revision.content.clientUpdate.language.toUpperCase()} · {savedClientUpdateDraft.revision.lifecycle.status.replace("_", " ")} · {activeSavedClientUpdateFreshness || "unknown"} source</p>{savedClientUpdateDraft.revision.lifecycle.review?.reviewedBy ? <p className="mt-1 text-xs text-neutral-600 dark:text-neutral-300">Reviewed by {savedClientUpdateDraft.revision.lifecycle.review.reviewedBy} on {new Date(savedClientUpdateDraft.revision.lifecycle.review.reviewedAt).toLocaleString()}.</p> : null}</div></div>
                     {savedClientUpdateDraft.revision.lifecycle.status === "draft" ? <div className="mt-3"><button type="button" onClick={() => handleClientUpdateLifecycleTransition("in_review")} disabled={updatingClientUpdateLifecycle} className="case-file-reports-utility-action">{updatingClientUpdateLifecycle ? "Saving…" : "Mark for review"}</button></div> : null}

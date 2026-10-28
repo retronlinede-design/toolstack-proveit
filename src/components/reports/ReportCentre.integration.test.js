@@ -310,6 +310,19 @@ test("Management AI Draft history opens only verified immutable snapshots and ro
   assert.doesNotMatch(caseDetailSource, /onUpdateCase\(\{[^}]*savedManagementAiDraft/);
 });
 
+test("Management AI Draft lifecycle uses named human transitions, verified immutable history, and acknowledged case persistence", () => {
+  assert.match(caseDetailSource, /buildManagementAiDraftLifecycleCandidate/);
+  assert.match(caseDetailSource, /handleManagementAiDraftLifecycleTransition/);
+  assert.match(caseDetailSource, /Human review and approval/);
+  assert.match(caseDetailSource, /Outstanding human-review items/);
+  assert.match(caseDetailSource, /Record human review/);
+  assert.match(caseDetailSource, /Approve Management Draft/);
+  assert.match(caseDetailSource, /currentBriefCaseRevision: reportCentreModel\?\.sourceRevision\?\.caseUpdatedAt/);
+  assert.match(caseDetailSource, /const saved = await onUpdateCase\(\{ \.\.\.selectedCase, reportLibrary: candidate\.reportLibrary \}\)/);
+  assert.match(caseDetailSource, /source fingerprint and revision/);
+  assert.match(caseDetailSource, /historicalLifecycle: structuredClone\(savedManagementAiDraft\.revision\.lifecycle\)/);
+});
+
 test("Executive Draft saving waits for the existing persistence acknowledgement", () => {
   assert.match(caseDetailSource, /const saved = await onUpdateCase\(\{ \.\.\.selectedCase, reportLibrary: candidate\.reportLibrary \}\)/);
   assert.match(caseDetailSource, /if \(!saved\) \{\s*if \(selectedCaseRef\.current\?\.id === savingCaseId\) setExecutiveDraftFeedback\("Draft was not saved/);

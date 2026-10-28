@@ -27,3 +27,9 @@ test("renders an AI Draft as an explicitly unapproved management preview without
   for (const label of ["AI-authored draft preview", "AI Draft — not approved", "Historical Brief — stale against current case", "Allegation", "inc-1", "Unresolved Questions and Evidence Gaps", "Recommended Actions", "Human Review"]) assert.match(html, new RegExp(label));
   assert.match(html, /not establish that claims are true, verified, approved/);
 });
+
+test("renders saved Management AI Draft lifecycle metadata without altering the stored preview content", () => {
+  const preview = { kind: "management-ai-draft-preview", report: { generatedAt: "2026-10-28T12:00:00Z" }, source: { caseId: "case", caseName: "Case", scope: { type: "case" } }, presentation: { scope: "Whole case" }, historicalLifecycle: { status: "approved", review: { reviewedBy: "Reviewer", approvedBy: "Approver" } }, aiDraftPreview: { freshness: "current", sourceFingerprint: "fingerprint", sourceRevision: "2026-10-28", draft: { reportFamily: "management" }, sections: [], unresolvedQuestions: [], evidenceGaps: [], recommendations: [], warnings: [], reviewReasons: [] } };
+  const html = renderToStaticMarkup(React.createElement(ManagementReportArticle, { reportDocument: preview }));
+  for (const label of ["Approved historical snapshot", "Reviewed by", "Reviewer", "Approved by", "Approver"]) assert.match(html, new RegExp(label));
+});

@@ -461,6 +461,74 @@ export function getManagementAiDraftFreshness(revision, currentFingerprint) {
   return getReportSourceFreshness(revision, currentFingerprint);
 }
 
+/** Builds a lifecycle-only update for an integrity-verified Management AI Draft. */
+export async function buildManagementAiDraftLifecycleCandidate({
+  caseItem,
+  revisionId,
+  toStatus,
+  reviewerName = "",
+  currentFingerprint,
+  currentBriefCaseRevision,
+  now = new Date().toISOString(),
+} = {}) {
+  const caseId = requireText(caseItem?.id, "Case ID");
+  const selectedRevisionId = requireText(revisionId, "Management AI Draft revision ID");
+  const verified = await verifyManagementAiDraft(caseItem, selectedRevisionId);
+  if (!verified.valid) throw new TypeError(`Management AI Draft history is invalid: ${verified.errors.join(" ")}`);
+  const library = requireSupportedLibrary(caseItem?.reportLibrary, caseId);
+  const integrity = await validateReportLibraryIntegrity(library, { caseId });
+  if (!integrity.valid) throw new TypeError(`Management AI Draft history is invalid: ${integrity.errors.join(" ")}`);
+  const revision = library.revisions[selectedRevisionId];
+  const manifest = library.reports[revision?.reportId];
+  if (!manifest || manifest.reportType !== "management" || !isManagementAiDraftRevision(revision)) throw new TypeError("The selected Management AI Draft revision is unavailable or malformed.");
+  const reviewer = requireText(reviewerName, toStatus === "approved" ? "Approver name" : "Reviewer name");
+  const review = revision.lifecycle?.review || {};
+  if (toStatus === "approved") {
+    if (!text(review.reviewedBy) || !review.history?.some((item) => item.decision === "reviewed")) throw new TypeError("Management AI Draft approval requires a completed named human review.");
+    if (manifest.currentRevisionId !== revision.id) throw new TypeError("Only the current Management AI Draft revision can be approved.");
+    if (revision.source?.caseRevision !== caseItem?.revision) throw new TypeError("Management AI Draft approval requires the current case revision.");
+    if (requireText(currentBriefCaseRevision, "Current source revision") !== revision.content.managementAiDraft.sourceAiBrief?.caseRevision) throw new TypeError("Management AI Draft approval requires the current source revision.");
+  }
+  const transition = transitionReportLifecycle(
+    { ...revision.lifecycle, revision },
+    toStatus,
+    { actor: { kind: "human", name: reviewer }, currentFingerprint, at: now }
+  );
+  if (!transition.ok) throw new TypeError(transition.errors.join(" "));
+  const history = Array.isArray(review.history) ? cloneJson(review.history) : [];
+  const action = toStatus === "approved" ? "approved" : "reviewed";
+  history.push({
+    decision: action,
+    actor: reviewer,
+    at: now,
+    reportId: manifest.id,
+    revisionId: revision.id,
+    sourceFingerprint: revision.source.fingerprint,
+    sourceRevision: revision.content.managementAiDraft.sourceAiBrief.caseRevision,
+    integrity: "verified",
+  });
+  const nextReview = { ...transition.lifecycle.review, history };
+  if (toStatus === "in_review") {
+    nextReview.reviewedBy = reviewer;
+    nextReview.reviewedAt = now;
+  } else {
+    nextReview.reviewedBy = review.reviewedBy;
+    nextReview.reviewedAt = review.reviewedAt;
+    nextReview.approvedBy = reviewer;
+    nextReview.approvedAt = now;
+  }
+  const nextLifecycle = { ...transition.lifecycle, review: nextReview };
+  delete nextLifecycle.revision;
+  const nextRevision = { ...revision, lifecycle: nextLifecycle };
+  const nextManifest = manifest.currentRevisionId === revision.id
+    ? { ...manifest, status: nextLifecycle.status, approvedRevisionId: nextLifecycle.status === "approved" ? revision.id : manifest.approvedRevisionId }
+    : manifest;
+  const candidate = { schemaVersion: REPORT_LIBRARY_SCHEMA_VERSION, reports: { ...library.reports, [manifest.id]: nextManifest }, revisions: { ...library.revisions, [revision.id]: nextRevision } };
+  const validation = await validateReportLibraryIntegrity(candidate, { caseId });
+  if (!validation.valid) throw new TypeError(`Management AI Draft lifecycle update is invalid: ${validation.errors.join(" ")}`);
+  return { reportLibrary: candidate, manifest: nextManifest, revision: nextRevision };
+}
+
 function isClientUpdateRevision(revision) {
   return revision?.content?.reportDocument?.report?.id === "client"
     && text(revision?.content?.markdown)

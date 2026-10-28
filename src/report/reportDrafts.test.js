@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildClientUpdateDraftCandidate, buildClientUpdateLifecycleCandidate, buildExecutiveDraftCandidate, buildLegacyClientUpdateDraftCandidate, buildManagementAiDraftCandidate, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, getLegacyClientUpdateNarratives, getManagementAiDraft, getManagementAiDraftFreshness, getManagementAiDrafts, verifyClientUpdateSavedDraft, verifyManagementAiDraft } from "./reportDrafts.js";
+import { buildClientUpdateDraftCandidate, buildClientUpdateLifecycleCandidate, buildExecutiveDraftCandidate, buildLegacyClientUpdateDraftCandidate, buildManagementAiDraftCandidate, buildManagementAiDraftLifecycleCandidate, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, getLegacyClientUpdateNarratives, getManagementAiDraft, getManagementAiDraftFreshness, getManagementAiDrafts, verifyClientUpdateSavedDraft, verifyManagementAiDraft } from "./reportDrafts.js";
 import { verifyReportRevisionChecksum } from "./reportLifecycle.js";
 import { buildAiBrief } from "./aiBrief.js";
 import { validateAiDraft } from "./aiDraft.js";
@@ -344,4 +344,40 @@ test("Management AI Draft history fails closed for tampering, missing snapshots,
   const wrongFamily = structuredClone(savedCase); wrongFamily.reportLibrary.revisions["management-revision-1"].content.managementAiDraft.acceptedDraft.reportFamily = "executive";
   assert.equal((await verifyManagementAiDraft(wrongFamily, "management-revision-1")).valid, false);
   assert.deepEqual(savedCase, before);
+});
+
+test("Management AI Draft lifecycle requires a named review before a current-source approval and preserves its immutable snapshot", async () => {
+  const accepted = await buildManagementAiDraftCandidate(managementInput());
+  const savedCase = managementCase(accepted.reportLibrary);
+  const original = structuredClone(accepted.revision);
+  const options = {
+    revisionId: accepted.revision.id,
+    currentFingerprint: accepted.revision.source.fingerprint,
+    currentBriefCaseRevision: accepted.revision.content.managementAiDraft.sourceAiBrief.caseRevision,
+  };
+  await assert.rejects(buildManagementAiDraftLifecycleCandidate({ caseItem: savedCase, ...options, toStatus: "in_review", reviewerName: "" }), /Reviewer name/);
+  await assert.rejects(buildManagementAiDraftLifecycleCandidate({ caseItem: savedCase, ...options, toStatus: "approved", reviewerName: "Approver" }), /completed named human review/);
+
+  const reviewed = await buildManagementAiDraftLifecycleCandidate({ caseItem: savedCase, ...options, toStatus: "in_review", reviewerName: "R. Reviewer", now: "2026-10-28T12:30:00.000Z" });
+  assert.equal(reviewed.revision.lifecycle.status, "in_review");
+  assert.equal(reviewed.revision.lifecycle.review.reviewedBy, "R. Reviewer");
+  assert.deepEqual(reviewed.revision.lifecycle.review.history.map((entry) => entry.decision), ["reviewed"]);
+  assert.deepEqual(reviewed.revision.content, original.content);
+  assert.equal(reviewed.revision.contentChecksum, original.contentChecksum);
+
+  const approved = await buildManagementAiDraftLifecycleCandidate({ caseItem: managementCase(reviewed.reportLibrary), ...options, toStatus: "approved", reviewerName: "A. Approver", now: "2026-10-28T13:00:00.000Z" });
+  assert.equal(approved.revision.lifecycle.status, "approved");
+  assert.equal(approved.revision.lifecycle.review.reviewedBy, "R. Reviewer");
+  assert.equal(approved.revision.lifecycle.review.approvedBy, "A. Approver");
+  assert.deepEqual(approved.revision.lifecycle.review.history.map((entry) => entry.decision), ["reviewed", "approved"]);
+  assert.equal(approved.manifest.approvedRevisionId, accepted.revision.id);
+  assert.deepEqual(approved.revision.content, original.content);
+  assert.equal(approved.revision.contentChecksum, original.contentChecksum);
+  assert.equal((await verifyReportRevisionChecksum(approved.revision)).valid, true);
+
+  await assert.rejects(buildManagementAiDraftLifecycleCandidate({ caseItem: managementCase(reviewed.reportLibrary), ...options, toStatus: "approved", reviewerName: "A. Approver", currentFingerprint: "stale" }), /current source fingerprint/);
+  await assert.rejects(buildManagementAiDraftLifecycleCandidate({ caseItem: managementCase(reviewed.reportLibrary), ...options, toStatus: "approved", reviewerName: "A. Approver", currentBriefCaseRevision: "stale" }), /current source revision/);
+  await assert.rejects(buildManagementAiDraftLifecycleCandidate({ caseItem: managementCase(approved.reportLibrary), ...options, toStatus: "approved", reviewerName: "A. Approver" }), /Invalid report lifecycle transition/);
+  const tampered = managementCase(structuredClone(reviewed.reportLibrary)); tampered.reportLibrary.revisions[accepted.revision.id].content.managementAiDraft.acceptedDraft.claims[0].text = "tampered";
+  await assert.rejects(buildManagementAiDraftLifecycleCandidate({ caseItem: tampered, ...options, toStatus: "approved", reviewerName: "A. Approver" }), /history is invalid/);
 });
