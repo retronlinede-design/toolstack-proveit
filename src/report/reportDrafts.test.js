@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildClientUpdateDraftCandidate, buildClientUpdateLifecycleCandidate, buildExecutiveAiDraftCandidate, buildExecutiveAiDraftLifecycleCandidate, buildExecutiveDraftCandidate, buildLegacyClientUpdateDraftCandidate, buildManagementAiDraftCandidate, buildManagementAiDraftLifecycleCandidate, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, getLegacyClientUpdateNarratives, getManagementAiDraft, getManagementAiDraftFreshness, getManagementAiDrafts, verifyClientUpdateSavedDraft, verifyExecutiveAiDraft, verifyManagementAiDraft } from "./reportDrafts.js";
+import { buildClientUpdateDraftCandidate, buildClientUpdateLifecycleCandidate, buildExecutiveAiDraftCandidate, buildExecutiveAiDraftLifecycleCandidate, buildExecutiveDraftCandidate, buildInvestigationAiDraftCandidate, buildInvestigationAiDraftLifecycleCandidate, buildLegacyClientUpdateDraftCandidate, buildManagementAiDraftCandidate, buildManagementAiDraftLifecycleCandidate, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, getInvestigationAiDraft, getLegacyClientUpdateNarratives, getManagementAiDraft, getManagementAiDraftFreshness, getManagementAiDrafts, verifyClientUpdateSavedDraft, verifyExecutiveAiDraft, verifyInvestigationAiDraft, verifyManagementAiDraft } from "./reportDrafts.js";
 import { verifyReportRevisionChecksum } from "./reportLifecycle.js";
 import { buildAiBrief } from "./aiBrief.js";
 import { validateAiDraft } from "./aiDraft.js";
 import { buildManagementAiDraftPreview } from "./managementAiDraftPreview.js";
 import { buildExecutiveAiDraftPreview } from "./executiveAiDraftPreview.js";
+import { buildInvestigationAiDraftPreview } from "./investigationAiDraftPreview.js";
 
 const TIME = "2026-10-25T12:00:00.000Z";
 
@@ -395,4 +396,15 @@ test("Executive AI Draft acceptance and lifecycle preserve an exact bound snapsh
   const approved = await buildExecutiveAiDraftLifecycleCandidate({ caseItem: managementCase(reviewed.reportLibrary), ...options, toStatus: "approved", reviewerName: "Approver", now: "2026-10-28T13:00:00.000Z" });
   assert.deepEqual(approved.revision.lifecycle.review.history.map((entry) => entry.decision), ["reviewed", "approved"]); assert.equal(approved.revision.contentChecksum, accepted.revision.contentChecksum); assert.deepEqual(approved.revision.content, accepted.revision.content);
   await assert.rejects(buildExecutiveAiDraftLifecycleCandidate({ caseItem: managementCase(reviewed.reportLibrary), ...options, toStatus: "approved", reviewerName: "Approver", currentFingerprint: "stale" }), /current source fingerprint/);
+});
+
+test("Investigation AI Draft acceptance, history verification, and lifecycle retain immutable evidentiary snapshots", async () => {
+  const item = managementCase(); const brief = buildAiBrief(item, { reportFamily: "investigation" }); const source = managementDraft(brief); source.reportFamily = "investigation"; const validation = validateAiDraft(source, brief); const preview = buildInvestigationAiDraftPreview({ draft: source, brief, validation, freshness: "current" });
+  const accepted = await buildInvestigationAiDraftCandidate({ caseItem: item, aiDraft: source, aiBrief: brief, validation, previewDocument: preview, markdown: "# Investigation AI", json: "{\"investigation\":true}", currentSourceFingerprint: brief.source.sourceFingerprint, currentBriefCaseRevision: brief.source.caseRevision, currentCaseRevision: item.revision, now: TIME, createId: ids("investigation-ai-report", "investigation-ai-revision") });
+  assert.equal(getInvestigationAiDraft(managementCase(accepted.reportLibrary), accepted.revision.id).revision.id, accepted.revision.id); assert.equal((await verifyInvestigationAiDraft(managementCase(accepted.reportLibrary), accepted.revision.id)).valid, true);
+  const options = { revisionId: accepted.revision.id, currentFingerprint: accepted.revision.source.fingerprint, currentBriefCaseRevision: brief.source.caseRevision };
+  await assert.rejects(buildInvestigationAiDraftLifecycleCandidate({ caseItem: managementCase(accepted.reportLibrary), ...options, toStatus: "approved", reviewerName: "Approver" }), /completed named human review/);
+  const reviewed = await buildInvestigationAiDraftLifecycleCandidate({ caseItem: managementCase(accepted.reportLibrary), ...options, toStatus: "in_review", reviewerName: "Reviewer", now: "2026-10-28T12:30:00.000Z" }); const approved = await buildInvestigationAiDraftLifecycleCandidate({ caseItem: managementCase(reviewed.reportLibrary), ...options, toStatus: "approved", reviewerName: "Approver", now: "2026-10-28T13:00:00.000Z" });
+  assert.deepEqual(approved.revision.lifecycle.review.history.map((entry) => entry.decision), ["reviewed", "approved"]); assert.deepEqual(approved.revision.content, accepted.revision.content); assert.equal(approved.revision.contentChecksum, accepted.revision.contentChecksum);
+  await assert.rejects(buildInvestigationAiDraftLifecycleCandidate({ caseItem: managementCase(reviewed.reportLibrary), ...options, toStatus: "approved", reviewerName: "Approver", currentFingerprint: "stale" }), /current source fingerprint/);
 });

@@ -205,7 +205,7 @@ test("the active CaseDetail Report Centre uses the rendered control boundary", (
   assert.match(caseDetailSource, /<ReportContextHeader/);
   assert.match(caseDetailSource, /<ReportCentrePreviewSummary/);
   assert.match(caseDetailSource, /reportDocument={reportCentreActiveDocument}/);
-  assert.match(caseDetailSource, /<InvestigationReportArticle reportDocument={reportCentreInvestigationDocument}/);
+  assert.match(caseDetailSource, /<InvestigationReportArticle reportDocument={reportCentreActiveDocument}/);
   assert.match(caseDetailSource, /<ExecutiveReportArticle reportDocument={reportCentreActiveDocument}/);
   assert.match(caseDetailSource, /buildExecutiveDraftCandidate/);
   assert.match(caseDetailSource, /Saved Reports/);
@@ -333,6 +333,18 @@ test("Executive AI Draft workflow keeps the live report separate from validated 
   assert.match(caseDetailSource, /Record human review/);
   assert.match(caseDetailSource, /Approve Executive Draft/);
   assert.match(caseDetailSource, /Printing and export actions remain connected only to the ordinary live Executive Report below/);
+});
+
+test("Investigation AI Draft workflow preserves the separate live report, immutable snapshots, and named lifecycle controls", () => {
+  assert.match(caseDetailSource, /buildInvestigationAiDraftPreview/);
+  assert.match(caseDetailSource, /onPreviewInvestigationDraft=\{handlePreviewInvestigationAiDraft\}/);
+  assert.match(caseDetailSource, /Accept as Investigation Draft/);
+  assert.match(caseDetailSource, /buildInvestigationAiDraftCandidate/);
+  assert.match(caseDetailSource, /buildInvestigationAiDraftLifecycleCandidate/);
+  assert.match(caseDetailSource, /verifyInvestigationAiDraft/);
+  assert.match(caseDetailSource, /Saved Investigation AI Draft revisions/);
+  assert.match(caseDetailSource, /Approve Investigation Draft/);
+  assert.match(caseDetailSource, /direct-versus-linked context/);
 });
 
 test("Executive Draft saving waits for the existing persistence acknowledgement", () => {
