@@ -75,6 +75,7 @@ import { buildActiveReportDocument } from "../report/buildActiveReportDocument.j
 import { buildAiBrief, getAiBriefFreshness, validateAiBrief } from "../report/aiBrief.js";
 import { parseAndValidateAiDraft } from "../report/aiDraft.js";
 import { buildAiDraftingRequest } from "../report/aiDraftRequest.js";
+import { buildManagementAiDraftPreview } from "../report/managementAiDraftPreview.js";
 import { buildReportOutput } from "../report/reportOutputs.js";
 import { buildClientUpdateDraftCandidate, buildClientUpdateLifecycleCandidate, buildExecutiveDraftCandidate, buildLegacyClientUpdateDraftCandidate, extractReportDocumentProvenance, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, getLegacyClientUpdateNarratives, isLegacyImportedClientUpdateRevision, verifyClientUpdateSavedDraft } from "../report/reportDrafts.js";
 import { getLinkChipClasses } from "./linkChipStyles";
@@ -351,6 +352,8 @@ export default function CaseDetail({
     setAiDraftText("");
     setAiDraftValidation(null);
     setAiDraftFeedback("");
+    setManagementAiDraftPreview(null);
+    setAiDraftValidatedText("");
     setSavedExecutiveRevisionId("");
     setExecutiveRevisionTargetReportId("");
     setExecutiveDraftFeedback("");
@@ -420,6 +423,8 @@ export default function CaseDetail({
   const [aiDraftText, setAiDraftText] = useState("");
   const [aiDraftValidation, setAiDraftValidation] = useState(null);
   const [aiDraftFeedback, setAiDraftFeedback] = useState("");
+  const [aiDraftValidatedText, setAiDraftValidatedText] = useState("");
+  const [managementAiDraftPreview, setManagementAiDraftPreview] = useState(null);
   const [savedExecutiveRevisionId, setSavedExecutiveRevisionId] = useState("");
   const [executiveRevisionTargetReportId, setExecutiveRevisionTargetReportId] = useState("");
   const [savingExecutiveDraft, setSavingExecutiveDraft] = useState(false);
@@ -4071,6 +4076,8 @@ ${ungroupedSequenceText}
       setPreparedAiBrief(brief);
       setAiBriefFeedback("AI Brief prepared. It remains local until you explicitly copy or download it.");
       setAiDraftValidation(null);
+      setAiDraftValidatedText("");
+      setManagementAiDraftPreview(null);
       setAiDraftFeedback(aiDraftText ? "The pasted AI Draft text was preserved. Revalidate it against this newly prepared Brief." : "");
     } catch (error) {
       setAiBriefFeedback(error?.message || "The AI Brief could not be prepared.");
@@ -4116,17 +4123,41 @@ ${ungroupedSequenceText}
   const handleAiDraftTextChange = (nextText) => {
     setAiDraftText(nextText);
     setAiDraftValidation(null);
+    setAiDraftValidatedText("");
+    setManagementAiDraftPreview(null);
     setAiDraftFeedback("");
   };
   const handleValidateAiDraft = () => {
     if (!preparedAiBrief) return;
     const result = parseAndValidateAiDraft(aiDraftText, preparedAiBrief);
     setAiDraftValidation(result);
+    setAiDraftValidatedText(result.valid ? aiDraftText : "");
+    setManagementAiDraftPreview(null);
     setAiDraftFeedback(result.valid
       ? preparedAiBriefFreshness === "current"
         ? "AI Draft is structurally valid against the current-source AI Brief. Human review remains required."
         : `AI Draft is structurally valid against the historical AI Brief. Current source freshness is ${preparedAiBriefFreshness}.`
       : "AI Draft was not accepted. Correct the pasted text and validate again; the text has been preserved.");
+  };
+  const handlePreviewManagementAiDraft = () => {
+    if (!preparedAiBrief || !aiDraftValidation?.valid || aiDraftValidatedText !== aiDraftText) {
+      setAiDraftFeedback("Validate the unchanged pasted AI Draft against its original Brief before previewing it.");
+      setManagementAiDraftPreview(null);
+      return;
+    }
+    try {
+      const preview = buildManagementAiDraftPreview({
+        draft: aiDraftValidation.normalisedDraft,
+        brief: preparedAiBrief,
+        validation: aiDraftValidation,
+        freshness: preparedAiBriefFreshness,
+      });
+      setManagementAiDraftPreview(preview);
+      setAiDraftFeedback("Management AI Draft preview prepared locally. It is not saved, approved, printable, or exported.");
+    } catch (error) {
+      setManagementAiDraftPreview(null);
+      setAiDraftFeedback(error?.message || "The Management AI Draft preview could not be prepared.");
+    }
   };
   const handleSaveExecutiveDraft = async () => {
     if (!selectedCase || savingExecutiveDraftRef.current || !reportCentreExecutiveDocument) return;
@@ -5721,7 +5752,8 @@ ${ungroupedSequenceText}
                       onPrint={handleReportCentrePrint}
                     />
                   </section>
-                  {aiBriefEligible ? <AiBriefPanel brief={preparedAiBrief} freshness={preparedAiBriefFreshness} feedback={aiBriefFeedback} onCopy={handleCopyAiBrief} onDownload={handleDownloadAiBrief} onCopyDraftingRequest={handleCopyAiDraftingRequest} draftText={aiDraftText} onDraftTextChange={handleAiDraftTextChange} onValidateDraft={handleValidateAiDraft} draftValidation={aiDraftValidation} draftFeedback={aiDraftFeedback} /> : null}
+                  {aiBriefEligible ? <AiBriefPanel brief={preparedAiBrief} freshness={preparedAiBriefFreshness} feedback={aiBriefFeedback} onCopy={handleCopyAiBrief} onDownload={handleDownloadAiBrief} onCopyDraftingRequest={handleCopyAiDraftingRequest} draftText={aiDraftText} onDraftTextChange={handleAiDraftTextChange} onValidateDraft={handleValidateAiDraft} draftValidation={aiDraftValidation} draftFeedback={aiDraftFeedback} onPreviewManagementDraft={handlePreviewManagementAiDraft} managementPreviewAvailable={reportCentreType === "management" && Boolean(aiDraftValidation?.valid) && aiDraftValidatedText === aiDraftText} /> : null}
+                  {managementAiDraftPreview ? <section className="print:hidden" aria-labelledby="management-ai-draft-preview-heading"><div className="rounded-xl border border-amber-700/40 bg-amber-950/10 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="case-file-reports-eyebrow">AI-authored preview</p><h5 id="management-ai-draft-preview-heading" className="mt-1 text-base font-bold">Management AI Draft — preview only</h5><p className="mt-1 text-sm">This local preview retains its validated source references and must not be treated as approved. Printing and export actions remain connected only to the ordinary live Management Report below.</p></div><button type="button" onClick={() => setManagementAiDraftPreview(null)} className="case-file-reports-utility-action">Close preview</button></div><details className="mt-3"><summary className="cursor-pointer text-sm font-semibold">Inspect validated AI Draft and source references</summary><pre className="mt-3 max-h-96 overflow-auto rounded-lg border border-neutral-700 bg-neutral-950 p-3 text-xs text-neutral-100">{JSON.stringify(managementAiDraftPreview.aiDraftPreview.draft, null, 2)}</pre></details><div className="mt-4"><ManagementReportArticle reportDocument={managementAiDraftPreview} /></div></div></section> : null}
                   <section className="case-file-reports-document-preview" aria-label="Selected report preview">
 
                   {savedExecutiveDraft ? <div className="rounded-lg border border-teal-700/40 bg-teal-950/20 px-3 py-2 text-sm print:hidden" role="status">Viewing an immutable saved Draft snapshot · source freshness: {savedExecutiveDrafts.find((draft) => draft.revision.id === savedExecutiveDraft.revision.id)?.freshness || "unknown"}. This content is not regenerated. <button type="button" onClick={() => { setSavedExecutiveRevisionId(""); setReportCentreDestination("saved"); }} className="ml-2 font-bold underline">Return to Saved Reports</button></div> : null}

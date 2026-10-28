@@ -30,6 +30,7 @@
 .management-report-list { display: grid; gap: .85rem; margin: 0; padding: 0; list-style: none; }
 .management-report-entry { break-inside: avoid; border-left: .18rem solid #94a3b8; padding: .08rem 0 .12rem .9rem; }
 .management-report-entry-title { color: #172554; font-size: .95rem; font-weight: 700; line-height: 1.5; }
+.management-ai-draft-classification { display: inline-block; margin-right: .35rem; color: #475569; font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; }
 .management-report-reference, .management-report-empty, .management-report-notice { color: #64748b; font-size: .78rem; line-height: 1.55; }
 .management-report-reference { margin-top: .25rem; overflow-wrap: anywhere; }
 .management-report-group + .management-report-group { margin-top: 1.35rem; }

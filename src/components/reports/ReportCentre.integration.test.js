@@ -268,6 +268,20 @@ test("AI Draft preparation and validation remain local, use the original Brief, 
   assert.doesNotMatch(caseDetailSource, /onUpdateCase\(\{ \.\.\.selectedCase, aiDraft/);
 });
 
+test("Management AI Draft previews are exact-validation-gated, local, and cannot replace live output routes", () => {
+  assert.match(caseDetailSource, /import \{ buildManagementAiDraftPreview \} from "\.\.\/report\/managementAiDraftPreview\.js"/);
+  assert.match(caseDetailSource, /const \[aiDraftValidatedText, setAiDraftValidatedText\] = useState\(""\)/);
+  assert.match(caseDetailSource, /const \[managementAiDraftPreview, setManagementAiDraftPreview\] = useState\(null\)/);
+  assert.match(caseDetailSource, /aiDraftValidatedText !== aiDraftText/);
+  assert.match(caseDetailSource, /draft: aiDraftValidation\.normalisedDraft/);
+  assert.match(caseDetailSource, /freshness: preparedAiBriefFreshness/);
+  assert.match(caseDetailSource, /onPreviewManagementDraft=\{handlePreviewManagementAiDraft\}/);
+  assert.match(caseDetailSource, /managementPreviewAvailable=\{reportCentreType === "management"/);
+  assert.match(caseDetailSource, /className="print:hidden" aria-labelledby="management-ai-draft-preview-heading"/);
+  assert.match(caseDetailSource, /Printing and export actions remain connected only to the ordinary live Management Report below/);
+  assert.doesNotMatch(caseDetailSource, /onUpdateCase\(\{[^}]*managementAiDraftPreview/);
+});
+
 test("Executive Draft saving waits for the existing persistence acknowledgement", () => {
   assert.match(caseDetailSource, /const saved = await onUpdateCase\(\{ \.\.\.selectedCase, reportLibrary: candidate\.reportLibrary \}\)/);
   assert.match(caseDetailSource, /if \(!saved\) \{\s*if \(selectedCaseRef\.current\?\.id === savingCaseId\) setExecutiveDraftFeedback\("Draft was not saved/);

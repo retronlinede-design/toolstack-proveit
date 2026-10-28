@@ -50,9 +50,43 @@ function SupportingReferences({ items, recordIndex }) {
   return <ReportDocumentSection id="supporting-references" title="Supporting References" className="management-report-section"><p className="management-report-section-intro">These compact references identify material cited in the management briefing. The detailed record index remains available in the optional appendices.</p><ul className="management-report-supporting-references">{references.map((reference) => <li key={reference.key}>{reference.label}{reference.detail ? <span> · {reference.detail}</span> : null}</li>)}</ul></ReportDocumentSection>;
 }
 
+function AiDraftReferences({ references = [] }) {
+  if (!references.length) return <p className="management-report-reference">No source references were supplied for this AI-authored item.</p>;
+  return <ul className="management-report-supporting-references">{references.map((reference) => <li key={`${reference.recordType}:${reference.recordId}:${reference.technicalSourceId}:${reference.scopeRelation}`}><strong>{human(reference.scopeRelation)}</strong> · {human(reference.recordType)} · {reference.recordId} · {reference.technicalSourceId}{reference.issueId ? ` · Issue ${reference.issueId}` : ""}</li>)}</ul>;
+}
+
+function AiDraftClaim({ claim }) {
+  return <article className="management-report-entry"><p className="management-report-entry-title"><span className="management-ai-draft-classification">{human(claim.classification)}</span> {claim.text}</p><AiDraftReferences references={claim.sourceReferences} /></article>;
+}
+
+function ManagementAiDraftPreviewArticle({ reportDocument }) {
+  const preview = reportDocument.aiDraftPreview;
+  const scope = reportDocument.source?.scope || {};
+  const freshness = preview.freshness === "current" ? "Current source Brief" : preview.freshness === "stale" ? "Historical Brief — stale against current case" : "Historical Brief — source freshness unknown";
+  return <ReportDocumentShell
+    aria-label="Management AI Draft preview"
+    data-report-document="management-ai-draft-preview"
+    className="proveit-management-report proveit-management-ai-draft-preview"
+    header={<ReportDocumentHeader className="management-report-header" title="Management Report" subtitle="AI-authored draft preview — human review required" caseName={reportDocument.source?.caseName} caseReference={reportDocument.source?.caseId} issueReference={scope.issueReference} issueName={scope.issueName} generatedAt={reportDocument.report?.generatedAt} documentStatus="AI Draft — not approved" confidentiality={reportDocument.presentation?.confidentiality} />}
+    footer={<ReportDocumentFooter className="management-report-footer" reportTitle="Management Report — AI Draft preview" caseName={reportDocument.source?.caseName} caseReference={reportDocument.source?.caseId} issueReference={scope.issueReference} sourceRevision={preview.sourceFingerprint} documentStatus="Human review required" />}
+  >
+    <ReportDocumentSection id="ai-draft-status" title="Preview status" className="management-report-section management-report-summary"><p>This is a presentation-only preview of validated AI-authored narrative. Structural validation and source references do not establish that claims are true, verified, approved, or ready to share.</p><p className="management-report-limitation"><strong>Source status:</strong> {freshness}. The ordinary live Management Report has not been replaced.</p></ReportDocumentSection>
+    {preview.sections.map((section) => <ReportDocumentSection key={section.id} id={`ai-draft-${section.id}`} title={section.heading} className="management-report-section"><p>{section.narrative}</p>{section.claims.length ? <div className="management-report-list">{section.claims.map((claim) => <AiDraftClaim key={claim.id} claim={claim} />)}</div> : <Empty>No individual claims were assigned to this AI-authored section.</Empty>}</ReportDocumentSection>)}
+    <ReportDocumentSection id="ai-draft-unresolved" title="Unresolved Questions and Evidence Gaps" className="management-report-section"><h3>Unresolved questions</h3><FindingList items={preview.unresolvedQuestions.map((item) => ({ ...item, message: item.text }))} recordIndex={new Map()} empty="No unresolved questions were supplied." /><h3 className="mt-6">Evidence gaps</h3><FindingList items={preview.evidenceGaps.map((item) => ({ ...item, message: item.text }))} recordIndex={new Map()} empty="No evidence gaps were supplied." /></ReportDocumentSection>
+    <ReportDocumentSection id="ai-draft-recommendations" title="Recommended Actions" description="AI-generated recommendations require human review before use." className="management-report-section"><FindingList items={preview.recommendations.map((item) => ({ ...item, message: item.text }))} recordIndex={new Map()} empty="No recommendations were supplied." /></ReportDocumentSection>
+    <ReportDocumentSection id="ai-draft-source-notes" title="Source Notes and Human Review" className="management-report-section management-report-control"><p>Canonical record IDs and supplied source references are retained for review. A reference identifies recorded material; it is not proof of the associated AI-authored statement.</p><ValidationList title="Validation warnings" entries={preview.warnings} /><ValidationList title="Human-review requirements" entries={preview.reviewReasons.map((message) => ({ code: "REVIEW_REQUIRED", message }))} /><dl><div><dt>Scope</dt><dd>{reportDocument.presentation?.scope || "Whole case"}</dd></div><div><dt>Source revision</dt><dd>{preview.sourceRevision || "Unknown"}</dd></div><div><dt>Source fingerprint</dt><dd>{shortFingerprint(preview.sourceFingerprint)}</dd></div></dl></ReportDocumentSection>
+  </ReportDocumentShell>;
+}
+
+function ValidationList({ title, entries = [] }) {
+  if (!entries.length) return null;
+  return <section className="mt-4"><h3>{title}</h3><ul className="management-report-list">{entries.map((entry, index) => <li className="management-report-entry" key={`${entry.code || title}-${index}`}>{entry.code ? <strong>{entry.code}: </strong> : null}{entry.message || entry}</li>)}</ul></section>;
+}
+
 export default function ManagementReportArticle({ reportDocument }) {
   const [showDetails, setShowDetails] = useState(false);
   if (!reportDocument) return <div className="rounded-xl border border-dashed border-neutral-300 p-5 dark:border-neutral-700"><Empty>No Management Report document is available.</Empty></div>;
+  if (reportDocument.kind === "management-ai-draft-preview") return <ManagementAiDraftPreviewArticle reportDocument={reportDocument} />;
   const presentation = reportDocument.presentation || {};
   const executive = getSection(reportDocument, "executive-summary"); const current = getSection(reportDocument, "current-position"); const snapshot = getSection(reportDocument, "management-snapshot"); const issues = getSection(reportDocument, "major-issues"); const risks = getSection(reportDocument, "current-risks"); const progress = getSection(reportDocument, "progress"); const outstanding = getSection(reportDocument, "outstanding-matters"); const decisions = getSection(reportDocument, "management-decisions"); const actions = getSection(reportDocument, "next-actions");
   const referenceAppendix = (reportDocument.appendices || []).find((appendix) => appendix.type === "reference-index");

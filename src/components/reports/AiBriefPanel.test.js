@@ -43,3 +43,12 @@ test("shows structural status, reference errors, and human-review limits without
   const html = renderToStaticMarkup(React.createElement(AiBriefPanel, { brief, freshness: "stale", draftText: "{}", draftValidation: validation, onCopy() {}, onDownload() {}, onCopyDraftingRequest() {}, onDraftTextChange() {}, onValidateDraft() {} }));
   for (const text of ["Structurally valid against the historical AI Brief", "not ready for approval", "Human-review warnings", "UNVERIFIED_SOURCE_REFERENCE", "Claim classifications", "allegation", "Unresolved questions:</strong> 1", "Evidence gaps:</strong> 1", "does not establish that narrative claims are true"]) assert.match(html, new RegExp(text));
 });
+
+test("offers the Management-only preview only after unchanged successful validation and labels it as local-only", () => {
+  const managementBrief = { ...brief, requestedReportFamily: "management" };
+  const validation = { valid: true, errors: [], warnings: [], reviewReasons: ["Human review required."], normalisedDraft: { claims: [], unresolvedQuestions: [], evidenceGaps: [] } };
+  const available = renderToStaticMarkup(React.createElement(AiBriefPanel, { brief: managementBrief, freshness: "unknown", draftText: "{}", draftValidation: validation, managementPreviewAvailable: true, onPreviewManagementDraft() {}, onCopy() {}, onDownload() {}, onDraftTextChange() {}, onValidateDraft() {} }));
+  assert.match(available, /Preview Management Draft/); assert.doesNotMatch(available, /Preview Management Draft[^>]*disabled=""/); assert.match(available, /not saved, approved, printed, or exported/);
+  const executive = renderToStaticMarkup(React.createElement(AiBriefPanel, { brief, freshness: "current", draftText: "{}", draftValidation: validation, onCopy() {}, onDownload() {}, onDraftTextChange() {}, onValidateDraft() {} }));
+  assert.doesNotMatch(executive, /Preview Management Draft/);
+});

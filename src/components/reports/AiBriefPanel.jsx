@@ -5,7 +5,7 @@ function ValidationList({ title, entries, tone = "text-neutral-700 dark:text-neu
   return <section className={`mt-3 text-sm ${tone}`}><h6 className="font-bold">{title}</h6><ul className="mt-1 list-disc space-y-1 pl-5">{entries.map((entry, index) => <li key={`${entry.code || title}-${index}`}><strong>{entry.code || "Review"}</strong>: {entry.message || entry}</li>)}</ul></section>;
 }
 
-export default function AiBriefPanel({ brief, freshness = "unknown", feedback = "", onCopy, onDownload, onCopyDraftingRequest, draftText = "", onDraftTextChange, onValidateDraft, draftValidation = null, draftFeedback = "" }) {
+export default function AiBriefPanel({ brief, freshness = "unknown", feedback = "", onCopy, onDownload, onCopyDraftingRequest, draftText = "", onDraftTextChange, onValidateDraft, draftValidation = null, draftFeedback = "", onPreviewManagementDraft, managementPreviewAvailable = false }) {
   if (!brief) return null;
   const includedSources = brief.technicalSources.filter((source) => source.included);
   const unresolvedCount = brief.diagnostics?.unresolvedReferences?.length || 0;
@@ -33,12 +33,13 @@ export default function AiBriefPanel({ brief, freshness = "unknown", feedback = 
         <h6 id="ai-draft-validation-heading" className="mt-1 text-base font-bold">Paste and validate AI Draft JSON</h6>
         <p className="mt-1 text-sm">Validation checks this pasted, untrusted draft against the exact prepared Brief. It checks structure and traceability, not factual truth or approval.</p>
         <label className="mt-3 block text-sm font-semibold" htmlFor="ai-draft-json">AI Draft JSON<textarea id="ai-draft-json" value={draftText} onChange={(event) => onDraftTextChange?.(event.target.value)} className="mt-1 block min-h-44 w-full rounded-lg border border-slate-400 bg-white p-3 font-mono text-xs text-slate-950 dark:bg-slate-950 dark:text-slate-100" spellCheck="false" placeholder="Paste one proveit.ai-draft v1 JSON object." /></label>
-        <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={onValidateDraft} disabled={!draftText.trim()} className="case-file-reports-utility-action">Validate AI Draft</button></div>
+        <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={onValidateDraft} disabled={!draftText.trim()} className="case-file-reports-utility-action">Validate AI Draft</button>{brief.requestedReportFamily === "management" ? <button type="button" onClick={onPreviewManagementDraft} disabled={!managementPreviewAvailable} className="case-file-reports-utility-action">Preview Management Draft</button> : null}</div>
         {draftFeedback ? <p className="mt-3 text-sm font-medium" role="status" aria-live="polite">{draftFeedback}</p> : null}
         {draftValidation ? <section className={`mt-3 rounded-lg border p-3 text-sm ${draftValidation.valid ? "border-teal-700/40 bg-teal-950/10" : "border-amber-700/40 bg-amber-950/10"}`} aria-label="AI Draft validation result">
           <p className="font-bold">{draftValidation.valid ? (isCurrent ? "Structurally valid against the current-source AI Brief" : `Structurally valid against the historical AI Brief; source is ${freshnessLabel[freshness].toLowerCase()}`) : "AI Draft validation failed"}</p>
           <p className="mt-1 text-xs">A valid result confirms structural and source-reference integrity only. It does not establish that narrative claims are true, verified, or approved.</p>
           {!isCurrent && draftValidation.valid ? <p className="mt-2 font-semibold" role="status">This draft is not ready for approval because its source Brief is not current.</p> : null}
+          {brief.requestedReportFamily === "management" && draftValidation.valid ? <p className="mt-2 text-xs">The preview is local only. It is not saved, approved, printed, or exported, and never replaces the live Management Report.</p> : null}
           <ValidationList title="Binding and reference errors" entries={draftValidation.errors} tone="text-red-800 dark:text-red-200" />
           <ValidationList title="Human-review warnings" entries={draftValidation.warnings} tone="text-amber-800 dark:text-amber-200" />
           {draftValidation.reviewReasons?.length ? <section className="mt-3"><h6 className="font-bold">Human review required</h6><ul className="mt-1 list-disc space-y-1 pl-5 text-xs">{draftValidation.reviewReasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></section> : null}
