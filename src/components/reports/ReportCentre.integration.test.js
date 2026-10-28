@@ -323,6 +323,18 @@ test("Management AI Draft lifecycle uses named human transitions, verified immut
   assert.match(caseDetailSource, /historicalLifecycle: structuredClone\(savedManagementAiDraft\.revision\.lifecycle\)/);
 });
 
+test("Executive AI Draft workflow keeps the live report separate from validated preview, immutable acceptance, and human lifecycle controls", () => {
+  assert.match(caseDetailSource, /buildExecutiveAiDraftPreview/);
+  assert.match(caseDetailSource, /onPreviewExecutiveDraft=\{handlePreviewExecutiveAiDraft\}/);
+  assert.match(caseDetailSource, /Accept as Executive Draft/);
+  assert.match(caseDetailSource, /buildExecutiveAiDraftCandidate/);
+  assert.match(caseDetailSource, /buildExecutiveAiDraftLifecycleCandidate/);
+  assert.match(caseDetailSource, /verifyExecutiveAiDraft/);
+  assert.match(caseDetailSource, /Record human review/);
+  assert.match(caseDetailSource, /Approve Executive Draft/);
+  assert.match(caseDetailSource, /Printing and export actions remain connected only to the ordinary live Executive Report below/);
+});
+
 test("Executive Draft saving waits for the existing persistence acknowledgement", () => {
   assert.match(caseDetailSource, /const saved = await onUpdateCase\(\{ \.\.\.selectedCase, reportLibrary: candidate\.reportLibrary \}\)/);
   assert.match(caseDetailSource, /if \(!saved\) \{\s*if \(selectedCaseRef\.current\?\.id === savingCaseId\) setExecutiveDraftFeedback\("Draft was not saved/);

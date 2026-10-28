@@ -16,6 +16,7 @@ import { validateReportDocument } from "./reportDocument.js";
 import { validateAiBrief } from "./aiBrief.js";
 import { validateAiDraft } from "./aiDraft.js";
 import { isManagementAiDraftPreview } from "./managementAiDraftPreview.js";
+import { isExecutiveAiDraftPreview } from "./executiveAiDraftPreview.js";
 
 function text(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -288,6 +289,36 @@ export async function buildExecutiveDraftCandidate({
   return { reportLibrary: candidate, manifest, revision };
 }
 
+function executiveAiDraftScope(previewDocument, caseId) { if (!isExecutiveAiDraftPreview(previewDocument)) throw new TypeError("A valid Executive AI Draft preview is required."); if (previewDocument.source?.caseId !== caseId) throw new TypeError("Executive AI Draft preview case identity does not match the target case."); return executiveScope(previewDocument); }
+function aiDraftProvenance(draft) { return managementAiDraftProvenance(draft); }
+function sameExecutiveAiDraftSnapshot(revision, draft, brief) { const saved = revision?.content?.executiveAiDraft; return Boolean(saved?.acceptedDraft && saved?.aiBrief) && canonicalSerialiseReportRevisionContent({ draft: saved.acceptedDraft, brief: saved.aiBrief }) === canonicalSerialiseReportRevisionContent({ draft, brief }); }
+
+/** Builds, but does not persist, an immutable Executive AI Draft revision. */
+export async function buildExecutiveAiDraftCandidate({ caseItem, aiDraft, aiBrief, validation, previewDocument, markdown, json, currentSourceFingerprint, currentBriefCaseRevision, currentCaseRevision = caseItem?.revision, reportId = "", now = new Date().toISOString(), createId = generateId } = {}) {
+  const caseId = requireText(caseItem?.id, "Case ID");
+  if (!validation?.valid) throw new TypeError("Executive AI Draft must be successfully validated before acceptance.");
+  const briefCheck = validateAiBrief(aiBrief); if (!briefCheck.valid) throw new TypeError(`Executive AI Brief is invalid: ${briefCheck.errors.join(" ")}`);
+  if (aiBrief.requestedReportFamily !== "executive") throw new TypeError("Only an Executive AI Brief can be accepted as an Executive Draft.");
+  const draftCheck = validateAiDraft(aiDraft, aiBrief); if (!draftCheck.valid || draftCheck.normalisedDraft?.reportFamily !== "executive") throw new TypeError(`Executive AI Draft is invalid: ${draftCheck.errors.map((error) => error.message).join(" ")}`);
+  const fingerprint = requireText(currentSourceFingerprint, "Current source fingerprint"); if (fingerprint !== aiBrief.source?.sourceFingerprint) throw new TypeError("Executive AI Draft source fingerprint is no longer current.");
+  const briefCaseRevision = requireText(currentBriefCaseRevision, "Current source revision"); if (briefCaseRevision !== aiBrief.source?.caseRevision) throw new TypeError("Executive AI Draft source revision is no longer current.");
+  if (!Number.isSafeInteger(currentCaseRevision) || currentCaseRevision < 1) throw new TypeError("Current case revision is unavailable for this Executive Draft.");
+  const scope = executiveAiDraftScope(previewDocument, caseId); if (previewDocument.aiDraftPreview?.sourceFingerprint !== fingerprint || previewDocument.aiDraftPreview?.sourceRevision !== aiBrief.source?.caseRevision) throw new TypeError("Executive AI Draft preview does not match the original AI Brief binding.");
+  const outputMarkdown = requireText(markdown, "Executive AI Draft Markdown"); const outputJson = requireText(json, "Executive AI Draft JSON");
+  const library = requireSupportedLibrary(caseItem?.reportLibrary, caseId); const integrity = await validateReportLibraryIntegrity(library, { caseId }); if (!integrity.valid) throw new TypeError(`Existing report library is invalid: ${integrity.errors.join(" ")}`);
+  const existingManifest = text(reportId) ? library.reports[reportId] : null;
+  if (text(reportId) && (!existingManifest || existingManifest.reportType !== "executive" || existingManifest.caseId !== caseId || existingManifest.status !== "draft")) throw new TypeError("The selected Executive Draft is unavailable for a new revision.");
+  if (existingManifest && JSON.stringify(existingManifest.scope) !== JSON.stringify(scope)) throw new TypeError("A new Executive Draft revision must keep the saved canonical scope.");
+  const parentRevision = existingManifest ? library.revisions[existingManifest.currentRevisionId] : null; if (existingManifest && !parentRevision) throw new TypeError("The selected Executive Draft has no current revision.");
+  if (Object.values(library.revisions).some((revision) => revision.reportId && library.reports[revision.reportId]?.reportType === "executive" && sameExecutiveAiDraftSnapshot(revision, aiDraft, aiBrief))) throw new TypeError("This exact Executive AI Draft has already been accepted as an immutable revision.");
+  const nextReportId = existingManifest ? existingManifest.id : createId(); const revisionId = createId(); if (library.revisions[revisionId]) throw new TypeError("Executive AI Draft revision ID already exists.");
+  const revision = { schemaVersion: REPORT_LIFECYCLE_SCHEMA_VERSION, id: revisionId, reportId: nextReportId, versionNumber: parentRevision ? parentRevision.versionNumber + 1 : 1, parentRevisionId: parentRevision?.id || null, createdAt: now, source: { caseRevision: currentCaseRevision, fingerprint }, content: { reportDocument: cloneJson(previewDocument), markdown: outputMarkdown, json: outputJson, executiveAiDraft: { acceptedDraft: cloneJson(aiDraft), aiBrief: cloneJson(aiBrief), sourceAiBrief: { caseRevision: aiBrief.source.caseRevision, sourceFingerprint: fingerprint }, validation: { warnings: cloneJson(draftCheck.warnings), reviewReasons: [...new Set(draftCheck.reviewReasons)] }, generation: { mode: "ai_assisted", origin: "externally_drafted" } } }, generationMode: "ai_assisted", provenance: aiDraftProvenance(draftCheck.normalisedDraft), contentChecksum: "", lifecycle: { status: "draft", updatedAt: now, review: {} } };
+  revision.contentChecksum = await calculateReportRevisionChecksum(revision);
+  const manifest = existingManifest ? { ...existingManifest, currentRevisionId: revisionId, revisionIds: [...existingManifest.revisionIds, revisionId], status: "draft" } : { schemaVersion: REPORT_LIFECYCLE_SCHEMA_VERSION, id: nextReportId, caseId, reportType: "executive", title: "Executive Report", createdAt: now, scope, status: "draft", currentRevisionId: revisionId, approvedRevisionId: null, revisionIds: [revisionId] };
+  const candidate = { schemaVersion: REPORT_LIBRARY_SCHEMA_VERSION, reports: { ...library.reports, [nextReportId]: manifest }, revisions: { ...library.revisions, [revisionId]: revision } }; const candidateValidation = await validateReportLibraryIntegrity(candidate, { caseId }); if (!candidateValidation.valid) throw new TypeError(`Executive AI Draft is invalid: ${candidateValidation.errors.join(" ")}`);
+  return { reportLibrary: candidate, manifest, revision };
+}
+
 /** Builds, but does not persist, an immutable Client Update report revision. */
 export async function buildClientUpdateDraftCandidate({
   caseItem,
@@ -400,10 +431,38 @@ export function getExecutiveSavedDrafts(caseItem) {
   const result = classifyReportLibrary(caseItem?.reportLibrary, { caseId: caseItem?.id || "" });
   if (result.kind !== "supported") return [];
   return Object.values(caseItem.reportLibrary.reports)
-    .filter((manifest) => manifest.reportType === "executive" && manifest.status === "draft")
+    .filter((manifest) => manifest.reportType === "executive")
     .flatMap((manifest) => manifest.revisionIds.map((revisionId) => ({ manifest, revision: caseItem.reportLibrary.revisions[revisionId] })))
     .filter((item) => item.revision?.content?.reportDocument?.report?.id === "executive" && text(item.revision.content.markdown) && text(item.revision.content.json))
     .sort((left, right) => String(right.revision.createdAt).localeCompare(String(left.revision.createdAt)));
+}
+
+function isExecutiveAiDraftRevision(revision) {
+  const saved = revision?.content?.executiveAiDraft;
+  return revision?.generationMode === "ai_assisted" && revision?.content?.reportDocument?.kind === "executive-ai-draft-preview" && saved?.generation?.origin === "externally_drafted" && saved?.acceptedDraft?.reportFamily === "executive" && saved?.aiBrief?.requestedReportFamily === "executive";
+}
+
+export async function verifyExecutiveAiDraft(caseItem, revisionId) {
+  const draft = getExecutiveSavedDraft(caseItem, revisionId); if (!draft || !isExecutiveAiDraftRevision(draft.revision)) return { valid: false, errors: ["The selected Executive AI Draft revision is unavailable or malformed."] };
+  const { revision } = draft; const document = revision.content.reportDocument; const saved = revision.content.executiveAiDraft;
+  if (document.source?.caseId !== caseItem?.id) return { valid: false, errors: ["The selected Executive AI Draft belongs to a different case."] };
+  if (document.aiDraftPreview?.sourceFingerprint !== revision.source?.fingerprint || saved.sourceAiBrief?.sourceFingerprint !== revision.source?.fingerprint || document.aiDraftPreview?.sourceRevision !== saved.sourceAiBrief?.caseRevision) return { valid: false, errors: ["The stored Executive AI Draft source binding does not match its revision."] };
+  const briefValidation = validateAiBrief(saved.aiBrief); if (!briefValidation.valid) return { valid: false, errors: briefValidation.errors };
+  const draftValidation = validateAiDraft(saved.acceptedDraft, saved.aiBrief); if (!draftValidation.valid) return { valid: false, errors: draftValidation.errors.map((error) => error.message) };
+  if (canonicalSerialiseReportRevisionContent(document.aiDraftPreview.draft) !== canonicalSerialiseReportRevisionContent(draftValidation.normalisedDraft)) return { valid: false, errors: ["The stored Executive AI Draft preview does not match its accepted draft snapshot."] };
+  const checksum = await verifyReportRevisionChecksum(revision); return checksum.valid ? { valid: true, errors: [], draft } : checksum;
+}
+
+export async function buildExecutiveAiDraftLifecycleCandidate({ caseItem, revisionId, toStatus, reviewerName = "", currentFingerprint, currentBriefCaseRevision, now = new Date().toISOString() } = {}) {
+  const caseId = requireText(caseItem?.id, "Case ID"); const selectedRevisionId = requireText(revisionId, "Executive AI Draft revision ID"); const verified = await verifyExecutiveAiDraft(caseItem, selectedRevisionId); if (!verified.valid) throw new TypeError(`Executive AI Draft history is invalid: ${verified.errors.join(" ")}`);
+  const library = requireSupportedLibrary(caseItem.reportLibrary, caseId); const integrity = await validateReportLibraryIntegrity(library, { caseId }); if (!integrity.valid) throw new TypeError(`Executive AI Draft history is invalid: ${integrity.errors.join(" ")}`);
+  const revision = library.revisions[selectedRevisionId]; const manifest = library.reports[revision?.reportId]; if (!manifest || manifest.reportType !== "executive" || !isExecutiveAiDraftRevision(revision)) throw new TypeError("The selected Executive AI Draft revision is unavailable or malformed.");
+  const reviewer = requireText(reviewerName, toStatus === "approved" ? "Approver name" : "Reviewer name"); const review = revision.lifecycle?.review || {};
+  if (toStatus === "approved") { if (!text(review.reviewedBy) || !review.history?.some((entry) => entry.decision === "reviewed")) throw new TypeError("Executive AI Draft approval requires a completed named human review."); if (manifest.currentRevisionId !== revision.id) throw new TypeError("Only the current Executive AI Draft revision can be approved."); if (revision.source?.caseRevision !== caseItem?.revision) throw new TypeError("Executive AI Draft approval requires the current case revision."); if (requireText(currentBriefCaseRevision, "Current source revision") !== revision.content.executiveAiDraft.sourceAiBrief?.caseRevision) throw new TypeError("Executive AI Draft approval requires the current source revision."); }
+  const transition = transitionReportLifecycle({ ...revision.lifecycle, revision }, toStatus, { actor: { kind: "human", name: reviewer }, currentFingerprint, at: now }); if (!transition.ok) throw new TypeError(transition.errors.join(" "));
+  const history = Array.isArray(review.history) ? cloneJson(review.history) : []; history.push({ decision: toStatus === "approved" ? "approved" : "reviewed", actor: reviewer, at: now, reportId: manifest.id, revisionId: revision.id, sourceFingerprint: revision.source.fingerprint, sourceRevision: revision.content.executiveAiDraft.sourceAiBrief.caseRevision, integrity: "verified" });
+  const nextReview = { ...transition.lifecycle.review, history, ...(toStatus === "in_review" ? { reviewedBy: reviewer, reviewedAt: now } : { reviewedBy: review.reviewedBy, reviewedAt: review.reviewedAt, approvedBy: reviewer, approvedAt: now }) }; const nextLifecycle = { ...transition.lifecycle, review: nextReview }; delete nextLifecycle.revision;
+  const nextRevision = { ...revision, lifecycle: nextLifecycle }; const nextManifest = { ...manifest, status: nextLifecycle.status, ...(nextLifecycle.status === "approved" ? { approvedRevisionId: revision.id } : {}) }; const candidate = { schemaVersion: REPORT_LIBRARY_SCHEMA_VERSION, reports: { ...library.reports, [manifest.id]: nextManifest }, revisions: { ...library.revisions, [revision.id]: nextRevision } }; const validation = await validateReportLibraryIntegrity(candidate, { caseId }); if (!validation.valid) throw new TypeError(`Executive AI Draft lifecycle update is invalid: ${validation.errors.join(" ")}`); return { reportLibrary: candidate, manifest: nextManifest, revision: nextRevision };
 }
 
 export function getExecutiveSavedDraft(caseItem, revisionId) {
