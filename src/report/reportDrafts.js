@@ -415,6 +415,52 @@ export function getExecutiveDraftFreshness(revision, currentFingerprint, scopeAv
   return getReportSourceFreshness(revision, currentFingerprint);
 }
 
+function isManagementAiDraftRevision(revision) {
+  const saved = revision?.content?.managementAiDraft;
+  return revision?.generationMode === "ai_assisted"
+    && revision?.content?.reportDocument?.kind === "management-ai-draft-preview"
+    && revision?.content?.reportDocument?.aiDraftPreview?.draft?.reportFamily === "management"
+    && saved?.generation?.origin === "externally_drafted"
+    && saved?.acceptedDraft?.reportFamily === "management"
+    && saved?.aiBrief?.requestedReportFamily === "management";
+}
+
+export function getManagementAiDrafts(caseItem) {
+  const result = classifyReportLibrary(caseItem?.reportLibrary, { caseId: caseItem?.id || "" });
+  if (result.kind !== "supported") return [];
+  return Object.values(caseItem.reportLibrary.reports)
+    .filter((manifest) => manifest.reportType === "management")
+    .flatMap((manifest) => manifest.revisionIds.map((revisionId) => ({ manifest, revision: caseItem.reportLibrary.revisions[revisionId] })))
+    .filter((item) => isManagementAiDraftRevision(item.revision))
+    .sort((left, right) => String(right.revision.createdAt).localeCompare(String(left.revision.createdAt)));
+}
+
+export function getManagementAiDraft(caseItem, revisionId) {
+  return getManagementAiDrafts(caseItem).find((item) => item.revision.id === revisionId) || null;
+}
+
+export async function verifyManagementAiDraft(caseItem, revisionId) {
+  const draft = getManagementAiDraft(caseItem, revisionId);
+  if (!draft) return { valid: false, errors: ["The selected Management AI Draft revision is unavailable or malformed."] };
+  const revision = draft.revision;
+  const document = revision.content.reportDocument;
+  const saved = revision.content.managementAiDraft;
+  if (document.source?.caseId !== caseItem?.id) return { valid: false, errors: ["The selected Management AI Draft belongs to a different case."] };
+  if (document.aiDraftPreview?.sourceFingerprint !== revision.source?.fingerprint || saved.sourceAiBrief?.sourceFingerprint !== revision.source?.fingerprint) return { valid: false, errors: ["The stored Management AI Draft source fingerprint does not match its revision."] };
+  if (document.aiDraftPreview?.sourceRevision !== saved.sourceAiBrief?.caseRevision) return { valid: false, errors: ["The stored Management AI Draft source revision does not match its snapshot."] };
+  const briefValidation = validateAiBrief(saved.aiBrief);
+  if (!briefValidation.valid) return { valid: false, errors: briefValidation.errors };
+  const draftValidation = validateAiDraft(saved.acceptedDraft, saved.aiBrief);
+  if (!draftValidation.valid) return { valid: false, errors: draftValidation.errors.map((error) => error.message) };
+  if (canonicalSerialiseReportRevisionContent(document.aiDraftPreview.draft) !== canonicalSerialiseReportRevisionContent(draftValidation.normalisedDraft)) return { valid: false, errors: ["The stored Management AI Draft preview does not match its accepted draft snapshot."] };
+  const checksum = await verifyReportRevisionChecksum(revision);
+  return checksum.valid ? { valid: true, errors: [], draft } : checksum;
+}
+
+export function getManagementAiDraftFreshness(revision, currentFingerprint) {
+  return getReportSourceFreshness(revision, currentFingerprint);
+}
+
 function isClientUpdateRevision(revision) {
   return revision?.content?.reportDocument?.report?.id === "client"
     && text(revision?.content?.markdown)

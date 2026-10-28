@@ -294,6 +294,22 @@ test("Management AI Draft acceptance persists only an acknowledged immutable dra
   assert.doesNotMatch(caseDetailSource, /generatedReportVersions:[\s\S]{0,300}buildManagementAiDraftCandidate/);
 });
 
+test("Management AI Draft history opens only verified immutable snapshots and routes existing actions to that snapshot", () => {
+  assert.match(caseDetailSource, /getManagementAiDrafts/);
+  assert.match(caseDetailSource, /setSavedManagementAiDraftRevisionId\(""\)/);
+  assert.match(caseDetailSource, /verifyManagementAiDraft\(selectedCase, draft\.revision\.id\)/);
+  assert.match(caseDetailSource, /Saved Management AI Draft revisions/);
+  assert.match(caseDetailSource, /AI-assisted \/ externally drafted/);
+  assert.match(caseDetailSource, /reportCentreType === "management" && savedManagementAiDraft/);
+  assert.match(caseDetailSource, /savedManagementAiDraft\.revision\.content\.reportDocument/);
+  assert.match(caseDetailSource, /Viewing immutable Management AI Draft revision/);
+  assert.match(caseDetailSource, /Open live Management Report/);
+  assert.match(caseDetailSource, /reportCentreType === "management" && <ManagementReportArticle reportDocument=\{reportCentreActiveDocument\}/);
+  assert.match(caseDetailSource, /This Management AI Draft cannot be exported/);
+  assert.match(caseDetailSource, /This Management AI Draft cannot be printed/);
+  assert.doesNotMatch(caseDetailSource, /onUpdateCase\(\{[^}]*savedManagementAiDraft/);
+});
+
 test("Executive Draft saving waits for the existing persistence acknowledgement", () => {
   assert.match(caseDetailSource, /const saved = await onUpdateCase\(\{ \.\.\.selectedCase, reportLibrary: candidate\.reportLibrary \}\)/);
   assert.match(caseDetailSource, /if \(!saved\) \{\s*if \(selectedCaseRef\.current\?\.id === savingCaseId\) setExecutiveDraftFeedback\("Draft was not saved/);

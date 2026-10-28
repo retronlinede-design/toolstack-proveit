@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildClientUpdateDraftCandidate, buildClientUpdateLifecycleCandidate, buildExecutiveDraftCandidate, buildLegacyClientUpdateDraftCandidate, buildManagementAiDraftCandidate, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, getLegacyClientUpdateNarratives, verifyClientUpdateSavedDraft } from "./reportDrafts.js";
+import { buildClientUpdateDraftCandidate, buildClientUpdateLifecycleCandidate, buildExecutiveDraftCandidate, buildLegacyClientUpdateDraftCandidate, buildManagementAiDraftCandidate, getClientUpdateDraftFreshness, getClientUpdateSavedDraft, getClientUpdateSavedDrafts, getExecutiveDraftFreshness, getExecutiveSavedDraft, getExecutiveSavedDrafts, getLegacyClientUpdateNarratives, getManagementAiDraft, getManagementAiDraftFreshness, getManagementAiDrafts, verifyClientUpdateSavedDraft, verifyManagementAiDraft } from "./reportDrafts.js";
 import { verifyReportRevisionChecksum } from "./reportLifecycle.js";
 import { buildAiBrief } from "./aiBrief.js";
 import { validateAiDraft } from "./aiDraft.js";
@@ -320,4 +320,28 @@ test("Management AI Draft acceptance rejects stale, changed, mismatched, duplica
   await assert.rejects(buildManagementAiDraftCandidate(managementInput({ currentBriefCaseRevision: "changed" })), /source revision is no longer current/);
   const invalid = managementInput(); invalid.aiDraft.sourceAiBrief.sourceFingerprint = "wrong"; await assert.rejects(buildManagementAiDraftCandidate(invalid), /invalid/);
   const tampered = managementCase(first.reportLibrary); tampered.reportLibrary.revisions["management-revision-1"].content.managementAiDraft.acceptedDraft.claims[0].text = "tampered"; await assert.rejects(buildManagementAiDraftCandidate(managementInput({ caseItem: tampered })), /Existing report library is invalid/);
+});
+
+test("Management AI Draft history lists ordered immutable snapshots and verifies exact historical content", async () => {
+  const firstInput = managementInput(); const first = await buildManagementAiDraftCandidate(firstInput);
+  const changedDraft = managementDraft(firstInput.aiBrief, "later"); const validation = validateAiDraft(changedDraft, firstInput.aiBrief); const previewDocument = buildManagementAiDraftPreview({ draft: changedDraft, brief: firstInput.aiBrief, validation, freshness: "current" });
+  const second = await buildManagementAiDraftCandidate(managementInput({ caseItem: managementCase(first.reportLibrary), aiDraft: changedDraft, validation, previewDocument, reportId: "management-report", now: "2026-10-26T12:00:00.000Z", createId: ids("management-revision-2") }));
+  const savedCase = managementCase(second.reportLibrary); const history = getManagementAiDrafts(savedCase);
+  assert.deepEqual(history.map((item) => item.revision.id), ["management-revision-2", "management-revision-1"]);
+  assert.equal(getManagementAiDraft(savedCase, "management-revision-1").revision.content.reportDocument.aiDraftPreview.sections[0].narrative, "AI narrative ");
+  assert.equal((await verifyManagementAiDraft(savedCase, "management-revision-1")).valid, true);
+  assert.equal(getManagementAiDraftFreshness(history[0].revision, history[0].revision.source.fingerprint), "current");
+  assert.equal(getManagementAiDraftFreshness(history[0].revision, "changed"), "stale");
+  assert.equal(getManagementAiDraftFreshness(history[0].revision, ""), "unknown");
+});
+
+test("Management AI Draft history fails closed for tampering, missing snapshots, wrong family, and does not mutate records", async () => {
+  const accepted = await buildManagementAiDraftCandidate(managementInput()); const savedCase = managementCase(accepted.reportLibrary); const before = structuredClone(savedCase);
+  const tampered = structuredClone(savedCase); tampered.reportLibrary.revisions["management-revision-1"].content.managementAiDraft.acceptedDraft.claims[0].text = "tampered";
+  assert.equal((await verifyManagementAiDraft(tampered, "management-revision-1")).valid, false);
+  const missing = structuredClone(savedCase); delete missing.reportLibrary.revisions["management-revision-1"].content.managementAiDraft.aiBrief;
+  assert.equal((await verifyManagementAiDraft(missing, "management-revision-1")).valid, false);
+  const wrongFamily = structuredClone(savedCase); wrongFamily.reportLibrary.revisions["management-revision-1"].content.managementAiDraft.acceptedDraft.reportFamily = "executive";
+  assert.equal((await verifyManagementAiDraft(wrongFamily, "management-revision-1")).valid, false);
+  assert.deepEqual(savedCase, before);
 });
