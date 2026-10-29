@@ -10,9 +10,10 @@ function scopeLabel(brief) {
     : "whole case";
 }
 
-export function buildAiDraftingRequest(brief) {
+export function buildAiDraftingRequest(brief, { language = "en" } = {}) {
   const validation = validateAiBrief(brief);
   if (!validation.valid) throw new TypeError(`A valid AI Brief is required: ${validation.errors.join(" ")}`);
+  if (brief.requestedReportFamily === "client" && !["en", "de"].includes(language)) throw new TypeError("Client Update drafting requires an explicit en or de language.");
   const briefJson = JSON.stringify(brief, null, 2);
   return [
     `ProveIt AI Drafting Request v${AI_DRAFT_REQUEST_VERSION}`,
@@ -22,6 +23,7 @@ export function buildAiDraftingRequest(brief) {
     `Intended professional report family: ${brief.requestedReportFamily}`,
     `Permitted scope: ${scopeLabel(brief)}`,
     `Source case: ${brief.case.id}`,
+    ...(brief.requestedReportFamily === "client" ? [`Client Update language: ${language.toUpperCase()}. Preserve this language in all narrative text; it is recorded outside the shared AI Draft JSON contract.`] : []),
     `AI Brief source fingerprint: ${brief.source.sourceFingerprint}`,
     `AI Brief source revision: ${brief.source.caseRevision || "unknown"}`,
     "",

@@ -18,6 +18,7 @@ import { validateAiDraft } from "./aiDraft.js";
 import { isManagementAiDraftPreview } from "./managementAiDraftPreview.js";
 import { isExecutiveAiDraftPreview } from "./executiveAiDraftPreview.js";
 import { isInvestigationAiDraftPreview } from "./investigationAiDraftPreview.js";
+import { isClientAiDraftPreview } from "./clientAiDraftPreview.js";
 
 function text(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -611,9 +612,45 @@ function isClientUpdateRevision(revision) {
   return revision?.content?.reportDocument?.report?.id === "client"
     && text(revision?.content?.markdown)
     && text(revision?.content?.json)
-    && ["en", "de"].includes(revision?.content?.clientUpdate?.language)
-    && text(revision?.content?.clientUpdate?.acceptedNarrative)
-    && text(revision?.content?.clientUpdate?.promptRevision);
+    && ((["en", "de"].includes(revision?.content?.clientUpdate?.language)
+      && text(revision?.content?.clientUpdate?.acceptedNarrative)
+      && text(revision?.content?.clientUpdate?.promptRevision)) || isClientAiDraftRevision(revision));
+}
+
+function isClientAiDraftRevision(revision) {
+  const saved = revision?.content?.clientAiDraft;
+  return revision?.generationMode === "ai_assisted" && isClientAiDraftPreview(revision?.content?.reportDocument)
+    && saved?.generation?.origin === "externally_drafted" && ["en", "de"].includes(saved?.language)
+    && saved?.acceptedDraft?.reportFamily === "client" && saved?.aiBrief?.requestedReportFamily === "client";
+}
+
+function clientAiDraftProvenance(draft) { return managementAiDraftProvenance(draft); }
+function sameClientAiDraftSnapshot(revision, draft, brief, language) {
+  const saved = revision?.content?.clientAiDraft;
+  return Boolean(saved?.acceptedDraft && saved?.aiBrief) && canonicalSerialiseReportRevisionContent({ draft: saved.acceptedDraft, brief: saved.aiBrief, language: saved.language }) === canonicalSerialiseReportRevisionContent({ draft, brief, language });
+}
+
+/** Builds, but does not persist, an immutable whole-case Client AI Draft revision. */
+export async function buildClientAiDraftCandidate({ caseItem, aiDraft, aiBrief, validation, previewDocument, markdown, json, language, currentSourceFingerprint, currentBriefCaseRevision, currentCaseRevision = caseItem?.revision, reportId = "", now = new Date().toISOString(), createId = generateId } = {}) {
+  const caseId = requireText(caseItem?.id, "Case ID"); const clientLanguage = supportedClientLanguage(language);
+  if (!validation?.valid) throw new TypeError("Client AI Draft must be successfully validated before acceptance.");
+  const briefCheck = validateAiBrief(aiBrief); if (!briefCheck.valid || aiBrief?.requestedReportFamily !== "client" || aiBrief?.scope?.type !== "case") throw new TypeError("Only a whole-case Client AI Brief can be accepted as a Client Draft.");
+  const draftCheck = validateAiDraft(aiDraft, aiBrief); if (!draftCheck.valid || draftCheck.normalisedDraft?.reportFamily !== "client" || draftCheck.normalisedDraft?.scope?.type !== "case") throw new TypeError("Client AI Draft is invalid or does not retain whole-case scope.");
+  const fingerprint = requireText(currentSourceFingerprint, "Current source fingerprint"); if (fingerprint !== aiBrief.source?.sourceFingerprint) throw new TypeError("Client AI Draft source fingerprint is no longer current.");
+  if (requireText(currentBriefCaseRevision, "Current source revision") !== aiBrief.source?.caseRevision) throw new TypeError("Client AI Draft source revision is no longer current.");
+  if (!Number.isSafeInteger(currentCaseRevision) || currentCaseRevision < 1) throw new TypeError("Current case revision is unavailable for this Client Draft.");
+  if (!isClientAiDraftPreview(previewDocument) || previewDocument.source?.caseId !== caseId || previewDocument.aiDraftPreview?.language !== clientLanguage || previewDocument.aiDraftPreview?.sourceFingerprint !== fingerprint || previewDocument.aiDraftPreview?.sourceRevision !== aiBrief.source?.caseRevision) throw new TypeError("Client AI Draft preview does not match the original language and AI Brief binding.");
+  const outputMarkdown = requireText(markdown, "Client AI Draft Markdown"); const outputJson = requireText(json, "Client AI Draft JSON");
+  const library = requireSupportedLibrary(caseItem?.reportLibrary, caseId); const integrity = await validateReportLibraryIntegrity(library, { caseId }); if (!integrity.valid) throw new TypeError(`Existing report library is invalid: ${integrity.errors.join(" ")}`);
+  const existingManifest = text(reportId) ? library.reports[reportId] : null;
+  if (text(reportId) && (!existingManifest || existingManifest.reportType !== "client" || existingManifest.caseId !== caseId || existingManifest.status !== "draft" || JSON.stringify(existingManifest.scope) !== JSON.stringify({ type: "case" }))) throw new TypeError("The selected Client Draft is unavailable for a new revision.");
+  const parentRevision = existingManifest ? library.revisions[existingManifest.currentRevisionId] : null; if (existingManifest && !parentRevision) throw new TypeError("The selected Client Draft has no current revision.");
+  if (Object.values(library.revisions).some((revision) => revision.reportId && library.reports[revision.reportId]?.reportType === "client" && sameClientAiDraftSnapshot(revision, aiDraft, aiBrief, clientLanguage))) throw new TypeError("This exact Client AI Draft has already been accepted as an immutable revision.");
+  const nextReportId = existingManifest ? existingManifest.id : createId(); const revisionId = createId(); if (library.revisions[revisionId]) throw new TypeError("Client AI Draft revision ID already exists.");
+  const revision = { schemaVersion: REPORT_LIFECYCLE_SCHEMA_VERSION, id: revisionId, reportId: nextReportId, versionNumber: parentRevision ? parentRevision.versionNumber + 1 : 1, parentRevisionId: parentRevision?.id || null, createdAt: now, source: { caseRevision: currentCaseRevision, fingerprint }, content: { reportDocument: cloneJson(previewDocument), markdown: outputMarkdown, json: outputJson, clientAiDraft: { language: clientLanguage, acceptedDraft: cloneJson(aiDraft), aiBrief: cloneJson(aiBrief), sourceAiBrief: { caseRevision: aiBrief.source.caseRevision, sourceFingerprint: fingerprint }, validation: { warnings: cloneJson(draftCheck.warnings), reviewReasons: [...new Set(draftCheck.reviewReasons)] }, generation: { mode: "ai_assisted", origin: "externally_drafted" } } }, generationMode: "ai_assisted", provenance: clientAiDraftProvenance(draftCheck.normalisedDraft), contentChecksum: "", lifecycle: { status: "draft", updatedAt: now, review: {} } };
+  revision.contentChecksum = await calculateReportRevisionChecksum(revision);
+  const manifest = existingManifest ? { ...existingManifest, currentRevisionId: revisionId, revisionIds: [...existingManifest.revisionIds, revisionId], status: "draft" } : { schemaVersion: REPORT_LIFECYCLE_SCHEMA_VERSION, id: nextReportId, caseId, reportType: "client", title: "Client Update", createdAt: now, scope: { type: "case" }, status: "draft", currentRevisionId: revisionId, approvedRevisionId: null, revisionIds: [revisionId] };
+  const candidate = { schemaVersion: REPORT_LIBRARY_SCHEMA_VERSION, reports: { ...library.reports, [nextReportId]: manifest }, revisions: { ...library.revisions, [revisionId]: revision } }; const checked = await validateReportLibraryIntegrity(candidate, { caseId }); if (!checked.valid) throw new TypeError(`Client AI Draft is invalid: ${checked.errors.join(" ")}`); return { reportLibrary: candidate, manifest, revision };
 }
 
 export function isLegacyImportedClientUpdateRevision(revision) {
@@ -640,10 +677,17 @@ export function getClientUpdateSavedDraft(caseItem, revisionId) {
 export async function verifyClientUpdateSavedDraft(caseItem, revisionId) {
   const draft = getClientUpdateSavedDraft(caseItem, revisionId);
   if (!draft) return { valid: false, errors: ["The selected Client Update revision is unavailable or malformed."] };
-  const documentValidation = validateReportDocument(draft.revision.content.reportDocument);
+  const isAiDraft = isClientAiDraftRevision(draft.revision);
+  const documentValidation = isAiDraft ? { valid: true, errors: [] } : validateReportDocument(draft.revision.content.reportDocument);
   if (!documentValidation.valid) return { valid: false, errors: documentValidation.errors };
   if (draft.revision.content.reportDocument.source?.caseId !== caseItem?.id) {
     return { valid: false, errors: ["The selected Client Update revision belongs to a different case."] };
+  }
+  if (isAiDraft) {
+    const saved = draft.revision.content.clientAiDraft;
+    const briefValidation = validateAiBrief(saved.aiBrief);
+    const draftValidation = briefValidation.valid && validateAiDraft(saved.acceptedDraft, saved.aiBrief);
+    if (!briefValidation.valid || !draftValidation.valid || saved.aiBrief.scope?.type !== "case" || saved.acceptedDraft?.scope?.type !== "case" || draft.revision.content.reportDocument.aiDraftPreview?.language !== saved.language) return { valid: false, errors: ["The selected Client AI Draft snapshot is malformed or no longer matches its original Brief."] };
   }
   const checksum = await verifyReportRevisionChecksum(draft.revision);
   return checksum.valid ? { valid: true, errors: [], draft } : checksum;
@@ -718,6 +762,7 @@ export async function buildClientUpdateLifecycleCandidate({
   if (!manifest || manifest.reportType !== "client" || !isClientUpdateRevision(revision)) {
     throw new TypeError("The selected Client Update revision is unavailable or malformed.");
   }
+  if (isClientAiDraftRevision(revision)) throw new TypeError("Client AI Draft lifecycle review and approval is not available in this stage.");
   if (toStatus === "approved" && isLegacyImportedClientUpdateRevision(revision)) {
     throw new TypeError("A Client Update imported from legacy text has unknown historical provenance and cannot be approved as current.");
   }
