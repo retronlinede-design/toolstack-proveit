@@ -176,7 +176,6 @@ import {
   saveSequenceGroupMeta,
 } from "../sequenceGroupMeta.js";
 
-const ENABLE_SUPABASE_REMOTE = false;
 
 function renderCompactLinkRow(label, items, renderChip) {
   if (!items || items.length === 0) return null;
@@ -302,7 +301,6 @@ export default function CaseDetail({
   onUpdateCase,
   onExportSnapshot,
   onCopyLinkMapExport,
-  onSendReasoningSnapshotToSupabase,
   onOpenGptDeltaModal,
   onOpenPinManager,
   isPinLocked = false,
@@ -319,10 +317,6 @@ export default function CaseDetail({
   deleteDocumentEntry,
   saveTrackingRecordTable,
   reviewQueueSection,
-  syncStatus = "idle",
-  syncMessage = "",
-  supabaseReasoningExportStatus = "idle",
-  supabaseReasoningExportMessage = "",
 }) {
   const isCaseRecordsWorkspace = activeTab === "records" || activeTab === "ledger";
   const [caseNavigationOrder, setCaseNavigationOrder] = useState(() => readCaseNavigationOrder());
@@ -4775,28 +4769,6 @@ ${ungroupedSequenceText}
                     <span className="block text-sm font-semibold leading-snug text-neutral-700">AI Reasoning Snapshot JSON</span>
                     <span className="mt-0.5 block text-xs leading-4 text-neutral-500">Secondary direct download for the same whole-case GPT snapshot.</span>
                   </button>
-                  <div className="mt-1 rounded-lg px-3 py-2 text-left">
-                    <div className="text-sm font-semibold leading-snug text-neutral-700">Reasoning Snapshot Upload</div>
-                    <p className="mt-0.5 text-xs leading-4 text-neutral-500">Remote upload action for configured deployments.</p>
-                    {ENABLE_SUPABASE_REMOTE ? (
-                      <button
-                        onClick={() => { onSendReasoningSnapshotToSupabase(); setShowExportMenu(false); }}
-                        disabled={syncStatus === "syncing"}
-                        className="mt-2 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-bold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
-                      >
-                        Send Reasoning Snapshot
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled
-                        className="mt-2 cursor-not-allowed rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 text-xs font-bold text-neutral-400"
-                      >
-                        Upload disabled until secure auth is configured.
-                      </button>
-                    )}
-                  </div>
-
                   <div className="mt-2 border-t border-neutral-100 px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                     Advanced / Technical
                   </div>
@@ -4862,14 +4834,6 @@ ${ungroupedSequenceText}
           )}
             </div>
           </div>
-          </div>
-          <div className="flex flex-col items-start lg:items-end">
-            {syncMessage && (
-              <span className={`text-[10px] font-bold uppercase tracking-tight text-center ${syncStatus === 'error' ? 'text-red-500' : 'text-lime-600'}`}>{syncMessage}</span>
-            )}
-            {supabaseReasoningExportMessage && (
-              <span className={`text-[10px] font-bold uppercase tracking-tight text-center ${supabaseReasoningExportStatus === 'error' ? 'text-red-500' : 'text-lime-600'}`}>{supabaseReasoningExportMessage}</span>
-            )}
           </div>
         </div>
       </div>
