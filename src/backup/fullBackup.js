@@ -134,13 +134,34 @@ export async function buildFullBackupQuickCapture(capture, deps = {}) {
 }
 
 export async function restoreFullBackupAttachment(att, ownerId, deps = {}) {
-  const { restoreStats } = deps;
+  const { restoreStats, requireCompleteBinaries = false } = deps;
   if (!att) return att;
 
   const cloned = { ...att };
+  const binaryReference = att.storage?.imageId || att.imageId;
+  const recordFailure = (error) => {
+    if (restoreStats && Array.isArray(restoreStats.failedAttachments)) {
+      restoreStats.failedAttachments.push({
+        ownerId: ownerId || "",
+        attachmentId: att?.id || "",
+        name: att?.name || "",
+      });
+    }
+    // A failed restore must never move backup-only bytes into canonical case
+    // data. The original backup remains the recovery source for partial imports.
+    delete cloned.backupDataUrl;
+    if (requireCompleteBinaries) {
+      const failure = new Error(`Complete backup restore could not restore required attachment binary: ${att?.id || binaryReference || "unknown attachment"}.`);
+      failure.cause = error;
+      throw failure;
+    }
+  };
 
   const session = deps.restoreSession || createRestoreSession(deps, [{ attachments: [att] }]);
   if (!session.hasPayload(att)) {
+    if (requireCompleteBinaries && binaryReference) {
+      recordFailure(new Error("Backup payload does not contain the referenced attachment binary."));
+    }
     return cloned;
   }
 
@@ -156,13 +177,7 @@ export async function restoreFullBackupAttachment(att, ownerId, deps = {}) {
     // Remove backupDataUrl after restoring to keep the attachment clean
     delete cloned.backupDataUrl;
   } catch (err) {
-    if (restoreStats && Array.isArray(restoreStats.failedAttachments)) {
-      restoreStats.failedAttachments.push({
-        ownerId: ownerId || "",
-        attachmentId: att?.id || "",
-        name: att?.name || "",
-      });
-    }
+    recordFailure(err);
     console.error("Failed to restore attachment to IndexedDB", att?.id, err);
   }
 

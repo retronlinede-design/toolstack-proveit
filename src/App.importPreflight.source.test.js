@@ -18,6 +18,15 @@ test("atomic restore stages full-backup binaries and commits them with every mer
   assert.match(source, /saveCasesAndImages\(mergedCases/);
 });
 
+test("declared-complete full backups require every binary before the atomic save", () => {
+  assert.match(source, /const requireCompleteBinaries = isFullBackup/);
+  assert.match(source, /binaryData\?\.complete === true/);
+  assert.match(source, /requireCompleteBinaries/);
+  const strictRestore = source.indexOf("requireCompleteBinaries");
+  const atomicSave = source.indexOf("await saveCasesAndImages(mergedCases");
+  assert.ok(strictRestore >= 0 && strictRestore < atomicSave);
+});
+
 test("AUDIT-008: startup filters malformed stored cases before normalization and rewrite", () => {
   assert.match(source, /validateStoredCaseForNormalization\(caseItem\)\.ok/);
   assert.match(source, /const validStoredCases = loadedCases\.filter/);

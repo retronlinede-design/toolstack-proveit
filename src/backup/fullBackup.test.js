@@ -259,7 +259,7 @@ test("restore helpers preserve attachment identity while assigning fresh storage
   });
 });
 
-test("restore helpers preserve log-and-continue behavior on attachment restore failures", async () => {
+test("partial recovery removes embedded binary payload when attachment restoration fails", async () => {
   const originalError = console.error;
   const errors = [];
   console.error = (...args) => {
@@ -278,7 +278,7 @@ test("restore helpers preserve log-and-continue behavior on attachment restore f
     });
 
     assert.equal(restored.id, "att-fail");
-    assert.equal(restored.backupDataUrl, "data:image/png;base64,bad");
+    assert.equal(restored.backupDataUrl, undefined);
     assert.equal(restored.storage, undefined);
     assert.equal(errors.length, 1);
     assert.equal(errors[0][0], "Failed to restore attachment to IndexedDB");
@@ -286,6 +286,43 @@ test("restore helpers preserve log-and-continue behavior on attachment restore f
   } finally {
     console.error = originalError;
   }
+});
+
+test("declared-complete restoration rejects a missing referenced attachment binary", async () => {
+  const restoreStats = { failedAttachments: [] };
+  await assert.rejects(
+    () => restoreFullBackupAttachment({
+      id: "att-required",
+      storage: { type: "indexeddb", imageId: "img-required" },
+    }, "owner-1", { requireCompleteBinaries: true, restoreStats }),
+    /Complete backup restore could not restore required attachment binary: att-required/
+  );
+  assert.deepEqual(restoreStats.failedAttachments, [{
+    ownerId: "owner-1",
+    attachmentId: "att-required",
+    name: "",
+  }]);
+});
+
+test("declared-complete restoration rejects a binary staging failure", async () => {
+  const restoreStats = { failedAttachments: [] };
+  await assert.rejects(
+    () => restoreFullBackupAttachment({
+      id: "att-write-fail",
+      backupDataUrl: "data:image/png;base64,bad",
+    }, "owner-1", {
+      requireCompleteBinaries: true,
+      restoreStats,
+      generateId: () => "generated-id",
+      addImage: async () => { throw new Error("write failed"); },
+    }),
+    /Complete backup restore could not restore required attachment binary: att-write-fail/
+  );
+  assert.deepEqual(restoreStats.failedAttachments, [{
+    ownerId: "owner-1",
+    attachmentId: "att-write-fail",
+    name: "",
+  }]);
 });
 
 test("restoreFullBackupRecord case and quick capture preserve current structure", async () => {

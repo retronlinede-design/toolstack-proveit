@@ -150,6 +150,34 @@ test("atomic restore preparation stages binaries without writing before validati
   assert.equal(f.images.get("X").dataUrl, "ORIGINAL");
 });
 
+test("declared-complete restore aborts before any staged binary or case can commit", async () => {
+  const source = caseWith("case", [
+    attachment("available"),
+    { id: "att-required", storage: { type: "indexeddb", imageId: "missing" } },
+  ]);
+  const f = fixture([source]);
+  const session = createRestoreSession({ ...f.deps, deferWrites: true }, [source]);
+  const restoreStats = { failedAttachments: [] };
+
+  try {
+    await assert.rejects(
+      () => restoreFullBackupCase(source, {
+        ...f.deps,
+        restoreSession: session,
+        restoreStats,
+        requireCompleteBinaries: true,
+      }),
+      /Complete backup restore could not restore required attachment binary: att-required/
+    );
+    assert.equal(f.cases.size, 0);
+    assert.deepEqual([...f.images.keys()], ["X"]);
+    assert.equal(restoreStats.failedAttachments.length, 1);
+  } finally {
+    await session.cleanup();
+  }
+  assert.deepEqual([...f.images.keys()], ["X"]);
+});
+
 test("AUDIT-002: cleanup waits for in-flight binary writes after an early failure", async () => {
   const source = caseWith("case", [attachment()]);
   const f = fixture([source]);

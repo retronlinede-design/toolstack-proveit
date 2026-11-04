@@ -2778,6 +2778,12 @@ export default function ProveItApp() {
     });
 
     const isFullBackup = preflight.isFullBackup;
+    // A current full-backup contract explicitly declares whether every
+    // referenced attachment binary was captured. Do not downgrade a declared
+    // complete restore into a partial import if any required binary fails.
+    const requireCompleteBinaries = isFullBackup && (
+      parsed?.binaryData?.complete === true || parsed?.includesBinaryData === true
+    );
     const shouldImportQuickCaptures = preflight.shouldImportQuickCaptures;
     const restoreStats = { failedAttachments: [] };
 
@@ -2793,11 +2799,11 @@ export default function ProveItApp() {
     try {
       if (isFullBackup) {
         incomingCases = await Promise.all(incomingCases.map((caseItem) =>
-          restoreFullBackupCase(caseItem, { addImage, generateId, restoreStats, restoreSession })
+          restoreFullBackupCase(caseItem, { addImage, generateId, restoreStats, restoreSession, requireCompleteBinaries })
         ));
         if (shouldImportQuickCaptures) {
           incomingQuickCaptures = await Promise.all(incomingQuickCaptures.map((capture) =>
-            restoreFullBackupQuickCapture(capture, { addImage, generateId, restoreStats, restoreSession })
+            restoreFullBackupQuickCapture(capture, { addImage, generateId, restoreStats, restoreSession, requireCompleteBinaries })
           ));
         }
       }
