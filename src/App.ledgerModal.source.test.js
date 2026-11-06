@@ -28,6 +28,14 @@ test("Ledger modal retains its established financial and relationship fields and
   assert.match(source, /closeLedgerModal\(\);/);
 });
 
+test("Ledger editor offers ordinary and tracking-record Documents through the existing linkedRecordIds selector", () => {
+  assert.match(source, /\.\.\.\(selectedCase\?\.documents \|\| \[\]\)\.map\(r => \(\{ \.\.\.r, _type: 'documents', _label: 'Document' \}\)\)/);
+  assert.match(source, /ledgerForm\.linkedRecordIds \|\| \[\]\)\.includes\(rec\.id\)/);
+  assert.match(source, /\? \[\.\.\.\(prev\.linkedRecordIds \|\| \[\]\), rec\.id\]/);
+  assert.match(source, /: \(prev\.linkedRecordIds \|\| \[\]\)\.filter\(id => id !== rec\.id\)/);
+  assert.match(source, /!selectedCase\?\.documents\?\.length/);
+});
+
 test("successful Ledger saves retain their direct close path without a dismissal warning", () => {
   const saveStart = source.indexOf("  const saveLedgerEntry = async () => {");
   const saveEnd = source.indexOf("\n  const relatedTrackingRecordsForViewing", saveStart);

@@ -2831,6 +2831,35 @@ test("upsertLedgerEntryInCase create preserves caller-provided generated id", ()
   assert.equal(updated.ledger[0].label, "Generated ledger");
 });
 
+test("upsertLedgerEntryInCase preserves ordinary and tracking-record Document links without duplicate ids", () => {
+  const caseItem = {
+    id: "case-ledger-document-links",
+    documents: [
+      { id: "document-ordinary", title: "Invoice" },
+      { id: "document-tracking", title: "Payment tracker", textContent: "[TRACK RECORD]" },
+    ],
+    ledger: [],
+  };
+
+  const created = upsertLedgerEntryInCase(caseItem, {
+    id: "ledger-document-links",
+    label: "Invoice payment",
+    linkedRecordIds: ["document-ordinary", "document-tracking", "document-ordinary"],
+  });
+
+  assert.deepEqual(created.ledger[0].linkedRecordIds, ["document-ordinary", "document-tracking"]);
+  assert.equal(created.documents, caseItem.documents);
+
+  const reopenedAndDeselected = upsertLedgerEntryInCase(created, {
+    label: "Invoice payment",
+    linkedRecordIds: ["document-tracking"],
+  }, "ledger-document-links");
+
+  assert.deepEqual(reopenedAndDeselected.ledger[0].linkedRecordIds, ["document-tracking"]);
+  assert.equal(reopenedAndDeselected.ledger[0].id, "ledger-document-links");
+  assert.equal(reopenedAndDeselected.documents, caseItem.documents);
+});
+
 test("upsertLedgerEntryInCase edit replaces an existing ledger entry by id and preserves unrelated sections", () => {
   const incidents = [{ id: "inc-1", title: "Incident" }];
   const strategy = [{ id: "str-1", title: "Strategy" }];
