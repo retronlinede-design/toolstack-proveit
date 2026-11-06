@@ -7,6 +7,7 @@
 import { STORE_NAMES } from "./dbConstants.js";
 import { getCaseRevision, INITIAL_CASE_REVISION } from "./domain/caseRevision.js";
 import { classifyReportLibrary, reportLibraryValuesEqual, validateReportLibraryIntegrity } from "./report/reportLibrary.js";
+import { classifyIntelligenceLibrary, validateIntelligenceLibraryIntegrity } from "./caseIntelligence/intelligenceLibrary.js";
 
 export const CORE_CASE_ARRAY_FIELDS = ["incidents", "evidence", "documents", "ledger", "strategy", "watchItems", "tasks", "goals"];
 export const EMERGENCY_BACKUP_PREFIX = "toolstack.proveit.v1.emergencyBackup.";
@@ -24,7 +25,7 @@ export class CaseRevisionConflictError extends Error {
 }
 
 function prepareCommittedCase(existingCase, caseItem, options = {}) {
-  const candidateCase = preserveExistingReportLibrary(existingCase, caseItem);
+  const candidateCase = preserveExistingIntelligenceLibrary(existingCase, preserveExistingReportLibrary(existingCase, caseItem), options);
   const operation = options.operation || "saveCase";
   const expectedRevision = getCaseRevision(candidateCase);
   const actualRevision = getCaseRevision(existingCase);
@@ -62,6 +63,20 @@ function hasReportLibrary(caseItem) {
   return Object.hasOwn(caseItem || {}, "reportLibrary");
 }
 
+function hasIntelligenceLibrary(caseItem) {
+  return Object.hasOwn(caseItem || {}, "intelligenceLibrary");
+}
+
+function stableLibraryValue(value) {
+  if (value == null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map(stableLibraryValue);
+  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stableLibraryValue(value[key])]));
+}
+
+function intelligenceLibraryValuesEqual(left, right) {
+  return JSON.stringify(stableLibraryValue(left)) === JSON.stringify(stableLibraryValue(right));
+}
+
 function preserveExistingReportLibrary(existingCase, caseItem) {
   if (!hasReportLibrary(existingCase) || hasReportLibrary(caseItem)) {
     assertReportLibraryCompatibility(existingCase, caseItem);
@@ -69,6 +84,16 @@ function preserveExistingReportLibrary(existingCase, caseItem) {
   }
   const preserved = { ...caseItem, reportLibrary: existingCase.reportLibrary };
   assertReportLibraryCompatibility(existingCase, preserved);
+  return preserved;
+}
+
+function preserveExistingIntelligenceLibrary(existingCase, caseItem, options = {}) {
+  if (!hasIntelligenceLibrary(existingCase) || hasIntelligenceLibrary(caseItem)) {
+    assertIntelligenceLibraryCompatibility(existingCase, caseItem, options);
+    return caseItem;
+  }
+  const preserved = { ...caseItem, intelligenceLibrary: existingCase.intelligenceLibrary };
+  assertIntelligenceLibraryCompatibility(existingCase, preserved, options);
   return preserved;
 }
 
@@ -85,11 +110,48 @@ function assertReportLibraryCompatibility(existingCase, candidateCase) {
   }
 }
 
+function assertIntelligenceLibraryCompatibility(existingCase, candidateCase, options = {}) {
+  const existing = classifyIntelligenceLibrary(existingCase?.intelligenceLibrary, { caseId: existingCase?.id || candidateCase?.id || "" });
+  const candidate = classifyIntelligenceLibrary(candidateCase?.intelligenceLibrary, { caseId: candidateCase?.id || existingCase?.id || "" });
+  const changed = !intelligenceLibraryValuesEqual(existingCase?.intelligenceLibrary, candidateCase?.intelligenceLibrary);
+  if (existing.kind === "unsupported" || existing.kind === "malformed") {
+    if (changed) {
+      throw new Error("Unsupported or malformed intelligence library cannot be changed until it is migrated.");
+    }
+  }
+  if (candidate.kind === "unsupported" && changed) {
+    throw new Error("Unsupported intelligence library cannot be introduced or changed.");
+  }
+  if (candidate.kind === "supported" && changed && options.allowIntelligenceLibraryWrite !== true) {
+    throw new Error("Intelligence library changes require a controlled write adapter.");
+  }
+}
+
 async function validateCaseReportLibraryForWrite(caseItem) {
   if (!hasReportLibrary(caseItem)) return;
   const result = await validateReportLibraryIntegrity(caseItem.reportLibrary, { caseId: caseItem.id || "" });
   if (result.kind === "unsupported") return;
   if (!result.valid) throw new Error(`Case report library is invalid: ${result.errors.join(" ")}`);
+}
+
+async function validateCaseIntelligenceLibraryForWrite(caseItem, { allowUnsupported = false } = {}) {
+  if (!hasIntelligenceLibrary(caseItem)) return;
+  const result = await validateIntelligenceLibraryIntegrity(caseItem.intelligenceLibrary, { caseId: caseItem.id || "" });
+  if (result.kind === "unsupported" && allowUnsupported) return;
+  if (result.kind === "unsupported") throw new Error("Unsupported intelligence library cannot be introduced or written until it is migrated.");
+  if (!result.valid) throw new Error(`Case intelligence library is invalid: ${result.errors.join(" ")}`);
+}
+
+async function validateExistingIntelligenceLibraryBeforeWrite(db, caseItem, options = {}) {
+  if (!caseItem?.id || typeof db?.get !== "function") return;
+  const existingCase = await db.get(STORE_NAMES.cases, caseItem.id);
+  if (!existingCase) {
+    assertIntelligenceLibraryCompatibility(null, caseItem, options);
+    await validateCaseIntelligenceLibraryForWrite(caseItem);
+    return;
+  }
+  const candidateCase = preserveExistingIntelligenceLibrary(existingCase, caseItem, options);
+  await validateCaseIntelligenceLibraryForWrite(candidateCase, { allowUnsupported: true });
 }
 
 async function deleteUnreferencedImageCandidates(caseStore, imageStore, candidateImageIds) {
@@ -217,6 +279,8 @@ export async function getAllCases() {
 
 export async function saveCaseToDb(db, caseItem, options = {}) {
   await validateCaseReportLibraryForWrite(caseItem);
+  await validateCaseIntelligenceLibraryForWrite(caseItem, { allowUnsupported: true });
+  await validateExistingIntelligenceLibraryBeforeWrite(db, caseItem, options);
   const save = async (caseStore, imageStore) => {
     const existingCase = caseItem?.id ? await caseStore.get(caseItem.id) : null;
     const { committedCase, candidateImageIds } = prepareCommittedCase(existingCase, caseItem, options);
@@ -275,6 +339,9 @@ export async function saveCasesAndImagesToDb(db, caseItems = [], imageItems = []
   if (ids.length !== cases.length || new Set(ids).size !== ids.length) {
     throw new Error("Atomic restore requires each case to have a unique id.");
   }
+  if (options.allowIntelligenceLibraryWrite !== true && cases.some((caseItem) => hasIntelligenceLibrary(caseItem))) {
+    throw new Error("Intelligence library changes require a controlled write adapter.");
+  }
   if (typeof db.transaction !== "function") {
     throw new Error("Atomic restore requires IndexedDB transaction support.");
   }
@@ -282,7 +349,10 @@ export async function saveCasesAndImagesToDb(db, caseItems = [], imageItems = []
   // Check cryptographic report integrity before opening IndexedDB work. Web
   // Crypto promises would otherwise risk allowing an IndexedDB transaction to
   // become inactive between requests.
-  await Promise.all(cases.map((caseItem) => validateCaseReportLibraryForWrite(caseItem)));
+  await Promise.all(cases.map(async (caseItem) => {
+    await validateCaseReportLibraryForWrite(caseItem);
+    await validateCaseIntelligenceLibraryForWrite(caseItem);
+  }));
 
   const tx = db.transaction([STORE_NAMES.cases, STORE_NAMES.images], "readwrite");
   try {

@@ -4,6 +4,7 @@ import { getCaseRevision } from "./caseRevision.js";
 import { normalizeGoalIds, normalizeGoals } from "./goalDomain.js";
 import { generateId } from "./id.js";
 import { mergeReportLibraries, preserveReportLibraryDuringNormalization } from "../report/reportLibrary.js";
+import { preserveIntelligenceLibraryDuringNormalization } from "../caseIntelligence/intelligenceLibrary.js";
 export { generateId } from "./id.js";
 
 const CASE_ISSUE_FIELDS = ["issues", "issueSchemaVersion", "nextIssueReferenceNumber", "retiredIssueReferences", "retiredIssues"];
@@ -1251,6 +1252,7 @@ export function normalizeCase(caseItem) {
   return {
     ...preserveCaseIssueData(caseItem),
     ...preserveReportLibraryDuringNormalization(caseItem),
+    ...preserveIntelligenceLibraryDuringNormalization(caseItem),
     ...(Object.hasOwn(caseItem || {}, "goals") ? { goals: normalizeGoals(caseItem.goals) } : {}),
     id: caseItem?.id || generateId(),
     ...(revision == null ? {} : { revision }),

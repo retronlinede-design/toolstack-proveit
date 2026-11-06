@@ -47,6 +47,11 @@ export function createEmptyIntelligenceLibrary(caseId) {
   return Object.fromEntries([["schemaVersion", INTELLIGENCE_LIBRARY_SCHEMA_VERSION], ["caseId", text(caseId)], ...MAP_NAMES.map((name) => [name, {}])]);
 }
 
+export function preserveIntelligenceLibraryDuringNormalization(caseItem) {
+  if (!Object.hasOwn(caseItem || {}, "intelligenceLibrary")) return {};
+  return { intelligenceLibrary: caseItem.intelligenceLibrary };
+}
+
 function validateScope(scope, errors, label = "Source scope") {
   if (!isObject(scope)) { errors.push(`${label} must be an object.`); return; }
   if (scope.type === "case") return;
