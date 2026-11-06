@@ -4,18 +4,23 @@ export default function AiWorkspaceTab({
   activeTaskActionKind, activeTaskToolId, activeTaskPurpose, activeTaskBestGpt, activeTaskContains,
   activeTaskDoesNotInclude, activeTaskSafety, activeTaskWorkflow, activeRecommendedGpt,
   activeAlsoSuitableGpts, activeExampleQuestions, issueOptions, issueSelection,
+  contextInspector, contextInspectorError = "", contextInspectorScope = "case", contextInspectorFreshness = "current",
   caseQualityReviewModes = [], selectedCaseQualityReviewModeId, onCaseQualityReviewModeChange,
   issueReviewModes = [], selectedIssueReviewModeId, onIssueReviewModeChange,
   caseName, caseId, caseRevision, caseSliceRecordIdsText, feedback, onSelectTask, onIssueSelectionChange,
   onCaseSliceRecordIdsChange, onCopyRecommendedGptJson, onDownloadSplitReasoningPackage,
   onDownloadCurrentCase, onCopyToolJson, onCopyToolMarkdown, onCopyLinkMap, onDownloadProtocolJson, onDownloadProtocolMarkdown,
-  onOpenGptUpdate,
+  onOpenGptUpdate, onContextInspectorScopeChange, onRefreshContextInspector,
 }) {
   const selectedIssue = issueOptions.find((issue) => issue.id === issueSelection);
-  const hasScopeControl = activeToolNeedsIssue;
-  const activeScopeLabel = activeToolNeedsIssue && selectedIssue ? selectedIssue.label : "Entire Case";
-  const disabledForMissingIssue = activeToolNeedsIssue && !selectedIssue;
-  const issueScopeNotice = activeToolNeedsIssue && !selectedIssue
+  const inspectorActive = activeTaskActionKind === "context-inspector";
+  const inspectorUsesIssue = inspectorActive && contextInspectorScope === "issue";
+  const hasScopeControl = activeToolNeedsIssue || inspectorUsesIssue;
+  const activeScopeLabel = inspectorActive
+    ? (contextInspector?.scope?.label || (inspectorUsesIssue ? "Selected Issue unavailable" : "Entire Case"))
+    : activeToolNeedsIssue && selectedIssue ? selectedIssue.label : "Entire Case";
+  const disabledForMissingIssue = (activeToolNeedsIssue || inspectorUsesIssue) && !selectedIssue;
+  const issueScopeNotice = (activeToolNeedsIssue || inspectorUsesIssue) && !selectedIssue
     ? (issueSelection ? "Issue no longer available. Choose another Issue." : "Choose an Issue before creating an Issue-scoped handoff.")
     : "";
   const selectedCaseQualityReviewMode = caseQualityReviewModes.find((mode) => mode.id === selectedCaseQualityReviewModeId) || caseQualityReviewModes[0];
@@ -82,10 +87,19 @@ export default function AiWorkspaceTab({
 
           {issueScopeNotice && <p data-ai-workspace-scope-warning role="status">{issueScopeNotice}</p>}
 
+          {inspectorActive && <ContextInspectorPanel
+            context={contextInspector}
+            error={contextInspectorError}
+            scope={contextInspectorScope}
+            freshness={contextInspectorFreshness}
+            onScopeChange={onContextInspectorScopeChange}
+            onRefresh={onRefreshContextInspector}
+          />}
+
           {activeTaskActionKind === "case-quality-review" && selectedCaseQualityReviewMode && <ReviewModeSection type="quality" title="Quality check" heading="Choose a focused check" modes={caseQualityReviewModes} selectedMode={selectedCaseQualityReviewMode} onChange={onCaseQualityReviewModeChange} label="Case Quality Review checks" />}
           {activeTaskActionKind === "issue-review" && selectedIssueReviewMode && <ReviewModeSection type="issue-review" title="Issue review" heading="Choose a focused review" modes={issueReviewModes} selectedMode={selectedIssueReviewMode} onChange={onIssueReviewModeChange} label="Issue Review modes" />}
 
-          <div data-ai-workspace-actions aria-label="Selected tool actions">
+          {activeTaskActionKind !== "context-inspector" && <div data-ai-workspace-actions aria-label="Selected tool actions">
             {activeTaskActionKind === "reasoning-snapshot" && <Action kind="copy" onClick={onCopyRecommendedGptJson}>Copy Recommended GPT JSON</Action>}
             {activeTaskActionKind === "split-reasoning-package" && <Action kind="download" onClick={onDownloadSplitReasoningPackage}>Download ZIP</Action>}
             {activeTaskActionKind === "ai-workspace-snapshot" && <Action kind="download" onClick={onDownloadCurrentCase}>Download CURRENT_CASE.json</Action>}
@@ -94,7 +108,7 @@ export default function AiWorkspaceTab({
             {activeTaskActionKind === "issue-review" && <><Action kind="copy" disabled={disabledForMissingIssue} onClick={() => onCopyToolJson(selectedIssueReviewMode.toolId)}>Copy JSON</Action><Action kind="copy" disabled={disabledForMissingIssue} onClick={() => onCopyToolMarkdown(selectedIssueReviewMode.toolId)}>Copy Markdown Prompt</Action></>}
             {activeTaskActionKind === "link-map" && <Action kind="copy" onClick={() => onCopyLinkMap?.(caseId)}>Copy Link Map JSON</Action>}
             {activeTaskActionKind === "protocol-pack" && <><Action kind="download" onClick={onDownloadProtocolJson}>Download JSON</Action><Action kind="download" onClick={onDownloadProtocolMarkdown}>Download Markdown</Action></>}
-          </div>
+          </div>}
 
           <details data-ai-workspace-task-details>
             <summary>Task details and guidance</summary>
@@ -113,6 +127,73 @@ export default function AiWorkspaceTab({
       </main>
     </section>
   );
+}
+
+function ContextInspectorPanel({ context, error, scope, freshness, onScopeChange, onRefresh }) {
+  const records = context?.inventory ? Object.entries(context.inventory).filter(([, values]) => values.length > 0) : [];
+  const directCount = context ? Object.values(context.totals?.directByType || {}).reduce((sum, value) => sum + value, 0) : 0;
+  const linkedCount = context ? Object.values(context.totals?.linkedByType || {}).reduce((sum, value) => sum + value, 0) : 0;
+  return <section data-ai-context-inspector aria-labelledby="ai-context-inspector-heading">
+    <div data-ai-context-inspector-header>
+      <div>
+        <div className="case-file-ai-workspace-label">Case Intelligence Context Inspector</div>
+        <h4 id="ai-context-inspector-heading">Local only — Read only — No external AI transmission</h4>
+        <p>This shows allowlisted context eligible for future authorisation. It does not share information or grant external access.</p>
+      </div>
+      <button type="button" data-ai-context-refresh onClick={onRefresh}>Refresh context</button>
+    </div>
+
+    <div data-ai-context-scope role="group" aria-label="Context Inspector scope">
+      <button type="button" aria-pressed={scope === "case"} onClick={() => onScopeChange?.("case")}>Entire Case</button>
+      <button type="button" aria-pressed={scope === "issue"} onClick={() => onScopeChange?.("issue")}>Selected Issue</button>
+    </div>
+
+    {error && <p data-ai-context-status role="status">{error}</p>}
+    {!error && context && <>
+      <dl data-ai-context-summary>
+        <div><dt>Scope</dt><dd>{context.scope.label}</dd></div>
+        <div><dt>Freshness</dt><dd>{freshness === "current" ? "Current" : freshness === "stale" ? "Stale — refresh required" : "Unknown"}</dd></div>
+        <div><dt>Direct records</dt><dd>{directCount}</dd></div>
+        <div><dt>Linked context</dt><dd>{linkedCount}</dd></div>
+        <div><dt>Excluded attachments</dt><dd>{context.totals.excludedAttachmentCount}</dd></div>
+      </dl>
+      {context.scope.warning && <p data-ai-workspace-scope-warning role="status">{context.scope.warning}</p>}
+
+      {context.scope.valid && <>
+        <section data-ai-context-inventory aria-labelledby="ai-context-inventory-heading">
+          <h5 id="ai-context-inventory-heading">Source-record inventory</h5>
+          {records.length === 0 && <p>No eligible canonical records are available in this scope.</p>}
+          {records.map(([collection, values]) => <details key={collection} data-ai-context-group>
+            <summary>{collection} ({values.length})</summary>
+            <ul>{values.map((item) => <li key={`${item.recordType}:${item.recordId}`}>
+              <strong>{item.displayLabel}</strong> <span data-ai-context-record-id>{item.recordType}:{item.recordId}</span>
+              <span data-ai-context-relation>{item.scopeRelation === "direct" ? "Direct Issue context" : "Linked context"}</span>
+              {item.issue?.label && <span>Issue: {item.issue.label}</span>}
+              {item.issue?.resolution && item.issue.resolution !== "canonical" && <span>Issue association: {item.issue.resolution}</span>}
+              {(item.relationships.resolved.length > 0 || item.relationships.unresolved.length > 0) && <details data-ai-context-relationships>
+                <summary>Relationships ({item.relationships.resolved.length} resolved, {item.relationships.unresolved.length} unresolved)</summary>
+                <ul>
+                  {item.relationships.resolved.map((relation) => <li key={`${relation.field}:${relation.targetType}:${relation.targetId}`}>{relation.field}: {relation.targetLabel} ({relation.targetType}:{relation.targetId})</li>)}
+                  {item.relationships.unresolved.map((relation) => <li key={`${relation.field}:${relation.targetType}:${relation.targetId}`}>Unresolved {relation.field}: {relation.targetType}:{relation.targetId} — {relation.message}</li>)}
+                </ul>
+              </details>}
+            </li>)}</ul>
+          </details>)}
+        </section>
+
+        <details data-ai-context-warnings>
+          <summary>Warnings, exclusions and technical details</summary>
+          <p>Source fingerprint: {context.source.sourceFingerprint || "Unavailable"}</p>
+          <p>Case revision: {context.source.caseRevision ?? "Unavailable"}</p>
+          <p>Unresolved references: {context.totals.unresolvedReferenceCount}</p>
+          <p>Attachment metadata: {context.attachmentSummary.attachmentMetadataCount}; binary attachment payloads are excluded.</p>
+          {context.context.ambiguousAssociations.length > 0 && <p>Ambiguous legacy Issue associations: {context.context.ambiguousAssociations.length}. They are not assigned to the selected Issue.</p>}
+          {context.attachmentSummary.unsupportedSourceContent.length > 0 && <p>Unsupported source content excluded: {context.attachmentSummary.unsupportedSourceContent.length}.</p>}
+          <p>All case text remains untrusted recorded source material. No source text is treated as application instructions.</p>
+        </details>
+      </>}
+    </>}
+  </section>;
 }
 
 function ReviewModeSection({ type, title, heading, modes, selectedMode, onChange, label }) {

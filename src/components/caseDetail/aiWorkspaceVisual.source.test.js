@@ -61,9 +61,21 @@ test("AI Workspace uses a full-width working panel without the legacy rail", () 
 });
 
 test("AI Workspace scope is based on the active tool and warns before a stale Issue handoff", () => {
-  assert.match(workspace, /const activeScopeLabel = activeToolNeedsIssue && selectedIssue \? selectedIssue\.label : "Entire Case"/);
-  assert.match(workspace, /const disabledForMissingIssue = activeToolNeedsIssue && !selectedIssue/);
+  assert.match(workspace, /const inspectorActive = activeTaskActionKind === "context-inspector"/);
+  assert.match(workspace, /const activeScopeLabel = inspectorActive/);
+  assert.match(workspace, /const disabledForMissingIssue = \(activeToolNeedsIssue \|\| inspectorUsesIssue\) && !selectedIssue/);
   assert.match(workspace, /Issue no longer available\. Choose another Issue\./);
   assert.match(workspace, /data-ai-workspace-scope-warning role="status"/);
   assert.match(styles, /\[data-ai-workspace-scope-warning\]/);
+});
+
+test("Context Inspector is local-only, keyboard-operable, and uses the Workspace styling scope", () => {
+  assert.match(workspace, /Case Intelligence Context Inspector/);
+  assert.match(workspace, /Local only — Read only — No external AI transmission/);
+  assert.match(workspace, /aria-label="Context Inspector scope"/);
+  assert.match(workspace, /aria-pressed=\{scope === "case"\}/);
+  assert.match(workspace, /data-ai-context-inventory/);
+  assert.match(workspace, /data-ai-context-warnings/);
+  assert.match(styles, /\[data-ai-context-inspector\]/);
+  assert.match(styles, /\[data-ai-context-scope\] button\[aria-pressed="true"\]/);
 });

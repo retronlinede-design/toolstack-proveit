@@ -42,6 +42,7 @@ import {
 } from "../export/gptProtocolPack.js";
 import { buildCaseReasoningExportPayload } from "../export/caseExport.js";
 import { buildAiWorkspaceCurrentCase, AI_WORKSPACE_CURRENT_CASE_FILENAME } from "../export/aiWorkspace.js";
+import { buildCaseIntelligenceContext, getCaseIntelligenceContextFreshness } from "../caseIntelligence/contextInspector.js";
 import { downloadJson } from "../browser/downloadJson.js";
 import { downloadSplitReasoningPackage } from "../export/splitReasoningPackage.js";
 import {
@@ -334,6 +335,8 @@ export default function CaseDetail({
   const [caseQualityReviewMode, setCaseQualityReviewMode] = useState(CASE_QUALITY_REVIEW_MODES[0].id);
   const [issueReviewMode, setIssueReviewMode] = useState(ISSUE_REVIEW_MODES[0].id);
   const [caseSliceRecordIdsText, setCaseSliceRecordIdsText] = useState("");
+  const [contextInspectorScope, setContextInspectorScope] = useState("case");
+  const [contextInspectorSnapshot, setContextInspectorSnapshot] = useState(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
   useEffect(() => {
@@ -344,6 +347,8 @@ export default function CaseDetail({
     setCaseQualityReviewMode(CASE_QUALITY_REVIEW_MODES[0].id);
     setIssueReviewMode(ISSUE_REVIEW_MODES[0].id);
     setCaseSliceRecordIdsText("");
+    setContextInspectorScope("case");
+    setContextInspectorSnapshot(null);
     setPreparedAiBrief(null);
     setAiBriefFeedback("");
     setAiDraftText("");
@@ -560,6 +565,37 @@ export default function CaseDetail({
     setAiToolsSequenceGroup("");
     setAiToolsFeedback("The selected Issue is no longer available. Choose an Issue before creating an Issue-scoped handoff.");
   }, [aiToolsSequenceGroup, timelineIssueOptions]);
+  const liveContextInspector = useMemo(() => {
+    if (!selectedCase) return { context: null, error: "This case is no longer available." };
+    try {
+      return {
+        context: buildCaseIntelligenceContext(selectedCase, {
+          scope: contextInspectorScope,
+          issueId: contextInspectorScope === "issue" ? aiToolsSequenceGroup : "",
+        }),
+        error: "",
+      };
+    } catch (error) {
+      return { context: null, error: error?.message || "Could not build the local Context Inspector." };
+    }
+  }, [selectedCase, contextInspectorScope, aiToolsSequenceGroup]);
+  const visibleContextInspector = contextInspectorSnapshot?.source?.caseId === selectedCase?.id
+    ? contextInspectorSnapshot
+    : liveContextInspector.context;
+  const contextInspectorFreshness = contextInspectorSnapshot
+    ? getCaseIntelligenceContextFreshness(contextInspectorSnapshot, selectedCase)
+    : "current";
+  useEffect(() => {
+    if (activeAiTask !== "case-intelligence-context-inspector" || contextInspectorSnapshot || !liveContextInspector.context) return;
+    setContextInspectorSnapshot(liveContextInspector.context);
+  }, [activeAiTask, contextInspectorSnapshot, liveContextInspector.context]);
+  const refreshContextInspector = () => {
+    if (liveContextInspector.context) setContextInspectorSnapshot(liveContextInspector.context);
+  };
+  const selectContextInspectorScope = (scope) => {
+    setContextInspectorScope(scope === "issue" ? "issue" : "case");
+    setContextInspectorSnapshot(null);
+  };
   const reportCentreIssues = useMemo(() => getReportCentreIssueOptions(selectedCase), [selectedCase]);
   const sequenceGroupAuditSelection = useMemo(() => {
     const issueId = safeText(sequenceGroupAuditIssueId).trim();
@@ -7362,6 +7398,10 @@ ${ungroupedSequenceText}
                 selectedIssueReviewModeId={selectedIssueReviewMode.id}
                 issueOptions={timelineIssueOptions}
                 issueSelection={aiToolsSequenceGroup}
+                contextInspector={visibleContextInspector}
+                contextInspectorError={liveContextInspector.error}
+                contextInspectorScope={contextInspectorScope}
+                contextInspectorFreshness={contextInspectorFreshness}
                 caseName={selectedCase.name}
                 caseId={selectedCase.id}
                 caseRevision={selectedCase.revision}
@@ -7370,7 +7410,9 @@ ${ungroupedSequenceText}
                 onSelectTask={selectAiWorkspaceTask}
                 onCaseQualityReviewModeChange={selectCaseQualityReviewMode}
                 onIssueReviewModeChange={selectIssueReviewMode}
-                onIssueSelectionChange={(value) => { setAiToolsSequenceGroup(value); setAiToolsFeedback(""); }}
+                onIssueSelectionChange={(value) => { setAiToolsSequenceGroup(value); setContextInspectorSnapshot(null); setAiToolsFeedback(""); }}
+                onContextInspectorScopeChange={selectContextInspectorScope}
+                onRefreshContextInspector={refreshContextInspector}
                 onCaseSliceRecordIdsChange={(value) => { setCaseSliceRecordIdsText(value); setAiToolsFeedback(""); }}
                 onCopyRecommendedGptJson={handleCopyRecommendedGptJson}
                 onDownloadSplitReasoningPackage={handleDownloadSplitReasoningPackage}
