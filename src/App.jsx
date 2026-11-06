@@ -26,7 +26,7 @@ import {
   restoreFullBackupQuickCapture,
 } from "./backup/fullBackup";
 import { createRestoreSession } from "./backup/restoreSession.js";
-import { preflightBackupPayload, validateBackupReportLibraryIntegrity, validateStoredCaseForNormalization } from "./backup/importPreflight.js";
+import { preflightBackupPayload, validateBackupIntelligenceLibraryIntegrity, validateBackupReportLibraryIntegrity, validateStoredCaseForNormalization } from "./backup/importPreflight.js";
 import { buildImportPreview, matchesImportPreviewBaseline } from "./backup/importPreview.js";
 import { downloadJson } from "./browser/downloadJson";
 import {
@@ -81,7 +81,7 @@ import {
   readSequenceGroupMetaStore,
 } from "./sequenceGroupMeta.js";
 import { normalizeCaseIssues } from "./domain/issueDomain.js";
-import { mergeImportedCases } from "./domain/caseImport.js";
+import { mergeImportedCasesWithIntelligence } from "./domain/caseImport.js";
 import { normalizeStoredCase } from "./domain/caseNormalization.js";
 import { buildTrackingRecordText, DEFAULT_TRACKING_RECORD_TABLE_TEXT, replaceTrackingRecordTableText } from "./domain/trackingRecordFormat.js";
 
@@ -2760,6 +2760,8 @@ export default function ProveItApp() {
     if (!preflight.ok) throw new Error(preflight.reason);
     const reportLibraryIntegrity = await validateBackupReportLibraryIntegrity(preflight.data);
     if (!reportLibraryIntegrity.ok) throw new Error(reportLibraryIntegrity.reason);
+    const intelligenceLibraryIntegrity = await validateBackupIntelligenceLibraryIntegrity(preflight.data);
+    if (!intelligenceLibraryIntegrity.ok) throw new Error(intelligenceLibraryIntegrity.reason);
     if (expectedPreviewBaseline && !matchesImportPreviewBaseline(expectedPreviewBaseline, {
       cases: currentCases,
       folders: readCaseFolders(),
@@ -2808,10 +2810,10 @@ export default function ProveItApp() {
         }
       }
 
-      const { mergedCases, normalizedCases } = mergeImportedCases(currentCases, incomingCases, incomingSequenceGroupMeta || {});
+      const { mergedCases, normalizedCases } = await mergeImportedCasesWithIntelligence(currentCases, incomingCases, incomingSequenceGroupMeta || {});
       // The cases and remapped full-backup binaries commit together. A stale
       // revision, image collision, or write failure aborts the entire import.
-      await saveCasesAndImages(mergedCases, isFullBackup ? restoreSession.stagedImages() : [], { operation: "restoreBackupPayload" });
+      await saveCasesAndImages(mergedCases, isFullBackup ? restoreSession.stagedImages() : [], { operation: "restoreBackupPayload", allowIntelligenceLibraryWrite: true });
       mergedCases.forEach((caseItem) => restoreSession.commit(caseItem));
       const importSuccesses = mergedCases.map((caseItem) => caseItem.name || caseItem.id || "Untitled case");
       const importFailures = [];

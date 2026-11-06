@@ -1,4 +1,5 @@
 import { classifyReportLibrary, validateReportLibraryIntegrity } from "../report/reportLibrary.js";
+import { classifyIntelligenceLibrary, validateIntelligenceLibraryIntegrity } from "../caseIntelligence/intelligenceLibrary.js";
 
 const CASE_COLLECTIONS = ["incidents", "evidence", "documents", "ledger", "strategy", "watchItems", "tasks", "parties", "issues"];
 const SUPPORTED_EXPORT_TYPES = new Set(["FULL_BACKUP_ALL", "FULL_BACKUP_CASE"]);
@@ -32,6 +33,11 @@ function validateCaseShape(caseItem, index, existingCaseIds) {
     const reportLibrary = classifyReportLibrary(caseItem.reportLibrary, { caseId: text(caseItem.id), allowPartial: true });
     if (reportLibrary.kind === "unsupported") return `${label}.reportLibrary uses an unsupported future schema version.`;
     if (!reportLibrary.valid) return `${label}.reportLibrary is invalid: ${reportLibrary.errors.join(" ")}`;
+  }
+  if (Object.hasOwn(caseItem, "intelligenceLibrary")) {
+    const intelligenceLibrary = classifyIntelligenceLibrary(caseItem.intelligenceLibrary, { caseId: text(caseItem.id) });
+    if (intelligenceLibrary.kind === "unsupported") return `${label}.intelligenceLibrary uses an unsupported future schema version.`;
+    if (!intelligenceLibrary.valid) return `${label}.intelligenceLibrary is invalid: ${intelligenceLibrary.errors.join(" ")}`;
   }
   return "";
 }
@@ -90,6 +96,15 @@ export async function validateBackupReportLibraryIntegrity(data) {
     if (!Object.hasOwn(caseItem || {}, "reportLibrary")) continue;
     const result = await validateReportLibraryIntegrity(caseItem.reportLibrary, { caseId: text(caseItem.id), allowPartial: true });
     if (!result.valid) return invalid(`Invalid import file: cases[${index}].reportLibrary failed integrity validation: ${result.errors.join(" ")}`);
+  }
+  return { ok: true };
+}
+
+export async function validateBackupIntelligenceLibraryIntegrity(data) {
+  for (const [index, caseItem] of (Array.isArray(data?.cases) ? data.cases : []).entries()) {
+    if (!Object.hasOwn(caseItem || {}, "intelligenceLibrary")) continue;
+    const result = await validateIntelligenceLibraryIntegrity(caseItem.intelligenceLibrary, { caseId: text(caseItem.id) });
+    if (!result.valid) return invalid(`Invalid import file: cases[${index}].intelligenceLibrary failed integrity validation: ${result.errors.join(" ")}`);
   }
   return { ok: true };
 }

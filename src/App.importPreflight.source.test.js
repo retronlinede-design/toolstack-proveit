@@ -6,7 +6,10 @@ const source = await readFile(new URL("./App.jsx", import.meta.url), "utf8");
 
 test("AUDIT-008: restore preflight runs before emergency backup, attachment restore, and the atomic canonical save", () => {
   const preflight = source.indexOf("const preflight = preflightBackupPayload(parsed");
+  const intelligenceIntegrity = source.indexOf("const intelligenceLibraryIntegrity = await validateBackupIntelligenceLibraryIntegrity(preflight.data)");
   assert.ok(preflight >= 0);
+  assert.ok(intelligenceIntegrity > preflight);
+  assert.ok(intelligenceIntegrity < source.indexOf("createEmergencyBackupFromDb(`restoreBackupPayload:before:${source}`)"));
   assert.ok(preflight < source.indexOf("createEmergencyBackupFromDb(`restoreBackupPayload:before:${source}`)"));
   assert.ok(source.indexOf("restoreFullBackupCase(caseItem", preflight) > preflight);
   assert.ok(source.indexOf("await saveCasesAndImages(mergedCases", preflight) > preflight);
@@ -16,6 +19,7 @@ test("atomic restore stages full-backup binaries and commits them with every mer
   assert.match(source, /deferWrites: isFullBackup/);
   assert.match(source, /restoreSession\.stagedImages\(\)/);
   assert.match(source, /saveCasesAndImages\(mergedCases/);
+  assert.match(source, /allowIntelligenceLibraryWrite: true/);
 });
 
 test("declared-complete full backups require every binary before the atomic save", () => {
