@@ -1346,7 +1346,9 @@ export default function ProveItApp() {
       });
       if (issueResult.conflicts.length) throw new Error(`Issue validation failed: ${issueResult.conflicts.map((item) => item.code).join(", ")}`);
       const canonicalCase = issueResult.caseData;
-      await saveCase(canonicalCase);
+      await saveCase(canonicalCase, {
+        allowIntelligenceLibraryWrite: options.allowIntelligenceLibraryWrite === true,
+      });
       setCases((prev) => prev.map((c) => (c.id === canonicalCase.id ? canonicalCase : c)));
       return true;
     } catch (error) {

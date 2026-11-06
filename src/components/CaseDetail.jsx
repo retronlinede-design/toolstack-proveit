@@ -43,6 +43,8 @@ import {
 import { buildCaseReasoningExportPayload } from "../export/caseExport.js";
 import { buildAiWorkspaceCurrentCase, AI_WORKSPACE_CURRENT_CASE_FILENAME } from "../export/aiWorkspace.js";
 import { buildCaseIntelligenceContext, getCaseIntelligenceContextFreshness } from "../caseIntelligence/contextInspector.js";
+import { assessIntelligenceProvenance } from "../caseIntelligence/intelligenceProvenance.js";
+import { buildManualIntelligenceItemCandidate } from "../caseIntelligence/intelligenceLibraryManagement.js";
 import { downloadJson } from "../browser/downloadJson.js";
 import { downloadSplitReasoningPackage } from "../export/splitReasoningPackage.js";
 import {
@@ -337,6 +339,8 @@ export default function CaseDetail({
   const [caseSliceRecordIdsText, setCaseSliceRecordIdsText] = useState("");
   const [contextInspectorScope, setContextInspectorScope] = useState("case");
   const [contextInspectorSnapshot, setContextInspectorSnapshot] = useState(null);
+  const [intelligenceLibraryFeedback, setIntelligenceLibraryFeedback] = useState("");
+  const [savingIntelligenceLibraryItem, setSavingIntelligenceLibraryItem] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
   useEffect(() => {
@@ -349,6 +353,8 @@ export default function CaseDetail({
     setCaseSliceRecordIdsText("");
     setContextInspectorScope("case");
     setContextInspectorSnapshot(null);
+    setIntelligenceLibraryFeedback("");
+    setSavingIntelligenceLibraryItem(false);
     setPreparedAiBrief(null);
     setAiBriefFeedback("");
     setAiDraftText("");
@@ -595,6 +601,40 @@ export default function CaseDetail({
   const selectContextInspectorScope = (scope) => {
     setContextInspectorScope(scope === "issue" ? "issue" : "case");
     setContextInspectorSnapshot(null);
+    setIntelligenceLibraryFeedback("");
+  };
+  const intelligenceProvenanceByRevision = useMemo(() => {
+    const revisions = selectedCase?.intelligenceLibrary?.intelligenceItemRevisions || {};
+    return Object.fromEntries(Object.entries(revisions).map(([id, revision]) => {
+      try { return [id, assessIntelligenceProvenance(revision, selectedCase)]; }
+      catch { return [id, { freshness: { state: "unknown", reason: "Stored provenance could not be assessed." }, citations: [] }]; }
+    }));
+  }, [selectedCase]);
+  const createManualIntelligenceItem = async (values) => {
+    if (!selectedCase || !visibleContextInspector?.scope?.valid || contextInspectorFreshness !== "current") {
+      setIntelligenceLibraryFeedback("Refresh a valid current Context Inspector scope before recording a note.");
+      return false;
+    }
+    setSavingIntelligenceLibraryItem(true);
+    setIntelligenceLibraryFeedback("");
+    try {
+      const candidate = await buildManualIntelligenceItemCandidate({ caseItem: selectedCase, context: visibleContextInspector, ...values });
+      const saved = await onUpdateCase(
+        { ...selectedCase, intelligenceLibrary: candidate.intelligenceLibrary },
+        { allowIntelligenceLibraryWrite: true },
+      );
+      if (!saved) {
+        setIntelligenceLibraryFeedback("The Intelligence Library note was not saved. Your note remains in the form and no immutable revision was created.");
+        return false;
+      }
+      setIntelligenceLibraryFeedback(`Manual ${candidate.item.type.replaceAll("_", " ")} saved as immutable revision ${candidate.revision.versionNumber}. It remains under review.`);
+      return true;
+    } catch (error) {
+      setIntelligenceLibraryFeedback(error?.message || "The Intelligence Library note could not be saved.");
+      return false;
+    } finally {
+      setSavingIntelligenceLibraryItem(false);
+    }
   };
   const reportCentreIssues = useMemo(() => getReportCentreIssueOptions(selectedCase), [selectedCase]);
   const sequenceGroupAuditSelection = useMemo(() => {
@@ -7413,6 +7453,11 @@ ${ungroupedSequenceText}
                 onIssueSelectionChange={(value) => { setAiToolsSequenceGroup(value); setContextInspectorSnapshot(null); setAiToolsFeedback(""); }}
                 onContextInspectorScopeChange={selectContextInspectorScope}
                 onRefreshContextInspector={refreshContextInspector}
+                intelligenceLibrary={selectedCase.intelligenceLibrary}
+                intelligenceProvenanceByRevision={intelligenceProvenanceByRevision}
+                intelligenceLibraryFeedback={intelligenceLibraryFeedback}
+                savingIntelligenceLibraryItem={savingIntelligenceLibraryItem}
+                onCreateManualIntelligenceItem={createManualIntelligenceItem}
                 onCaseSliceRecordIdsChange={(value) => { setCaseSliceRecordIdsText(value); setAiToolsFeedback(""); }}
                 onCopyRecommendedGptJson={handleCopyRecommendedGptJson}
                 onDownloadSplitReasoningPackage={handleDownloadSplitReasoningPackage}

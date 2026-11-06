@@ -1,4 +1,6 @@
 /** Presentation-only tab: CaseDetail retains all state, exports, and persistence. */
+import IntelligenceLibraryPanel from "./IntelligenceLibraryPanel";
+
 export default function AiWorkspaceTab({
   workspaceSections, activeTaskId, activeTask, activeToolNeedsIssue,
   activeTaskActionKind, activeTaskToolId, activeTaskPurpose, activeTaskBestGpt, activeTaskContains,
@@ -11,6 +13,8 @@ export default function AiWorkspaceTab({
   onCaseSliceRecordIdsChange, onCopyRecommendedGptJson, onDownloadSplitReasoningPackage,
   onDownloadCurrentCase, onCopyToolJson, onCopyToolMarkdown, onCopyLinkMap, onDownloadProtocolJson, onDownloadProtocolMarkdown,
   onOpenGptUpdate, onContextInspectorScopeChange, onRefreshContextInspector,
+  intelligenceLibrary, intelligenceProvenanceByRevision, intelligenceLibraryFeedback, savingIntelligenceLibraryItem,
+  onCreateManualIntelligenceItem,
 }) {
   const selectedIssue = issueOptions.find((issue) => issue.id === issueSelection);
   const inspectorActive = activeTaskActionKind === "context-inspector";
@@ -94,6 +98,15 @@ export default function AiWorkspaceTab({
             freshness={contextInspectorFreshness}
             onScopeChange={onContextInspectorScopeChange}
             onRefresh={onRefreshContextInspector}
+          />}
+          {inspectorActive && <IntelligenceLibraryPanel
+            context={contextInspector}
+            contextFreshness={contextInspectorFreshness}
+            library={intelligenceLibrary}
+            provenanceByRevision={intelligenceProvenanceByRevision}
+            feedback={intelligenceLibraryFeedback}
+            saving={savingIntelligenceLibraryItem}
+            onCreateManualItem={onCreateManualIntelligenceItem}
           />}
 
           {activeTaskActionKind === "case-quality-review" && selectedCaseQualityReviewMode && <ReviewModeSection type="quality" title="Quality check" heading="Choose a focused check" modes={caseQualityReviewModes} selectedMode={selectedCaseQualityReviewMode} onChange={onCaseQualityReviewModeChange} label="Case Quality Review checks" />}
