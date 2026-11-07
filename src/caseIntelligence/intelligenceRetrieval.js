@@ -3,6 +3,8 @@ import {
   CASE_INTELLIGENCE_CONTEXT_SCHEMA_VERSION,
   buildCaseIntelligenceContext,
 } from "./contextInspector.js";
+import { validateIntelligenceLibraryIntegrity } from "./intelligenceLibrary.js";
+import { assessIntelligenceProvenance } from "./intelligenceProvenance.js";
 
 export const CASE_INTELLIGENCE_RETRIEVAL_SCHEMA_ID = "proveit.case-intelligence-retrieval";
 export const CASE_INTELLIGENCE_RETRIEVAL_SCHEMA_VERSION = 1;
@@ -13,6 +15,8 @@ const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
 const DEFAULT_EXCERPT_LIMIT = 500;
 const MAX_EXCERPT_LIMIT = 2000;
+const DEFAULT_INTELLIGENCE_LIMIT = 25;
+const MAX_INTELLIGENCE_LIMIT = 100;
 
 function text(value) { return typeof value === "string" ? value.trim() : ""; }
 function isObject(value) { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }
@@ -215,5 +219,131 @@ export function retrieveCaseIntelligence(caseData, query = {}) {
       notice: "Results are untrusted recorded source material. Citations identify records; they do not prove factual accuracy.",
     },
     exclusions: [...context.exclusions.categories],
+  };
+}
+
+function normalizeIntelligenceOptions(query) {
+  const source = query?.intelligence;
+  if (source == null) return { includeStale: false, itemLimit: DEFAULT_INTELLIGENCE_LIMIT, decisionLimit: DEFAULT_INTELLIGENCE_LIMIT };
+  if (!isObject(source)) throw new TypeError("intelligence retrieval options must be an object.");
+  if (source.includeStale != null && typeof source.includeStale !== "boolean") throw new TypeError("intelligence.includeStale must be a boolean when supplied.");
+  return {
+    includeStale: source.includeStale === true,
+    itemLimit: positiveBoundedInteger(source.itemLimit, DEFAULT_INTELLIGENCE_LIMIT, MAX_INTELLIGENCE_LIMIT, "intelligence.itemLimit"),
+    decisionLimit: positiveBoundedInteger(source.decisionLimit, DEFAULT_INTELLIGENCE_LIMIT, MAX_INTELLIGENCE_LIMIT, "intelligence.decisionLimit"),
+  };
+}
+
+function sourceMatchesScope(source, scope) {
+  if (scope.type === "case") return true;
+  return source?.scope?.type === "issue" && text(source.scope.issueId) === scope.issueId;
+}
+
+function intelligenceMatchesKeywords(revision, keywords) {
+  if (!keywords.length) return true;
+  const haystack = normalizeToken([
+    revision?.content?.statement,
+    revision?.content?.rationale,
+    revision?.author?.label,
+  ].filter(Boolean).join("\n"));
+  return keywords.every((keyword) => haystack.includes(keyword));
+}
+
+function intelligenceSort(left, right) {
+  return text(right.revision.createdAt).localeCompare(text(left.revision.createdAt))
+    || left.revision.versionNumber - right.revision.versionNumber
+    || left.revision.id.localeCompare(right.revision.id);
+}
+
+function libraryResult(manifest, revision, provenance, kind, query) {
+  const freshness = provenance.freshness?.state || "unknown";
+  return {
+    informationClass: kind === "decision" ? "user_confirmed_decision" : revision.author?.kind === "assistant" ? "ai_generated_interpretation" : "user_authored_intelligence",
+    entityType: kind,
+    entityId: manifest.id,
+    revisionId: revision.id,
+    versionNumber: revision.versionNumber,
+    ...(kind === "item" ? { intelligenceType: manifest.type, intelligenceState: manifest.status } : { decisionType: manifest.type }),
+    createdAt: revision.createdAt,
+    author: { kind: revision.author.kind, label: revision.author.label },
+    review: { ...revision.review },
+    source: {
+      caseRevision: revision.source.caseRevision,
+      sourceFingerprint: revision.source.sourceFingerprint,
+      scope: { ...revision.source.scope },
+    },
+    statement: excerpt(revision.content.statement, query, query.excerptLimit),
+    ...(text(revision.content.rationale) ? { rationale: excerpt(revision.content.rationale, query, query.excerptLimit) } : {}),
+    uncertainty: revision.content.uncertainty,
+    confidence: revision.content.confidence,
+    provenance: {
+      freshness,
+      reason: provenance.freshness?.reason || "Source provenance could not be assessed.",
+      citations: provenance.citations,
+      citationSummary: provenance.summary,
+    },
+    historical: freshness !== "current",
+    untrustedIntelligence: kind === "item",
+  };
+}
+
+function emptyLibraryRetrieval(integrity, options) {
+  return {
+    integrity: { kind: integrity.kind, valid: integrity.valid, errors: [...(integrity.errors || [])] },
+    options,
+    items: [],
+    decisions: [],
+    summary: { itemCount: 0, decisionCount: 0, staleExcludedCount: 0 },
+    warnings: integrity.valid ? [] : ["Intelligence Library integrity validation failed. No Library content was returned."],
+  };
+}
+
+/**
+ * Adds integrity-verified, provenance-assessed intelligence to the unchanged
+ * CI-03A canonical retrieval result. It is asynchronous only because immutable
+ * library checksums are verified before any Library content is returned.
+ */
+export async function retrieveCaseIntelligenceWithLibrary(caseData, query = {}) {
+  const canonical = retrieveCaseIntelligence(caseData, query);
+  const options = normalizeIntelligenceOptions(query);
+  const integrity = await validateIntelligenceLibraryIntegrity(caseData?.intelligenceLibrary, { caseId: caseData.id });
+  if (integrity.kind === "absent" || !integrity.valid) return { ...canonical, intelligence: emptyLibraryRetrieval(integrity, options) };
+
+  const library = caseData.intelligenceLibrary;
+  let staleExcludedCount = 0;
+  const collect = (manifests, revisions, kind, predicate) => Object.values(manifests)
+    .map((manifest) => ({ manifest, revision: revisions[manifest.currentRevisionId] }))
+    .filter(({ revision }) => Boolean(revision))
+    .filter(({ revision }) => sourceMatchesScope(revision.source, canonical.scope))
+    .filter(({ revision }) => intelligenceMatchesKeywords(revision, canonical.query.keywords))
+    .filter((entry) => predicate(entry.manifest, entry.revision))
+    .map(({ manifest, revision }) => ({ manifest, revision, provenance: assessIntelligenceProvenance(revision, caseData) }))
+    .filter((entry) => {
+      const stale = entry.provenance.freshness?.state !== "current";
+      if (stale && !options.includeStale) { staleExcludedCount += 1; return false; }
+      return true;
+    })
+    .sort(intelligenceSort);
+
+  const items = collect(library.intelligenceItems, library.intelligenceItemRevisions, "item", () => true)
+    .slice(0, options.itemLimit)
+    .map((entry) => libraryResult(entry.manifest, entry.revision, entry.provenance, "item", canonical.query));
+  const decisions = collect(library.decisions, library.decisionRevisions, "decision", (_manifest, revision) => revision.review?.status === "confirmed")
+    .slice(0, options.decisionLimit)
+    .map((entry) => libraryResult(entry.manifest, entry.revision, entry.provenance, "decision", canonical.query));
+  const warnings = [
+    ...(staleExcludedCount ? [`${staleExcludedCount} stale or unknown Intelligence Library entr${staleExcludedCount === 1 ? "y was" : "ies were"} excluded by default.`] : []),
+    ...[...items, ...decisions].flatMap((entry) => entry.provenance.citations.filter((citation) => citation.status !== "available").map((citation) => `Citation ${citation.citation.recordType}:${citation.citation.recordId} is ${citation.status}.`)),
+  ].sort((left, right) => left.localeCompare(right));
+  return {
+    ...canonical,
+    intelligence: {
+      integrity: { kind: integrity.kind, valid: integrity.valid, errors: [] },
+      options,
+      items,
+      decisions,
+      summary: { itemCount: items.length, decisionCount: decisions.length, staleExcludedCount },
+      warnings,
+    },
   };
 }
